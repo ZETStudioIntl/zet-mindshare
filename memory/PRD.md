@@ -1,97 +1,92 @@
-# ZET Mindshare - PRD (Product Requirements Document)
+# ZET Mindshare - PRD
 
 ## Overview
 ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtınası aracı.
-
-## Original Problem Statement
-- Entegre ZETA AI ile beyin fırtınası, araştırma, analiz, görsel oluşturma
-- Ana renkler: #292f91 ve #4ca8ad, koyu mat tema, minimalist stil
-- 3 sütunlu editör: Toolbox, Canvas, Pages+ZETA
 
 ## Tech Stack
 - **Frontend:** React.js, TailwindCSS, Shadcn/UI, lucide-react
 - **Backend:** FastAPI, Python, MongoDB
 - **AI:** Gemini 3 Flash (text/translate), Nano Banana (images) via Emergent LLM Key
-- **Auth:** Emergent Google OAuth + JWT
 
 ## Code Architecture
 ```
 /app/
-├── backend/
-│   ├── server.py          # FastAPI: auth, docs CRUD, ZETA AI, translate, image gen
-│   ├── tests/test_api.py  # 24 API tests
-│   └── .env
+├── backend/server.py          # FastAPI: auth, docs, ZETA, translate, image gen
 ├── frontend/src/
 │   ├── components/editor/
-│   │   ├── CanvasArea.js      # Canvas: text editing, drawing, shapes, mass select, crop, eraser, pen
-│   │   ├── DraggablePanel.js  # Floating draggable panel wrapper
-│   │   ├── RightPanel.js      # Pages + ZETA AI chat (w-72)
-│   │   └── Toolbox.js         # Tool grid, search, tooltips (w-72)
-│   ├── contexts/ (AuthContext, LanguageContext)
-│   ├── hooks/useCanvasHistory.js
-│   ├── lib/editorConstants.js  # 20 TOOLS, FONTS, COLORS, PAGE_SIZES, TRANSLATE_LANGUAGES
-│   └── pages/ (Dashboard, Editor, LoginPage)
-└── memory/PRD.md
+│   │   ├── CanvasArea.js      # Canvas: WYSIWYG text, draw, shapes, mass select, crop, eraser, pen, marking
+│   │   ├── DraggablePanel.js  # Floating panel wrapper
+│   │   ├── RightPanel.js      # Pages + ZETA (w-72, forceSection for mobile)
+│   │   └── Toolbox.js         # Tool grid (w-72), search, tooltips
+│   ├── hooks/useCanvasHistory.js  # Undo/redo
+│   ├── lib/editorConstants.js     # 23 TOOLS, FONTS, COLORS, etc.
+│   └── pages/Editor.js           # State orchestrator + mobile/desktop layouts
 ```
 
-## Implemented Features (Complete)
+## All Implemented Features
 
 ### Core Editor
 - [x] 3-column layout: Toolbox (w-72), Canvas, Pages+ZETA (w-72)
-- [x] WYSIWYG text editing (contentEditable) - click to create, type, Enter for new lines
-- [x] Undo/Redo with history management
+- [x] WYSIWYG text editing (contentEditable)
+- [x] Undo/Redo (history + Ctrl+Z/Ctrl+Y shortcuts + header buttons)
 - [x] Auto-save every 2 seconds
-- [x] Multi-page support (add, delete, navigate)
-- [x] Custom cursors per tool (text=text, hand=grab, draw=crosshair, eraser=circle)
+- [x] Multi-page support with persistent state on page change
+- [x] Custom cursors per tool
 
-### 20 Tools
-- [x] Text, TextSize, Font, Color Picker, Hand (pan/zoom)
-- [x] Image Upload, AI Image (Nano Banana with preview before adding)
-- [x] Draw (pencil with size/opacity/color), Pen (vector drawing)
-- [x] Eraser (removes draw paths with adjustable size)
-- [x] Mass Select (rectangle-based selection)
-- [x] Cut (delete elements + crop mode for images)
-- [x] Translate (AI translation with 12 languages, preview + add)
-- [x] Add Page, Page Size (A4/A5/Letter/Legal/Square/Custom)
-- [x] Voice Reader (skip back/forward, clickable/draggable timeline)
-- [x] Shapes (Triangle, Square, Circle, Star with resize + add image)
+### 23 Tools
+- [x] **Text** - Click canvas to create, Enter for new lines
+- [x] **Word Type** - Bold, Italic, Underline, Strikethrough toggles
+- [x] **Text Size** - Slider + number input (8-72pt)
+- [x] **Font** - 20 fonts with search
+- [x] **Line Spacing** - 1.0, 1.15, 1.5, 2.0, 2.5, 3.0
+- [x] **Color Picker** - 18 presets + custom color
+- [x] **Hand** - Pan/zoom + drag elements
+- [x] **Image** - Upload with context menu (Delete + Change Image)
+- [x] **AI Image** - Nano Banana with preview before adding to doc
+- [x] **Draw** - Pencil with size/opacity/color
+- [x] **Pen** - Vector drawing (click points, double-click finish)
+- [x] **Eraser** - Removes draw paths (adjustable size)
+- [x] **Marking** - Highlighter with color/opacity/size
+- [x] **Select** - Rectangle selection (multi-select)
+- [x] **Cut** - Delete elements + image crop mode (auto-detect)
+- [x] **Translate** - AI translation (12 languages) with preview + apply
+- [x] **Add Page**, **Page Size** (5 presets + custom)
+- [x] **Voice Reader** - Skip back/forward, clickable/draggable timeline
+- [x] **Shapes** - Triangle, Square, Circle, Star (resize + add image)
+
+### Context Menus
+- [x] Images: Three-dot menu → Delete, Change Image (same position)
+- [x] Shapes: Three-dot menu → Delete, Add Image
+
+### Mobile UI
+- [x] Separate mobile layout (doesn't touch PC version)
+- [x] Full-width canvas
+- [x] Horizontal scrolling bottom toolbar
+- [x] Floating action buttons for Pages and ZETA
+- [x] Slide-in panels for Pages/ZETA
 
 ### AI Integration
 - [x] ZETA Chat (Gemini 3 Flash) - multi-lingual assistant
-- [x] AI Image Generation (Nano Banana) - with preview panel
-- [x] AI Translation (Gemini 3 Flash) - 12 target languages
+- [x] AI Image (Nano Banana) - preview panel before adding
+- [x] AI Translation (Gemini 3 Flash) - 12 languages
 
 ### Other
-- [x] Google Auth (Emergent OAuth)
-- [x] JWT session management
-- [x] Dashboard with file management
-- [x] Quick notes
-- [x] Multi-language UI (EN/TR)
-- [x] Draggable floating panels
-- [x] Tooltips on all tools
-- [x] Collapsible panels
+- [x] Google Auth, JWT sessions, Dashboard, Quick Notes
+- [x] Multi-language UI (EN/TR), Draggable panels, Tooltips
 
 ## Key API Endpoints
-- `POST /api/auth/session`, `GET /api/auth/me`
-- `GET/POST/PUT/DELETE /api/documents`, `/api/documents/{doc_id}`
-- `POST /api/zeta/chat`, `/api/zeta/generate-image`, `/api/zeta/translate`
-
-## DB Schema
-- `users`, `documents` (with pages[].elements[], drawPaths[]), `quick_notes`, `user_sessions`, `zeta_chats`
+- Auth: `/api/auth/session`, `/api/auth/me`
+- Docs: `/api/documents`, `/api/documents/{id}`
+- AI: `/api/zeta/chat`, `/api/zeta/generate-image`, `/api/zeta/translate`
 
 ## Testing History
 - iteration_7: Backend 22/22, Frontend 25/25 (100%)
 - iteration_8: Backend 24/24, Frontend 25/25 (100%)
+- iteration_9: Backend 24/24, Frontend 39/39 (100%)
 
 ## Prioritized Backlog
-### P1
-- Document export (PDF/PNG)
-- Vertical multi-page scrolling (like MS Word)
-- Advanced typography (bold, italic, alignment)
-### P2
-- Google Drive/iCloud real integration (currently MOCKED)
-- Subscription/payment system
-- Real-time collaboration
-- Template library
+### P1: Document export (PDF/PNG), Vertical multi-page scrolling
+### P2: Google Drive/iCloud real integration (MOCKED), Subscription/payments
+### P3: Real-time collaboration, Template library
 
 ## MOCKED: Google Drive, iCloud integrations
