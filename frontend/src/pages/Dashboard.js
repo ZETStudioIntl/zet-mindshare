@@ -216,7 +216,7 @@ const Dashboard = () => {
       <main className="flex-1 p-4 max-w-4xl mx-auto w-full">
         {/* Search */}
         <div className="relative mb-6">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
           <input
             type="text"
             placeholder={t('searchDocuments')}
