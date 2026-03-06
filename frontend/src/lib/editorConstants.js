@@ -2,7 +2,7 @@ import {
   Type, Image, Hand, FileText, Baseline, ALargeSmall,
   Volume2, FilePlus, Triangle, Square, Circle, Star,
   Pencil, Palette, Scissors, Wand2, MousePointer2,
-  Eraser, PenTool, Languages
+  Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -28,8 +28,10 @@ export const PRESET_COLORS = [
 
 export const TOOLS = [
   { id: 'text', icon: Type, nameKey: 'text' },
+  { id: 'wordtype', icon: Bold, nameKey: 'wordType' },
   { id: 'textsize', icon: Baseline, nameKey: 'textSize' },
   { id: 'font', icon: ALargeSmall, nameKey: 'font' },
+  { id: 'linespacing', icon: AlignJustify, nameKey: 'lineSpacing' },
   { id: 'color', icon: Palette, nameKey: 'colorPicker' },
   { id: 'hand', icon: Hand, nameKey: 'pan' },
   { id: 'image', icon: Image, nameKey: 'image' },
@@ -37,6 +39,7 @@ export const TOOLS = [
   { id: 'draw', icon: Pencil, nameKey: 'pencil' },
   { id: 'pen', icon: PenTool, nameKey: 'penTool' },
   { id: 'eraser', icon: Eraser, nameKey: 'eraser' },
+  { id: 'marking', icon: Highlighter, nameKey: 'marking' },
   { id: 'select', icon: MousePointer2, nameKey: 'select' },
   { id: 'cut', icon: Scissors, nameKey: 'crop' },
   { id: 'translate', icon: Languages, nameKey: 'translate' },
@@ -63,6 +66,8 @@ export const TRANSLATE_LANGUAGES = [
   { code: 'zh', name: '中文' },
   { code: 'ar', name: 'العربية' },
 ];
+
+export const LINE_SPACINGS = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0];
 
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];
 export const DEFAULT_FONT_SIZE = 16;

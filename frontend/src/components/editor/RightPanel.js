@@ -16,10 +16,13 @@ export const RightPanel = ({
   docId,
   charCount,
   canvasContainerRef,
+  forceSection,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
   const [zetaOpen, setZetaOpen] = useState(true);
+  const showPages = forceSection ? forceSection === 'pages' : true;
+  const showZeta = forceSection ? forceSection === 'zeta' : true;
   const [zetaMessages, setZetaMessages] = useState([]);
   const [zetaInput, setZetaInput] = useState('');
   const [zetaLoading, setZetaLoading] = useState(false);
@@ -51,6 +54,7 @@ export const RightPanel = ({
   return (
     <div data-testid="right-panel" className="w-72 border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
       {/* Pages Section */}
+      {showPages && (
       <div className="border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="p-2 flex items-center justify-between">
           <span className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</span>
@@ -107,8 +111,10 @@ export const RightPanel = ({
           </div>
         )}
       </div>
+      )}
 
       {/* ZETA Section */}
+      {showZeta && (
       <div className="flex-1 flex flex-col min-h-0">
         <div className="p-2 border-b flex items-center justify-between" style={{ borderColor: 'var(--zet-border)' }}>
           <div className="flex items-center gap-1.5">
@@ -168,6 +174,7 @@ export const RightPanel = ({
           </>
         )}
       </div>
+      )}
     </div>
   );
 };

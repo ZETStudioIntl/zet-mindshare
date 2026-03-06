@@ -78,6 +78,9 @@ const translations = {
     delete: 'Delete',
     penTool: 'Pen',
     translate: 'Translate',
+    lineSpacing: 'Line Spacing',
+    wordType: 'Text Style',
+    marking: 'Highlighter',
   },
   tr: {
     // Login
@@ -156,6 +159,9 @@ const translations = {
     delete: 'Sil',
     penTool: 'Kalem (Vektörel)',
     translate: 'Çevir',
+    lineSpacing: 'Satır Aralığı',
+    wordType: 'Yazı Tipi',
+    marking: 'Fosforlu Kalem',
   }
 };
 

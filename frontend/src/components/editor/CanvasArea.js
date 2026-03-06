@@ -1,9 +1,10 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { MoreVertical } from 'lucide-react';
+import { MoreVertical, Trash2, Image, RefreshCw } from 'lucide-react';
 
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
-    const h = (el.fontSize || 16) * Math.max(1, (el.content || '').split('\n').length) * 1.5;
+    const lines = Math.max(1, (el.content || '').split('\n').length);
+    const h = (el.fontSize || 16) * lines * (el.lineHeight || 1.5);
     return x >= el.x && x <= el.x + (el.width || 400) && y >= el.y && y <= el.y + h;
   }
   if (el.type === 'image' || el.type === 'shape') {
@@ -44,11 +45,6 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
     }
   }, [isEditing]);
 
-  const handleBlur = () => {
-    if (!ref.current) return;
-    onCommit(el.id, ref.current.innerText);
-  };
-
   return (
     <div
       ref={ref}
@@ -56,18 +52,21 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
       contentEditable={isEditing}
       suppressContentEditableWarning
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
-      onBlur={handleBlur}
+      onBlur={() => { if (ref.current) onCommit(el.id, ref.current.innerText); }}
       onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
       className={`outline-none ${isEditing ? 'ring-1 ring-blue-400/50 rounded-sm min-h-[1em]' : ''}`}
       style={{
         fontSize: (el.fontSize || 16) * zoom,
         fontFamily: el.fontFamily || 'Arial',
         color: el.color || '#000',
+        fontWeight: el.bold ? 'bold' : 'normal',
+        fontStyle: el.italic ? 'italic' : 'normal',
+        textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none',
         maxWidth: maxWidth * zoom,
         minWidth: isEditing ? 60 * zoom : undefined,
         wordWrap: 'break-word',
         whiteSpace: 'pre-wrap',
-        lineHeight: 1.5,
+        lineHeight: el.lineHeight || 1.5,
         cursor: isEditing ? 'text' : 'default',
         caretColor: 'var(--zet-primary)',
         padding: isEditing ? '2px 4px' : 0,
@@ -78,17 +77,40 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
   );
 };
 
+// Context menu for images/shapes
+const ElementMenu = ({ el, onDelete, onChangeImage, onAddImageToShape, onClose }) => (
+  <div data-testid={`element-menu-${el.id}`} className="absolute top-5 right-0 zet-card p-1 z-50 min-w-[120px] shadow-xl animate-fadeIn" onClick={e => e.stopPropagation()}>
+    {el.type === 'image' && (
+      <button data-testid={`change-image-${el.id}`} onClick={() => { onChangeImage(el.id); onClose(); }}
+        className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
+        <RefreshCw className="h-3 w-3" /> Change Image
+      </button>
+    )}
+    {el.type === 'shape' && (
+      <button data-testid={`shape-add-image-${el.id}`} onClick={() => { onAddImageToShape(el.id); onClose(); }}
+        className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
+        <Image className="h-3 w-3" /> Add Image
+      </button>
+    )}
+    <button data-testid={`delete-element-${el.id}`} onClick={() => { onDelete(el.id); onClose(); }}
+      className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-red-500/20 flex items-center gap-2" style={{ color: '#f87171' }}>
+      <Trash2 className="h-3 w-3" /> Delete
+    </button>
+  </div>
+);
+
 export const CanvasArea = ({
-  document: doc, currentPage, setCurrentPage,
+  document: doc, currentPage, changePage,
   canvasElements, setCanvasElements, drawPaths, setDrawPaths,
   pageSize, zoom, setZoom, activeTool,
-  currentFontSize, currentFont, currentColor,
+  currentFontSize, currentFont, currentColor, currentLineHeight,
   drawSize, drawOpacity, eraserSize,
+  markingColor, markingOpacity, markingSize,
   selectedElement, setSelectedElement,
   selectedElements, setSelectedElements,
-  onSaveHistory, showShapeMenu, setShowShapeMenu,
-  setShowImageUpload, setUploadForShape,
-  canvasContainerRef, onElementSelect,
+  onSaveHistory, canvasContainerRef,
+  onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
+  isBold, isItalic, isUnderline, isStrikethrough,
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
@@ -97,16 +119,15 @@ export const CanvasArea = ({
   const [resizing, setResizing] = useState(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [currentPath, setCurrentPath] = useState([]);
-  // Rectangle selection
   const [selectionRect, setSelectionRect] = useState(null);
   const [selectionStart, setSelectionStart] = useState(null);
-  // Pen tool
   const [penPoints, setPenPoints] = useState([]);
-  // Crop mode
   const [cropTarget, setCropTarget] = useState(null);
   const [cropRect, setCropRect] = useState(null);
   const [cropDragging, setCropDragging] = useState(false);
   const [cropStart, setCropStart] = useState(null);
+  const [elementMenu, setElementMenu] = useState(null);
+  const justSelectedRef = useRef(false);
 
   useEffect(() => {
     const handleWheel = (e) => {
@@ -119,11 +140,21 @@ export const CanvasArea = ({
     return () => window.removeEventListener('wheel', handleWheel);
   }, [activeTool, canvasContainerRef, setZoom]);
 
+  // Auto-enter crop mode when cut tool selected with image already selected
   useEffect(() => {
-    if (activeTool !== 'text' && activeTool !== 'hand') setEditingId(null);
+    if (activeTool === 'cut' && selectedElement) {
+      const el = canvasElements.find(e => e.id === selectedElement);
+      if (el?.type === 'image') {
+        setCropTarget(el.id);
+        setCropRect({ x: el.x + 10, y: el.y + 10, w: el.width - 20, h: el.height - 20 });
+        return;
+      }
+    }
     if (activeTool !== 'cut') { setCropTarget(null); setCropRect(null); }
+    if (activeTool !== 'text' && activeTool !== 'hand') setEditingId(null);
     if (activeTool !== 'pen') setPenPoints([]);
-  }, [activeTool]);
+    setElementMenu(null);
+  }, [activeTool, canvasElements, selectedElement]);
 
   const getCoords = useCallback((e, el) => {
     const rect = el.getBoundingClientRect();
@@ -133,54 +164,48 @@ export const CanvasArea = ({
   const handleTextCommit = useCallback((id, text) => {
     if (!text.trim()) {
       const filtered = canvasElements.filter(el => el.id !== id);
-      setCanvasElements(filtered);
-      onSaveHistory(filtered);
+      setCanvasElements(filtered); onSaveHistory(filtered);
     } else {
       const updated = canvasElements.map(el => el.id === id ? { ...el, content: text } : el);
-      setCanvasElements(updated);
-      onSaveHistory(updated);
+      setCanvasElements(updated); onSaveHistory(updated);
     }
     setEditingId(null);
   }, [canvasElements, setCanvasElements, onSaveHistory]);
 
-  // Apply crop
   const applyCrop = useCallback(() => {
     if (!cropTarget || !cropRect) return;
     const el = canvasElements.find(e => e.id === cropTarget);
     if (!el || el.type !== 'image') return;
-
     const canvas = window.document.createElement('canvas');
     const img = new window.Image();
     img.crossOrigin = 'anonymous';
     img.onload = () => {
       const scaleX = img.naturalWidth / el.width;
       const scaleY = img.naturalHeight / el.height;
-      const sx = (cropRect.x - el.x) * scaleX;
-      const sy = (cropRect.y - el.y) * scaleY;
+      const sx = Math.max(0, (cropRect.x - el.x) * scaleX);
+      const sy = Math.max(0, (cropRect.y - el.y) * scaleY);
       const sw = cropRect.w * scaleX;
       const sh = cropRect.h * scaleY;
       canvas.width = sw; canvas.height = sh;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-      const croppedSrc = canvas.toDataURL('image/png');
+      canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
       const updated = canvasElements.map(e =>
-        e.id === cropTarget ? { ...e, src: croppedSrc, x: cropRect.x, y: cropRect.y, width: cropRect.w, height: cropRect.h } : e
+        e.id === cropTarget ? { ...e, src: canvas.toDataURL('image/png'), x: cropRect.x, y: cropRect.y, width: cropRect.w, height: cropRect.h } : e
       );
-      setCanvasElements(updated);
-      onSaveHistory(updated);
+      setCanvasElements(updated); onSaveHistory(updated);
       setCropTarget(null); setCropRect(null);
     };
     img.src = el.src;
   }, [canvasElements, cropRect, cropTarget, onSaveHistory, setCanvasElements]);
 
   const handleCanvasClick = useCallback((e, pageIdx) => {
-    if (dragging || resizing || pageIdx !== currentPage) {
-      if (pageIdx !== currentPage) setCurrentPage(pageIdx);
-      return;
-    }
+    if (dragging || resizing) return;
+    if (pageIdx !== currentPage) { changePage(pageIdx); return; }
+    // Skip if we just finished a rectangle selection
+    if (justSelectedRef.current) { justSelectedRef.current = false; return; }
+
     const { x, y } = getCoords(e, e.currentTarget);
     if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
-    setShowShapeMenu(null);
+    setElementMenu(null);
 
     if (activeTool === 'text') {
       const clicked = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
@@ -190,12 +215,13 @@ export const CanvasArea = ({
         type: 'text', x: Math.max(10, x), y: Math.max(10, y),
         content: '', fontSize: currentFontSize, fontFamily: currentFont,
         color: currentColor, width: pageSize.width - x - 20,
+        lineHeight: currentLineHeight, bold: isBold, italic: isItalic,
+        underline: isUnderline, strikethrough: isStrikethrough,
       };
       const updated = [...canvasElements, newEl];
-      setCanvasElements(updated);
-      setEditingId(newEl.id); setSelectedElement(newEl.id);
+      setCanvasElements(updated); setEditingId(newEl.id); setSelectedElement(newEl.id);
     } else if (activeTool === 'image') {
-      setShowImageUpload(true);
+      // handled by Editor.js
     } else if (['triangle', 'square', 'circle', 'star'].includes(activeTool)) {
       const el = { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null };
       const updated = [...canvasElements, el];
@@ -209,18 +235,16 @@ export const CanvasArea = ({
       } else { setSelectedElement(null); setSelectedElements([]); setEditingId(null); }
     } else if (activeTool === 'cut') {
       const clicked = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
-      if (clicked) {
-        if (clicked.type === 'image' && !cropTarget) {
-          setCropTarget(clicked.id);
-          setCropRect({ x: clicked.x + 10, y: clicked.y + 10, w: clicked.width - 20, h: clicked.height - 20 });
-          setSelectedElement(clicked.id);
-        } else if (cropTarget && clicked.id === cropTarget) {
-          // Already in crop mode, do nothing
-        } else {
+      if (clicked?.type === 'image' && !cropTarget) {
+        setCropTarget(clicked.id); setSelectedElement(clicked.id);
+        setCropRect({ x: clicked.x + 10, y: clicked.y + 10, w: clicked.width - 20, h: clicked.height - 20 });
+      } else if (!cropTarget || (clicked && clicked.id !== cropTarget)) {
+        if (clicked) {
           const updated = canvasElements.filter(el => el.id !== clicked.id);
           setCanvasElements(updated); onSaveHistory(updated); setSelectedElement(null);
         }
-      } else { setCropTarget(null); setCropRect(null); }
+        setCropTarget(null); setCropRect(null);
+      }
     } else if (activeTool === 'pen') {
       setPenPoints(prev => [...prev, { x, y }]);
     } else if (activeTool === 'translate') {
@@ -231,9 +255,8 @@ export const CanvasArea = ({
       if (clicked) { setSelectedElement(clicked.id); }
       else { setSelectedElement(null); setSelectedElements([]); }
     }
-  }, [activeTool, canvasElements, cropTarget, currentColor, currentFont, currentFontSize, currentPage, dragging, getCoords, onElementSelect, onSaveHistory, pageSize, resizing, setCanvasElements, setCurrentPage, setSelectedElement, setSelectedElements, setShowImageUpload, setShowShapeMenu]);
+  }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, dragging, getCoords, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, resizing, setCanvasElements, setSelectedElement, setSelectedElements]);
 
-  // Pen double-click to finish path
   const handleCanvasDoubleClick = useCallback((e, pageIdx) => {
     if (activeTool === 'pen' && penPoints.length > 1 && pageIdx === currentPage) {
       setDrawPaths(prev => [...prev, { points: penPoints, size: 2, opacity: 100, color: currentColor, isPen: true }]);
@@ -244,27 +267,19 @@ export const CanvasArea = ({
   const handleMouseDown = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;
     const { x, y } = getCoords(e, e.currentTarget);
-
-    if (activeTool === 'draw' || activeTool === 'eraser') {
-      setIsDrawing(true);
-      setCurrentPath([{ x, y }]);
-      return;
+    if (activeTool === 'draw' || activeTool === 'eraser' || activeTool === 'marking') {
+      setIsDrawing(true); setCurrentPath([{ x, y }]); return;
     }
     if (activeTool === 'select') {
-      setSelectionStart({ x, y });
-      setSelectionRect({ x, y, w: 0, h: 0 });
-      return;
+      setSelectionStart({ x, y }); setSelectionRect({ x, y, w: 0, h: 0 }); return;
     }
     if (activeTool === 'cut' && cropTarget && cropRect) {
-      setCropDragging(true);
-      setCropStart({ x, y, rect: { ...cropRect } });
-      return;
+      setCropDragging(true); setCropStart({ x, y, rect: { ...cropRect } }); return;
     }
     if (selectedElement && (activeTool === 'hand' || activeTool === 'text')) {
       const el = canvasElements.find(el => el.id === selectedElement);
       if (el && isPointInElement(x, y, el) && editingId !== el.id) {
-        setDragging(el.id);
-        setDragOffset({ x: x - el.x, y: y - el.y });
+        setDragging(el.id); setDragOffset({ x: x - el.x, y: y - el.y });
       }
     }
   }, [activeTool, canvasElements, cropRect, cropTarget, currentPage, editingId, getCoords, selectedElement]);
@@ -272,203 +287,166 @@ export const CanvasArea = ({
   const handleMouseMove = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;
     const { x, y } = getCoords(e, e.currentTarget);
-
-    if ((activeTool === 'draw' || activeTool === 'eraser') && isDrawing) {
+    if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) {
+      setCurrentPath(prev => [...prev, { x, y }]); return;
+    }
+    if (activeTool === 'eraser' && isDrawing) {
       setCurrentPath(prev => [...prev, { x, y }]);
-      // Eraser: remove paths that are near the cursor
-      if (activeTool === 'eraser') {
-        const r = (eraserSize || 15);
-        setDrawPaths(prev => prev.filter(path =>
-          !path.points.some(p => Math.abs(p.x - x) < r && Math.abs(p.y - y) < r)
-        ));
-      }
+      const r = (eraserSize || 15);
+      setDrawPaths(prev => prev.filter(path => !path.points.some(p => Math.abs(p.x - x) < r && Math.abs(p.y - y) < r)));
       return;
     }
     if (activeTool === 'select' && selectionStart) {
-      const sx = Math.min(selectionStart.x, x), sy = Math.min(selectionStart.y, y);
-      const sw = Math.abs(x - selectionStart.x), sh = Math.abs(y - selectionStart.y);
-      setSelectionRect({ x: sx, y: sy, w: sw, h: sh });
+      setSelectionRect({ x: Math.min(selectionStart.x, x), y: Math.min(selectionStart.y, y), w: Math.abs(x - selectionStart.x), h: Math.abs(y - selectionStart.y) });
       return;
     }
     if (cropDragging && cropStart) {
-      const dx = x - cropStart.x, dy = y - cropStart.y;
-      setCropRect({ x: cropStart.rect.x + dx, y: cropStart.rect.y + dy, w: cropStart.rect.w, h: cropStart.rect.h });
+      setCropRect({ x: cropStart.rect.x + x - cropStart.x, y: cropStart.rect.y + y - cropStart.y, w: cropStart.rect.w, h: cropStart.rect.h });
       return;
     }
     if (dragging) {
       const el = canvasElements.find(el => el.id === dragging);
-      if (el) {
-        const nx = Math.max(0, Math.min(pageSize.width - (el.width || 100), x - dragOffset.x));
-        const ny = Math.max(0, Math.min(pageSize.height - (el.height || 20), y - dragOffset.y));
-        setCanvasElements(prev => prev.map(item => item.id === dragging ? { ...item, x: nx, y: ny } : item));
-      }
+      if (el) setCanvasElements(prev => prev.map(item => item.id === dragging ? { ...item, x: Math.max(0, x - dragOffset.x), y: Math.max(0, y - dragOffset.y) } : item));
     }
     if (resizing) {
       setCanvasElements(prev => prev.map(el => el.id === resizing.id ? { ...el, width: Math.max(30, x - resizing.startX), height: Math.max(30, y - resizing.startY) } : el));
     }
-  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, dragOffset, eraserSize, getCoords, isDrawing, pageSize, resizing, selectionStart, setCanvasElements, setDrawPaths]);
+  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, dragOffset, eraserSize, getCoords, isDrawing, resizing, selectionStart, setCanvasElements, setDrawPaths]);
 
   const handleMouseUp = useCallback(() => {
     if (isDrawing && activeTool === 'draw' && currentPath.length > 1) {
       setDrawPaths(prev => [...prev, { points: currentPath, size: drawSize, opacity: drawOpacity, color: currentColor }]);
     }
+    if (isDrawing && activeTool === 'marking' && currentPath.length > 1) {
+      setDrawPaths(prev => [...prev, { points: currentPath, size: markingSize || 20, opacity: markingOpacity || 40, color: markingColor || '#FFFF00', isHighlight: true }]);
+    }
     if (activeTool === 'select' && selectionRect && selectionRect.w > 5 && selectionRect.h > 5) {
       const r = selectionRect;
-      const selected = canvasElements.filter(el => {
+      const ids = canvasElements.filter(el => {
         const cx = el.x + (el.width || 50) / 2;
         const cy = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 80) / 2);
         return cx >= r.x && cx <= r.x + r.w && cy >= r.y && cy <= r.y + r.h;
-      });
-      setSelectedElements(selected.map(el => el.id));
+      }).map(el => el.id);
+      if (ids.length > 0) { setSelectedElements(ids); justSelectedRef.current = true; }
     }
     if (dragging || resizing) onSaveHistory(canvasElements);
     setIsDrawing(false); setCurrentPath([]);
     setSelectionRect(null); setSelectionStart(null);
     setCropDragging(false); setCropStart(null);
     setDragging(null); setResizing(null);
-  }, [activeTool, canvasElements, currentColor, currentPath, drawOpacity, drawSize, dragging, isDrawing, onSaveHistory, resizing, selectionRect, setDrawPaths, setSelectedElements]);
+  }, [activeTool, canvasElements, currentColor, currentPath, drawOpacity, drawSize, dragging, isDrawing, markingColor, markingOpacity, markingSize, onSaveHistory, resizing, selectionRect, setDrawPaths, setSelectedElements]);
 
   const getCursor = () => {
-    const cursors = {
-      text: 'text', hand: 'grab', draw: 'crosshair', pen: 'crosshair',
-      eraser: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24'%3E%3Ccircle cx='12' cy='12' r='10' fill='none' stroke='%23fff' stroke-width='2'/%3E%3C/svg%3E") 12 12, auto`,
-      cut: 'crosshair', select: 'crosshair', image: 'copy',
-      triangle: 'crosshair', square: 'crosshair', circle: 'crosshair', star: 'crosshair',
-      translate: 'help',
-    };
-    return cursors[activeTool] || 'default';
+    const m = { text: 'text', hand: 'grab', draw: 'crosshair', pen: 'crosshair', eraser: 'cell', cut: 'crosshair', select: 'crosshair', image: 'copy', marking: 'crosshair', translate: 'help', triangle: 'crosshair', square: 'crosshair', circle: 'crosshair', star: 'crosshair' };
+    return m[activeTool] || 'default';
   };
 
   return (
     <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto p-6" style={{ background: 'var(--zet-bg-light)' }}>
       <div className="flex flex-col items-center gap-6">
         {doc.pages?.map((page, idx) => (
-          <div
-            key={page.page_id}
-            data-testid={`canvas-page-${idx}`}
-            ref={idx === currentPage ? canvasRef : null}
+          <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
             className={`bg-white shadow-xl relative select-none ${idx === currentPage ? 'ring-2' : 'opacity-80'}`}
-            style={{
-              width: (page.pageSize?.width || pageSize.width) * zoom,
-              height: (page.pageSize?.height || pageSize.height) * zoom,
-              ringColor: 'var(--zet-primary-light)',
-              cursor: getCursor(),
-            }}
-            onClick={(e) => handleCanvasClick(e, idx)}
-            onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
-            onMouseDown={(e) => handleMouseDown(e, idx)}
-            onMouseMove={(e) => handleMouseMove(e, idx)}
-            onMouseUp={handleMouseUp}
-            onMouseLeave={handleMouseUp}
-          >
+            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor() }}
+            onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
+            onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
+            onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
 
-            {/* SVG layer */}
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
-              {(idx === currentPage ? drawPaths : page.drawPaths || []).map((path, i) => (
-                <path key={i}
-                  d={path.isPen
-                    ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z`
-                    : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`
-                  }
+              {/* Highlights first (behind everything) */}
+              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => (
+                <path key={`h${i}`} d={`M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`}
                   stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100}
-                  fill={path.isPen ? `${path.color}20` : 'none'} strokeLinecap="round" strokeLinejoin="round"
-                />
+                  fill="none" strokeLinecap="butt" strokeLinejoin="round" />
               ))}
-              {isDrawing && activeTool === 'draw' && currentPath.length > 1 && (
+              {/* Regular draw paths */}
+              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight).map((path, i) => (
+                <path key={`d${i}`}
+                  d={path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`}
+                  stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100}
+                  fill={path.isPen ? `${path.color}20` : 'none'} strokeLinecap="round" strokeLinejoin="round" />
+              ))}
+              {/* Live drawing preview */}
+              {isDrawing && (activeTool === 'draw' || activeTool === 'marking') && currentPath.length > 1 && (
                 <path d={`M ${currentPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`}
-                  stroke={currentColor} strokeWidth={drawSize * zoom} strokeOpacity={drawOpacity / 100}
-                  fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                  stroke={activeTool === 'marking' ? (markingColor || '#FFFF00') : currentColor}
+                  strokeWidth={(activeTool === 'marking' ? (markingSize || 20) : drawSize) * zoom}
+                  strokeOpacity={activeTool === 'marking' ? (markingOpacity || 40) / 100 : drawOpacity / 100}
+                  fill="none" strokeLinecap={activeTool === 'marking' ? 'butt' : 'round'} strokeLinejoin="round" />
               )}
-              {/* Pen preview */}
-              {penPoints.length > 0 && (
-                <>
-                  <path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`}
-                    stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />
-                  {penPoints.map((p, i) => (
-                    <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={currentColor} stroke="#fff" strokeWidth={1} />
-                  ))}
-                </>
-              )}
-              {/* Selection rectangle */}
+              {penPoints.length > 0 && (<>
+                <path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />
+                {penPoints.map((p, i) => <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={currentColor} stroke="#fff" strokeWidth={1} />)}
+              </>)}
               {selectionRect && selectionRect.w > 0 && (
-                <rect x={selectionRect.x * zoom} y={selectionRect.y * zoom}
-                  width={selectionRect.w * zoom} height={selectionRect.h * zoom}
+                <rect x={selectionRect.x * zoom} y={selectionRect.y * zoom} width={selectionRect.w * zoom} height={selectionRect.h * zoom}
                   stroke="#4ca8ad" strokeWidth={2} strokeDasharray="6,3" fill="rgba(76,168,173,0.1)" />
               )}
-              {/* Crop rectangle */}
-              {cropTarget && cropRect && idx === currentPage && (
-                <>
-                  <rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" />
-                  <rect x={cropRect.x * zoom} y={cropRect.y * zoom}
-                    width={cropRect.w * zoom} height={cropRect.h * zoom}
-                    stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" />
-                </>
-              )}
+              {cropTarget && cropRect && idx === currentPage && (<>
+                <rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" />
+                <rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom}
+                  stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" />
+              </>)}
             </svg>
 
-            {/* Crop apply button */}
             {cropTarget && cropRect && idx === currentPage && (
-              <button
-                data-testid="crop-apply-btn"
-                onClick={(e) => { e.stopPropagation(); applyCrop(); }}
-                className="absolute z-20 zet-btn text-xs px-3 py-1"
-                style={{ left: (cropRect.x + cropRect.w) * zoom + 8, top: cropRect.y * zoom }}
-              >Apply Crop</button>
+              <button data-testid="crop-apply-btn" onClick={(e) => { e.stopPropagation(); applyCrop(); }}
+                className="absolute z-20 zet-btn text-xs px-3 py-1" style={{ left: (cropRect.x + cropRect.w) * zoom + 8, top: cropRect.y * zoom }}>
+                Apply Crop
+              </button>
             )}
 
             {/* Elements */}
             {(idx === currentPage ? canvasElements : page.elements || []).map(el => {
-              const isSelected = selectedElement === el.id || selectedElements.includes(el.id);
+              const isSel = selectedElement === el.id || selectedElements.includes(el.id);
               return (
                 <div key={el.id} data-testid={`canvas-element-${el.id}`}
-                  className={`absolute ${isSelected ? 'ring-2 ring-blue-500' : ''}`}
-                  style={{
-                    left: el.x * zoom, top: el.y * zoom,
-                    width: el.type !== 'text' ? (el.width || 80) * zoom : 'auto',
-                    height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto',
-                    cursor: activeTool === 'hand' ? 'move' : undefined,
-                  }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); setCurrentPage(idx); if (onElementSelect) onElementSelect(el); }}
-                >
+                  className={`absolute ${isSel ? 'ring-2 ring-blue-500' : ''}`}
+                  style={{ left: el.x * zoom, top: el.y * zoom, width: el.type !== 'text' ? (el.width || 80) * zoom : 'auto', height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto', cursor: activeTool === 'hand' ? 'move' : undefined }}
+                  onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
+
                   {el.type === 'text' && (
                     <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width}
                       isEditing={editingId === el.id && idx === currentPage}
                       onStartEdit={id => setEditingId(id)} onCommit={handleTextCommit} />
                   )}
+
                   {el.type === 'image' && (
-                    <div className="relative w-full h-full">
+                    <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
-                      {isSelected && (
+                      {isSel && (<>
                         <div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm"
                           onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
-                      )}
+                        <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md"
+                          style={{ background: 'var(--zet-bg-card)' }}
+                          onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}>
+                          <MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} />
+                        </button>
+                        {elementMenu === el.id && (
+                          <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={onChangeImage}
+                            onAddImageToShape={() => {}} onClose={() => setElementMenu(null)} />
+                        )}
+                      </>)}
                     </div>
                   )}
+
                   {el.type === 'shape' && (
-                    <div className="relative w-full h-full">
+                    <div className="relative w-full h-full group">
                       <ShapeRenderer el={el} />
-                      {isSelected && (
-                        <>
-                          <div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm"
-                            onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
-                          <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center"
-                            style={{ background: 'var(--zet-bg-card)' }}
-                            onClick={(e) => { e.stopPropagation(); setShowShapeMenu(el.id); }}>
-                            <MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} />
-                          </button>
-                          {showShapeMenu === el.id && (
-                            <div className="absolute top-5 right-0 zet-card p-1 z-50 min-w-[100px]">
-                              <button data-testid={`shape-add-image-${el.id}`}
-                                className="w-full text-left px-2 py-1 text-xs rounded hover:bg-white/10"
-                                style={{ color: 'var(--zet-text)' }}
-                                onClick={(e) => { e.stopPropagation(); setUploadForShape(el.id); setShowImageUpload(true); setShowShapeMenu(null); }}>
-                                Add Image
-                              </button>
-                            </div>
-                          )}
-                        </>
-                      )}
+                      {isSel && (<>
+                        <div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm"
+                          onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                        <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md"
+                          style={{ background: 'var(--zet-bg-card)' }}
+                          onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}>
+                          <MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} />
+                        </button>
+                        {elementMenu === el.id && (
+                          <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={() => {}}
+                            onAddImageToShape={onAddImageToShape} onClose={() => setElementMenu(null)} />
+                        )}
+                      </>)}
                     </div>
                   )}
                 </div>
