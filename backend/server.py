@@ -341,7 +341,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
         for img in images:
             result["images"].append({
                 "mime_type": img.get("mime_type", "image/png"),
-                "data": img["data"][:50] + "..."  # Truncate for response
+                "data": img["data"]
             })
     
     return result

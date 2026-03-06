@@ -74,6 +74,8 @@ const translations = {
     alignLeft: 'Align Left',
     alignCenter: 'Align Center',
     alignRight: 'Align Right',
+    aiImage: 'AI Image',
+    delete: 'Delete',
   },
   tr: {
     // Login
@@ -148,6 +150,8 @@ const translations = {
     alignLeft: 'Sola Hizala',
     alignCenter: 'Ortala',
     alignRight: 'Sağa Hizala',
+    aiImage: 'AI Görsel',
+    delete: 'Sil',
   }
 };
 
