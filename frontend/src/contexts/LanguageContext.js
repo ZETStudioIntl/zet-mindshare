@@ -76,6 +76,8 @@ const translations = {
     alignRight: 'Align Right',
     aiImage: 'AI Image',
     delete: 'Delete',
+    penTool: 'Pen',
+    translate: 'Translate',
   },
   tr: {
     // Login
@@ -152,6 +154,8 @@ const translations = {
     alignRight: 'Sağa Hizala',
     aiImage: 'AI Görsel',
     delete: 'Sil',
+    penTool: 'Kalem (Vektörel)',
+    translate: 'Çevir',
   }
 };
 

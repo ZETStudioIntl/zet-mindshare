@@ -1,7 +1,8 @@
 import {
   Type, Image, Hand, FileText, Baseline, ALargeSmall,
   Volume2, FilePlus, Triangle, Square, Circle, Star,
-  Pencil, Palette, Scissors, Wand2, MousePointer2
+  Pencil, Palette, Scissors, Wand2, MousePointer2,
+  Eraser, PenTool, Languages
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -34,8 +35,11 @@ export const TOOLS = [
   { id: 'image', icon: Image, nameKey: 'image' },
   { id: 'createimage', icon: Wand2, nameKey: 'aiImage' },
   { id: 'draw', icon: Pencil, nameKey: 'pencil' },
+  { id: 'pen', icon: PenTool, nameKey: 'penTool' },
+  { id: 'eraser', icon: Eraser, nameKey: 'eraser' },
   { id: 'select', icon: MousePointer2, nameKey: 'select' },
   { id: 'cut', icon: Scissors, nameKey: 'crop' },
+  { id: 'translate', icon: Languages, nameKey: 'translate' },
   { id: 'addpage', icon: FilePlus, nameKey: 'addPage' },
   { id: 'pagesize', icon: FileText, nameKey: 'pageSize' },
   { id: 'voice', icon: Volume2, nameKey: 'voice' },
@@ -43,6 +47,21 @@ export const TOOLS = [
   { id: 'square', icon: Square, nameKey: 'square' },
   { id: 'circle', icon: Circle, nameKey: 'circle' },
   { id: 'star', icon: Star, nameKey: 'star' },
+];
+
+export const TRANSLATE_LANGUAGES = [
+  { code: 'en', name: 'English' },
+  { code: 'tr', name: 'Türkçe' },
+  { code: 'de', name: 'Deutsch' },
+  { code: 'fr', name: 'Français' },
+  { code: 'es', name: 'Español' },
+  { code: 'it', name: 'Italiano' },
+  { code: 'pt', name: 'Português' },
+  { code: 'ru', name: 'Русский' },
+  { code: 'ja', name: '日本語' },
+  { code: 'ko', name: '한국어' },
+  { code: 'zh', name: '中文' },
+  { code: 'ar', name: 'العربية' },
 ];
 
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];

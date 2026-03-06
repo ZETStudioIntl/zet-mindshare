@@ -24,7 +24,7 @@ export const Toolbox = ({
   return (
     <div
       data-testid="toolbox-panel"
-      className={`border-r flex flex-col transition-all duration-200 ${isOpen ? 'w-56' : 'w-10'}`}
+      className={`border-r flex flex-col transition-all duration-200 ${isOpen ? 'w-72' : 'w-10'}`}
       style={{ borderColor: 'var(--zet-border)' }}
     >
       {/* Header */}

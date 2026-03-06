@@ -75,6 +75,10 @@ class ZetaImageRequest(BaseModel):
     prompt: str
     reference_image: Optional[str] = None
 
+class TranslateRequest(BaseModel):
+    text: str
+    target_language: str
+
 # ============ AUTH HELPERS ============
 
 async def get_current_user(request: Request) -> User:
@@ -345,6 +349,25 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
             })
     
     return result
+
+@api_router.post("/zeta/translate")
+async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current_user)):
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+    
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    session_id = f"zeta_tr_{uuid.uuid4().hex[:8]}"
+    
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=f"You are a translator. Translate the given text to {req.target_language}. Return ONLY the translated text, nothing else. No explanations, no quotes."
+    )
+    chat.with_model("gemini", "gemini-3-flash-preview")
+    
+    msg = UserMessage(text=req.text)
+    response = await chat.send_message(msg)
+    
+    return {"translated_text": response.strip(), "target_language": req.target_language}
 
 # ============ CLOUD STORAGE ROUTES (MOCK) ============
 

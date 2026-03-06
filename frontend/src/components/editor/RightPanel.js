@@ -49,7 +49,7 @@ export const RightPanel = ({
   const stats = { pageCount: doc?.pages?.length || 0, charCount };
 
   return (
-    <div data-testid="right-panel" className="w-56 border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
+    <div data-testid="right-panel" className="w-72 border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
       {/* Pages Section */}
       <div className="border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="p-2 flex items-center justify-between">

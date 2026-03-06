@@ -200,7 +200,7 @@ class TestNotesCRUD:
 
 
 class TestZETAAI:
-    """ZETA AI endpoints tests"""
+    """ZETA AI endpoints tests: Chat and Translate"""
     
     @pytest.fixture
     def session(self):
@@ -236,6 +236,28 @@ class TestZETAAI:
             json={"message": "Tell me more", "session_id": session_id}
         )
         assert resp2.status_code == 200
+        
+    def test_zeta_translate_endpoint(self, session):
+        """Test ZETA translate API - translates text to target language"""
+        payload = {
+            "text": "Hello world",
+            "target_language": "Spanish"
+        }
+        response = session.post(f"{BASE_URL}/api/zeta/translate", json=payload)
+        assert response.status_code == 200
+        data = response.json()
+        assert "translated_text" in data
+        assert "target_language" in data
+        assert data["target_language"] == "Spanish"
+        assert len(data["translated_text"]) > 0
+        
+    def test_zeta_translate_requires_auth(self):
+        """Test translate endpoint requires authentication"""
+        response = requests.post(
+            f"{BASE_URL}/api/zeta/translate",
+            json={"text": "Hello", "target_language": "German"}
+        )
+        assert response.status_code == 401
 
 
 class TestCloudStorage:
