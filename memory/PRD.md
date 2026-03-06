@@ -7,7 +7,7 @@ ZET Mindshare is a mobile and PC compatible document creation tool with integrat
 - Mobil ve PC uyumlu belge oluşturma aracı
 - ZETA AI entegrasyonu (beyin fırtınası, araştırma, analiz, görsel oluşturma)
 - Uygulama içi satın alma (sonra eklenecek)
-- Ana renkler: #004e64 ve #e0e5e9
+- Ana renkler: #292f91 ve #4ca8ad (updated)
 - Koyu mat tema, hafif glow, minimalist stil
 
 ## User Personas
@@ -21,9 +21,13 @@ ZET Mindshare is a mobile and PC compatible document creation tool with integrat
 - [x] Belge oluşturma/düzenleme
 - [x] Hızlı notlar
 - [x] ZETA AI chat (Gemini 3 Flash)
+- [x] Multi-language support (English/Turkish)
+- [x] ZETA responds in user's language
 - [ ] ZETA AI görsel oluşturma (Nano Banana) - Backend ready
 - [x] Mobil/PC responsive tasarım
 - [x] 3 sütunlu editör (Toolbox, Canvas, Pages+ZETA)
+- [x] Collapsible panels (toolbox & right panel)
+- [x] 3 tools per row in toolbox
 - [ ] Google Drive entegrasyonu - MOCK
 - [ ] iCloud entegrasyonu - MOCK
 - [ ] Uygulama içi satın alma - Sonra eklenecek
@@ -37,9 +41,9 @@ ZET Mindshare is a mobile and PC compatible document creation tool with integrat
 - **AI:** Gemini 3 Flash (text), Nano Banana (images) via Emergent LLM Key
 - **Auth:** Emergent Google OAuth
 
-## What's Been Implemented (March 2026)
+## What's Been Implemented
 
-### Phase 1 - MVP Skeleton ✅
+### Phase 1 - MVP Skeleton (March 2026)
 - Login page with Google Auth
 - Dashboard with document/notes listing
 - Document CRUD operations
@@ -48,6 +52,14 @@ ZET Mindshare is a mobile and PC compatible document creation tool with integrat
 - ZETA AI chat integration (working)
 - Mobile responsive design
 - Dark theme with #004e64 and #e0e5e9 colors
+
+### Phase 2 - UI/UX Improvements (March 2026)
+- New color palette: #292f91 (primary) and #4ca8ad (accent)
+- Multi-language support (English default, Turkish in settings)
+- ZETA responds in user's language automatically
+- Toolbox: 3 tools per row
+- Collapsible panels (toolbox & pages+ZETA)
+- Gradient effects for buttons and accents
 
 ## Prioritized Backlog
 
