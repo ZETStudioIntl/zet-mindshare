@@ -2,7 +2,8 @@ import {
   Type, Image, Hand, FileText, Baseline, ALargeSmall,
   Volume2, FilePlus, Triangle, Square, Circle, Star,
   Pencil, Palette, Scissors, Wand2, MousePointer2,
-  Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter
+  Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
+  AlignLeft, BarChart3, Contrast
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -32,6 +33,7 @@ export const TOOLS = [
   { id: 'textsize', icon: Baseline, nameKey: 'textSize' },
   { id: 'font', icon: ALargeSmall, nameKey: 'font' },
   { id: 'linespacing', icon: AlignJustify, nameKey: 'lineSpacing' },
+  { id: 'paragraph', icon: AlignLeft, nameKey: 'paragraph' },
   { id: 'color', icon: Palette, nameKey: 'colorPicker' },
   { id: 'hand', icon: Hand, nameKey: 'pan' },
   { id: 'image', icon: Image, nameKey: 'image' },
@@ -43,6 +45,8 @@ export const TOOLS = [
   { id: 'select', icon: MousePointer2, nameKey: 'select' },
   { id: 'cut', icon: Scissors, nameKey: 'crop' },
   { id: 'translate', icon: Languages, nameKey: 'translate' },
+  { id: 'graphic', icon: BarChart3, nameKey: 'graphic' },
+  { id: 'pagecolor', icon: Contrast, nameKey: 'pageColor' },
   { id: 'addpage', icon: FilePlus, nameKey: 'addPage' },
   { id: 'pagesize', icon: FileText, nameKey: 'pageSize' },
   { id: 'voice', icon: Volume2, nameKey: 'voice' },
@@ -53,21 +57,21 @@ export const TOOLS = [
 ];
 
 export const TRANSLATE_LANGUAGES = [
-  { code: 'en', name: 'English' },
-  { code: 'tr', name: 'Türkçe' },
-  { code: 'de', name: 'Deutsch' },
-  { code: 'fr', name: 'Français' },
-  { code: 'es', name: 'Español' },
-  { code: 'it', name: 'Italiano' },
-  { code: 'pt', name: 'Português' },
-  { code: 'ru', name: 'Русский' },
-  { code: 'ja', name: '日本語' },
-  { code: 'ko', name: '한국어' },
-  { code: 'zh', name: '中文' },
-  { code: 'ar', name: 'العربية' },
+  { code: 'en', name: 'English' }, { code: 'tr', name: 'Türkçe' },
+  { code: 'de', name: 'Deutsch' }, { code: 'fr', name: 'Français' },
+  { code: 'es', name: 'Español' }, { code: 'it', name: 'Italiano' },
+  { code: 'pt', name: 'Português' }, { code: 'ru', name: 'Русский' },
+  { code: 'ja', name: '日本語' }, { code: 'ko', name: '한국어' },
+  { code: 'zh', name: '中文' }, { code: 'ar', name: 'العربية' },
 ];
 
 export const LINE_SPACINGS = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0];
+
+export const CHART_TYPES = [
+  { id: 'bar', name: 'Bar Chart' },
+  { id: 'pie', name: 'Pie Chart' },
+  { id: 'line', name: 'Line Chart' },
+];
 
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];
 export const DEFAULT_FONT_SIZE = 16;
