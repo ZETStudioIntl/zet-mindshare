@@ -168,6 +168,14 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Fix for Emergent badge overlay */
+#emergent-badge {
+  pointer-events: none !important;
+}
+#emergent-badge * {
+  pointer-events: none !important;
+}
+
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .tool-btn {
