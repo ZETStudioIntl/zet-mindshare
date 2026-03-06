@@ -227,6 +227,14 @@ const Editor = () => {
     setUploadForShape(id); setShowImageUpload(true);
   }, []);
 
+  // AI image to shape/vector
+  const [aiTargetShape, setAiTargetShape] = useState(null);
+  
+  const handleAddAiImageToShape = useCallback((id) => {
+    setAiTargetShape(id);
+    setShowCreateImage(true);
+  }, []);
+
   // === TOOL SELECT ===
   const handleToolSelect = (toolId) => {
     setActiveTool(toolId);
@@ -255,7 +263,14 @@ const Editor = () => {
           setCanvasElements(prev => prev.map(el => el.id === changeImageTarget ? { ...el, src: event.target.result } : el));
           setChangeImageTarget(null);
         } else if (uploadForShape) {
-          setCanvasElements(prev => prev.map(el => el.id === uploadForShape ? { ...el, image: event.target.result } : el));
+          // Check if it's a vector path
+          if (uploadForShape.startsWith('vector_')) {
+            const vectorIdx = parseInt(uploadForShape.replace('vector_', ''));
+            setDrawPaths(prev => prev.map((p, i) => i === vectorIdx ? { ...p, image: event.target.result } : p));
+          } else {
+            // Regular shape
+            setCanvasElements(prev => prev.map(el => el.id === uploadForShape ? { ...el, image: event.target.result } : el));
+          }
           setUploadForShape(null);
         } else {
           const maxW = Math.min(300, pageSize.width - 40);
@@ -283,8 +298,24 @@ const Editor = () => {
 
   const addAiImageToCanvas = () => {
     if (!aiPreview) return;
-    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'image', x: 20, y: 40, width: 200, height: 200, src: `data:${aiMimeType};base64,${aiPreview}` }];
-    setCanvasElements(updated); history.push(updated); setAiPreview(null);
+    const imgSrc = `data:${aiMimeType};base64,${aiPreview}`;
+    
+    // If adding to a shape or vector
+    if (aiTargetShape) {
+      if (aiTargetShape.startsWith('vector_')) {
+        const vectorIdx = parseInt(aiTargetShape.replace('vector_', ''));
+        setDrawPaths(prev => prev.map((p, i) => i === vectorIdx ? { ...p, image: imgSrc } : p));
+      } else {
+        setCanvasElements(prev => prev.map(el => el.id === aiTargetShape ? { ...el, image: imgSrc } : el));
+      }
+      setAiTargetShape(null);
+    } else {
+      // Add as new image element
+      const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'image', x: 20, y: 40, width: 200, height: 200, src: imgSrc }];
+      setCanvasElements(updated); history.push(updated);
+    }
+    setAiPreview(null);
+    setShowCreateImage(false);
   };
 
   // === WORD TYPE (apply to selected or set default) ===
@@ -422,10 +453,11 @@ const Editor = () => {
         <button onClick={() => { setPageSize({ name: 'Custom', width: customWidth, height: customHeight }); setShowPageSize(false); }} className="zet-btn w-full text-sm">Apply</button>
       </div>
     </DraggablePanel>}
-    {showCreateImage && <DraggablePanel title="AI Image" onClose={() => { setShowCreateImage(false); setAiPreview(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+    {showCreateImage && <DraggablePanel title={aiTargetShape ? "AI Image (Shape)" : "AI Image"} onClose={() => { setShowCreateImage(false); setAiPreview(null); setAiTargetShape(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-72 space-y-3">
+        {aiTargetShape && <div className="text-xs px-2 py-1.5 rounded" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>Adding to: {aiTargetShape.startsWith('vector_') ? 'Vector Shape' : 'Shape'}</div>}
         <div><label className="text-xs mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Reference</label><label className="zet-btn text-xs w-full flex items-center justify-center gap-1 cursor-pointer py-2"><Upload className="h-3 w-3" />{aiReference ? 'Loaded' : 'Upload'}<input type="file" accept="image/*" onChange={e => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = ev => setAiReference(ev.target.result.split(',')[1]); r.readAsDataURL(f); } }} className="hidden" /></label></div>
-        {aiPreview && <div className="space-y-2"><img data-testid="ai-image-preview" src={`data:${aiMimeType};base64,${aiPreview}`} alt="AI" className="w-full rounded border" style={{ borderColor: 'var(--zet-border)', maxHeight: 200, objectFit: 'contain' }} /><button data-testid="ai-image-add-btn" onClick={addAiImageToCanvas} className="zet-btn w-full flex items-center justify-center gap-1.5 text-sm py-2"><Plus className="h-4 w-4" /> Add to Document</button></div>}
+        {aiPreview && <div className="space-y-2"><img data-testid="ai-image-preview" src={`data:${aiMimeType};base64,${aiPreview}`} alt="AI" className="w-full rounded border" style={{ borderColor: 'var(--zet-border)', maxHeight: 200, objectFit: 'contain' }} /><button data-testid="ai-image-add-btn" onClick={addAiImageToCanvas} className="zet-btn w-full flex items-center justify-center gap-1.5 text-sm py-2"><Plus className="h-4 w-4" /> {aiTargetShape ? 'Add to Shape' : 'Add to Document'}</button></div>}
         <div className="flex gap-1"><input data-testid="ai-image-prompt" placeholder="Describe image..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateAIImage()} className="zet-input flex-1 text-xs" /><button data-testid="ai-image-generate-btn" onClick={generateAIImage} disabled={aiGenerating} className="zet-btn px-2">{aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}</button></div>
       </div>
     </DraggablePanel>}
@@ -472,14 +504,15 @@ const Editor = () => {
           onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
           onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
           onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
+          onAddAiImageToShape={handleAddAiImageToShape}
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough} />
 
         {/* Mobile Bottom Toolbar */}
         <div className="border-t flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
-          <div className="flex items-center overflow-x-auto px-1 py-1.5 gap-1 no-scrollbar">
+          <div className="flex items-center overflow-x-auto px-1 py-1.5 gap-0.5 no-scrollbar mobile-toolbar">
             {TOOLS.filter(t => t.id !== 'addpage').map(tool => (
               <button key={tool.id} onClick={() => handleToolSelect(tool.id)}
-                className={`tool-btn flex-shrink-0 w-9 h-9 ${activeTool === tool.id ? 'active' : ''}`}>
+                className={`tool-btn flex-shrink-0 ${activeTool === tool.id ? 'active' : ''}`}>
                 <tool.icon className="h-4 w-4" />
               </button>
             ))}
@@ -576,6 +609,7 @@ const Editor = () => {
           onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
           onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
           onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
+          onAddAiImageToShape={handleAddAiImageToShape}
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough} />
 
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}

@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { MoreVertical, Trash2, Image, RefreshCw } from 'lucide-react';
+import { MoreVertical, Trash2, Image, RefreshCw, Wand2 } from 'lucide-react';
 
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
@@ -11,6 +11,25 @@ const isPointInElement = (x, y, el) => {
 };
 
 const dist = (a, b) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+
+// Check if point is near a pen/vector path
+const isPointNearPath = (x, y, path, threshold = 15) => {
+  if (!path.points || path.points.length < 2) return false;
+  return path.points.some(p => dist({ x, y }, p) < threshold);
+};
+
+// Get bounding box for a path
+const getPathBounds = (path) => {
+  if (!path.points || path.points.length === 0) return null;
+  const xs = path.points.map(p => p.x);
+  const ys = path.points.map(p => p.y);
+  return {
+    x: Math.min(...xs),
+    y: Math.min(...ys),
+    width: Math.max(...xs) - Math.min(...xs),
+    height: Math.max(...ys) - Math.min(...ys)
+  };
+};
 
 const ShapeRenderer = ({ el }) => {
   const style = { width: '100%', height: '100%', backgroundColor: el.image ? 'transparent' : el.fill, backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' };
@@ -55,11 +74,26 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
   );
 };
 
-const ElementMenu = ({ el, onDelete, onChangeImage, onAddImageToShape, onClose }) => (
-  <div data-testid={`element-menu-${el.id}`} className="absolute top-5 right-0 zet-card p-1 z-50 min-w-[120px] shadow-xl animate-fadeIn" onClick={e => e.stopPropagation()}>
+const ElementMenu = ({ el, onDelete, onChangeImage, onAddImageToShape, onAddAiImage, onClose }) => (
+  <div data-testid={`element-menu-${el.id}`} className="absolute top-5 right-0 zet-card p-1 z-50 min-w-[140px] shadow-xl animate-fadeIn" onClick={e => e.stopPropagation()}>
     {el.type === 'image' && <button data-testid={`change-image-${el.id}`} onClick={() => { onChangeImage(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><RefreshCw className="h-3 w-3" /> Change Image</button>}
-    {el.type === 'shape' && <button onClick={() => { onAddImageToShape(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Image className="h-3 w-3" /> Add Image</button>}
+    {(el.type === 'shape' || el.type === 'vector') && (
+      <>
+        <button onClick={() => { onAddImageToShape(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Image className="h-3 w-3" /> Add Image</button>
+        <button onClick={() => { onAddAiImage(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Wand2 className="h-3 w-3" /> AI Image</button>
+      </>
+    )}
     <button onClick={() => { onDelete(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-red-500/20 flex items-center gap-2" style={{ color: '#f87171' }}><Trash2 className="h-3 w-3" /> Delete</button>
+  </div>
+);
+
+// Vector path menu component
+const VectorMenu = ({ pathId, position, zoom, onDelete, onAddImage, onAddAiImage, onClose }) => (
+  <div data-testid={`vector-menu-${pathId}`} className="absolute zet-card p-1 z-50 min-w-[140px] shadow-xl animate-fadeIn" 
+    style={{ left: position.x * zoom + 20, top: position.y * zoom }} onClick={e => e.stopPropagation()}>
+    <button onClick={() => { onAddImage(pathId); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Image className="h-3 w-3" /> Add Image</button>
+    <button onClick={() => { onAddAiImage(pathId); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Wand2 className="h-3 w-3" /> AI Image</button>
+    <button onClick={() => { onDelete(pathId); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-red-500/20 flex items-center gap-2" style={{ color: '#f87171' }}><Trash2 className="h-3 w-3" /> Delete</button>
   </div>
 );
 
@@ -69,7 +103,7 @@ export const CanvasArea = ({
   currentTextAlign, drawSize, drawOpacity, eraserSize, markingColor, markingOpacity, markingSize,
   selectedElement, setSelectedElement, selectedElements, setSelectedElements,
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
-  isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd,
+  onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd,
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
@@ -87,6 +121,10 @@ export const CanvasArea = ({
   const [cropStart, setCropStart] = useState(null);
   const [elementMenu, setElementMenu] = useState(null);
   const [eraserTrail, setEraserTrail] = useState([]);
+  const [selectedVector, setSelectedVector] = useState(null);
+  const [vectorMenu, setVectorMenu] = useState(null);
+  const [draggingVector, setDraggingVector] = useState(null);
+  const [vectorDragOffset, setVectorDragOffset] = useState({ x: 0, y: 0 });
   const justSelectedRef = useRef(false);
 
   useEffect(() => {
@@ -104,6 +142,8 @@ export const CanvasArea = ({
     if (activeTool !== 'text' && activeTool !== 'hand') setEditingId(null);
     if (activeTool !== 'pen') setPenPoints([]);
     setElementMenu(null);
+    setVectorMenu(null);
+    if (activeTool !== 'hand') { setSelectedVector(null); }
   }, [activeTool, canvasElements, selectedElement]);
 
   const getCoords = useCallback((e, el) => { const r = el.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }, [zoom]);
@@ -132,12 +172,13 @@ export const CanvasArea = ({
   }, [canvasElements, cropRect, cropTarget, onSaveHistory, setCanvasElements]);
 
   const handleCanvasClick = useCallback((e, pageIdx) => {
-    if (dragging || resizing) return;
+    if (dragging || resizing || draggingVector) return;
     if (pageIdx !== currentPage) { changePage(pageIdx); return; }
     if (justSelectedRef.current) { justSelectedRef.current = false; return; }
     const { x, y } = getCoords(e, e.currentTarget);
     if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
     setElementMenu(null);
+    setVectorMenu(null);
 
     if (activeTool === 'text') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
@@ -155,9 +196,21 @@ export const CanvasArea = ({
       const u = [...canvasElements, { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null }];
       setCanvasElements(u); onSaveHistory(u);
     } else if (activeTool === 'hand') {
+      // First check if clicking on a vector path (pen drawings)
+      const clickedVectorIdx = drawPaths.findIndex(path => path.isPen && isPointNearPath(x, y, path, 20));
+      if (clickedVectorIdx !== -1) {
+        setSelectedVector(clickedVectorIdx);
+        setSelectedElement(null);
+        const bounds = getPathBounds(drawPaths[clickedVectorIdx]);
+        if (bounds) {
+          setVectorMenu({ idx: clickedVectorIdx, position: { x: bounds.x + bounds.width, y: bounds.y } });
+        }
+        return;
+      }
+      // Then check canvas elements
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
-      if (cl) { setSelectedElement(cl.id); if (cl.type === 'text') setEditingId(cl.id); if (onElementSelect) onElementSelect(cl); }
-      else { setSelectedElement(null); setSelectedElements([]); setEditingId(null); }
+      if (cl) { setSelectedElement(cl.id); setSelectedVector(null); if (cl.type === 'text') setEditingId(cl.id); if (onElementSelect) onElementSelect(cl); }
+      else { setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null); }
     } else if (activeTool === 'cut') {
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
       if (cl?.type === 'image' && !cropTarget) { setCropTarget(cl.id); setSelectedElement(cl.id); setCropRect({ x: cl.x + 10, y: cl.y + 10, w: cl.width - 20, h: cl.height - 20 }); }
@@ -165,7 +218,8 @@ export const CanvasArea = ({
     } else if (activeTool === 'pen') {
       // Auto-close: if near first point, close the path
       if (penPoints.length > 2 && dist({ x, y }, penPoints[0]) < 15) {
-        setDrawPaths(prev => [...prev, { points: [...penPoints, penPoints[0]], size: 2, opacity: 100, color: currentColor, isPen: true }]);
+        const newPath = { id: `vec_${Date.now()}`, points: [...penPoints, penPoints[0]], size: 2, opacity: 100, color: currentColor, isPen: true, image: null };
+        setDrawPaths(prev => [...prev, newPath]);
         setPenPoints([]);
       } else { setPenPoints(prev => [...prev, { x, y }]); }
     } else if (activeTool === 'translate') {
@@ -175,11 +229,12 @@ export const CanvasArea = ({
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
       if (cl) setSelectedElement(cl.id); else { setSelectedElement(null); setSelectedElements([]); }
     }
-  }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements]);
+  }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, draggingVector, drawPaths, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements]);
 
   const handleCanvasDoubleClick = useCallback((e, pageIdx) => {
     if (activeTool === 'pen' && penPoints.length > 1 && pageIdx === currentPage) {
-      setDrawPaths(prev => [...prev, { points: penPoints, size: 2, opacity: 100, color: currentColor, isPen: true }]);
+      const newPath = { id: `vec_${Date.now()}`, points: penPoints, size: 2, opacity: 100, color: currentColor, isPen: true, image: null };
+      setDrawPaths(prev => [...prev, newPath]);
       setPenPoints([]);
     }
   }, [activeTool, currentColor, currentPage, penPoints, setDrawPaths]);
@@ -191,11 +246,42 @@ export const CanvasArea = ({
     if (activeTool === 'eraser') { setIsDrawing(true); setEraserTrail([{ x, y }]); return; }
     if (activeTool === 'select') { setSelectionStart({ x, y }); setSelectionRect({ x, y, w: 0, h: 0 }); return; }
     if (activeTool === 'cut' && cropTarget && cropRect) { setCropDragging(true); setCropStart({ x, y, rect: { ...cropRect } }); return; }
+    
+    // Hand tool: check for vector dragging first
+    if (activeTool === 'hand') {
+      // Check if clicking on a selected vector to drag
+      if (selectedVector !== null) {
+        const path = drawPaths[selectedVector];
+        if (path && isPointNearPath(x, y, path, 20)) {
+          const bounds = getPathBounds(path);
+          if (bounds) {
+            setDraggingVector(selectedVector);
+            setVectorDragOffset({ x: x - bounds.x, y: y - bounds.y });
+            setVectorMenu(null);
+            return;
+          }
+        }
+      }
+      // Check for clicking on any vector
+      const clickedVectorIdx = drawPaths.findIndex(path => path.isPen && isPointNearPath(x, y, path, 20));
+      if (clickedVectorIdx !== -1) {
+        const path = drawPaths[clickedVectorIdx];
+        const bounds = getPathBounds(path);
+        if (bounds) {
+          setSelectedVector(clickedVectorIdx);
+          setDraggingVector(clickedVectorIdx);
+          setVectorDragOffset({ x: x - bounds.x, y: y - bounds.y });
+          setVectorMenu(null);
+          return;
+        }
+      }
+    }
+    
     if (selectedElement && (activeTool === 'hand' || activeTool === 'text')) {
       const el = canvasElements.find(el => el.id === selectedElement);
       if (el && isPointInElement(x, y, el) && editingId !== el.id) { setDragging(el.id); setDragOffset({ x: x - el.x, y: y - el.y }); }
     }
-  }, [activeTool, canvasElements, cropRect, cropTarget, currentPage, editingId, getCoords, selectedElement]);
+  }, [activeTool, canvasElements, cropRect, cropTarget, currentPage, drawPaths, editingId, getCoords, selectedElement, selectedVector]);
 
   const handleMouseMove = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;
@@ -204,9 +290,27 @@ export const CanvasArea = ({
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
     if (activeTool === 'select' && selectionStart) { setSelectionRect({ x: Math.min(selectionStart.x, x), y: Math.min(selectionStart.y, y), w: Math.abs(x - selectionStart.x), h: Math.abs(y - selectionStart.y) }); return; }
     if (cropDragging && cropStart) { setCropRect({ x: cropStart.rect.x + x - cropStart.x, y: cropStart.rect.y + y - cropStart.y, w: cropStart.rect.w, h: cropStart.rect.h }); return; }
+    
+    // Vector dragging
+    if (draggingVector !== null && activeTool === 'hand') {
+      const path = drawPaths[draggingVector];
+      if (path) {
+        const bounds = getPathBounds(path);
+        if (bounds) {
+          const dx = x - vectorDragOffset.x - bounds.x;
+          const dy = y - vectorDragOffset.y - bounds.y;
+          setDrawPaths(prev => prev.map((p, i) => i === draggingVector ? {
+            ...p,
+            points: p.points.map(pt => ({ x: pt.x + dx, y: pt.y + dy }))
+          } : p));
+        }
+      }
+      return;
+    }
+    
     if (dragging) { const el = canvasElements.find(el => el.id === dragging); if (el) setCanvasElements(p => p.map(i => i.id === dragging ? { ...i, x: Math.max(0, x - dragOffset.x), y: Math.max(0, y - dragOffset.y) } : i)); }
     if (resizing) setCanvasElements(p => p.map(el => el.id === resizing.id ? { ...el, width: Math.max(30, x - resizing.startX), height: Math.max(30, y - resizing.startY) } : el));
-  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, dragOffset, getCoords, isDrawing, resizing, selectionStart, setCanvasElements]);
+  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
 
   const handleMouseUp = useCallback(() => {
     if (isDrawing && activeTool === 'draw' && currentPath.length > 1) setDrawPaths(p => [...p, { points: currentPath, size: drawSize, opacity: drawOpacity, color: currentColor }]);
@@ -222,14 +326,78 @@ export const CanvasArea = ({
       if (ids.length > 0) { setSelectedElements(ids); justSelectedRef.current = true; }
     }
     if (dragging || resizing) onSaveHistory(canvasElements);
+    if (draggingVector !== null) setDraggingVector(null);
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]);
     setSelectionRect(null); setSelectionStart(null);
     setCropDragging(false); setCropStart(null); setDragging(null); setResizing(null);
-  }, [activeTool, canvasElements, currentColor, currentPath, drawOpacity, drawSize, dragging, eraserSize, eraserTrail, isDrawing, markingColor, markingOpacity, markingSize, onSaveHistory, resizing, selectionRect, setDrawPaths, setSelectedElements]);
+  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawSize, dragging, eraserSize, eraserTrail, isDrawing, markingColor, markingOpacity, markingSize, onSaveHistory, resizing, selectionRect, setDrawPaths, setSelectedElements]);
 
-  const getCursor = () => ({ text: 'text', hand: 'grab', draw: 'crosshair', pen: 'crosshair', eraser: 'cell', cut: 'crosshair', select: 'crosshair', marking: 'crosshair', translate: 'help' }[activeTool] || 'crosshair');
+  // Delete vector path
+  const handleDeleteVector = useCallback((idx) => {
+    setDrawPaths(prev => prev.filter((_, i) => i !== idx));
+    setSelectedVector(null);
+    setVectorMenu(null);
+  }, [setDrawPaths]);
+
+  // Add image to vector path
+  const handleAddImageToVector = useCallback((idx) => {
+    if (onAddImageToShape) onAddImageToShape(`vector_${idx}`);
+    setVectorMenu(null);
+  }, [onAddImageToShape]);
+
+  // Add AI image to vector path
+  const handleAddAiImageToVector = useCallback((idx) => {
+    if (onAddAiImageToShape) onAddAiImageToShape(`vector_${idx}`);
+    setVectorMenu(null);
+  }, [onAddAiImageToShape]);
+
+  const getCursor = () => ({ text: 'text', hand: draggingVector !== null ? 'grabbing' : 'grab', draw: 'crosshair', pen: 'crosshair', eraser: 'cell', cut: 'crosshair', select: 'crosshair', marking: 'crosshair', translate: 'help' }[activeTool] || 'crosshair');
 
   const pageBg = pageBackground || '#ffffff';
+
+  // Render vector paths with images and selection
+  const renderVectorPaths = (paths, pageIdx) => {
+    return paths.filter(p => !p.isHighlight).map((path, i) => {
+      const isSelected = idx === currentPage && selectedVector === i && path.isPen;
+      const bounds = path.isPen ? getPathBounds(path) : null;
+      const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
+      
+      return (
+        <g key={`d${i}`}>
+          {/* Clip path for image fill */}
+          {path.isPen && path.image && (
+            <defs>
+              <clipPath id={`clip-vector-${pageIdx}-${i}`}>
+                <path d={pathD} />
+              </clipPath>
+            </defs>
+          )}
+          {/* Image inside vector */}
+          {path.isPen && path.image && bounds && (
+            <image
+              href={path.image}
+              x={bounds.x * zoom}
+              y={bounds.y * zoom}
+              width={bounds.width * zoom}
+              height={bounds.height * zoom}
+              preserveAspectRatio="xMidYMid slice"
+              clipPath={`url(#clip-vector-${pageIdx}-${i})`}
+            />
+          )}
+          {/* Path stroke */}
+          <path
+            d={pathD}
+            stroke={isSelected ? '#4ca8ad' : path.color}
+            strokeWidth={(isSelected ? path.size + 2 : path.size) * zoom}
+            strokeOpacity={path.opacity / 100}
+            fill={path.isPen && !path.image ? `${path.color}20` : 'none'}
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          />
+        </g>
+      );
+    });
+  };
 
   return (
     <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto p-6" style={{ background: 'var(--zet-bg-light)' }}>
@@ -243,13 +411,71 @@ export const CanvasArea = ({
             onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
-              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => <path key={`h${i}`} d={`M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100} fill="none" strokeLinecap="butt" />)}
-              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight).map((path, i) => <path key={`d${i}`} d={path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100} fill={path.isPen ? `${path.color}20` : 'none'} strokeLinecap="round" strokeLinejoin="round" />)}
+              {/* Highlight paths */}
+              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => (
+                <path key={`h${i}`} d={`M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100} fill="none" strokeLinecap="butt" />
+              ))}
+              {/* Vector and draw paths */}
+              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight).map((path, i) => {
+                const isSelected = idx === currentPage && selectedVector === i && path.isPen;
+                const bounds = path.isPen ? getPathBounds(path) : null;
+                const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
+                
+                return (
+                  <g key={`d${i}`}>
+                    {path.isPen && path.image && bounds && (
+                      <defs>
+                        <clipPath id={`clip-vector-${idx}-${i}`}>
+                          <path d={pathD} />
+                        </clipPath>
+                      </defs>
+                    )}
+                    {path.isPen && path.image && bounds && (
+                      <image
+                        href={path.image}
+                        x={bounds.x * zoom}
+                        y={bounds.y * zoom}
+                        width={bounds.width * zoom}
+                        height={bounds.height * zoom}
+                        preserveAspectRatio="xMidYMid slice"
+                        clipPath={`url(#clip-vector-${idx}-${i})`}
+                      />
+                    )}
+                    <path
+                      d={pathD}
+                      stroke={isSelected ? '#4ca8ad' : path.color}
+                      strokeWidth={(isSelected ? path.size + 2 : path.size) * zoom}
+                      strokeOpacity={path.opacity / 100}
+                      fill={path.isPen && !path.image ? `${path.color}20` : 'none'}
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </g>
+                );
+              })}
+              {/* Active drawing */}
               {isDrawing && (activeTool === 'draw' || activeTool === 'marking') && currentPath.length > 1 && <path d={`M ${currentPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={activeTool === 'marking' ? (markingColor || '#FFFF00') : currentColor} strokeWidth={(activeTool === 'marking' ? (markingSize || 20) : drawSize) * zoom} strokeOpacity={activeTool === 'marking' ? (markingOpacity || 40) / 100 : drawOpacity / 100} fill="none" strokeLinecap={activeTool === 'marking' ? 'butt' : 'round'} />}
+              {/* Pen tool preview */}
               {penPoints.length > 0 && (<><path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />{penPoints.map((p, i) => <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={i === 0 ? '#4ca8ad' : currentColor} stroke="#fff" strokeWidth={1} />)}</>)}
+              {/* Selection rect */}
               {selectionRect && selectionRect.w > 0 && <rect x={selectionRect.x * zoom} y={selectionRect.y * zoom} width={selectionRect.w * zoom} height={selectionRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="6,3" fill="rgba(76,168,173,0.1)" />}
+              {/* Crop overlay */}
               {cropTarget && cropRect && idx === currentPage && (<><rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" /><rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" /></>)}
             </svg>
+            
+            {/* Vector menu */}
+            {vectorMenu && idx === currentPage && (
+              <VectorMenu
+                pathId={vectorMenu.idx}
+                position={vectorMenu.position}
+                zoom={zoom}
+                onDelete={handleDeleteVector}
+                onAddImage={handleAddImageToVector}
+                onAddAiImage={handleAddAiImageToVector}
+                onClose={() => setVectorMenu(null)}
+              />
+            )}
+            
             {cropTarget && cropRect && idx === currentPage && <button data-testid="crop-apply-btn" onClick={(e) => { e.stopPropagation(); applyCrop(); }} className="absolute z-20 zet-btn text-xs px-3 py-1" style={{ left: (cropRect.x + cropRect.w) * zoom + 8, top: cropRect.y * zoom }}>Apply Crop</button>}
             {(idx === currentPage ? canvasElements : page.elements || []).map(el => {
               const isSel = selectedElement === el.id || selectedElements.includes(el.id);
@@ -263,7 +489,7 @@ export const CanvasArea = ({
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
                       {isSel && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
-                        {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onClose={() => setElementMenu(null)} />}
+                        {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onClose={() => setElementMenu(null)} />}
                       </>)}
                     </div>
                   )}
@@ -271,7 +497,7 @@ export const CanvasArea = ({
                     <div className="relative w-full h-full group"><ShapeRenderer el={el} />
                       {isSel && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
-                        {elementMenu === el.id && <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={onAddImageToShape} onClose={() => setElementMenu(null)} />}
+                        {elementMenu === el.id && <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={onAddImageToShape} onAddAiImage={onAddAiImageToShape} onClose={() => setElementMenu(null)} />}
                       </>)}
                     </div>
                   )}

@@ -180,11 +180,27 @@ body {
 /* Mobile Responsive */
 @media (max-width: 768px) {
   .tool-btn {
-    width: 36px;
-    height: 36px;
+    width: 42px;
+    height: 42px;
+    min-width: 42px;
+    border-radius: 6px;
+  }
+  .tool-btn .h-4 {
+    width: 1.125rem;
+    height: 1.125rem;
   }
 }
 
 /* Hide scrollbar for mobile toolbar */
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Mobile toolbar - no gaps */
+@media (max-width: 768px) {
+  .mobile-toolbar {
+    gap: 2px !important;
+  }
+  .mobile-toolbar .tool-btn {
+    margin: 0;
+  }
+}
