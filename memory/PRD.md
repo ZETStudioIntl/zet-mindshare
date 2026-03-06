@@ -69,6 +69,15 @@ ZET Mindshare is a mobile and PC compatible document creation tool with integrat
 - Centered navigation (removed Back/Forward labels)
 - ZET Mindshare logo in header right corner
 
+### Phase 4 - Functional Canvas (March 2026)
+- Simplified to 3 tools: Text, Hand, Image
+- TEXT TOOL: Click anywhere on canvas to add text
+- HAND TOOL: Zoom in/out buttons, Reset View, drag to pan
+- IMAGE TOOL: Upload modal, resize from corners
+- Canvas elements saved per page
+- ZETA AI trained on tools - fun, professional, concise responses
+- Tool icons only (no text labels)
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
