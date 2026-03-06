@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
-  Clock, MoreVertical, Trash2, Cloud
+  Clock, Trash2, Cloud, Globe, X
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const Dashboard = () => {
   const { user, logout } = useAuth();
+  const { t, language, changeLanguage } = useLanguage();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
@@ -86,9 +88,9 @@ const Dashboard = () => {
     const diff = now - date;
     const hours = Math.floor(diff / (1000 * 60 * 60));
     const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    if (hours < 1) return 'Just now';
-    if (hours < 24) return `${hours}h ago`;
-    return `${days}d ago`;
+    if (hours < 1) return t('justNow');
+    if (hours < 24) return `${hours}${t('hoursAgo')}`;
+    return `${days}${t('daysAgo')}`;
   };
 
   const filteredDocs = documents.filter(d => 
@@ -137,7 +139,14 @@ const Dashboard = () => {
 
       {/* Settings Dropdown */}
       {showSettings && (
-        <div className="absolute right-4 top-16 zet-card p-4 z-50 min-w-[200px] animate-fadeIn" data-testid="settings-menu">
+        <div className="absolute right-4 top-16 zet-card p-4 z-50 min-w-[240px] animate-fadeIn" data-testid="settings-menu">
+          <div className="flex items-center justify-between mb-4">
+            <span className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('settings')}</span>
+            <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-white/10">
+              <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+            </button>
+          </div>
+          
           <div className="flex items-center gap-3 mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
             <img src={user?.picture || 'https://via.placeholder.com/40'} alt="" className="w-10 h-10 rounded-full" />
             <div>
@@ -145,15 +154,45 @@ const Dashboard = () => {
               <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
             </div>
           </div>
+
+          {/* Language Selector */}
+          <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+            <label className="flex items-center gap-2 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
+              <Globe className="h-4 w-4" /> {t('language')}
+            </label>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => changeLanguage('en')}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${language === 'en' ? 'glow-sm' : ''}`}
+                style={{ 
+                  background: language === 'en' ? 'var(--zet-primary)' : 'var(--zet-bg)',
+                  color: 'var(--zet-text)'
+                }}
+              >
+                English
+              </button>
+              <button 
+                onClick={() => changeLanguage('tr')}
+                className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${language === 'tr' ? 'glow-sm' : ''}`}
+                style={{ 
+                  background: language === 'tr' ? 'var(--zet-primary)' : 'var(--zet-bg)',
+                  color: 'var(--zet-text)'
+                }}
+              >
+                Türkçe
+              </button>
+            </div>
+          </div>
+
           <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
-            <Cloud className="h-4 w-4" /> Cloud Storage
+            <Cloud className="h-4 w-4" /> {t('cloudStorage')}
           </button>
           <button 
             onClick={handleLogout}
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 text-red-400"
             data-testid="logout-btn"
           >
-            <LogOut className="h-4 w-4" /> Logout
+            <LogOut className="h-4 w-4" /> {t('logout')}
           </button>
         </div>
       )}
@@ -165,7 +204,7 @@ const Dashboard = () => {
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
           <input
             type="text"
-            placeholder="Search documents..."
+            placeholder={t('searchDocuments')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="zet-input pl-12"
@@ -182,8 +221,8 @@ const Dashboard = () => {
               className="zet-card p-4 flex flex-col items-center justify-center min-h-[120px] hover:bg-white/5"
               data-testid="new-document-btn"
             >
-              <Plus className="h-8 w-8 mb-2" style={{ color: 'var(--zet-primary)' }} />
-              <span style={{ color: 'var(--zet-text-muted)' }}>New Document</span>
+              <Plus className="h-8 w-8 mb-2" style={{ color: 'var(--zet-primary-light)' }} />
+              <span style={{ color: 'var(--zet-text-muted)' }}>{t('newDocument')}</span>
             </button>
 
             {/* Document Cards */}
@@ -195,7 +234,7 @@ const Dashboard = () => {
                 data-testid={`doc-card-${doc.doc_id}`}
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'var(--zet-primary)' }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
                     <FileText className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
                   </div>
                   <button 
@@ -224,7 +263,7 @@ const Dashboard = () => {
                 data-testid={`note-card-${note.note_id}`}
               >
                 <div className="flex items-start gap-3">
-                  <StickyNote className="h-5 w-5 mt-0.5" style={{ color: 'var(--zet-primary)' }} />
+                  <StickyNote className="h-5 w-5 mt-0.5" style={{ color: 'var(--zet-primary-light)' }} />
                   <div>
                     <p style={{ color: 'var(--zet-text)' }}>{note.content}</p>
                     <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
@@ -241,7 +280,7 @@ const Dashboard = () => {
             ))}
             {filteredNotes.length === 0 && (
               <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
-                No notes yet. Add a quick note below!
+                {t('noNotesYet')}
               </div>
             )}
           </div>
@@ -252,7 +291,7 @@ const Dashboard = () => {
           <div className="flex gap-2">
             <input
               type="text"
-              placeholder="Quick note..."
+              placeholder={t('quickNote')}
               value={quickNote}
               onChange={(e) => setQuickNote(e.target.value)}
               onKeyDown={(e) => e.key === 'Enter' && addQuickNote()}
@@ -277,23 +316,23 @@ const Dashboard = () => {
             onClick={() => setActiveTab('documents')}
             className={`flex-1 py-2 px-4 rounded-lg transition-all ${activeTab === 'documents' ? 'glow-sm' : ''}`}
             style={{ 
-              background: activeTab === 'documents' ? 'var(--zet-primary)' : 'transparent',
+              background: activeTab === 'documents' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'transparent',
               color: activeTab === 'documents' ? 'var(--zet-text)' : 'var(--zet-text-muted)'
             }}
             data-testid="tab-documents"
           >
-            Documents
+            {t('documents')}
           </button>
           <button 
             onClick={() => setActiveTab('notes')}
             className={`flex-1 py-2 px-4 rounded-lg transition-all ${activeTab === 'notes' ? 'glow-sm' : ''}`}
             style={{ 
-              background: activeTab === 'notes' ? 'var(--zet-primary)' : 'transparent',
+              background: activeTab === 'notes' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'transparent',
               color: activeTab === 'notes' ? 'var(--zet-text)' : 'var(--zet-text-muted)'
             }}
             data-testid="tab-notes"
           >
-            Notes
+            {t('notes')}
           </button>
         </div>
       </div>

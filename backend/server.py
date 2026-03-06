@@ -270,7 +270,7 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     chat = LlmChat(
         api_key=api_key,
         session_id=session_id,
-        system_message="Sen ZETA, ZET Mindshare uygulamasinin yapay zeka asistanisin. Kullanicilara belge olusturma, beyin firtinasi, arastirma ve analiz konularinda yardimci olursun. Turkce ve Ingilizce konusabilirsin."
+        system_message="You are ZETA, the AI assistant for ZET Mindshare document creation app. You help users with document creation, brainstorming, research, and analysis. IMPORTANT: Always respond in the same language the user writes to you. If they write in Turkish, respond in Turkish. If they write in English, respond in English. If they write in any other language, respond in that language."
     )
     chat.with_model("gemini", "gemini-3-flash-preview")
     

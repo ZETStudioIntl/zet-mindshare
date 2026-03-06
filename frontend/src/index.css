@@ -5,16 +5,17 @@
 @tailwind utilities;
 
 :root {
-  --zet-primary: #004e64;
-  --zet-primary-light: #006a8a;
-  --zet-primary-dark: #003a4d;
+  --zet-primary: #292f91;
+  --zet-primary-light: #4ca8ad;
+  --zet-primary-dark: #1a1f5c;
   --zet-secondary: #e0e5e9;
-  --zet-bg: #0a1a20;
-  --zet-bg-light: #0f2a33;
-  --zet-bg-card: #112933;
+  --zet-bg: #0a0d1a;
+  --zet-bg-light: #0f1225;
+  --zet-bg-card: #131730;
   --zet-text: #e0e5e9;
-  --zet-text-muted: #8fa3ad;
-  --zet-glow: rgba(0, 78, 100, 0.4);
+  --zet-text-muted: #8a9cad;
+  --zet-glow: rgba(41, 47, 145, 0.5);
+  --zet-glow-light: rgba(76, 168, 173, 0.4);
   --zet-border: rgba(224, 229, 233, 0.1);
 }
 

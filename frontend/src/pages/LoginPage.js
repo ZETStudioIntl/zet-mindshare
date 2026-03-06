@@ -1,9 +1,11 @@
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useLanguage } from '../contexts/LanguageContext';
 import { LogIn, FileText, Sparkles, Cloud, Layout } from 'lucide-react';
 
 const LoginPage = () => {
   const { login } = useAuth();
+  const { t } = useLanguage();
 
   return (
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
@@ -31,26 +33,26 @@ const LoginPage = () => {
               style={{ background: 'var(--zet-bg-card)' }}
             />
             <h1 className="text-3xl font-bold mb-2" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</h1>
-            <p style={{ color: 'var(--zet-text-muted)' }}>Document creation with AI power</p>
+            <p style={{ color: 'var(--zet-text-muted)' }}>{t('documentCreation')}</p>
           </div>
 
           {/* Features */}
           <div className="grid grid-cols-2 gap-3 mb-8">
             <div className="zet-card p-4">
-              <FileText className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary)' }} />
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Smart Documents</p>
+              <FileText className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary-light)' }} />
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('smartDocuments')}</p>
             </div>
             <div className="zet-card p-4">
-              <Sparkles className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary)' }} />
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>ZETA AI</p>
+              <Sparkles className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary-light)' }} />
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('zetaAI')}</p>
             </div>
             <div className="zet-card p-4">
-              <Layout className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary)' }} />
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Pro Tools</p>
+              <Layout className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary-light)' }} />
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('proTools')}</p>
             </div>
             <div className="zet-card p-4">
-              <Cloud className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary)' }} />
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Cloud Sync</p>
+              <Cloud className="h-6 w-6 mx-auto mb-2" style={{ color: 'var(--zet-primary-light)' }} />
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cloudSync')}</p>
             </div>
           </div>
 
@@ -61,11 +63,11 @@ const LoginPage = () => {
             data-testid="google-login-btn"
           >
             <LogIn className="h-5 w-5" />
-            Continue with Google
+            {t('continueWithGoogle')}
           </button>
 
           <p className="mt-4 text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-            By continuing, you agree to our Terms of Service
+            {t('termsAgree')}
           </p>
         </div>
       </main>
