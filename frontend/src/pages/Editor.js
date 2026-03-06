@@ -1,22 +1,33 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   ArrowLeft, ArrowRight, Home, Save, 
-  Type, Image, Hand, 
+  Type, Image, Hand, FileText, Baseline,
   ChevronDown, ChevronUp, Grid, List,
-  Send, X, Sparkles, Plus,
+  Send, X, Sparkles, Plus, Search,
   PanelLeftClose, PanelLeftOpen,
-  FileText, Upload, ZoomIn, ZoomOut
+  Upload, ZoomIn, ZoomOut, Undo, Redo
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const PAGE_SIZES = [
+  { name: 'A4', width: 595, height: 842 },
+  { name: 'A5', width: 420, height: 595 },
+  { name: 'Letter', width: 612, height: 792 },
+  { name: 'Legal', width: 612, height: 1008 },
+  { name: 'Square', width: 600, height: 600 },
+  { name: 'Custom', width: 0, height: 0 },
+];
+
 const TOOLS = [
   { id: 'text', icon: Type, nameKey: 'text' },
+  { id: 'textsize', icon: Baseline, nameKey: 'textSize' },
   { id: 'hand', icon: Hand, nameKey: 'pan' },
   { id: 'image', icon: Image, nameKey: 'image' },
+  { id: 'pagesize', icon: FileText, nameKey: 'pageSize' },
 ];
 
 const Editor = () => {
@@ -26,6 +37,7 @@ const Editor = () => {
   const [document, setDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [activeTool, setActiveTool] = useState('hand');
+  const [toolSearch, setToolSearch] = useState('');
   const [pageView, setPageView] = useState('grid');
   const [zetaOpen, setZetaOpen] = useState(true);
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -49,9 +61,26 @@ const Editor = () => {
   const [textInput, setTextInput] = useState('');
   const [textPosition, setTextPosition] = useState({ x: 0, y: 0 });
   const [showImageUpload, setShowImageUpload] = useState(false);
+  const [showPageSize, setShowPageSize] = useState(false);
+  const [showTextSize, setShowTextSize] = useState(false);
+  const [dragging, setDragging] = useState(null);
+  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizing, setResizing] = useState(null);
   
+  // Page size state
+  const [pageSize, setPageSize] = useState({ name: 'A4', width: 595, height: 842 });
+  const [customWidth, setCustomWidth] = useState(595);
+  const [customHeight, setCustomHeight] = useState(842);
+  
+  // Text size state
+  const [currentFontSize, setCurrentFontSize] = useState(16);
+  
+  // Undo/Redo history
+  const [history, setHistory] = useState([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
+  
   const canvasRef = useRef(null);
+  const canvasContainerRef = useRef(null);
   const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
@@ -73,10 +102,41 @@ const Editor = () => {
   useEffect(() => {
     if (document?.pages?.[currentPage]?.elements) {
       setCanvasElements(document.pages[currentPage].elements);
+      // Reset history when changing pages
+      setHistory([document.pages[currentPage].elements]);
+      setHistoryIndex(0);
     } else {
       setCanvasElements([]);
+      setHistory([[]]);
+      setHistoryIndex(0);
+    }
+    // Load page size
+    if (document?.pages?.[currentPage]?.pageSize) {
+      setPageSize(document.pages[currentPage].pageSize);
     }
   }, [document, currentPage]);
+
+  // Save to history when elements change
+  const saveToHistory = useCallback((newElements) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push([...newElements]);
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  }, [history, historyIndex]);
+
+  const undo = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      setCanvasElements([...history[historyIndex - 1]]);
+    }
+  };
+
+  const redo = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      setCanvasElements([...history[historyIndex + 1]]);
+    }
+  };
 
   const fetchDocument = async () => {
     try {
@@ -92,12 +152,12 @@ const Editor = () => {
     if (!document) return;
     setSaving(true);
     
-    // Update current page elements
     const updatedPages = [...(document.pages || [])];
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = {
         ...updatedPages[currentPage],
-        elements: canvasElements
+        elements: canvasElements,
+        pageSize: pageSize
       };
     }
     
@@ -120,7 +180,7 @@ const Editor = () => {
   };
 
   const addPage = () => {
-    const newPage = { page_id: `page_${Date.now()}`, content: {}, elements: [] };
+    const newPage = { page_id: `page_${Date.now()}`, content: {}, elements: [], pageSize: pageSize };
     setDocument(prev => ({
       ...prev,
       pages: [...(prev.pages || []), newPage]
@@ -138,12 +198,18 @@ const Editor = () => {
     }
   };
 
-  // Canvas handlers
+  // Canvas click handler
   const handleCanvasClick = (e) => {
+    if (dragging || resizing) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / zoom;
+    const y = (e.clientY - rect.top) / zoom;
+    
+    // Check bounds
+    if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
+    
     if (activeTool === 'text' && !isTyping) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
       setTextPosition({ x, y });
       setIsTyping(true);
       setTextInput('');
@@ -152,56 +218,117 @@ const Editor = () => {
       setShowImageUpload(true);
     } else if (activeTool === 'hand') {
       // Check if clicking on an element
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
-      
       const clickedElement = [...canvasElements].reverse().find(el => {
         if (el.type === 'text') {
-          return x >= el.x && x <= el.x + 200 && y >= el.y - 20 && y <= el.y + 10;
+          return x >= el.x && x <= el.x + 300 && y >= el.y - el.fontSize && y <= el.y + 10;
         } else if (el.type === 'image') {
           return x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
         }
         return false;
       });
-      
       setSelectedElement(clickedElement?.id || null);
     }
   };
 
   const handleCanvasMouseDown = (e) => {
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / zoom;
+    const y = (e.clientY - rect.top) / zoom;
+    
+    // Check if clicking on selected element to drag
+    if (selectedElement && activeTool === 'hand') {
+      const el = canvasElements.find(el => el.id === selectedElement);
+      if (el) {
+        let isInside = false;
+        if (el.type === 'text') {
+          isInside = x >= el.x && x <= el.x + 300 && y >= el.y - el.fontSize && y <= el.y + 10;
+        } else if (el.type === 'image') {
+          isInside = x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
+        }
+        if (isInside) {
+          setDragging(el.id);
+          setDragOffset({ x: x - el.x, y: y - el.y });
+          return;
+        }
+      }
+    }
+    
+    // Pan only if hand tool and not on element
     if (activeTool === 'hand' && !selectedElement) {
-      setIsPanning(true);
-      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      // Check if inside canvas bounds
+      if (x >= 0 && y >= 0 && x <= pageSize.width && y <= pageSize.height) {
+        setIsPanning(true);
+        setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+      }
     }
   };
 
   const handleCanvasMouseMove = (e) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - panStart.x,
-        y: e.clientY - panStart.y
-      });
+    if (!canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / zoom;
+    const y = (e.clientY - rect.top) / zoom;
+    
+    if (dragging) {
+      // Constrain to canvas bounds
+      const el = canvasElements.find(el => el.id === dragging);
+      if (el) {
+        let newX = x - dragOffset.x;
+        let newY = y - dragOffset.y;
+        
+        // Constrain
+        newX = Math.max(0, Math.min(pageSize.width - (el.width || 100), newX));
+        newY = Math.max(el.fontSize || 20, Math.min(pageSize.height, newY));
+        
+        setCanvasElements(prev => prev.map(item => 
+          item.id === dragging ? { ...item, x: newX, y: newY } : item
+        ));
+      }
+      return;
     }
     
     if (resizing) {
-      const rect = canvasRef.current.getBoundingClientRect();
-      const x = (e.clientX - rect.left - pan.x) / zoom;
-      const y = (e.clientY - rect.top - pan.y) / zoom;
+      const newWidth = Math.max(50, Math.min(pageSize.width - resizing.startX, x - resizing.startX));
+      const newHeight = Math.max(50, Math.min(pageSize.height - resizing.startY, y - resizing.startY));
       
       setCanvasElements(prev => prev.map(el => {
         if (el.id === resizing.id) {
-          const newWidth = Math.max(50, x - el.x);
-          const newHeight = Math.max(50, y - el.y);
           return { ...el, width: newWidth, height: newHeight };
         }
         return el;
       }));
+      return;
+    }
+    
+    if (isPanning) {
+      const containerRect = canvasContainerRef.current.getBoundingClientRect();
+      const canvasWidth = pageSize.width * zoom;
+      const canvasHeight = pageSize.height * zoom;
+      
+      let newPanX = e.clientX - panStart.x;
+      let newPanY = e.clientY - panStart.y;
+      
+      // Constrain pan to keep canvas visible
+      const maxPanX = Math.max(0, (canvasWidth - containerRect.width) / 2 + 100);
+      const maxPanY = Math.max(0, (canvasHeight - containerRect.height) / 2 + 100);
+      
+      newPanX = Math.max(-maxPanX, Math.min(maxPanX, newPanX));
+      newPanY = Math.max(-maxPanY, Math.min(maxPanY, newPanY));
+      
+      setPan({ x: newPanX, y: newPanY });
     }
   };
 
   const handleCanvasMouseUp = () => {
+    if (dragging) {
+      saveToHistory(canvasElements);
+    }
+    if (resizing) {
+      saveToHistory(canvasElements);
+    }
     setIsPanning(false);
+    setDragging(null);
     setResizing(null);
   };
 
@@ -221,11 +348,13 @@ const Editor = () => {
       x: textPosition.x,
       y: textPosition.y,
       content: textInput,
-      fontSize: 16,
+      fontSize: currentFontSize,
       color: '#000000'
     };
     
-    setCanvasElements(prev => [...prev, newElement]);
+    const newElements = [...canvasElements, newElement];
+    setCanvasElements(newElements);
+    saveToHistory(newElements);
     setIsTyping(false);
     setTextInput('');
   };
@@ -238,18 +367,20 @@ const Editor = () => {
     reader.onload = (event) => {
       const img = new window.Image();
       img.onload = () => {
-        const maxWidth = 300;
+        const maxWidth = Math.min(300, pageSize.width - 20);
         const ratio = maxWidth / img.width;
         const newElement = {
           id: `el_${Date.now()}`,
           type: 'image',
-          x: 50,
-          y: 50,
+          x: 20,
+          y: 20,
           width: maxWidth,
           height: img.height * ratio,
           src: event.target.result
         };
-        setCanvasElements(prev => [...prev, newElement]);
+        const newElements = [...canvasElements, newElement];
+        setCanvasElements(newElements);
+        saveToHistory(newElements);
         setShowImageUpload(false);
       };
       img.src = event.target.result;
@@ -259,9 +390,41 @@ const Editor = () => {
 
   const deleteSelectedElement = () => {
     if (selectedElement) {
-      setCanvasElements(prev => prev.filter(el => el.id !== selectedElement));
+      const newElements = canvasElements.filter(el => el.id !== selectedElement);
+      setCanvasElements(newElements);
+      saveToHistory(newElements);
       setSelectedElement(null);
     }
+  };
+
+  const applyFontSize = (size) => {
+    setCurrentFontSize(size);
+    
+    // If element is selected, update its font size
+    if (selectedElement) {
+      const el = canvasElements.find(e => e.id === selectedElement);
+      if (el && el.type === 'text') {
+        const newElements = canvasElements.map(item =>
+          item.id === selectedElement ? { ...item, fontSize: size } : item
+        );
+        setCanvasElements(newElements);
+        saveToHistory(newElements);
+      }
+    }
+  };
+
+  const handlePageSizeChange = (size) => {
+    if (size.name === 'Custom') {
+      setPageSize({ name: 'Custom', width: customWidth, height: customHeight });
+    } else {
+      setPageSize(size);
+      setCustomWidth(size.width);
+      setCustomHeight(size.height);
+    }
+  };
+
+  const applyCustomSize = () => {
+    setPageSize({ name: 'Custom', width: customWidth, height: customHeight });
   };
 
   const sendZetaMessage = async () => {
@@ -289,6 +452,11 @@ const Editor = () => {
     }
   };
 
+  // Filter tools
+  const filteredTools = TOOLS.filter(tool => 
+    t(tool.nameKey).toLowerCase().includes(toolSearch.toLowerCase())
+  );
+
   // Calculate document stats
   const getDocumentStats = () => {
     const pageCount = document?.pages?.length || 0;
@@ -306,261 +474,6 @@ const Editor = () => {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
         <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }}></div>
-      </div>
-    );
-  }
-
-  // Mobile Layout
-  if (isMobile) {
-    return (
-      <div className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
-        {/* Mobile Header */}
-        <header className="p-3 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
-          <button onClick={() => navigate('/dashboard')} className="tool-btn w-10 h-10" data-testid="back-btn">
-            <Home className="h-5 w-5" />
-          </button>
-          <input
-            type="text"
-            value={document.title}
-            onChange={(e) => updateTitle(e.target.value)}
-            className="bg-transparent text-center font-medium flex-1 mx-2"
-            style={{ color: 'var(--zet-text)' }}
-            data-testid="doc-title-input"
-          />
-          <button onClick={saveDocument} className="tool-btn w-10 h-10" data-testid="save-btn">
-            <Save className={`h-5 w-5 ${saving ? 'animate-pulse' : ''}`} />
-          </button>
-        </header>
-
-        {/* Mobile Navigation - Centered */}
-        <div className="flex justify-center gap-4 p-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-          <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} className="tool-btn w-12 h-10">
-            <ArrowLeft className="h-5 w-5" />
-          </button>
-          <span className="flex items-center px-4 font-medium" style={{ color: 'var(--zet-text)' }}>
-            {currentPage + 1} / {document.pages?.length || 1}
-          </span>
-          <button onClick={() => setCurrentPage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} className="tool-btn w-12 h-10">
-            <ArrowRight className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Mobile Content */}
-        <div className="flex-1 overflow-hidden">
-          {mobilePanel === 'tools' && (
-            <div className="h-full p-4 overflow-y-auto animate-fadeIn">
-              <div className="grid grid-cols-3 gap-3">
-                {TOOLS.map(tool => (
-                  <button
-                    key={tool.id}
-                    onClick={() => { setActiveTool(tool.id); setMobilePanel('canvas'); }}
-                    className={`tool-btn h-16 ${activeTool === tool.id ? 'active' : ''}`}
-                    data-testid={`tool-${tool.id}`}
-                  >
-                    <tool.icon className="h-6 w-6" />
-                  </button>
-                ))}
-              </div>
-              
-              {/* Zoom Controls */}
-              <div className="mt-4 flex justify-center gap-2">
-                <button onClick={() => handleZoom(-0.25)} className="tool-btn w-12 h-12">
-                  <ZoomOut className="h-5 w-5" />
-                </button>
-                <span className="flex items-center px-4" style={{ color: 'var(--zet-text)' }}>
-                  {Math.round(zoom * 100)}%
-                </span>
-                <button onClick={() => handleZoom(0.25)} className="tool-btn w-12 h-12">
-                  <ZoomIn className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-          )}
-
-          {mobilePanel === 'canvas' && (
-            <div className="h-full p-4 flex items-center justify-center overflow-hidden">
-              <div 
-                ref={canvasRef}
-                className="bg-white rounded-lg shadow-lg relative overflow-hidden"
-                style={{ 
-                  width: '100%', 
-                  maxWidth: '400px', 
-                  aspectRatio: '3/4',
-                  cursor: activeTool === 'hand' ? 'grab' : activeTool === 'text' ? 'text' : 'default'
-                }}
-                onClick={handleCanvasClick}
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-                onMouseLeave={handleCanvasMouseUp}
-                data-testid="canvas-area"
-              >
-                <div style={{ transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`, transformOrigin: 'top left' }}>
-                  {canvasElements.map(el => (
-                    <div
-                      key={el.id}
-                      className={`absolute ${selectedElement === el.id ? 'ring-2 ring-blue-500' : ''}`}
-                      style={{
-                        left: el.x,
-                        top: el.y,
-                        cursor: 'pointer'
-                      }}
-                      onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
-                    >
-                      {el.type === 'text' && (
-                        <span style={{ fontSize: el.fontSize, color: el.color }}>{el.content}</span>
-                      )}
-                      {el.type === 'image' && (
-                        <img src={el.src} alt="" style={{ width: el.width, height: el.height }} draggable={false} />
-                      )}
-                    </div>
-                  ))}
-                  
-                  {isTyping && (
-                    <input
-                      type="text"
-                      value={textInput}
-                      onChange={(e) => setTextInput(e.target.value)}
-                      onBlur={addTextElement}
-                      onKeyDown={(e) => e.key === 'Enter' && addTextElement()}
-                      autoFocus
-                      className="absolute bg-transparent border-b-2 border-blue-500 outline-none"
-                      style={{ left: textPosition.x, top: textPosition.y - 20, fontSize: 16 }}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {mobilePanel === 'pages' && (
-            <div className="h-full p-4 overflow-y-auto animate-fadeIn">
-              {/* Pages section */}
-              <div className="mb-6">
-                <div className="flex justify-between items-center mb-2">
-                  <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</h3>
-                  <button onClick={addPage} className="tool-btn w-8 h-8" data-testid="add-page-btn">
-                    <Plus className="h-4 w-4" />
-                  </button>
-                </div>
-                <div className="text-xs mb-3" style={{ color: 'var(--zet-text-muted)' }}>
-                  {stats.pageCount} {t('pages')} • {stats.charCount} {t('characters')}
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  {document.pages?.map((page, idx) => (
-                    <div key={page.page_id} className="relative group">
-                      <div
-                        onClick={() => { setCurrentPage(idx); setMobilePanel('canvas'); }}
-                        className={`page-thumb ${currentPage === idx ? 'active' : ''}`}
-                        data-testid={`page-thumb-${idx}`}
-                      />
-                      {document.pages.length > 1 && (
-                        <button
-                          onClick={() => deletePage(idx)}
-                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ZETA Chat */}
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-5 w-5" style={{ color: 'var(--zet-primary-light)' }} />
-                  <span className="font-medium" style={{ color: 'var(--zet-text)' }}>ZETA</span>
-                </div>
-                <div className="zet-card p-3 h-48 overflow-y-auto mb-2" style={{ background: 'var(--zet-bg)' }}>
-                  {zetaMessages.map((msg, idx) => (
-                    <div key={idx} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                      <div 
-                        className={`inline-block px-3 py-2 rounded-lg max-w-[80%] text-sm ${msg.role === 'user' ? 'glow-sm' : ''}`}
-                        style={{ 
-                          background: msg.role === 'user' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'var(--zet-bg-card)',
-                          color: 'var(--zet-text)'
-                        }}
-                      >
-                        {msg.content}
-                      </div>
-                    </div>
-                  ))}
-                  {zetaLoading && (
-                    <div className="flex gap-1 p-2">
-                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)' }}></div>
-                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '150ms' }}></div>
-                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '300ms' }}></div>
-                    </div>
-                  )}
-                  <div ref={chatEndRef} />
-                </div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder={t('askZeta')}
-                    value={zetaInput}
-                    onChange={(e) => setZetaInput(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && sendZetaMessage()}
-                    className="zet-input flex-1"
-                    data-testid="zeta-input"
-                  />
-                  <button onClick={sendZetaMessage} className="zet-btn px-3" data-testid="zeta-send-btn">
-                    <Send className="h-5 w-5" />
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Mobile Bottom Tabs */}
-        <div className="p-3 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <div className="flex justify-around">
-            <button 
-              onClick={() => setMobilePanel('tools')}
-              className={`flex flex-col items-center gap-1 p-2 ${mobilePanel === 'tools' ? '' : 'opacity-50'}`}
-              style={{ color: 'var(--zet-text)' }}
-            >
-              <Hand className="h-5 w-5" />
-              <span className="text-xs">{t('tools')}</span>
-            </button>
-            <button 
-              onClick={() => setMobilePanel('canvas')}
-              className={`flex flex-col items-center gap-1 p-2 ${mobilePanel === 'canvas' ? '' : 'opacity-50'}`}
-              style={{ color: 'var(--zet-text)' }}
-            >
-              <FileText className="h-5 w-5" />
-              <span className="text-xs">{t('canvas')}</span>
-            </button>
-            <button 
-              onClick={() => setMobilePanel('pages')}
-              className={`flex flex-col items-center gap-1 p-2 ${mobilePanel === 'pages' ? '' : 'opacity-50'}`}
-              style={{ color: 'var(--zet-text)' }}
-            >
-              <Sparkles className="h-5 w-5" />
-              <span className="text-xs">{t('pagesAI')}</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Image Upload Modal */}
-        {showImageUpload && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImageUpload(false)}>
-            <div className="zet-card p-6 m-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
-              <h3 className="font-medium mb-4" style={{ color: 'var(--zet-text)' }}>{t('image')}</h3>
-              <label className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer">
-                <Upload className="h-5 w-5" />
-                <span>Upload Image</span>
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-              </label>
-              <button onClick={() => setShowImageUpload(false)} className="w-full mt-3 py-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -584,20 +497,48 @@ const Editor = () => {
           />
         </div>
 
-        {/* Navigation - Centered */}
-        <div className="flex items-center gap-3">
-          <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} className="tool-btn">
-            <ArrowLeft className="h-5 w-5" />
+        {/* Navigation - Undo/Redo */}
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={undo} 
+            disabled={historyIndex <= 0}
+            className={`tool-btn ${historyIndex <= 0 ? 'opacity-30' : ''}`}
+            title="Undo"
+          >
+            <Undo className="h-5 w-5" />
           </button>
           <span className="px-4 font-medium" style={{ color: 'var(--zet-text)' }}>
             {currentPage + 1} / {document.pages?.length || 1}
           </span>
-          <button onClick={() => setCurrentPage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} className="tool-btn">
-            <ArrowRight className="h-5 w-5" />
+          <button 
+            onClick={redo}
+            disabled={historyIndex >= history.length - 1}
+            className={`tool-btn ${historyIndex >= history.length - 1 ? 'opacity-30' : ''}`}
+            title="Redo"
+          >
+            <Redo className="h-5 w-5" />
           </button>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Page Navigation */}
+          <div className="flex items-center gap-1">
+            <button 
+              onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} 
+              disabled={currentPage === 0}
+              className={`tool-btn ${currentPage === 0 ? 'opacity-30' : ''}`}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </button>
+            <button 
+              onClick={() => setCurrentPage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))}
+              disabled={currentPage >= (document.pages?.length || 1) - 1}
+              className={`tool-btn ${currentPage >= (document.pages?.length || 1) - 1 ? 'opacity-30' : ''}`}
+            >
+              <ArrowRight className="h-5 w-5" />
+            </button>
+          </div>
+          
           <button onClick={saveDocument} className="zet-btn flex items-center gap-2" data-testid="save-btn">
             <Save className={`h-4 w-4 ${saving ? 'animate-pulse' : ''}`} />
             {saving ? t('saving') : t('save')}
@@ -618,11 +559,23 @@ const Editor = () => {
           style={{ borderColor: 'var(--zet-border)' }}
         >
           {/* Toolbox Header */}
-          <div className="p-2 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            {toolboxOpen && <span className="text-sm font-medium pl-2" style={{ color: 'var(--zet-text)' }}>{t('tools')}</span>}
+          <div className="p-2 flex items-center gap-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+            {toolboxOpen && (
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                <input
+                  type="text"
+                  placeholder={t('search')}
+                  value={toolSearch}
+                  onChange={(e) => setToolSearch(e.target.value)}
+                  className="zet-input pl-9 text-sm py-2"
+                  data-testid="tool-search"
+                />
+              </div>
+            )}
             <button 
               onClick={() => setToolboxOpen(!toolboxOpen)}
-              className="tool-btn w-8 h-8 ml-auto"
+              className="tool-btn w-8 h-8 flex-shrink-0"
               data-testid="toggle-toolbox"
             >
               {toolboxOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
@@ -631,14 +584,16 @@ const Editor = () => {
 
           {/* Tools */}
           {toolboxOpen && (
-            <div className="p-3 flex-1">
+            <div className="p-3 flex-1 overflow-y-auto">
               <div className="grid grid-cols-3 gap-2 mb-4">
-                {TOOLS.map(tool => (
+                {filteredTools.map(tool => (
                   <button
                     key={tool.id}
                     onClick={() => {
                       setActiveTool(tool.id);
                       if (tool.id === 'image') setShowImageUpload(true);
+                      if (tool.id === 'pagesize') setShowPageSize(true);
+                      if (tool.id === 'textsize') setShowTextSize(true);
                     }}
                     className={`tool-btn h-14 ${activeTool === tool.id ? 'active' : ''}`}
                     data-testid={`tool-${tool.id}`}
@@ -671,6 +626,13 @@ const Editor = () => {
                 </button>
               </div>
 
+              {/* Current Font Size */}
+              <div className="border-t pt-4 mt-4" style={{ borderColor: 'var(--zet-border)' }}>
+                <div className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>
+                  Font Size: {currentFontSize}pt
+                </div>
+              </div>
+
               {/* Delete Selected */}
               {selectedElement && (
                 <button 
@@ -686,18 +648,20 @@ const Editor = () => {
 
         {/* Center: Canvas */}
         <div 
-          className="flex-1 p-8 flex items-center justify-center overflow-hidden" 
+          ref={canvasContainerRef}
+          className="flex-1 flex items-center justify-center overflow-hidden" 
           style={{ background: 'var(--zet-bg-light)' }}
         >
           <div 
             ref={canvasRef}
-            className="bg-white rounded-lg shadow-2xl relative overflow-hidden"
+            className="bg-white rounded-lg shadow-2xl relative"
             style={{ 
-              width: '100%', 
-              maxWidth: '600px', 
-              aspectRatio: '3/4',
+              width: pageSize.width * zoom,
+              height: pageSize.height * zoom,
               boxShadow: '0 0 40px var(--zet-glow)',
-              cursor: activeTool === 'hand' ? (isPanning ? 'grabbing' : 'grab') : activeTool === 'text' ? 'text' : 'default'
+              cursor: activeTool === 'hand' ? (isPanning || dragging ? 'grabbing' : 'grab') : activeTool === 'text' ? 'text' : 'default',
+              transform: `translate(${pan.x}px, ${pan.y}px)`,
+              overflow: 'hidden'
             }}
             onClick={handleCanvasClick}
             onMouseDown={handleCanvasMouseDown}
@@ -706,55 +670,79 @@ const Editor = () => {
             onMouseLeave={handleCanvasMouseUp}
             data-testid="canvas-area"
           >
-            <div 
-              className="w-full h-full"
-              style={{ 
-                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`, 
-                transformOrigin: 'top left' 
-              }}
-            >
-              {canvasElements.map(el => (
-                <div
-                  key={el.id}
-                  className={`absolute ${selectedElement === el.id ? 'ring-2 ring-blue-500' : ''}`}
-                  style={{
-                    left: el.x,
-                    top: el.y,
-                    cursor: 'pointer'
-                  }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
-                >
-                  {el.type === 'text' && (
-                    <span style={{ fontSize: el.fontSize, color: el.color, whiteSpace: 'nowrap' }}>{el.content}</span>
-                  )}
-                  {el.type === 'image' && (
-                    <div className="relative">
-                      <img src={el.src} alt="" style={{ width: el.width, height: el.height }} draggable={false} />
-                      {selectedElement === el.id && (
-                        <div 
-                          className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 cursor-se-resize"
-                          onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id }); }}
-                        />
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-              
-              {isTyping && (
-                <input
-                  type="text"
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  onBlur={addTextElement}
-                  onKeyDown={(e) => e.key === 'Enter' && addTextElement()}
-                  autoFocus
-                  className="absolute bg-transparent border-b-2 border-blue-500 outline-none text-black"
-                  style={{ left: textPosition.x, top: textPosition.y - 20, fontSize: 16, minWidth: 100 }}
-                  placeholder="Type here..."
-                />
-              )}
-            </div>
+            {/* Canvas elements */}
+            {canvasElements.map(el => (
+              <div
+                key={el.id}
+                className={`absolute ${selectedElement === el.id ? 'ring-2 ring-blue-500' : ''}`}
+                style={{
+                  left: el.x * zoom,
+                  top: (el.type === 'text' ? el.y - el.fontSize : el.y) * zoom,
+                  cursor: activeTool === 'hand' ? 'move' : 'default'
+                }}
+                onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
+              >
+                {el.type === 'text' && (
+                  <div 
+                    style={{ 
+                      fontSize: el.fontSize * zoom, 
+                      color: el.color, 
+                      maxWidth: (pageSize.width - el.x) * zoom,
+                      wordWrap: 'break-word',
+                      whiteSpace: 'pre-wrap',
+                      lineHeight: 1.4
+                    }}
+                  >
+                    {el.content}
+                  </div>
+                )}
+                {el.type === 'image' && (
+                  <div className="relative">
+                    <img 
+                      src={el.src} 
+                      alt="" 
+                      style={{ width: el.width * zoom, height: el.height * zoom }} 
+                      draggable={false} 
+                    />
+                    {selectedElement === el.id && (
+                      <div 
+                        className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 cursor-se-resize"
+                        onMouseDown={(e) => { 
+                          e.stopPropagation(); 
+                          setResizing({ id: el.id, startX: el.x, startY: el.y }); 
+                        }}
+                      />
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+            
+            {/* Text Input */}
+            {isTyping && (
+              <textarea
+                value={textInput}
+                onChange={(e) => setTextInput(e.target.value)}
+                onBlur={addTextElement}
+                onKeyDown={(e) => {
+                  if (e.key === 'Escape') {
+                    setIsTyping(false);
+                    setTextInput('');
+                  }
+                }}
+                autoFocus
+                className="absolute bg-yellow-50 border-2 border-blue-500 outline-none p-1 resize-none"
+                style={{ 
+                  left: textPosition.x * zoom, 
+                  top: (textPosition.y - currentFontSize) * zoom, 
+                  fontSize: currentFontSize * zoom,
+                  minWidth: 100 * zoom,
+                  minHeight: currentFontSize * zoom * 2,
+                  maxWidth: (pageSize.width - textPosition.x) * zoom
+                }}
+                placeholder="Type here..."
+              />
+            )}
           </div>
         </div>
 
@@ -931,6 +919,135 @@ const Editor = () => {
             <p className="text-xs text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
               Supports JPG, PNG, GIF
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Page Size Modal */}
+      {showPageSize && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowPageSize(false)}>
+          <div className="zet-card p-6 max-w-sm w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>Page Size</h3>
+              <button onClick={() => setShowPageSize(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            <div className="space-y-2 mb-4">
+              {PAGE_SIZES.map(size => (
+                <button
+                  key={size.name}
+                  onClick={() => handlePageSizeChange(size)}
+                  className={`w-full p-3 rounded-lg text-left flex justify-between items-center ${pageSize.name === size.name ? 'glow-sm' : ''}`}
+                  style={{ 
+                    background: pageSize.name === size.name ? 'var(--zet-primary)' : 'var(--zet-bg)',
+                    color: 'var(--zet-text)'
+                  }}
+                >
+                  <span>{size.name}</span>
+                  {size.name !== 'Custom' && (
+                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                      {size.width} × {size.height}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+
+            {/* Custom Size Inputs */}
+            <div className="border-t pt-4" style={{ borderColor: 'var(--zet-border)' }}>
+              <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>Custom Size (px)</p>
+              <div className="flex gap-2 mb-3">
+                <input
+                  type="number"
+                  value={customWidth}
+                  onChange={(e) => setCustomWidth(Number(e.target.value))}
+                  className="zet-input flex-1"
+                  placeholder="Width"
+                  min="100"
+                  max="2000"
+                />
+                <span className="flex items-center" style={{ color: 'var(--zet-text-muted)' }}>×</span>
+                <input
+                  type="number"
+                  value={customHeight}
+                  onChange={(e) => setCustomHeight(Number(e.target.value))}
+                  className="zet-input flex-1"
+                  placeholder="Height"
+                  min="100"
+                  max="2000"
+                />
+              </div>
+              <button onClick={applyCustomSize} className="zet-btn w-full">
+                Apply Custom Size
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Text Size Modal */}
+      {showTextSize && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowTextSize(false)}>
+          <div className="zet-card p-6 max-w-sm w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>Text Size</h3>
+              <button onClick={() => setShowTextSize(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            {/* Slider */}
+            <div className="mb-4">
+              <input
+                type="range"
+                min="5"
+                max="100"
+                value={currentFontSize}
+                onChange={(e) => applyFontSize(Number(e.target.value))}
+                className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                style={{ 
+                  background: `linear-gradient(to right, var(--zet-primary) 0%, var(--zet-primary) ${(currentFontSize - 5) / 95 * 100}%, var(--zet-bg) ${(currentFontSize - 5) / 95 * 100}%, var(--zet-bg) 100%)`
+                }}
+              />
+              <div className="flex justify-between text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
+                <span>5pt</span>
+                <span>100pt</span>
+              </div>
+            </div>
+
+            {/* Number Input */}
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="number"
+                min="5"
+                max="100"
+                value={currentFontSize}
+                onChange={(e) => applyFontSize(Math.min(100, Math.max(5, Number(e.target.value))))}
+                className="zet-input text-center text-2xl font-bold"
+                style={{ width: '100px' }}
+              />
+              <span style={{ color: 'var(--zet-text)' }}>pt</span>
+            </div>
+
+            {/* Preview */}
+            <div className="p-4 rounded-lg mb-4" style={{ background: 'var(--zet-bg)' }}>
+              <p style={{ fontSize: currentFontSize, color: 'var(--zet-text)' }}>Aa</p>
+            </div>
+
+            {selectedElement && (
+              <p className="text-xs text-center" style={{ color: 'var(--zet-primary-light)' }}>
+                ✓ Will also update selected text
+              </p>
+            )}
+
+            <button 
+              onClick={() => setShowTextSize(false)} 
+              className="zet-btn w-full mt-4"
+            >
+              Done
+            </button>
           </div>
         </div>
       )}

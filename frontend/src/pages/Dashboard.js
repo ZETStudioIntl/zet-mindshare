@@ -10,6 +10,14 @@ import {
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const PAGE_SIZES = [
+  { name: 'A4', width: 595, height: 842 },
+  { name: 'A5', width: 420, height: 595 },
+  { name: 'Letter', width: 612, height: 792 },
+  { name: 'Legal', width: 612, height: 1008 },
+  { name: 'Square', width: 600, height: 600 },
+];
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const { t, language, changeLanguage } = useLanguage();
@@ -20,6 +28,9 @@ const Dashboard = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNote, setQuickNote] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [showNewDoc, setShowNewDoc] = useState(false);
+  const [newDocTitle, setNewDocTitle] = useState('');
+  const [selectedPageSize, setSelectedPageSize] = useState(PAGE_SIZES[0]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,11 +53,15 @@ const Dashboard = () => {
   };
 
   const createDocument = async () => {
+    const title = newDocTitle.trim() || 'Untitled Document';
     try {
       const res = await axios.post(`${API}/documents`, {
-        title: 'Untitled Document',
-        doc_type: 'document'
+        title: title,
+        doc_type: 'document',
+        pageSize: selectedPageSize
       }, { withCredentials: true });
+      setShowNewDoc(false);
+      setNewDocTitle('');
       navigate(`/editor/${res.data.doc_id}`);
     } catch (error) {
       console.error('Error creating document:', error);
@@ -217,7 +232,7 @@ const Dashboard = () => {
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card */}
             <button 
-              onClick={createDocument}
+              onClick={() => setShowNewDoc(true)}
               className="zet-card p-4 flex flex-col items-center justify-center min-h-[120px] hover:bg-white/5"
               data-testid="new-document-btn"
             >
@@ -336,6 +351,60 @@ const Dashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* New Document Modal */}
+      {showNewDoc && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowNewDoc(false)}>
+          <div className="zet-card p-6 max-w-sm w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('newDocument')}</h3>
+              <button onClick={() => setShowNewDoc(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            {/* Document Title */}
+            <div className="mb-4">
+              <label className="text-xs mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Title</label>
+              <input
+                type="text"
+                value={newDocTitle}
+                onChange={(e) => setNewDocTitle(e.target.value)}
+                placeholder="Untitled Document"
+                className="zet-input"
+                autoFocus
+              />
+            </div>
+
+            {/* Page Size Selection */}
+            <div className="mb-4">
+              <label className="text-xs mb-2 block" style={{ color: 'var(--zet-text-muted)' }}>Page Size</label>
+              <div className="grid grid-cols-2 gap-2">
+                {PAGE_SIZES.map(size => (
+                  <button
+                    key={size.name}
+                    onClick={() => setSelectedPageSize(size)}
+                    className={`p-3 rounded-lg text-left ${selectedPageSize.name === size.name ? 'glow-sm' : ''}`}
+                    style={{ 
+                      background: selectedPageSize.name === size.name ? 'var(--zet-primary)' : 'var(--zet-bg)',
+                      color: 'var(--zet-text)'
+                    }}
+                  >
+                    <span className="block font-medium">{size.name}</span>
+                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                      {size.width} × {size.height}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <button onClick={createDocument} className="zet-btn w-full">
+              Create Document
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
