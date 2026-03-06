@@ -78,6 +78,17 @@ ZET Mindshare is a mobile and PC compatible document creation tool with integrat
 - ZETA AI trained on tools - fun, professional, concise responses
 - Tool icons only (no text labels)
 
+### Phase 5 - Advanced Tools (March 2026)
+- PAGE SIZE TOOL: A4, A5, Letter, Legal, Square presets + Custom size
+- TEXT SIZE TOOL: Slider 5-100pt, number input, preview
+- UNDO/REDO: Full history management
+- Drag-to-move for images and text elements
+- Text auto-wraps within canvas bounds
+- Tool search bar restored
+- Hand tool constrained to canvas bounds
+- New Document modal with page size selection
+- ZETA trained on all 5 tools
+
 ## Prioritized Backlog
 
 ### P0 (Critical)
