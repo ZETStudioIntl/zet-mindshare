@@ -4,41 +4,19 @@ import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   ArrowLeft, ArrowRight, Home, Save, 
-  Pencil, Type, Image, Square, Circle, 
-  Eraser, Pipette, Paintbrush, Move, 
-  ZoomIn, ZoomOut, Undo, Redo, Layers,
-  ChevronLeft, ChevronRight, Grid, List,
-  Send, X, Minus, Sparkles, Plus, Trash2,
-  Crop, MousePointer, Hand, Share2, Download,
-  AlignLeft, AlignCenter, AlignRight, Bold, Italic,
-  PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp,
-  FileText
+  Type, Image, Hand, 
+  ChevronDown, ChevronUp, Grid, List,
+  Send, X, Sparkles, Plus,
+  PanelLeftClose, PanelLeftOpen,
+  FileText, Upload, ZoomIn, ZoomOut
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const TOOLS = [
-  { id: 'select', icon: MousePointer, nameKey: 'select' },
-  { id: 'pencil', icon: Pencil, nameKey: 'pencil' },
-  { id: 'brush', icon: Paintbrush, nameKey: 'brush' },
-  { id: 'crop', icon: Crop, nameKey: 'crop' },
-  { id: 'eraser', icon: Eraser, nameKey: 'eraser' },
-  { id: 'circle', icon: Circle, nameKey: 'circle' },
-  { id: 'square', icon: Square, nameKey: 'rectangle' },
-  { id: 'image', icon: Image, nameKey: 'image' },
   { id: 'text', icon: Type, nameKey: 'text' },
-  { id: 'pipette', icon: Pipette, nameKey: 'colorPicker' },
-  { id: 'layers', icon: Layers, nameKey: 'layers' },
   { id: 'hand', icon: Hand, nameKey: 'pan' },
-  { id: 'zoomin', icon: ZoomIn, nameKey: 'zoomIn' },
-  { id: 'zoomout', icon: ZoomOut, nameKey: 'zoomOut' },
-  { id: 'share', icon: Share2, nameKey: 'share' },
-  { id: 'download', icon: Download, nameKey: 'download' },
-  { id: 'bold', icon: Bold, nameKey: 'bold' },
-  { id: 'italic', icon: Italic, nameKey: 'italic' },
-  { id: 'alignleft', icon: AlignLeft, nameKey: 'alignLeft' },
-  { id: 'aligncenter', icon: AlignCenter, nameKey: 'alignCenter' },
-  { id: 'alignright', icon: AlignRight, nameKey: 'alignRight' },
+  { id: 'image', icon: Image, nameKey: 'image' },
 ];
 
 const Editor = () => {
@@ -47,8 +25,7 @@ const Editor = () => {
   const { t } = useLanguage();
   const [document, setDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
-  const [activeTool, setActiveTool] = useState('select');
-  const [toolSearch, setToolSearch] = useState('');
+  const [activeTool, setActiveTool] = useState('hand');
   const [pageView, setPageView] = useState('grid');
   const [zetaOpen, setZetaOpen] = useState(true);
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -60,6 +37,22 @@ const Editor = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [mobilePanel, setMobilePanel] = useState('canvas');
   const [toolboxOpen, setToolboxOpen] = useState(true);
+  
+  // Canvas state
+  const [canvasElements, setCanvasElements] = useState([]);
+  const [selectedElement, setSelectedElement] = useState(null);
+  const [zoom, setZoom] = useState(1);
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [isTyping, setIsTyping] = useState(false);
+  const [textInput, setTextInput] = useState('');
+  const [textPosition, setTextPosition] = useState({ x: 0, y: 0 });
+  const [showImageUpload, setShowImageUpload] = useState(false);
+  const [resizing, setResizing] = useState(null);
+  
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -76,6 +69,15 @@ const Editor = () => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [zetaMessages]);
 
+  // Load canvas elements from document
+  useEffect(() => {
+    if (document?.pages?.[currentPage]?.elements) {
+      setCanvasElements(document.pages[currentPage].elements);
+    } else {
+      setCanvasElements([]);
+    }
+  }, [document, currentPage]);
+
   const fetchDocument = async () => {
     try {
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
@@ -89,12 +91,23 @@ const Editor = () => {
   const saveDocument = async () => {
     if (!document) return;
     setSaving(true);
+    
+    // Update current page elements
+    const updatedPages = [...(document.pages || [])];
+    if (updatedPages[currentPage]) {
+      updatedPages[currentPage] = {
+        ...updatedPages[currentPage],
+        elements: canvasElements
+      };
+    }
+    
     try {
       await axios.put(`${API}/documents/${docId}`, {
         title: document.title,
         content: document.content,
-        pages: document.pages
+        pages: updatedPages
       }, { withCredentials: true });
+      setDocument(prev => ({ ...prev, pages: updatedPages }));
     } catch (error) {
       console.error('Error saving document:', error);
     } finally {
@@ -107,7 +120,7 @@ const Editor = () => {
   };
 
   const addPage = () => {
-    const newPage = { page_id: `page_${Date.now()}`, content: {} };
+    const newPage = { page_id: `page_${Date.now()}`, content: {}, elements: [] };
     setDocument(prev => ({
       ...prev,
       pages: [...(prev.pages || []), newPage]
@@ -122,6 +135,132 @@ const Editor = () => {
     }));
     if (currentPage >= index && currentPage > 0) {
       setCurrentPage(currentPage - 1);
+    }
+  };
+
+  // Canvas handlers
+  const handleCanvasClick = (e) => {
+    if (activeTool === 'text' && !isTyping) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (e.clientX - rect.left - pan.x) / zoom;
+      const y = (e.clientY - rect.top - pan.y) / zoom;
+      setTextPosition({ x, y });
+      setIsTyping(true);
+      setTextInput('');
+      setSelectedElement(null);
+    } else if (activeTool === 'image') {
+      setShowImageUpload(true);
+    } else if (activeTool === 'hand') {
+      // Check if clicking on an element
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (e.clientX - rect.left - pan.x) / zoom;
+      const y = (e.clientY - rect.top - pan.y) / zoom;
+      
+      const clickedElement = [...canvasElements].reverse().find(el => {
+        if (el.type === 'text') {
+          return x >= el.x && x <= el.x + 200 && y >= el.y - 20 && y <= el.y + 10;
+        } else if (el.type === 'image') {
+          return x >= el.x && x <= el.x + el.width && y >= el.y && y <= el.y + el.height;
+        }
+        return false;
+      });
+      
+      setSelectedElement(clickedElement?.id || null);
+    }
+  };
+
+  const handleCanvasMouseDown = (e) => {
+    if (activeTool === 'hand' && !selectedElement) {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - pan.x, y: e.clientY - pan.y });
+    }
+  };
+
+  const handleCanvasMouseMove = (e) => {
+    if (isPanning) {
+      setPan({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y
+      });
+    }
+    
+    if (resizing) {
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = (e.clientX - rect.left - pan.x) / zoom;
+      const y = (e.clientY - rect.top - pan.y) / zoom;
+      
+      setCanvasElements(prev => prev.map(el => {
+        if (el.id === resizing.id) {
+          const newWidth = Math.max(50, x - el.x);
+          const newHeight = Math.max(50, y - el.y);
+          return { ...el, width: newWidth, height: newHeight };
+        }
+        return el;
+      }));
+    }
+  };
+
+  const handleCanvasMouseUp = () => {
+    setIsPanning(false);
+    setResizing(null);
+  };
+
+  const handleZoom = (delta) => {
+    setZoom(prev => Math.max(0.25, Math.min(3, prev + delta)));
+  };
+
+  const addTextElement = () => {
+    if (!textInput.trim()) {
+      setIsTyping(false);
+      return;
+    }
+    
+    const newElement = {
+      id: `el_${Date.now()}`,
+      type: 'text',
+      x: textPosition.x,
+      y: textPosition.y,
+      content: textInput,
+      fontSize: 16,
+      color: '#000000'
+    };
+    
+    setCanvasElements(prev => [...prev, newElement]);
+    setIsTyping(false);
+    setTextInput('');
+  };
+
+  const handleImageUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.onload = () => {
+        const maxWidth = 300;
+        const ratio = maxWidth / img.width;
+        const newElement = {
+          id: `el_${Date.now()}`,
+          type: 'image',
+          x: 50,
+          y: 50,
+          width: maxWidth,
+          height: img.height * ratio,
+          src: event.target.result
+        };
+        setCanvasElements(prev => [...prev, newElement]);
+        setShowImageUpload(false);
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const deleteSelectedElement = () => {
+    if (selectedElement) {
+      setCanvasElements(prev => prev.filter(el => el.id !== selectedElement));
+      setSelectedElement(null);
     }
   };
 
@@ -144,25 +283,19 @@ const Editor = () => {
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
     } catch (error) {
       console.error('ZETA error:', error);
-      setZetaMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, I encountered an error. Please try again.' }]);
+      setZetaMessages(prev => [...prev, { role: 'assistant', content: 'Oops! Something went wrong. Try again!' }]);
     } finally {
       setZetaLoading(false);
     }
   };
 
-  const filteredTools = TOOLS.filter(tool => 
-    t(tool.nameKey).toLowerCase().includes(toolSearch.toLowerCase())
-  );
-
   // Calculate document stats
   const getDocumentStats = () => {
     const pageCount = document?.pages?.length || 0;
     let charCount = 0;
-    // Count characters from document content and title
     if (document?.title) charCount += document.title.length;
-    if (document?.content) charCount += JSON.stringify(document.content).length;
-    document?.pages?.forEach(page => {
-      if (page.content) charCount += JSON.stringify(page.content).length;
+    canvasElements.forEach(el => {
+      if (el.type === 'text') charCount += el.content.length;
     });
     return { pageCount, charCount };
   };
@@ -216,81 +349,135 @@ const Editor = () => {
         <div className="flex-1 overflow-hidden">
           {mobilePanel === 'tools' && (
             <div className="h-full p-4 overflow-y-auto animate-fadeIn">
-              <input
-                type="text"
-                placeholder={`${t('search')}...`}
-                value={toolSearch}
-                onChange={(e) => setToolSearch(e.target.value)}
-                className="zet-input mb-4"
-              />
-              <div className="grid grid-cols-3 gap-2">
-                {filteredTools.map(tool => (
+              <div className="grid grid-cols-3 gap-3">
+                {TOOLS.map(tool => (
                   <button
                     key={tool.id}
                     onClick={() => { setActiveTool(tool.id); setMobilePanel('canvas'); }}
-                    className={`tool-btn flex flex-col items-center gap-1 h-auto py-3 ${activeTool === tool.id ? 'active' : ''}`}
+                    className={`tool-btn h-16 ${activeTool === tool.id ? 'active' : ''}`}
                     data-testid={`tool-${tool.id}`}
                   >
-                    <tool.icon className="h-5 w-5" />
-                    <span className="text-xs truncate w-full text-center">{t(tool.nameKey)}</span>
+                    <tool.icon className="h-6 w-6" />
                   </button>
                 ))}
+              </div>
+              
+              {/* Zoom Controls */}
+              <div className="mt-4 flex justify-center gap-2">
+                <button onClick={() => handleZoom(-0.25)} className="tool-btn w-12 h-12">
+                  <ZoomOut className="h-5 w-5" />
+                </button>
+                <span className="flex items-center px-4" style={{ color: 'var(--zet-text)' }}>
+                  {Math.round(zoom * 100)}%
+                </span>
+                <button onClick={() => handleZoom(0.25)} className="tool-btn w-12 h-12">
+                  <ZoomIn className="h-5 w-5" />
+                </button>
               </div>
             </div>
           )}
 
           {mobilePanel === 'canvas' && (
-            <div className="h-full p-4 flex items-center justify-center">
-              <div className="bg-white rounded-lg shadow-lg w-full max-w-md aspect-[3/4]" data-testid="canvas-area">
-                {/* Canvas placeholder */}
+            <div className="h-full p-4 flex items-center justify-center overflow-hidden">
+              <div 
+                ref={canvasRef}
+                className="bg-white rounded-lg shadow-lg relative overflow-hidden"
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '400px', 
+                  aspectRatio: '3/4',
+                  cursor: activeTool === 'hand' ? 'grab' : activeTool === 'text' ? 'text' : 'default'
+                }}
+                onClick={handleCanvasClick}
+                onMouseDown={handleCanvasMouseDown}
+                onMouseMove={handleCanvasMouseMove}
+                onMouseUp={handleCanvasMouseUp}
+                onMouseLeave={handleCanvasMouseUp}
+                data-testid="canvas-area"
+              >
+                <div style={{ transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`, transformOrigin: 'top left' }}>
+                  {canvasElements.map(el => (
+                    <div
+                      key={el.id}
+                      className={`absolute ${selectedElement === el.id ? 'ring-2 ring-blue-500' : ''}`}
+                      style={{
+                        left: el.x,
+                        top: el.y,
+                        cursor: 'pointer'
+                      }}
+                      onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
+                    >
+                      {el.type === 'text' && (
+                        <span style={{ fontSize: el.fontSize, color: el.color }}>{el.content}</span>
+                      )}
+                      {el.type === 'image' && (
+                        <img src={el.src} alt="" style={{ width: el.width, height: el.height }} draggable={false} />
+                      )}
+                    </div>
+                  ))}
+                  
+                  {isTyping && (
+                    <input
+                      type="text"
+                      value={textInput}
+                      onChange={(e) => setTextInput(e.target.value)}
+                      onBlur={addTextElement}
+                      onKeyDown={(e) => e.key === 'Enter' && addTextElement()}
+                      autoFocus
+                      className="absolute bg-transparent border-b-2 border-blue-500 outline-none"
+                      style={{ left: textPosition.x, top: textPosition.y - 20, fontSize: 16 }}
+                    />
+                  )}
+                </div>
               </div>
             </div>
           )}
 
           {mobilePanel === 'pages' && (
             <div className="h-full p-4 overflow-y-auto animate-fadeIn">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</h3>
-                <button onClick={addPage} className="tool-btn w-8 h-8" data-testid="add-page-btn">
-                  <Plus className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="text-xs mb-3" style={{ color: 'var(--zet-text-muted)' }}>
-                {stats.pageCount} {t('pages')} • {stats.charCount} {t('characters')}
-              </div>
-              <div className="grid grid-cols-3 gap-2 mb-6">
-                {document.pages?.map((page, idx) => (
-                  <div key={page.page_id} className="relative group">
-                    <div
-                      onClick={() => { setCurrentPage(idx); setMobilePanel('canvas'); }}
-                      className={`page-thumb ${currentPage === idx ? 'active' : ''}`}
-                      data-testid={`page-thumb-${idx}`}
-                    />
-                    {document.pages.length > 1 && (
-                      <button
-                        onClick={() => deletePage(idx)}
-                        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    )}
-                  </div>
-                ))}
+              {/* Pages section */}
+              <div className="mb-6">
+                <div className="flex justify-between items-center mb-2">
+                  <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</h3>
+                  <button onClick={addPage} className="tool-btn w-8 h-8" data-testid="add-page-btn">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+                <div className="text-xs mb-3" style={{ color: 'var(--zet-text-muted)' }}>
+                  {stats.pageCount} {t('pages')} • {stats.charCount} {t('characters')}
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {document.pages?.map((page, idx) => (
+                    <div key={page.page_id} className="relative group">
+                      <div
+                        onClick={() => { setCurrentPage(idx); setMobilePanel('canvas'); }}
+                        className={`page-thumb ${currentPage === idx ? 'active' : ''}`}
+                        data-testid={`page-thumb-${idx}`}
+                      />
+                      {document.pages.length > 1 && (
+                        <button
+                          onClick={() => deletePage(idx)}
+                          className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center opacity-0 group-hover:opacity-100"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </div>
 
               {/* ZETA Chat */}
-              <div className="mt-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <Sparkles className="h-5 w-5" style={{ color: 'var(--zet-primary-light)' }} />
-                    <span className="font-medium" style={{ color: 'var(--zet-text)' }}>ZETA</span>
-                  </div>
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-5 w-5" style={{ color: 'var(--zet-primary-light)' }} />
+                  <span className="font-medium" style={{ color: 'var(--zet-text)' }}>ZETA</span>
                 </div>
                 <div className="zet-card p-3 h-48 overflow-y-auto mb-2" style={{ background: 'var(--zet-bg)' }}>
                   {zetaMessages.map((msg, idx) => (
                     <div key={idx} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
                       <div 
-                        className={`inline-block px-3 py-2 rounded-lg max-w-[80%] ${msg.role === 'user' ? 'glow-sm' : ''}`}
+                        className={`inline-block px-3 py-2 rounded-lg max-w-[80%] text-sm ${msg.role === 'user' ? 'glow-sm' : ''}`}
                         style={{ 
                           background: msg.role === 'user' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'var(--zet-bg-card)',
                           color: 'var(--zet-text)'
@@ -302,7 +489,7 @@ const Editor = () => {
                   ))}
                   {zetaLoading && (
                     <div className="flex gap-1 p-2">
-                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)' }}></div>
                       <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '150ms' }}></div>
                       <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '300ms' }}></div>
                     </div>
@@ -336,7 +523,7 @@ const Editor = () => {
               className={`flex flex-col items-center gap-1 p-2 ${mobilePanel === 'tools' ? '' : 'opacity-50'}`}
               style={{ color: 'var(--zet-text)' }}
             >
-              <Paintbrush className="h-5 w-5" />
+              <Hand className="h-5 w-5" />
               <span className="text-xs">{t('tools')}</span>
             </button>
             <button 
@@ -344,7 +531,7 @@ const Editor = () => {
               className={`flex flex-col items-center gap-1 p-2 ${mobilePanel === 'canvas' ? '' : 'opacity-50'}`}
               style={{ color: 'var(--zet-text)' }}
             >
-              <Square className="h-5 w-5" />
+              <FileText className="h-5 w-5" />
               <span className="text-xs">{t('canvas')}</span>
             </button>
             <button 
@@ -357,6 +544,23 @@ const Editor = () => {
             </button>
           </div>
         </div>
+
+        {/* Image Upload Modal */}
+        {showImageUpload && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImageUpload(false)}>
+            <div className="zet-card p-6 m-4 max-w-sm w-full" onClick={e => e.stopPropagation()}>
+              <h3 className="font-medium mb-4" style={{ color: 'var(--zet-text)' }}>{t('image')}</h3>
+              <label className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer">
+                <Upload className="h-5 w-5" />
+                <span>Upload Image</span>
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              </label>
+              <button onClick={() => setShowImageUpload(false)} className="w-full mt-3 py-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -380,7 +584,7 @@ const Editor = () => {
           />
         </div>
 
-        {/* Navigation - Centered without text */}
+        {/* Navigation - Centered */}
         <div className="flex items-center gap-3">
           <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} className="tool-btn">
             <ArrowLeft className="h-5 w-5" />
@@ -398,7 +602,6 @@ const Editor = () => {
             <Save className={`h-4 w-4 ${saving ? 'animate-pulse' : ''}`} />
             {saving ? t('saving') : t('save')}
           </button>
-          {/* Logo */}
           <img 
             src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" 
             alt="ZET" 
@@ -407,71 +610,160 @@ const Editor = () => {
         </div>
       </header>
 
-      {/* Main Content - 3 Equal Columns */}
+      {/* Main Content - 3 Columns */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Toolbox */}
         <div 
           className={`border-r flex flex-col transition-all duration-300 ${toolboxOpen ? 'w-72' : 'w-12'}`}
           style={{ borderColor: 'var(--zet-border)' }}
         >
-          {/* Toolbox Header with Toggle */}
-          <div className="p-2 flex items-center gap-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            {toolboxOpen && (
-              <input
-                type="text"
-                placeholder={t('search')}
-                value={toolSearch}
-                onChange={(e) => setToolSearch(e.target.value)}
-                className="zet-input flex-1 text-sm py-2"
-                data-testid="tool-search"
-              />
-            )}
+          {/* Toolbox Header */}
+          <div className="p-2 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
+            {toolboxOpen && <span className="text-sm font-medium pl-2" style={{ color: 'var(--zet-text)' }}>{t('tools')}</span>}
             <button 
               onClick={() => setToolboxOpen(!toolboxOpen)}
-              className="tool-btn w-8 h-8 flex-shrink-0"
+              className="tool-btn w-8 h-8 ml-auto"
               data-testid="toggle-toolbox"
             >
               {toolboxOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
             </button>
           </div>
 
-          {/* Tools Grid with Names */}
+          {/* Tools */}
           {toolboxOpen && (
-            <div className="p-3 overflow-y-auto flex-1">
-              <div className="grid grid-cols-3 gap-2">
-                {filteredTools.map(tool => (
+            <div className="p-3 flex-1">
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                {TOOLS.map(tool => (
                   <button
                     key={tool.id}
-                    onClick={() => setActiveTool(tool.id)}
-                    className={`tool-btn flex flex-col items-center gap-1 h-auto py-3 ${activeTool === tool.id ? 'active' : ''}`}
+                    onClick={() => {
+                      setActiveTool(tool.id);
+                      if (tool.id === 'image') setShowImageUpload(true);
+                    }}
+                    className={`tool-btn h-14 ${activeTool === tool.id ? 'active' : ''}`}
                     data-testid={`tool-${tool.id}`}
                   >
                     <tool.icon className="h-5 w-5" />
-                    <span className="text-xs truncate w-full text-center">{t(tool.nameKey)}</span>
                   </button>
                 ))}
               </div>
+              
+              {/* Zoom Controls */}
+              <div className="border-t pt-4" style={{ borderColor: 'var(--zet-border)' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Zoom</span>
+                  <span className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{Math.round(zoom * 100)}%</span>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => handleZoom(-0.25)} className="tool-btn flex-1 h-10">
+                    <ZoomOut className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => handleZoom(0.25)} className="tool-btn flex-1 h-10">
+                    <ZoomIn className="h-4 w-4" />
+                  </button>
+                </div>
+                <button 
+                  onClick={() => { setZoom(1); setPan({ x: 0, y: 0 }); }} 
+                  className="w-full mt-2 py-2 text-xs rounded hover:bg-white/5"
+                  style={{ color: 'var(--zet-text-muted)' }}
+                >
+                  Reset View
+                </button>
+              </div>
+
+              {/* Delete Selected */}
+              {selectedElement && (
+                <button 
+                  onClick={deleteSelectedElement}
+                  className="w-full mt-4 py-2 px-4 rounded bg-red-500/20 text-red-400 text-sm hover:bg-red-500/30"
+                >
+                  Delete Selected
+                </button>
+              )}
             </div>
           )}
         </div>
 
         {/* Center: Canvas */}
-        <div className="flex-1 p-8 flex items-center justify-center overflow-auto" style={{ background: 'var(--zet-bg-light)' }}>
+        <div 
+          className="flex-1 p-8 flex items-center justify-center overflow-hidden" 
+          style={{ background: 'var(--zet-bg-light)' }}
+        >
           <div 
-            className="bg-white rounded-lg shadow-2xl w-full max-w-2xl aspect-[3/4]"
-            style={{ boxShadow: '0 0 40px var(--zet-glow)' }}
+            ref={canvasRef}
+            className="bg-white rounded-lg shadow-2xl relative overflow-hidden"
+            style={{ 
+              width: '100%', 
+              maxWidth: '600px', 
+              aspectRatio: '3/4',
+              boxShadow: '0 0 40px var(--zet-glow)',
+              cursor: activeTool === 'hand' ? (isPanning ? 'grabbing' : 'grab') : activeTool === 'text' ? 'text' : 'default'
+            }}
+            onClick={handleCanvasClick}
+            onMouseDown={handleCanvasMouseDown}
+            onMouseMove={handleCanvasMouseMove}
+            onMouseUp={handleCanvasMouseUp}
+            onMouseLeave={handleCanvasMouseUp}
             data-testid="canvas-area"
           >
-            {/* Canvas content will go here */}
+            <div 
+              className="w-full h-full"
+              style={{ 
+                transform: `scale(${zoom}) translate(${pan.x / zoom}px, ${pan.y / zoom}px)`, 
+                transformOrigin: 'top left' 
+              }}
+            >
+              {canvasElements.map(el => (
+                <div
+                  key={el.id}
+                  className={`absolute ${selectedElement === el.id ? 'ring-2 ring-blue-500' : ''}`}
+                  style={{
+                    left: el.x,
+                    top: el.y,
+                    cursor: 'pointer'
+                  }}
+                  onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); }}
+                >
+                  {el.type === 'text' && (
+                    <span style={{ fontSize: el.fontSize, color: el.color, whiteSpace: 'nowrap' }}>{el.content}</span>
+                  )}
+                  {el.type === 'image' && (
+                    <div className="relative">
+                      <img src={el.src} alt="" style={{ width: el.width, height: el.height }} draggable={false} />
+                      {selectedElement === el.id && (
+                        <div 
+                          className="absolute bottom-0 right-0 w-4 h-4 bg-blue-500 cursor-se-resize"
+                          onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id }); }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+              
+              {isTyping && (
+                <input
+                  type="text"
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  onBlur={addTextElement}
+                  onKeyDown={(e) => e.key === 'Enter' && addTextElement()}
+                  autoFocus
+                  className="absolute bg-transparent border-b-2 border-blue-500 outline-none text-black"
+                  style={{ left: textPosition.x, top: textPosition.y - 20, fontSize: 16, minWidth: 100 }}
+                  placeholder="Type here..."
+                />
+              )}
+            </div>
           </div>
         </div>
 
-        {/* Right: Pages + ZETA - Equal Width */}
+        {/* Right: Pages + ZETA */}
         <div 
           className="w-72 border-l flex flex-col"
           style={{ borderColor: 'var(--zet-border)' }}
         >
-          {/* Pages Panel - Collapsible */}
+          {/* Pages Panel */}
           <div className="border-b" style={{ borderColor: 'var(--zet-border)' }}>
             <div className="p-3 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -513,14 +805,12 @@ const Editor = () => {
             
             {pagesOpen && (
               <div className="px-3 pb-3">
-                {/* Stats */}
                 <div className="text-xs mb-3 flex gap-3" style={{ color: 'var(--zet-text-muted)' }}>
                   <span>{stats.pageCount} {t('pages')}</span>
                   <span>•</span>
                   <span>{stats.charCount} {t('characters')}</span>
                 </div>
                 
-                {/* Pages Grid */}
                 <div className={`${pageView === 'grid' ? 'grid grid-cols-3 gap-2' : 'space-y-2'} max-h-36 overflow-y-auto`}>
                   {document.pages?.map((page, idx) => (
                     <div key={page.page_id} className="relative group">
@@ -544,7 +834,7 @@ const Editor = () => {
             )}
           </div>
 
-          {/* ZETA AI Panel - Collapsible */}
+          {/* ZETA AI Panel */}
           <div className="flex-1 flex flex-col min-h-0">
             <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--zet-border)' }}>
               <div className="flex items-center gap-2">
@@ -588,7 +878,7 @@ const Editor = () => {
                   ))}
                   {zetaLoading && (
                     <div className="flex gap-1 p-2">
-                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)' }}></div>
                       <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '150ms' }}></div>
                       <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '300ms' }}></div>
                     </div>
@@ -616,6 +906,34 @@ const Editor = () => {
           </div>
         </div>
       </div>
+
+      {/* Image Upload Modal */}
+      {showImageUpload && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowImageUpload(false)}>
+          <div className="zet-card p-6 max-w-sm w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>Add Image</h3>
+              <button onClick={() => setShowImageUpload(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            <label className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer py-4">
+              <Upload className="h-5 w-5" />
+              <span>Choose File</span>
+              <input 
+                ref={fileInputRef}
+                type="file" 
+                accept="image/*" 
+                onChange={handleImageUpload} 
+                className="hidden" 
+              />
+            </label>
+            <p className="text-xs text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
+              Supports JPG, PNG, GIF
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
