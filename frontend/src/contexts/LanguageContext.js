@@ -35,6 +35,8 @@ const translations = {
     tools: 'Tools',
     canvas: 'Canvas',
     pagesAI: 'Pages & AI',
+    pages: 'pages',
+    characters: 'chars',
     
     // Settings
     cloudStorage: 'Cloud Storage',
@@ -99,6 +101,8 @@ const translations = {
     tools: 'Araçlar',
     canvas: 'Tuval',
     pagesAI: 'Sayfalar & AI',
+    pages: 'sayfa',
+    characters: 'karakter',
     
     // Settings
     cloudStorage: 'Bulut Depolama',

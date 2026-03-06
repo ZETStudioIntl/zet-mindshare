@@ -11,7 +11,8 @@ import {
   Send, X, Minus, Sparkles, Plus, Trash2,
   Crop, MousePointer, Hand, Share2, Download,
   AlignLeft, AlignCenter, AlignRight, Bold, Italic,
-  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen
+  PanelLeftClose, PanelLeftOpen, ChevronDown, ChevronUp,
+  FileText
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -50,6 +51,7 @@ const Editor = () => {
   const [toolSearch, setToolSearch] = useState('');
   const [pageView, setPageView] = useState('grid');
   const [zetaOpen, setZetaOpen] = useState(true);
+  const [pagesOpen, setPagesOpen] = useState(true);
   const [zetaMessages, setZetaMessages] = useState([]);
   const [zetaInput, setZetaInput] = useState('');
   const [zetaLoading, setZetaLoading] = useState(false);
@@ -58,7 +60,6 @@ const Editor = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 1024);
   const [mobilePanel, setMobilePanel] = useState('canvas');
   const [toolboxOpen, setToolboxOpen] = useState(true);
-  const [rightPanelOpen, setRightPanelOpen] = useState(true);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
@@ -153,6 +154,21 @@ const Editor = () => {
     t(tool.nameKey).toLowerCase().includes(toolSearch.toLowerCase())
   );
 
+  // Calculate document stats
+  const getDocumentStats = () => {
+    const pageCount = document?.pages?.length || 0;
+    let charCount = 0;
+    // Count characters from document content and title
+    if (document?.title) charCount += document.title.length;
+    if (document?.content) charCount += JSON.stringify(document.content).length;
+    document?.pages?.forEach(page => {
+      if (page.content) charCount += JSON.stringify(page.content).length;
+    });
+    return { pageCount, charCount };
+  };
+
+  const stats = document ? getDocumentStats() : { pageCount: 0, charCount: 0 };
+
   if (!document) {
     return (
       <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
@@ -183,15 +199,15 @@ const Editor = () => {
           </button>
         </header>
 
-        {/* Mobile Navigation */}
-        <div className="flex justify-center gap-2 p-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-          <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} className="tool-btn w-10 h-10">
+        {/* Mobile Navigation - Centered */}
+        <div className="flex justify-center gap-4 p-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+          <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} className="tool-btn w-12 h-10">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <span className="flex items-center px-3" style={{ color: 'var(--zet-text-muted)' }}>
+          <span className="flex items-center px-4 font-medium" style={{ color: 'var(--zet-text)' }}>
             {currentPage + 1} / {document.pages?.length || 1}
           </span>
-          <button onClick={() => setCurrentPage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} className="tool-btn w-10 h-10">
+          <button onClick={() => setCurrentPage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} className="tool-btn w-12 h-10">
             <ArrowRight className="h-5 w-5" />
           </button>
         </div>
@@ -212,11 +228,11 @@ const Editor = () => {
                   <button
                     key={tool.id}
                     onClick={() => { setActiveTool(tool.id); setMobilePanel('canvas'); }}
-                    className={`tool-btn ${activeTool === tool.id ? 'active' : ''}`}
-                    title={t(tool.nameKey)}
+                    className={`tool-btn flex flex-col items-center gap-1 h-auto py-3 ${activeTool === tool.id ? 'active' : ''}`}
                     data-testid={`tool-${tool.id}`}
                   >
                     <tool.icon className="h-5 w-5" />
+                    <span className="text-xs truncate w-full text-center">{t(tool.nameKey)}</span>
                   </button>
                 ))}
               </div>
@@ -233,11 +249,14 @@ const Editor = () => {
 
           {mobilePanel === 'pages' && (
             <div className="h-full p-4 overflow-y-auto animate-fadeIn">
-              <div className="flex justify-between items-center mb-4">
+              <div className="flex justify-between items-center mb-2">
                 <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</h3>
                 <button onClick={addPage} className="tool-btn w-8 h-8" data-testid="add-page-btn">
                   <Plus className="h-4 w-4" />
                 </button>
+              </div>
+              <div className="text-xs mb-3" style={{ color: 'var(--zet-text-muted)' }}>
+                {stats.pageCount} {t('pages')} • {stats.charCount} {t('characters')}
               </div>
               <div className="grid grid-cols-3 gap-2 mb-6">
                 {document.pages?.map((page, idx) => (
@@ -361,32 +380,38 @@ const Editor = () => {
           />
         </div>
 
-        {/* Navigation */}
-        <div className="flex items-center gap-2">
+        {/* Navigation - Centered without text */}
+        <div className="flex items-center gap-3">
           <button onClick={() => setCurrentPage(Math.max(0, currentPage - 1))} className="tool-btn">
             <ArrowLeft className="h-5 w-5" />
           </button>
-          <span style={{ color: 'var(--zet-text)' }}>{t('back')}</span>
-          <span className="mx-4" style={{ color: 'var(--zet-text-muted)' }}>|</span>
-          <span style={{ color: 'var(--zet-text)' }}>{t('forward')}</span>
+          <span className="px-4 font-medium" style={{ color: 'var(--zet-text)' }}>
+            {currentPage + 1} / {document.pages?.length || 1}
+          </span>
           <button onClick={() => setCurrentPage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} className="tool-btn">
             <ArrowRight className="h-5 w-5" />
           </button>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
           <button onClick={saveDocument} className="zet-btn flex items-center gap-2" data-testid="save-btn">
             <Save className={`h-4 w-4 ${saving ? 'animate-pulse' : ''}`} />
             {saving ? t('saving') : t('save')}
           </button>
+          {/* Logo */}
+          <img 
+            src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" 
+            alt="ZET" 
+            className="h-9 w-9"
+          />
         </div>
       </header>
 
-      {/* Main Content - 3 Columns */}
+      {/* Main Content - 3 Equal Columns */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left: Toolbox */}
         <div 
-          className={`border-r flex flex-col transition-all duration-300 ${toolboxOpen ? 'w-56' : 'w-12'}`}
+          className={`border-r flex flex-col transition-all duration-300 ${toolboxOpen ? 'w-72' : 'w-12'}`}
           style={{ borderColor: 'var(--zet-border)' }}
         >
           {/* Toolbox Header with Toggle */}
@@ -410,7 +435,7 @@ const Editor = () => {
             </button>
           </div>
 
-          {/* Tools Grid */}
+          {/* Tools Grid with Names */}
           {toolboxOpen && (
             <div className="p-3 overflow-y-auto flex-1">
               <div className="grid grid-cols-3 gap-2">
@@ -418,11 +443,11 @@ const Editor = () => {
                   <button
                     key={tool.id}
                     onClick={() => setActiveTool(tool.id)}
-                    className={`tool-btn ${activeTool === tool.id ? 'active' : ''}`}
-                    title={t(tool.nameKey)}
+                    className={`tool-btn flex flex-col items-center gap-1 h-auto py-3 ${activeTool === tool.id ? 'active' : ''}`}
                     data-testid={`tool-${tool.id}`}
                   >
                     <tool.icon className="h-5 w-5" />
+                    <span className="text-xs truncate w-full text-center">{t(tool.nameKey)}</span>
                   </button>
                 ))}
               </div>
@@ -441,56 +466,67 @@ const Editor = () => {
           </div>
         </div>
 
-        {/* Right: Pages + ZETA */}
+        {/* Right: Pages + ZETA - Equal Width */}
         <div 
-          className={`border-l flex flex-col transition-all duration-300 ${rightPanelOpen ? 'w-80' : 'w-12'}`}
+          className="w-72 border-l flex flex-col"
           style={{ borderColor: 'var(--zet-border)' }}
         >
-          {/* Right Panel Header with Toggle */}
-          <div className="p-2 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            <button 
-              onClick={() => setRightPanelOpen(!rightPanelOpen)}
-              className="tool-btn w-8 h-8"
-              data-testid="toggle-right-panel"
-            >
-              {rightPanelOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-            </button>
-            {rightPanelOpen && (
-              <span className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</span>
-            )}
-            {rightPanelOpen && (
-              <div className="flex gap-1">
+          {/* Pages Panel - Collapsible */}
+          <div className="border-b" style={{ borderColor: 'var(--zet-border)' }}>
+            <div className="p-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
+                <span className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{t('allPages')}</span>
+              </div>
+              <div className="flex items-center gap-1">
+                {pagesOpen && (
+                  <>
+                    <button 
+                      onClick={() => setPageView('list')}
+                      className={`p-1 rounded ${pageView === 'list' ? 'bg-white/10' : ''}`}
+                      style={{ color: 'var(--zet-text-muted)' }}
+                    >
+                      <List className="h-4 w-4" />
+                    </button>
+                    <button 
+                      onClick={() => setPageView('grid')}
+                      className={`p-1 rounded ${pageView === 'grid' ? 'bg-white/10' : ''}`}
+                      style={{ color: 'var(--zet-text-muted)' }}
+                    >
+                      <Grid className="h-4 w-4" />
+                    </button>
+                    <button onClick={addPage} className="p-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }} data-testid="add-page-btn">
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  </>
+                )}
                 <button 
-                  onClick={() => setPageView('list')}
-                  className={`p-1 rounded ${pageView === 'list' ? 'bg-white/10' : ''}`}
+                  onClick={() => setPagesOpen(!pagesOpen)}
+                  className="p-1 rounded hover:bg-white/10"
                   style={{ color: 'var(--zet-text-muted)' }}
+                  data-testid="toggle-pages"
                 >
-                  <List className="h-4 w-4" />
-                </button>
-                <button 
-                  onClick={() => setPageView('grid')}
-                  className={`p-1 rounded ${pageView === 'grid' ? 'bg-white/10' : ''}`}
-                  style={{ color: 'var(--zet-text-muted)' }}
-                >
-                  <Grid className="h-4 w-4" />
-                </button>
-                <button onClick={addPage} className="p-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }} data-testid="add-page-btn">
-                  <Plus className="h-4 w-4" />
+                  {pagesOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                 </button>
               </div>
-            )}
-          </div>
-
-          {rightPanelOpen && (
-            <>
-              {/* Pages Panel */}
-              <div className="p-3 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
-                <div className={`${pageView === 'grid' ? 'grid grid-cols-3 gap-2' : 'space-y-2'} max-h-40 overflow-y-auto`}>
+            </div>
+            
+            {pagesOpen && (
+              <div className="px-3 pb-3">
+                {/* Stats */}
+                <div className="text-xs mb-3 flex gap-3" style={{ color: 'var(--zet-text-muted)' }}>
+                  <span>{stats.pageCount} {t('pages')}</span>
+                  <span>•</span>
+                  <span>{stats.charCount} {t('characters')}</span>
+                </div>
+                
+                {/* Pages Grid */}
+                <div className={`${pageView === 'grid' ? 'grid grid-cols-3 gap-2' : 'space-y-2'} max-h-36 overflow-y-auto`}>
                   {document.pages?.map((page, idx) => (
                     <div key={page.page_id} className="relative group">
                       <div
                         onClick={() => setCurrentPage(idx)}
-                        className={`page-thumb ${currentPage === idx ? 'active' : ''} ${pageView === 'list' ? 'h-12' : ''}`}
+                        className={`page-thumb ${currentPage === idx ? 'active' : ''} ${pageView === 'list' ? 'h-10' : ''}`}
                         data-testid={`page-thumb-${idx}`}
                       />
                       {document.pages.length > 1 && (
@@ -505,76 +541,79 @@ const Editor = () => {
                   ))}
                 </div>
               </div>
+            )}
+          </div>
 
-              {/* ZETA AI Panel */}
-              <div className="flex-1 flex flex-col min-h-0">
-                <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--zet-border)' }}>
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
-                      <Sparkles className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+          {/* ZETA AI Panel - Collapsible */}
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--zet-border)' }}>
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
+                  <Sparkles className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                </div>
+                <span className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>ZETA</span>
+              </div>
+              <button 
+                onClick={() => setZetaOpen(!zetaOpen)} 
+                className="p-1 rounded hover:bg-white/10" 
+                style={{ color: 'var(--zet-text-muted)' }}
+                data-testid="toggle-zeta"
+              >
+                {zetaOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </div>
+
+            {zetaOpen && (
+              <>
+                <div className="flex-1 p-3 overflow-y-auto" style={{ background: 'var(--zet-bg)' }}>
+                  {zetaMessages.length === 0 && (
+                    <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
+                      <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="text-sm">{t('askZetaAnything')}</p>
+                      <p className="text-xs mt-1">{t('brainstormResearch')}</p>
                     </div>
-                    <span className="font-medium" style={{ color: 'var(--zet-text)' }}>ZETA</span>
-                  </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => setZetaOpen(!zetaOpen)} className="p-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }}>
-                      <Minus className="h-4 w-4" />
+                  )}
+                  {zetaMessages.map((msg, idx) => (
+                    <div key={idx} className={`mb-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                      <div 
+                        className={`inline-block px-3 py-2 rounded-lg max-w-[85%] text-sm ${msg.role === 'user' ? 'glow-sm' : ''}`}
+                        style={{ 
+                          background: msg.role === 'user' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'var(--zet-bg-card)',
+                          color: 'var(--zet-text)'
+                        }}
+                      >
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {zetaLoading && (
+                    <div className="flex gap-1 p-2">
+                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '0ms' }}></div>
+                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '150ms' }}></div>
+                      <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '300ms' }}></div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+                <div className="p-3 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder={t('askZeta')}
+                      value={zetaInput}
+                      onChange={(e) => setZetaInput(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && sendZetaMessage()}
+                      className="zet-input flex-1 text-sm"
+                      data-testid="zeta-input"
+                    />
+                    <button onClick={sendZetaMessage} className="zet-btn px-3" data-testid="zeta-send-btn">
+                      <Send className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
-
-                {zetaOpen && (
-                  <>
-                    <div className="flex-1 p-3 overflow-y-auto" style={{ background: 'var(--zet-bg)' }}>
-                      {zetaMessages.length === 0 && (
-                        <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
-                          <Sparkles className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                          <p>{t('askZetaAnything')}</p>
-                          <p className="text-sm mt-1">{t('brainstormResearch')}</p>
-                        </div>
-                      )}
-                      {zetaMessages.map((msg, idx) => (
-                        <div key={idx} className={`mb-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                          <div 
-                            className={`inline-block px-3 py-2 rounded-lg max-w-[85%] ${msg.role === 'user' ? 'glow-sm' : ''}`}
-                            style={{ 
-                              background: msg.role === 'user' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'var(--zet-bg-card)',
-                              color: 'var(--zet-text)'
-                            }}
-                          >
-                            {msg.content}
-                          </div>
-                        </div>
-                      ))}
-                      {zetaLoading && (
-                        <div className="flex gap-1 p-2">
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '0ms' }}></div>
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '150ms' }}></div>
-                          <div className="w-2 h-2 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '300ms' }}></div>
-                        </div>
-                      )}
-                      <div ref={chatEndRef} />
-                    </div>
-                    <div className="p-3 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          placeholder={t('askZeta')}
-                          value={zetaInput}
-                          onChange={(e) => setZetaInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && sendZetaMessage()}
-                          className="zet-input flex-1"
-                          data-testid="zeta-input"
-                        />
-                        <button onClick={sendZetaMessage} className="zet-btn px-3" data-testid="zeta-send-btn">
-                          <Send className="h-5 w-5" />
-                        </button>
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-            </>
-          )}
+              </>
+            )}
+          </div>
         </div>
       </div>
     </div>
