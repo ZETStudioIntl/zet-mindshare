@@ -81,6 +81,13 @@ const translations = {
     lineSpacing: 'Line Spacing',
     wordType: 'Text Style',
     marking: 'Highlighter',
+    paragraph: 'Paragraph',
+    graphic: 'Chart',
+    pageColor: 'Page Color',
+    zoom: 'Zoom',
+    export: 'Export',
+    alignJustify: 'Justify',
+    shortcuts: 'Shortcuts',
   },
   tr: {
     // Login
@@ -162,6 +169,13 @@ const translations = {
     lineSpacing: 'Satır Aralığı',
     wordType: 'Yazı Tipi',
     marking: 'Fosforlu Kalem',
+    paragraph: 'Paragraf',
+    graphic: 'Grafik',
+    pageColor: 'Sayfa Rengi',
+    zoom: 'Büyüteç',
+    export: 'Dışa Aktar',
+    alignJustify: 'İki Yana Yasla',
+    shortcuts: 'Kısayollar',
   }
 };
 

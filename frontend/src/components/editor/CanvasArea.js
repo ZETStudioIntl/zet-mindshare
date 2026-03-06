@@ -104,6 +104,7 @@ export const CanvasArea = ({
   selectedElement, setSelectedElement, selectedElements, setSelectedElements,
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd,
+  zoomLevel, zoomRadius, magnifierPos, setMagnifierPos,
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
@@ -127,11 +128,33 @@ export const CanvasArea = ({
   const [vectorDragOffset, setVectorDragOffset] = useState({ x: 0, y: 0 });
   const justSelectedRef = useRef(false);
 
+  // Zoom tool - scroll towards cursor position
   useEffect(() => {
-    const h = (e) => { if (activeTool === 'hand' && canvasContainerRef.current?.contains(e.target)) { e.preventDefault(); setZoom(p => Math.max(0.25, Math.min(3, p + (e.deltaY > 0 ? -0.05 : 0.05)))); } };
+    const h = (e) => {
+      if ((activeTool === 'hand' || activeTool === 'zoom') && canvasContainerRef.current?.contains(e.target)) {
+        e.preventDefault();
+        const container = canvasContainerRef.current;
+        const rect = container.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        
+        const oldZoom = zoom;
+        const newZoom = Math.max(0.25, Math.min(3, zoom + (e.deltaY > 0 ? -0.05 : 0.05)));
+        
+        // Calculate scroll to zoom towards cursor
+        const scrollLeft = container.scrollLeft;
+        const scrollTop = container.scrollTop;
+        const dx = (mouseX + scrollLeft) * (newZoom / oldZoom) - mouseX;
+        const dy = (mouseY + scrollTop) * (newZoom / oldZoom) - mouseY;
+        
+        setZoom(newZoom);
+        container.scrollLeft = dx;
+        container.scrollTop = dy;
+      }
+    };
     window.addEventListener('wheel', h, { passive: false });
     return () => window.removeEventListener('wheel', h);
-  }, [activeTool, canvasContainerRef, setZoom]);
+  }, [activeTool, canvasContainerRef, setZoom, zoom]);
 
   useEffect(() => {
     if (activeTool === 'cut' && selectedElement) {

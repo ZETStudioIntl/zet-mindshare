@@ -2,19 +2,26 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
-import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
+import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
 import { Toolbox } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
 import { DraggablePanel } from '../components/editor/DraggablePanel';
 import axios from 'axios';
+import html2canvas from 'html2canvas';
+import { jsPDF } from 'jspdf';
 import {
   Home, Save, Undo, Redo, ArrowLeft, ArrowRight,
   Upload, Search, Loader2, X, Wand2, Plus, Check,
   Play, Pause, SkipBack, SkipForward, Volume2, Languages,
   Bold, Italic, Underline, Strikethrough, Highlighter,
-  Menu, Layers, Sparkles
+  Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
+  ZoomIn, ZoomOut, Download, Settings, Keyboard
 } from 'lucide-react';
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
+import { Bar, Pie, Line } from 'react-chartjs-2';
+
+ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -112,21 +119,88 @@ const Editor = () => {
   const [showLineSpacing, setShowLineSpacing] = useState(false);
   const [showWordType, setShowWordType] = useState(false);
   const [showMarking, setShowMarking] = useState(false);
+  const [showParagraph, setShowParagraph] = useState(false);
+  const [showGraphic, setShowGraphic] = useState(false);
+  const [showPageColor, setShowPageColor] = useState(false);
+  const [showZoom, setShowZoom] = useState(false);
+  const [showExport, setShowExport] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [uploadForShape, setUploadForShape] = useState(null);
   const [changeImageTarget, setChangeImageTarget] = useState(null);
+
+  // Page background color
+  const [pageBackground, setPageBackground] = useState('#ffffff');
+
+  // Text alignment
+  const [currentTextAlign, setCurrentTextAlign] = useState('left');
+  
+  // Gradient colors for text
+  const [gradientStart, setGradientStart] = useState(null);
+  const [gradientEnd, setGradientEnd] = useState(null);
+  const [useGradient, setUseGradient] = useState(false);
+  const [hexInput, setHexInput] = useState('#000000');
+
+  // Zoom tool state
+  const [zoomLevel, setZoomLevel] = useState(2);
+  const [zoomRadius, setZoomRadius] = useState(100);
+  const [magnifierPos, setMagnifierPos] = useState(null);
+
+  // Graphic chart state
+  const [chartType, setChartType] = useState('bar');
+  const [chartLabels, setChartLabels] = useState('A,B,C,D');
+  const [chartData, setChartData] = useState('10,20,30,40');
+  const [chartTitle, setChartTitle] = useState('Chart');
+
+  // Keyboard shortcuts
+  const [shortcuts, setShortcuts] = useState(() => {
+    const saved = localStorage.getItem('zet_shortcuts');
+    return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
+  });
+  const [editingShortcut, setEditingShortcut] = useState(null);
+
+  // Export state
+  const [exporting, setExporting] = useState(false);
 
   // History
   const history = useCanvasHistory(canvasElements);
   const autoSaveTimerRef = useRef(null);
   const canvasContainerRef = useRef(null);
 
-  // === Ctrl+Z / Ctrl+Y ===
+  // === Ctrl+Z / Ctrl+Y / Delete / Shortcuts ===
   useEffect(() => {
     const handleKeyDown = (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
-      if (tag === 'input' || tag === 'textarea' || e.target.contentEditable === 'true') return;
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); }
+      const isEditing = tag === 'input' || tag === 'textarea' || e.target.contentEditable === 'true';
+      
+      // Always handle Ctrl+Z/Y
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+      
+      // Don't process shortcuts when editing text
+      if (isEditing) return;
+      
+      // Delete key - delete selected element
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        if (selectedElement || selectedElements.length > 0) {
+          e.preventDefault();
+          deleteSelected();
+          return;
+        }
+      }
+      
+      // Escape - deselect
+      if (e.key === 'Escape') {
+        setSelectedElement(null);
+        setSelectedElements([]);
+        return;
+      }
+      
+      // Tool shortcuts (single key)
+      const key = e.key.toUpperCase();
+      if (shortcuts[key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        handleToolSelect(shortcuts[key]);
+      }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
@@ -246,8 +320,77 @@ const Editor = () => {
       eraser: () => setShowEraser(true), translate: () => setShowTranslate(true),
       linespacing: () => setShowLineSpacing(true), wordtype: () => setShowWordType(true),
       marking: () => setShowMarking(true), addpage: () => addPage(),
+      paragraph: () => setShowParagraph(true), graphic: () => setShowGraphic(true),
+      pagecolor: () => setShowPageColor(true), zoom: () => setShowZoom(true),
+      export: () => setShowExport(true),
     };
     if (panels[toolId]) panels[toolId]();
+  };
+
+  // === TEXT ALIGNMENT ===
+  const applyTextAlign = (align) => {
+    setCurrentTextAlign(align);
+    if (selectedElement) {
+      const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, textAlign: align } : el);
+      setCanvasElements(updated); history.push(updated);
+    }
+  };
+
+  // === EXPORT PDF ===
+  const exportToPDF = async () => {
+    if (!canvasContainerRef.current) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(canvasContainerRef.current.querySelector('[data-testid="canvas-page-0"]') || canvasContainerRef.current, { scale: 2, useCORS: true, backgroundColor: pageBackground });
+      const imgData = canvas.toDataURL('image/png');
+      const pdf = new jsPDF({ orientation: pageSize.width > pageSize.height ? 'l' : 'p', unit: 'px', format: [pageSize.width, pageSize.height] });
+      pdf.addImage(imgData, 'PNG', 0, 0, pageSize.width, pageSize.height);
+      pdf.save(`${document.title || 'document'}.pdf`);
+    } catch (err) { console.error('Export failed:', err); }
+    setExporting(false);
+    setShowExport(false);
+  };
+
+  // === GRAPHIC CHART ===
+  const createChart = () => {
+    const labels = chartLabels.split(',').map(l => l.trim());
+    const data = chartData.split(',').map(d => parseFloat(d.trim()) || 0);
+    const chartConfig = { type: chartType, labels, data, title: chartTitle, colors: PRESET_COLORS.slice(0, labels.length) };
+    
+    // Create canvas element for chart
+    const tempCanvas = window.document.createElement('canvas');
+    tempCanvas.width = 400; tempCanvas.height = 300;
+    const ctx = tempCanvas.getContext('2d');
+    
+    const chartInstance = new ChartJS(ctx, {
+      type: chartType,
+      data: {
+        labels,
+        datasets: [{ label: chartTitle, data, backgroundColor: PRESET_COLORS.slice(0, labels.length), borderColor: PRESET_COLORS.slice(0, labels.length), borderWidth: 1 }]
+      },
+      options: { responsive: false, plugins: { legend: { display: chartType !== 'bar' }, title: { display: true, text: chartTitle } } }
+    });
+    
+    setTimeout(() => {
+      const imgSrc = tempCanvas.toDataURL('image/png');
+      const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width: 400, height: 300, src: imgSrc, chartConfig }];
+      setCanvasElements(updated); history.push(updated);
+      chartInstance.destroy();
+      setShowGraphic(false);
+    }, 100);
+  };
+
+  // === UPDATE SHORTCUT ===
+  const updateShortcut = (key) => {
+    if (!editingShortcut) return;
+    const newShortcuts = { ...shortcuts };
+    // Remove old key for this tool
+    Object.keys(newShortcuts).forEach(k => { if (newShortcuts[k] === editingShortcut) delete newShortcuts[k]; });
+    // Add new key
+    if (key) newShortcuts[key.toUpperCase()] = editingShortcut;
+    setShortcuts(newShortcuts);
+    localStorage.setItem('zet_shortcuts', JSON.stringify(newShortcuts));
+    setEditingShortcut(null);
   };
 
   // === IMAGE UPLOAD ===
@@ -415,8 +558,42 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showColor && <DraggablePanel title={t('colorPicker')} onClose={() => setShowColor(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 150 }}>
-      <div className="space-y-3 w-56"><div className="grid grid-cols-6 gap-1.5">{PRESET_COLORS.map(c => <button key={c} onClick={() => applyColor(c)} className={`w-7 h-7 rounded-md border ${currentColor === c ? 'ring-2 ring-white scale-110' : 'border-white/10'} transition-transform`} style={{ background: c }} />)}</div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Custom</label><input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColor(e.target.value); }} className="w-full h-8 rounded cursor-pointer" /></div>
+      <div className="space-y-3 w-64">
+        <div className="grid grid-cols-6 gap-1.5">{PRESET_COLORS.map(c => <button key={c} onClick={() => { applyColor(c); setHexInput(c); }} className={`w-7 h-7 rounded-md border ${currentColor === c ? 'ring-2 ring-white scale-110' : 'border-white/10'} transition-transform`} style={{ background: c }} />)}</div>
+        <div className="space-y-2">
+          <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Hex Code</label>
+          <div className="flex gap-2">
+            <input type="text" value={hexInput} onChange={e => setHexInput(e.target.value)} placeholder="#000000" className="zet-input flex-1 text-xs font-mono" maxLength={7} />
+            <button onClick={() => { if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) applyColor(hexInput); }} className="zet-btn px-2 text-xs">Apply</button>
+          </div>
+        </div>
+        <div className="space-y-2">
+          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--zet-text-muted)' }}>
+            <input type="checkbox" checked={useGradient} onChange={e => setUseGradient(e.target.checked)} className="rounded" />
+            Gradient Text
+          </label>
+          {useGradient && (
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Start</label>
+                <input type="color" value={gradientStart || '#FF0000'} onChange={e => setGradientStart(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
+              </div>
+              <div className="flex-1">
+                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>End</label>
+                <input type="color" value={gradientEnd || '#0000FF'} onChange={e => setGradientEnd(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
+              </div>
+            </div>
+          )}
+          {useGradient && gradientStart && gradientEnd && (
+            <button onClick={() => {
+              if (selectedElement) {
+                const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart, gradientEnd } : el);
+                setCanvasElements(updated); history.push(updated);
+              }
+            }} className="zet-btn w-full text-xs">Apply Gradient</button>
+          )}
+        </div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Custom Picker</label><input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColor(e.target.value); setHexInput(e.target.value); }} className="w-full h-8 rounded cursor-pointer" /></div>
       </div>
     </DraggablePanel>}
     {showTextSize && <DraggablePanel title={t('textSize')} onClose={() => setShowTextSize(false)} initialPosition={{ x: isMobile ? 20 : 370, y: 100 }}>
@@ -471,6 +648,100 @@ const Editor = () => {
         </div>}
       </div>
     </DraggablePanel>}
+    
+    {/* Paragraph Alignment Panel */}
+    {showParagraph && <DraggablePanel title="Paragraph" onClose={() => setShowParagraph(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="space-y-2 w-52">
+        <div className="grid grid-cols-4 gap-2">
+          <button onClick={() => applyTextAlign('left')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'left' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'left' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignLeft className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+          <button onClick={() => applyTextAlign('center')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'center' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'center' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignCenter className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+          <button onClick={() => applyTextAlign('right')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'right' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'right' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignRight className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+          <button onClick={() => applyTextAlign('justify')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'justify' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'justify' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignJustify className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+        </div>
+      </div>
+    </DraggablePanel>}
+
+    {/* Page Color Panel */}
+    {showPageColor && <DraggablePanel title="Page Color" onClose={() => setShowPageColor(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="space-y-3 w-52">
+        <div className="grid grid-cols-6 gap-1.5">
+          {['#FFFFFF', '#F5F5DC', '#FFFAF0', '#F0FFF0', '#F0F8FF', '#FFF0F5', '#1a1a2e', '#16213e', '#0f0f0f', '#1e1e1e', '#2d2d2d', '#3d3d3d'].map(c => (
+            <button key={c} onClick={() => setPageBackground(c)} className={`w-7 h-7 rounded-md border ${pageBackground === c ? 'ring-2 ring-blue-500 scale-110' : 'border-white/10'} transition-transform`} style={{ background: c }} />
+          ))}
+        </div>
+        <input type="color" value={pageBackground} onChange={e => setPageBackground(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
+      </div>
+    </DraggablePanel>}
+
+    {/* Zoom Tool Panel */}
+    {showZoom && <DraggablePanel title="Zoom" onClose={() => setShowZoom(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="space-y-3 w-56">
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Zoom Level: {zoomLevel}x</label><input type="range" min="1.5" max="5" step="0.5" value={zoomLevel} onChange={e => setZoomLevel(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Lens Size: {zoomRadius}px</label><input type="range" min="50" max="200" value={zoomRadius} onChange={e => setZoomRadius(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}><ZoomIn className="h-4 w-4" /> Click canvas while zoom tool active</div>
+        <div className="flex gap-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <button onClick={() => setZoom(Math.min(2, zoom + 0.25))} className="zet-btn flex-1 text-xs flex items-center justify-center gap-1"><ZoomIn className="h-3 w-3" /> In</button>
+          <button onClick={() => setZoom(Math.max(0.25, zoom - 0.25))} className="zet-btn flex-1 text-xs flex items-center justify-center gap-1"><ZoomOut className="h-3 w-3" /> Out</button>
+        </div>
+        <div className="text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>Canvas: {Math.round(zoom * 100)}%</div>
+      </div>
+    </DraggablePanel>}
+
+    {/* Export Panel */}
+    {showExport && <DraggablePanel title="Export" onClose={() => setShowExport(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="space-y-3 w-52">
+        <button onClick={exportToPDF} disabled={exporting} className="zet-btn w-full flex items-center justify-center gap-2 py-2.5">
+          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+          Export as PDF
+        </button>
+        <div className="text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>Current page will be exported</div>
+      </div>
+    </DraggablePanel>}
+
+    {/* Graphic Chart Panel */}
+    {showGraphic && <DraggablePanel title="Chart" onClose={() => setShowGraphic(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-72 space-y-3">
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Chart Type</label>
+          <div className="grid grid-cols-3 gap-1">
+            {CHART_TYPES.map(ct => (
+              <button key={ct.id} onClick={() => setChartType(ct.id)} className={`p-2 rounded text-xs ${chartType === ct.id ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: chartType === ct.id ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{ct.name.split(' ')[0]}</button>
+            ))}
+          </div>
+        </div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Title</label><input value={chartTitle} onChange={e => setChartTitle(e.target.value)} className="zet-input text-xs w-full" placeholder="Chart Title" /></div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Labels (comma separated)</label><input value={chartLabels} onChange={e => setChartLabels(e.target.value)} className="zet-input text-xs w-full" placeholder="A,B,C,D" /></div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Values (comma separated)</label><input value={chartData} onChange={e => setChartData(e.target.value)} className="zet-input text-xs w-full" placeholder="10,20,30,40" /></div>
+        <button onClick={createChart} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> Create Chart</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Shortcuts Panel */}
+    {showShortcuts && <DraggablePanel title="Keyboard Shortcuts" onClose={() => setShowShortcuts(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
+      <div className="w-80 space-y-2 max-h-96 overflow-y-auto">
+        {TOOLS.map(tool => {
+          const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
+          return (
+            <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
+              <div className="flex items-center gap-2">
+                <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{tool.nameKey}</span>
+              </div>
+              {editingShortcut === tool.id ? (
+                <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { updateShortcut(e.key); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
+              ) : (
+                <button onClick={() => setEditingShortcut(tool.id)} className="px-2 py-1 rounded text-xs font-mono" style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}>{currentKey || '—'}</button>
+              )}
+            </div>
+          );
+        })}
+        <div className="pt-2 border-t text-xs" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+          <p>Click a key to edit. Press the new key to assign.</p>
+          <p className="mt-1">Delete/Backspace: Delete selected element</p>
+          <p>Escape: Deselect</p>
+        </div>
+      </div>
+    </DraggablePanel>}
   </>);
 
   // =============================
@@ -497,7 +768,8 @@ const Editor = () => {
           canvasElements={canvasElements} setCanvasElements={setCanvasElements}
           drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
           activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
-          currentLineHeight={currentLineHeight} drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
+          currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
+          drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
           markingColor={markingColor} markingOpacity={markingOpacity} markingSize={markingSize}
           selectedElement={selectedElement} setSelectedElement={setSelectedElement}
           selectedElements={selectedElements} setSelectedElements={setSelectedElements}
@@ -505,7 +777,9 @@ const Editor = () => {
           onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
           onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
           onAddAiImageToShape={handleAddAiImageToShape}
-          isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough} />
+          isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
+          pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
+          zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos} />
 
         {/* Mobile Bottom Toolbar */}
         <div className="border-t flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
@@ -588,6 +862,7 @@ const Editor = () => {
         <div className="flex items-center gap-1.5">
           <button data-testid="prev-page-btn" onClick={() => changePage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={`tool-btn w-8 h-8 ${currentPage === 0 ? 'opacity-30' : ''}`}><ArrowLeft className="h-4 w-4" /></button>
           <button data-testid="next-page-btn" onClick={() => changePage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} disabled={currentPage >= (document.pages?.length || 1) - 1} className={`tool-btn w-8 h-8 ${currentPage >= (document.pages?.length || 1) - 1 ? 'opacity-30' : ''}`}><ArrowRight className="h-4 w-4" /></button>
+          <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
@@ -602,7 +877,8 @@ const Editor = () => {
           canvasElements={canvasElements} setCanvasElements={setCanvasElements}
           drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
           activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
-          currentLineHeight={currentLineHeight} drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
+          currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
+          drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
           markingColor={markingColor} markingOpacity={markingOpacity} markingSize={markingSize}
           selectedElement={selectedElement} setSelectedElement={setSelectedElement}
           selectedElements={selectedElements} setSelectedElements={setSelectedElements}
@@ -610,7 +886,9 @@ const Editor = () => {
           onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
           onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
           onAddAiImageToShape={handleAddAiImageToShape}
-          isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough} />
+          isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
+          pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
+          zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos} />
 
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}

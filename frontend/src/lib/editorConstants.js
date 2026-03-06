@@ -3,7 +3,7 @@ import {
   Volume2, FilePlus, Triangle, Square, Circle, Star,
   Pencil, Palette, Scissors, Wand2, MousePointer2,
   Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
-  AlignLeft, BarChart3, Contrast
+  AlignLeft, BarChart3, Contrast, ZoomIn, Download
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -28,33 +28,41 @@ export const PRESET_COLORS = [
 ];
 
 export const TOOLS = [
-  { id: 'text', icon: Type, nameKey: 'text' },
-  { id: 'wordtype', icon: Bold, nameKey: 'wordType' },
-  { id: 'textsize', icon: Baseline, nameKey: 'textSize' },
-  { id: 'font', icon: ALargeSmall, nameKey: 'font' },
-  { id: 'linespacing', icon: AlignJustify, nameKey: 'lineSpacing' },
-  { id: 'paragraph', icon: AlignLeft, nameKey: 'paragraph' },
-  { id: 'color', icon: Palette, nameKey: 'colorPicker' },
-  { id: 'hand', icon: Hand, nameKey: 'pan' },
-  { id: 'image', icon: Image, nameKey: 'image' },
-  { id: 'createimage', icon: Wand2, nameKey: 'aiImage' },
-  { id: 'draw', icon: Pencil, nameKey: 'pencil' },
-  { id: 'pen', icon: PenTool, nameKey: 'penTool' },
-  { id: 'eraser', icon: Eraser, nameKey: 'eraser' },
-  { id: 'marking', icon: Highlighter, nameKey: 'marking' },
-  { id: 'select', icon: MousePointer2, nameKey: 'select' },
-  { id: 'cut', icon: Scissors, nameKey: 'crop' },
-  { id: 'translate', icon: Languages, nameKey: 'translate' },
-  { id: 'graphic', icon: BarChart3, nameKey: 'graphic' },
-  { id: 'pagecolor', icon: Contrast, nameKey: 'pageColor' },
-  { id: 'addpage', icon: FilePlus, nameKey: 'addPage' },
-  { id: 'pagesize', icon: FileText, nameKey: 'pageSize' },
-  { id: 'voice', icon: Volume2, nameKey: 'voice' },
-  { id: 'triangle', icon: Triangle, nameKey: 'triangle' },
-  { id: 'square', icon: Square, nameKey: 'square' },
-  { id: 'circle', icon: Circle, nameKey: 'circle' },
-  { id: 'star', icon: Star, nameKey: 'star' },
+  { id: 'text', icon: Type, nameKey: 'text', shortcut: 'T' },
+  { id: 'wordtype', icon: Bold, nameKey: 'wordType', shortcut: 'B' },
+  { id: 'textsize', icon: Baseline, nameKey: 'textSize', shortcut: null },
+  { id: 'font', icon: ALargeSmall, nameKey: 'font', shortcut: 'F' },
+  { id: 'linespacing', icon: AlignJustify, nameKey: 'lineSpacing', shortcut: null },
+  { id: 'paragraph', icon: AlignLeft, nameKey: 'paragraph', shortcut: 'A' },
+  { id: 'color', icon: Palette, nameKey: 'colorPicker', shortcut: 'C' },
+  { id: 'hand', icon: Hand, nameKey: 'pan', shortcut: 'H' },
+  { id: 'zoom', icon: ZoomIn, nameKey: 'zoom', shortcut: 'Z' },
+  { id: 'image', icon: Image, nameKey: 'image', shortcut: 'I' },
+  { id: 'createimage', icon: Wand2, nameKey: 'aiImage', shortcut: 'W' },
+  { id: 'draw', icon: Pencil, nameKey: 'pencil', shortcut: 'D' },
+  { id: 'pen', icon: PenTool, nameKey: 'penTool', shortcut: 'P' },
+  { id: 'eraser', icon: Eraser, nameKey: 'eraser', shortcut: 'E' },
+  { id: 'marking', icon: Highlighter, nameKey: 'marking', shortcut: 'M' },
+  { id: 'select', icon: MousePointer2, nameKey: 'select', shortcut: 'S' },
+  { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
+  { id: 'translate', icon: Languages, nameKey: 'translate', shortcut: 'L' },
+  { id: 'graphic', icon: BarChart3, nameKey: 'graphic', shortcut: 'G' },
+  { id: 'pagecolor', icon: Contrast, nameKey: 'pageColor', shortcut: null },
+  { id: 'export', icon: Download, nameKey: 'export', shortcut: null },
+  { id: 'addpage', icon: FilePlus, nameKey: 'addPage', shortcut: 'N' },
+  { id: 'pagesize', icon: FileText, nameKey: 'pageSize', shortcut: null },
+  { id: 'voice', icon: Volume2, nameKey: 'voice', shortcut: 'V' },
+  { id: 'triangle', icon: Triangle, nameKey: 'triangle', shortcut: '1' },
+  { id: 'square', icon: Square, nameKey: 'square', shortcut: '2' },
+  { id: 'circle', icon: Circle, nameKey: 'circle', shortcut: '3' },
+  { id: 'star', icon: Star, nameKey: 'star', shortcut: '4' },
 ];
+
+// Default keyboard shortcuts
+export const DEFAULT_SHORTCUTS = TOOLS.reduce((acc, tool) => {
+  if (tool.shortcut) acc[tool.shortcut] = tool.id;
+  return acc;
+}, {});
 
 export const TRANSLATE_LANGUAGES = [
   { code: 'en', name: 'English' }, { code: 'tr', name: 'Türkçe' },
@@ -66,6 +74,13 @@ export const TRANSLATE_LANGUAGES = [
 ];
 
 export const LINE_SPACINGS = [1.0, 1.15, 1.5, 2.0, 2.5, 3.0];
+
+export const TEXT_ALIGNMENTS = [
+  { id: 'left', nameKey: 'alignLeft' },
+  { id: 'center', nameKey: 'alignCenter' },
+  { id: 'right', nameKey: 'alignRight' },
+  { id: 'justify', nameKey: 'alignJustify' },
+];
 
 export const CHART_TYPES = [
   { id: 'bar', name: 'Bar Chart' },
