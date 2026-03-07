@@ -18,7 +18,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
-  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -30,7 +30,7 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const Editor = () => {
   const { docId } = useParams();
   const navigate = useNavigate();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -228,6 +228,18 @@ const Editor = () => {
   const [headerText, setHeaderText] = useState('');
   const [footerText, setFooterText] = useState('');
 
+  // Copy/Paste state
+  const [clipboard, setClipboard] = useState(null);
+
+  // Mirror state
+  const [showMirror, setShowMirror] = useState(false);
+  const [mirrorAngle, setMirrorAngle] = useState(0);
+
+  // Voice Input (STT) state
+  const [showVoiceInput, setShowVoiceInput] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const [voiceTranscript, setVoiceTranscript] = useState('');
+  const recognitionRef = useRef(null);
   // Find & Replace state
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
@@ -247,6 +259,20 @@ const Editor = () => {
       // Always handle Ctrl+Z/Y
       if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+      
+      // Ctrl+C - Copy
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !isEditing) {
+        e.preventDefault();
+        copyElement();
+        return;
+      }
+      
+      // Ctrl+V - Paste
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v' && !isEditing) {
+        e.preventDefault();
+        pasteElement();
+        return;
+      }
       
       // Don't process shortcuts when editing text
       if (isEditing) return;
@@ -400,6 +426,9 @@ const Editor = () => {
       templates: () => setShowTemplates(true), qrcode: () => setShowQRCode(true),
       watermark: () => setShowWatermark(true), pagenumbers: () => setShowPageNumbers(true),
       headerfooter: () => setShowHeaderFooter(true), findreplace: () => setShowFindReplace(true),
+      copy: () => copyElement(), 
+      mirror: () => setShowMirror(true),
+      voiceinput: () => setShowVoiceInput(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -626,6 +655,146 @@ const Editor = () => {
     setCanvasElements(updated);
   };
 
+  // === COPY / PASTE ===
+  const copyElement = () => {
+    if (selectedElement) {
+      const el = canvasElements.find(e => e.id === selectedElement);
+      if (el) setClipboard({ ...el, id: null }); // Remove id for new copy
+    }
+  };
+
+  const pasteElement = () => {
+    if (clipboard) {
+      const newEl = { 
+        ...clipboard, 
+        id: `el_${Date.now()}`, 
+        x: (clipboard.x || 0) + 20, 
+        y: (clipboard.y || 0) + 20 
+      };
+      const updated = [...canvasElements, newEl];
+      setCanvasElements(updated);
+      history.push(updated);
+      setSelectedElement(newEl.id);
+    }
+  };
+
+  // === MIRROR ===
+  const mirrorElement = (axis) => {
+    if (!selectedElement) return;
+    const updated = canvasElements.map(el => {
+      if (el.id === selectedElement) {
+        const currentScaleX = el.scaleX || 1;
+        const currentScaleY = el.scaleY || 1;
+        if (axis === 'horizontal') {
+          return { ...el, scaleX: currentScaleX * -1 };
+        } else if (axis === 'vertical') {
+          return { ...el, scaleY: currentScaleY * -1 };
+        }
+      }
+      return el;
+    });
+    setCanvasElements(updated);
+    history.push(updated);
+  };
+
+  const rotateElement = (angle) => {
+    if (!selectedElement) return;
+    const updated = canvasElements.map(el => {
+      if (el.id === selectedElement) {
+        return { ...el, rotation: (el.rotation || 0) + angle };
+      }
+      return el;
+    });
+    setCanvasElements(updated);
+    history.push(updated);
+  };
+
+  // Copy element by ID (for context menu)
+  const copyElementById = (id) => {
+    const el = canvasElements.find(e => e.id === id);
+    if (el) {
+      setClipboard({ ...el, id: null });
+      // Also paste immediately
+      const newEl = { ...el, id: `el_${Date.now()}`, x: (el.x || 0) + 20, y: (el.y || 0) + 20 };
+      const updated = [...canvasElements, newEl];
+      setCanvasElements(updated);
+      history.push(updated);
+      setSelectedElement(newEl.id);
+    }
+  };
+
+  // Mirror element by ID (for context menu)
+  const mirrorElementById = (id) => {
+    setSelectedElement(id);
+    setShowMirror(true);
+  };
+
+  // === VOICE INPUT (STT) ===
+  const startListening = () => {
+    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+      alert('Your browser does not support Speech Recognition. Please use Chrome.');
+      return;
+    }
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    recognitionRef.current = new SpeechRecognition();
+    recognitionRef.current.continuous = true;
+    recognitionRef.current.interimResults = true;
+    recognitionRef.current.lang = language === 'tr' ? 'tr-TR' : 'en-US';
+
+    recognitionRef.current.onresult = (event) => {
+      let transcript = '';
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+      }
+      setVoiceTranscript(transcript);
+    };
+
+    recognitionRef.current.onerror = (event) => {
+      console.error('Speech recognition error:', event.error);
+      setIsListening(false);
+    };
+
+    recognitionRef.current.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current.start();
+    setIsListening(true);
+  };
+
+  const stopListening = () => {
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
+    }
+    setIsListening(false);
+  };
+
+  const addVoiceTextToDocument = () => {
+    if (!voiceTranscript.trim()) return;
+    const newEl = {
+      id: `el_${Date.now()}`,
+      type: 'text',
+      x: 40,
+      y: 40 + canvasElements.filter(e => e.type === 'text').length * 30,
+      content: voiceTranscript,
+      font: currentFont,
+      fontSize: currentFontSize,
+      color: currentColor,
+      bold: false,
+      italic: false,
+      underline: false,
+      strikethrough: false,
+      textAlign: 'left',
+      lineHeight: 1.5,
+    };
+    const updated = [...canvasElements, newEl];
+    setCanvasElements(updated);
+    history.push(updated);
+    setVoiceTranscript('');
+    setShowVoiceInput(false);
+  };
+
   // === IMAGE UPLOAD ===
   const handleImageUpload = (e) => {
     const file = e.target.files[0];
@@ -731,6 +900,21 @@ const Editor = () => {
 
   // === VOICE ===
   const getDocText = () => canvasElements.filter(el => el.type === 'text').sort((a, b) => a.y - b.y).map(el => el.content).join('. ');
+  
+  // Get full document content for ZETA (includes all element types)
+  const getFullDocContent = () => {
+    const elements = canvasElements.map(el => {
+      if (el.type === 'text') return `[TEXT]: ${el.content}`;
+      if (el.type === 'shape') return `[SHAPE]: ${el.shapeType} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
+      if (el.type === 'image') return `[IMAGE]: at (${Math.round(el.x)}, ${Math.round(el.y)}), size: ${el.width}x${el.height}`;
+      if (el.type === 'chart') return `[CHART]: ${el.chartType || 'chart'} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
+      if (el.type === 'table') return `[TABLE]: ${el.rows}x${el.cols} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
+      if (el.type === 'qrcode') return `[QR CODE]: ${el.content} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
+      return `[${el.type?.toUpperCase() || 'ELEMENT'}]`;
+    });
+    const vectors = drawPaths.map((p, i) => `[VECTOR ${i + 1}]: ${p.points?.length || 0} points, color: ${p.color}`);
+    return [...elements, ...vectors].join('\n');
+  };
   
   // Fetch available ElevenLabs voices
   const fetchVoices = async () => {
@@ -1279,6 +1463,80 @@ const Editor = () => {
         )}
       </div>
     </DraggablePanel>}
+
+    {/* Mirror Panel */}
+    {showMirror && <DraggablePanel title="Mirror / Rotate" onClose={() => setShowMirror(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-56 space-y-3">
+        {!selectedElement ? (
+          <div className="text-center py-4 text-xs" style={{ color: 'var(--zet-text-muted)' }}>Select an element first</div>
+        ) : (
+          <>
+            <div className="space-y-2">
+              <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Mirror</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => mirrorElement('horizontal')} className="zet-btn text-xs py-2 flex items-center justify-center gap-1">
+                  ↔ Horizontal
+                </button>
+                <button onClick={() => mirrorElement('vertical')} className="zet-btn text-xs py-2 flex items-center justify-center gap-1">
+                  ↕ Vertical
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Rotate: {mirrorAngle}°</label>
+              <input type="range" min="-180" max="180" value={mirrorAngle} onChange={e => setMirrorAngle(Number(e.target.value))} className="w-full accent-blue-500" />
+              <div className="grid grid-cols-4 gap-1">
+                <button onClick={() => rotateElement(-90)} className="zet-btn text-xs py-1">-90°</button>
+                <button onClick={() => rotateElement(-45)} className="zet-btn text-xs py-1">-45°</button>
+                <button onClick={() => rotateElement(45)} className="zet-btn text-xs py-1">+45°</button>
+                <button onClick={() => rotateElement(90)} className="zet-btn text-xs py-1">+90°</button>
+              </div>
+              <button onClick={() => {
+                if (selectedElement) {
+                  const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, rotation: mirrorAngle } : el);
+                  setCanvasElements(updated); history.push(updated);
+                }
+              }} className="zet-btn w-full text-xs py-2">Set Rotation to {mirrorAngle}°</button>
+            </div>
+          </>
+        )}
+      </div>
+    </DraggablePanel>}
+
+    {/* Voice Input (STT) Panel */}
+    {showVoiceInput && <DraggablePanel title="Voice Input" onClose={() => { setShowVoiceInput(false); stopListening(); setVoiceTranscript(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-72 space-y-3">
+        <div className="text-center">
+          <button 
+            onClick={isListening ? stopListening : startListening} 
+            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto transition-all ${isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-500 hover:bg-blue-600'}`}
+          >
+            <Mic className="h-8 w-8 text-white" />
+          </button>
+          <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
+            {isListening ? 'Listening... Click to stop' : 'Click to start speaking'}
+          </p>
+        </div>
+        
+        {voiceTranscript && (
+          <div className="space-y-2">
+            <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Transcript:</label>
+            <div className="p-3 rounded text-sm max-h-32 overflow-y-auto" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
+              {voiceTranscript}
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button onClick={() => setVoiceTranscript('')} className="zet-btn text-xs py-2" style={{ background: 'var(--zet-bg)' }}>Clear</button>
+              <button onClick={addVoiceTextToDocument} className="zet-btn text-xs py-2">Add to Document</button>
+            </div>
+          </div>
+        )}
+        
+        <div className="text-xs pt-2 border-t" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+          <p>Language: {language === 'tr' ? 'Türkçe' : 'English'}</p>
+          <p className="mt-1">Uses your browser's speech recognition</p>
+        </div>
+      </div>
+    </DraggablePanel>}
   </>);
 
   // =============================
@@ -1317,7 +1575,7 @@ const Editor = () => {
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
           pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
           zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-          onAddPage={addPage} />
+          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} />
 
         {/* Mobile Bottom Toolbar */}
         <div className="border-t flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
@@ -1350,7 +1608,7 @@ const Editor = () => {
                 pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
                 docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
                 forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} 
-                documentContent={getDocText()} />
+                documentContent={getFullDocContent()} />
             </div>
           </div>
         )}
@@ -1448,7 +1706,7 @@ const Editor = () => {
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
           pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
           zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-          onAddPage={addPage} />
+          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} />
 
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}

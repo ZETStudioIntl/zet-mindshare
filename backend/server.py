@@ -83,7 +83,20 @@ class TranslateRequest(BaseModel):
     text: str
     target_language: str
 
+class EmailAuthRequest(BaseModel):
+    email: str
+    password: str
+    name: Optional[str] = None
+
 # ============ AUTH HELPERS ============
+
+import hashlib
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def verify_password(password: str, hashed: str) -> bool:
+    return hash_password(password) == hashed
 
 async def get_current_user(request: Request) -> User:
     session_token = request.cookies.get("session_token")
@@ -184,6 +197,72 @@ async def logout(request: Request, response: Response):
         await db.user_sessions.delete_one({"session_token": session_token})
     response.delete_cookie(key="session_token", path="/")
     return {"message": "Logged out"}
+
+# ============ EMAIL AUTH ROUTES ============
+
+@api_router.post("/auth/register")
+async def register_with_email(req: EmailAuthRequest, response: Response):
+    # Check if user exists
+    existing = await db.users.find_one({"email": req.email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    hashed_pw = hash_password(req.password)
+    
+    user_data = {
+        "user_id": user_id,
+        "email": req.email,
+        "name": req.name or req.email.split('@')[0],
+        "picture": None,
+        "hashed_password": hashed_pw,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_data)
+    
+    # Create session
+    session_token = f"sess_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": expires_at.isoformat()
+    })
+    
+    response.set_cookie(
+        key="session_token", value=session_token,
+        httponly=True, secure=True, samesite="none", path="/", max_age=7*24*60*60
+    )
+    
+    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}}
+
+@api_router.post("/auth/login")
+async def login_with_email(req: EmailAuthRequest, response: Response):
+    user = await db.users.find_one({"email": req.email})
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    if not user.get("hashed_password") or not verify_password(req.password, user["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Create session
+    session_token = f"sess_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user["user_id"],
+        "expires_at": expires_at.isoformat()
+    })
+    
+    response.set_cookie(
+        key="session_token", value=session_token,
+        httponly=True, secure=True, samesite="none", path="/", max_age=7*24*60*60
+    )
+    
+    return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}}
 
 # ============ DOCUMENTS ROUTES ============
 

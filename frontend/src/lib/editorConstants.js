@@ -5,7 +5,7 @@ import {
   Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
   AlignLeft, BarChart3, Contrast, ZoomIn, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
-  PanelTop, Search, CircleDashed
+  PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -46,6 +46,8 @@ export const TOOLS = [
   { id: 'eraser', icon: Eraser, nameKey: 'eraser', shortcut: 'E' },
   { id: 'marking', icon: Highlighter, nameKey: 'marking', shortcut: 'M' },
   { id: 'select', icon: MousePointer2, nameKey: 'select', shortcut: 'S' },
+  { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
+  { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
   { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
   { id: 'translate', icon: Languages, nameKey: 'translate', shortcut: 'L' },
   { id: 'graphic', icon: BarChart3, nameKey: 'graphic', shortcut: 'G' },
@@ -63,6 +65,7 @@ export const TOOLS = [
   { id: 'addpage', icon: FilePlus, nameKey: 'addPage', shortcut: 'N' },
   { id: 'pagesize', icon: FileText, nameKey: 'pageSize', shortcut: null },
   { id: 'voice', icon: Volume2, nameKey: 'voice', shortcut: 'V' },
+  { id: 'voiceinput', icon: Mic, nameKey: 'voiceInput', shortcut: null },
   { id: 'triangle', icon: Triangle, nameKey: 'triangle', shortcut: '1' },
   { id: 'square', icon: Square, nameKey: 'square', shortcut: '2' },
   { id: 'circle', icon: Circle, nameKey: 'circle', shortcut: '3' },
