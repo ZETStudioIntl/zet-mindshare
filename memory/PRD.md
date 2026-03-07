@@ -9,7 +9,7 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - **AI:** Gemini 3 Flash (text/translate), Nano Banana (images) via Emergent LLM Key
 - **Export:** jsPDF, html2canvas
 
-## All Implemented Features (38 Tools)
+## All Implemented Features (40 Tools)
 
 ### Text & Formatting
 - [x] **Text (T)** - WYSIWYG text editing
@@ -23,7 +23,7 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 ### Navigation & View
 - [x] **Hand (H)** - Pan/zoom + drag elements + drag vectors
 - [x] **Zoom (Z)** - Magnifier with zoom level & lens size
-- [x] **Layers** - Reorder, hide/show, lock/unlock elements
+- [x] **Layers** - Reorder, hide/show, lock/unlock, DELETE elements
 - [x] **Ruler (R)** - Toggle rulers for alignment
 - [x] **Grid** - Toggle grid, set size, snap-to-grid
 
@@ -35,7 +35,7 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 ### Drawing Tools
 - [x] **Draw (D)** - Freehand with size/opacity/color
 - [x] **Pen (P)** - Vector drawing (auto-close, double-click finish)
-- [x] **Eraser (E)** - Remove draw paths
+- [x] **Eraser (E)** - DRAG MODE toggle for drawing-style erase
 - [x] **Marking (M)** - Highlighter
 - [x] **Select (S)** - Lasso selection (free-form, selects vectors too)
 - [x] **Cut (X)** - Delete + image crop
@@ -50,26 +50,34 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - [x] **Page Size** - A4, A5, Letter, Legal, Square, custom
 - [x] **Add Page (N)** - Add new pages
 - [x] **Page Numbers** - Auto numbering (top/bottom, left/center/right)
-- [x] **Header/Footer** - Custom header and footer text
-- [x] **Watermark** - Transparent watermark overlay
+- [x] **Header/Footer** - Custom header and footer text (renders on canvas)
+- [x] **Watermark** - Transparent watermark overlay (renders on canvas)
 - [x] **Find & Replace** - Search and replace text
+- [x] **Auto Page** - Automatically adds new page when text exceeds page height
 
 ### Export & Integration
 - [x] **Export PDF** - Button above pages panel (jsPDF + html2canvas)
 - [x] **Translate (L)** - AI translation (12 languages)
+- [x] **Google Drive** - Connect/disconnect (MOCK integration)
 
 ### Voice & Shapes
 - [x] **Voice (V)** - AI reads document aloud
-- [x] **Shapes (1,2,3,4)** - Triangle, Square, Circle, Star with image/AI image fill
+- [x] **Shapes** - Triangle (1), Square (2), Circle (3), Star (4), **Ring (5)** ✨
+- [x] **Ring** - Hollow circle (border only, no fill)
 
 ### Stats
 - [x] **Word Count** - Displays "X words" (not characters)
 
 ### Keyboard
-- [x] **Shortcuts Panel** - Customize all tool shortcuts
+- [x] **Shortcuts Panel** - Customize all tool shortcuts (in Dashboard Settings)
 - [x] **Delete/Backspace** - Delete selected element
 - [x] **Escape** - Deselect all
 - [x] **Ctrl+Z/Y** - Undo/Redo
+
+### Dashboard
+- [x] **"ZET Mindshare"** title (not "ZET Notes")
+- [x] **Settings** - Language, Google Drive, Shortcuts
+- [x] **Quick Notes** - Text overflow fixed (break-words)
 
 ### Mobile UI
 - [x] Separate mobile layout
@@ -77,7 +85,7 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - [x] Floating action buttons for Pages/ZETA
 
 ### AI Integration
-- [x] ZETA Chat (Gemini 3 Flash) - knows ALL 38 tools
+- [x] ZETA Chat (Gemini 3 Flash) - knows ALL 40 tools
 - [x] AI Image (Nano Banana) with preview
 - [x] AI Translation (12 languages)
 
@@ -85,32 +93,37 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - Auth: `/api/auth/session`, `/api/auth/me`
 - Docs: `/api/documents`, `/api/documents/{id}`
 - AI: `/api/zeta/chat`, `/api/zeta/generate-image`, `/api/zeta/translate`
+- Drive: `/api/drive/status`, `/api/drive/connect`, `/api/drive/upload`
 - Notes: `/api/notes`
 
 ## Bug Fixes This Session
-- [x] Dashboard quick notes text overflow (break-words, whitespace-pre-wrap)
-- [x] Export button moved from toolbox to above pages panel
-- [x] Character count changed to word count
+- [x] Dashboard title: "ZET Mindshare" (was "ZET Notes")
+- [x] Layers panel: Added delete button (trash icon)
+- [x] Layers visibility: Hidden elements not rendered on canvas
+- [x] Eraser: Added drag mode toggle
+- [x] Header/Footer/Watermark: Now render on canvas
+- [x] Table: Now renders as image on canvas
+- [x] Ring tool: Hollow circle (içi boş daire)
+- [x] Shortcuts: Moved to Dashboard Settings
 
 ## Testing History
-- iteration_11: Backend 24/24, Frontend 24/24 (100%)
-- iteration_12: Backend 24/24, Frontend 16/16 (100%) ✨
+- iteration_12: Backend 24/24, Frontend 16/16 (100%)
+- iteration_13: Backend 100%, Frontend 100% ✨
 
 ## Prioritized Backlog
 
 ### P1:
-- [ ] Google Drive real integration
-- [ ] Templates actual content (currently UI only)
-- [ ] Real magnifier canvas clone effect
+- [ ] Real Google Drive OAuth integration (currently mock)
+- [ ] Templates actual content generation
 
 ### P2:
-- [ ] Vertical multi-page scrolling
 - [ ] Real-time collaboration
+- [ ] Vertical multi-page scrolling
 
 ### P3:
 - [ ] In-app purchases
 - [ ] iCloud integration
 
-## MOCKED: Google Drive, iCloud, Templates content
+## MOCKED: Google Drive (mock token), iCloud, Templates content
 
 ## Last Updated: 2026-03-07
