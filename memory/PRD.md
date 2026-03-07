@@ -10,19 +10,26 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - **Frontend:** React.js, TailwindCSS, Shadcn/UI, lucide-react, Chart.js, QRCode
 - **Backend:** FastAPI, Python, MongoDB
 - **AI:** Gemini 3 Flash (text/translate), Nano Banana (images) via Emergent LLM Key
-- **Voice:** ElevenLabs TTS (needs paid plan) + Browser TTS fallback
+- **Voice:** ElevenLabs TTS + Web Speech API (STT)
+- **Auth:** Google OAuth + Email/Password
 - **Export:** jsPDF, html2canvas
 
-## Implemented Features (50+ Tools)
+## Implemented Features (55+ Tools)
+
+### NEW TOOLS (This Session)
+- [x] **Copy Tool** - Ctrl+C/V kısayolları, üç nokta menüsünde
+- [x] **Mirror Tool** - Yatay/dikey ayna, rotation slider, preset butonları
+- [x] **Voice Input (STT)** - Web Speech API ile sesden metne
+- [x] **Email Auth** - Email/password ile kayıt ve giriş
 
 ### Text & Formatting
 - [x] Text (T), Word Type (B), Text Size, Font (F), Line Spacing
 - [x] Paragraph Alignment, Color (C) with Hex
-- [x] **Gradient Presets** - Sunset, Ocean, Purple, Green, Fire, Night
-- [x] **Gradient support for Text AND Shapes**
+- [x] Gradient Presets (Sunset, Ocean, Purple, Green, Fire, Night)
+- [x] Gradient for Text AND Shapes
 
 ### Navigation & View
-- [x] Hand (H), **Zoom (Z) - Otomatik Mouse Takipli Büyüteç**
+- [x] Hand (H), Zoom (Z) - Otomatik Mouse Takipli Büyüteç
 - [x] Layers, Ruler (R), Grid
 
 ### Image & Media
@@ -34,9 +41,9 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - [x] Cut (X)
 
 ### Data & Charts
-- [x] **Graphic (G) - Bar, Pie, Line charts**
-- [x] **Her sütun için ayrı renk seçimi**
-- [x] **Grafiklere Image ve AI Image ekleme**
+- [x] Graphic (G) - Bar, Pie, Line charts
+- [x] Her sütun için ayrı renk seçimi
+- [x] Grafiklere Image ve AI Image ekleme
 - [x] Table with custom rows/columns
 
 ### Document Features
@@ -51,41 +58,38 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - [x] Google Drive (MOCK)
 
 ### Voice & AI
-- [x] Voice (V) - ElevenLabs TTS (rate limited)
-- [x] **ZETA AI - ZET Studio International Asistanı**
-- [x] **ZETA'ya görsel gönderme**
-- [x] **ZETA mesajlarını sesli dinleme (TTS ikonu)**
+- [x] Voice (V) - ElevenLabs TTS
+- [x] Voice Input (STT) - Web Speech API
+- [x] ZETA AI - Tüm belge içeriğini görüyor (text, shape, image, chart, table, vector)
+- [x] ZETA görsel gönderme + mesaj sesli dinleme
 
 ### UI/UX Features
-- [x] **Fast Select - Sayfanın ÜSTÜNDE 4 favori araç**
-- [x] **Shortcuts/Fast Select arama barları**
-- [x] **Akıcı panel sürükleme (requestAnimationFrame)**
-- [x] **Mobilde shortcuts gizli**
-- [x] Tooltip - Fare imleci üzerinde araç isimleri
+- [x] Fast Select - Sayfanın üstünde 4 favori araç
+- [x] Shortcuts/Fast Select arama barları
+- [x] Akıcı panel sürükleme
+- [x] Mobilde shortcuts gizli
+- [x] Tooltip - Fare imleci üzerinde
+
+### Auth
+- [x] Google OAuth
+- [x] Email/Password login & register
 
 ### Shapes (All with Gradient Support)
 - [x] Triangle, Square, Circle, Star, Ring
 
-## Features Added This Session
-1. ✅ **Fast Select üste taşındı** - top-16 pozisyonunda
-2. ✅ **Panel sürükleme optimizasyonu** - transform3d + requestAnimationFrame
-3. ✅ **Arama barları** - Shortcuts ve Fast Select modallarında
-4. ✅ **ZETA tanıtımı** - ZET Studio International, CEO: Bahaddin Yılmaz
-5. ✅ **Mobil optimizasyonu** - Shortcuts butonu gizlendi
-6. ✅ **Gradient şekillerde çalışıyor** - Square, Circle, Triangle, Ring, Star
-
-## Known Issues
-- **ElevenLabs TTS:** API key "unusual activity" nedeniyle bloke edildi (rate limit). Paid plan gerekli.
+## Key API Endpoints
+- Auth: `/api/auth/session`, `/api/auth/me`, `/api/auth/register`, `/api/auth/login`
+- Docs: `/api/documents`, `/api/documents/{id}`
+- AI: `/api/zeta/chat`, `/api/zeta/generate-image`, `/api/zeta/translate`
+- Voice: `/api/voice/list`, `/api/voice/tts`
 
 ## Testing History
 - iteration_14: 100% ✅
 - iteration_15: 100% ✅
-- iteration_16: Frontend 100%, Backend 95% (ElevenLabs rate limit) ✅
+- iteration_16: 100% ✅
+- iteration_17: 100% ✅ (Bug fixed: language variable in Voice Input)
 
 ## Prioritized Backlog
-
-### P0 (Urgent):
-- [ ] ElevenLabs paid plan API key ile TTS düzeltme
 
 ### P1 (Next):
 - [ ] Google Drive gerçek OAuth entegrasyonu
@@ -110,10 +114,8 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 | Gemini 3 Flash | ✅ Active | Emergent LLM Key |
 | Nano Banana | ✅ Active | Emergent LLM Key |
 | ElevenLabs TTS | ⚠️ Rate Limited | Needs paid plan |
-| Google Drive | ⚠️ Mock | Auth only |
-
-## Credentials
-- EMERGENT_LLM_KEY: sk-emergent-cEf51D588B566Dd619
-- ELEVENLABS_API_KEY: sk_79e0efd90edf708afb01941b88ed9e67ee0c91b8594def2d (rate limited)
+| Web Speech API | ✅ Active | Browser STT |
+| Google OAuth | ✅ Active | Via Emergent |
+| Email Auth | ✅ Active | Custom JWT |
 
 ## Last Updated: 2026-03-07
