@@ -65,6 +65,7 @@ const ShapeRenderer = ({ el }) => {
   const style = { width: '100%', height: '100%', backgroundColor: el.image ? 'transparent' : el.fill, backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' };
   const clips = { triangle: 'polygon(50% 0%, 0% 100%, 100% 100%)', star: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' };
   if (el.shapeType === 'circle') return <div style={{ ...style, borderRadius: '50%' }} />;
+  if (el.shapeType === 'ring') return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: `4px solid ${el.fill || '#000'}`, backgroundColor: 'transparent', backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' }} />;
   if (clips[el.shapeType]) return <div style={{ ...style, clipPath: clips[el.shapeType] }} />;
   return <div style={style} />;
 };
@@ -134,7 +135,7 @@ export const CanvasArea = ({
   selectedElement, setSelectedElement, selectedElements, setSelectedElements,
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd,
-  zoomLevel, zoomRadius, magnifierPos, setMagnifierPos,
+  zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage,
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
@@ -207,9 +208,24 @@ export const CanvasArea = ({
 
   const handleTextCommit = useCallback((id, text) => {
     if (!text.trim()) { const f = canvasElements.filter(el => el.id !== id); setCanvasElements(f); onSaveHistory(f); }
-    else { const u = canvasElements.map(el => el.id === id ? { ...el, content: text } : el); setCanvasElements(u); onSaveHistory(u); }
+    else { 
+      const el = canvasElements.find(e => e.id === id);
+      const u = canvasElements.map(el => el.id === id ? { ...el, content: text } : el); 
+      setCanvasElements(u); 
+      onSaveHistory(u);
+      
+      // Check if element exceeds page height - auto add new page
+      if (el) {
+        const lines = (text || '').split('\n').length;
+        const textHeight = lines * (el.fontSize || 16) * (el.lineHeight || 1.5);
+        const bottomY = el.y + textHeight;
+        if (bottomY > pageSize.height - 20 && onAddPage) {
+          onAddPage();
+        }
+      }
+    }
     setEditingId(null);
-  }, [canvasElements, setCanvasElements, onSaveHistory]);
+  }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage]);
 
   const applyCrop = useCallback(() => {
     if (!cropTarget || !cropRect) return;
@@ -249,7 +265,7 @@ export const CanvasArea = ({
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
       };
       const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
-    } else if (['triangle', 'square', 'circle', 'star'].includes(activeTool)) {
+    } else if (['triangle', 'square', 'circle', 'star', 'ring'].includes(activeTool)) {
       const u = [...canvasElements, { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null }];
       setCanvasElements(u); onSaveHistory(u);
     } else if (activeTool === 'hand') {
@@ -591,17 +607,18 @@ export const CanvasArea = ({
             )}
             
             {cropTarget && cropRect && idx === currentPage && <button data-testid="crop-apply-btn" onClick={(e) => { e.stopPropagation(); applyCrop(); }} className="absolute z-20 zet-btn text-xs px-3 py-1" style={{ left: (cropRect.x + cropRect.w) * zoom + 8, top: cropRect.y * zoom }}>Apply Crop</button>}
-            {(idx === currentPage ? canvasElements : page.elements || []).map(el => {
+            {(idx === currentPage ? canvasElements : page.elements || []).filter(el => !el.hidden).map(el => {
               const isSel = selectedElement === el.id || selectedElements.includes(el.id);
+              const isLocked = el.locked;
               return (
-                <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${isSel ? 'ring-2 ring-blue-500' : ''}`}
-                  style={{ left: el.x * zoom, top: el.y * zoom, width: el.type !== 'text' ? (el.width || 80) * zoom : 'auto', height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto', cursor: activeTool === 'hand' ? 'move' : undefined }}
-                  onClick={(e) => { e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
+                <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${isSel ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''}`}
+                  style={{ left: el.x * zoom, top: el.y * zoom, width: el.type !== 'text' ? (el.width || 80) * zoom : 'auto', height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto', cursor: activeTool === 'hand' && !isLocked ? 'move' : undefined }}
+                  onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
                   {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => setEditingId(id)} onCommit={handleTextCommit} />}
-                  {(el.type === 'image' || el.type === 'chart') && (
+                  {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
-                      {isSel && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                         {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onClose={() => setElementMenu(null)} />}
                       </>)}
@@ -609,7 +626,7 @@ export const CanvasArea = ({
                   )}
                   {el.type === 'shape' && (
                     <div className="relative w-full h-full group"><ShapeRenderer el={el} />
-                      {isSel && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                         {elementMenu === el.id && <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={onAddImageToShape} onAddAiImage={onAddAiImageToShape} onClose={() => setElementMenu(null)} />}
                       </>)}
@@ -618,6 +635,30 @@ export const CanvasArea = ({
                 </div>
               );
             })}
+            
+            {/* Watermark overlay */}
+            {doc.watermark && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ opacity: (doc.watermark.opacity || 20) / 100 }}>
+                <span className="text-6xl font-bold rotate-[-30deg] whitespace-nowrap" style={{ color: 'var(--zet-text-muted)' }}>{doc.watermark.text}</span>
+              </div>
+            )}
+            
+            {/* Header */}
+            {doc.header && (
+              <div className="absolute top-2 left-0 right-0 text-center text-sm pointer-events-none" style={{ color: 'var(--zet-text-muted)' }}>{doc.header}</div>
+            )}
+            
+            {/* Footer */}
+            {doc.footer && (
+              <div className="absolute bottom-2 left-0 right-0 text-center text-sm pointer-events-none" style={{ color: 'var(--zet-text-muted)' }}>{doc.footer}</div>
+            )}
+            
+            {/* Page Numbers */}
+            {doc.pageNumbers?.enabled && (
+              <div className={`absolute ${doc.pageNumbers.position?.includes('top') ? 'top-2' : 'bottom-2'} ${doc.pageNumbers.position?.includes('left') ? 'left-4' : doc.pageNumbers.position?.includes('right') ? 'right-4' : 'left-0 right-0 text-center'} text-sm pointer-events-none`} style={{ color: 'var(--zet-text-muted)' }}>
+                {idx + 1}
+              </div>
+            )}
           </div>
         ))}
       </div>

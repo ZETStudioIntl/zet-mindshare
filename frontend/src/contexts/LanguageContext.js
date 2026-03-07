@@ -99,6 +99,9 @@ const translations = {
     headerFooter: 'Header/Footer',
     findReplace: 'Find & Replace',
     words: 'words',
+    ring: 'Ring',
+    connected: 'Connected',
+    connectDrive: 'Connect Drive',
   },
   tr: {
     // Login
@@ -198,6 +201,9 @@ const translations = {
     headerFooter: 'Üstbilgi/Altbilgi',
     findReplace: 'Bul ve Değiştir',
     words: 'kelime',
+    ring: 'Halka',
+    connected: 'Bağlı',
+    connectDrive: 'Drive Bağla',
   }
 };
 

@@ -5,7 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
-  Clock, Trash2, Cloud, Globe, X
+  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -32,10 +32,40 @@ const Dashboard = () => {
   const [newDocTitle, setNewDocTitle] = useState('');
   const [selectedPageSize, setSelectedPageSize] = useState(PAGE_SIZES[0]);
   const [loading, setLoading] = useState(true);
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [connectingDrive, setConnectingDrive] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   useEffect(() => {
     fetchData();
+    checkDriveConnection();
+    // Check if redirected from Drive OAuth
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('drive_connected') === 'true') {
+      setDriveConnected(true);
+      window.history.replaceState({}, '', '/dashboard');
+    }
   }, []);
+
+  const checkDriveConnection = async () => {
+    try {
+      const res = await axios.get(`${API}/drive/status`, { withCredentials: true });
+      setDriveConnected(res.data.connected);
+    } catch { setDriveConnected(false); }
+  };
+
+  const connectGoogleDrive = async () => {
+    setConnectingDrive(true);
+    try {
+      const res = await axios.get(`${API}/drive/connect`, { withCredentials: true });
+      if (res.data.authorization_url) {
+        window.location.href = res.data.authorization_url;
+      }
+    } catch (err) {
+      console.error('Failed to connect Drive:', err);
+      setConnectingDrive(false);
+    }
+  };
 
   const fetchData = async () => {
     try {
@@ -139,7 +169,7 @@ const Dashboard = () => {
             alt="ZET" 
             className="h-10 w-10"
           />
-          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Notes</span>
+          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
         </div>
         <div className="flex items-center gap-2">
           <button 
@@ -198,6 +228,37 @@ const Dashboard = () => {
               </button>
             </div>
           </div>
+
+          {/* Google Drive Connection */}
+          <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+            <label className="flex items-center gap-2 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
+              <HardDrive className="h-4 w-4" /> Google Drive
+            </label>
+            {driveConnected ? (
+              <div className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
+                <Check className="h-4 w-4 text-green-500" />
+                <span className="text-sm text-green-500">{t('connected') || 'Connected'}</span>
+              </div>
+            ) : (
+              <button 
+                onClick={connectGoogleDrive}
+                disabled={connectingDrive}
+                className="zet-btn w-full flex items-center justify-center gap-2 py-2"
+              >
+                <Link2 className="h-4 w-4" />
+                {connectingDrive ? 'Connecting...' : (t('connectDrive') || 'Connect Drive')}
+              </button>
+            )}
+          </div>
+
+          {/* Shortcuts */}
+          <button 
+            onClick={() => { setShowShortcuts(true); setShowSettings(false); }}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: 'var(--zet-text-muted)' }}
+          >
+            <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Shortcuts'}
+          </button>
 
           <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
             <Cloud className="h-4 w-4" /> {t('cloudStorage')}

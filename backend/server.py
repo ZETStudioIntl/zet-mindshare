@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -20,6 +20,8 @@ load_dotenv(ROOT_DIR / '.env')
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
+users_collection = db.users
+docs_collection = db.documents
 
 app = FastAPI()
 api_router = APIRouter(prefix="/api")
@@ -441,6 +443,50 @@ async def list_google_drive_files(user: User = Depends(get_current_user)):
 @api_router.post("/cloud/google-drive/upload")
 async def upload_to_google_drive(user: User = Depends(get_current_user)):
     return {"message": "Google Drive upload coming soon"}
+
+# ============ GOOGLE DRIVE ============
+
+@api_router.get("/drive/status")
+async def get_drive_status(user: User = Depends(get_current_user)):
+    """Check if user's Google Drive is connected"""
+    user_data = await users_collection.find_one({"user_id": user.user_id})
+    if user_data and user_data.get("drive_token"):
+        return {"connected": True}
+    return {"connected": False}
+
+@api_router.get("/drive/connect")
+async def connect_google_drive(request: Request, user: User = Depends(get_current_user)):
+    """Initiate Google Drive OAuth flow"""
+    # In production, this would redirect to Google OAuth
+    # For now, we simulate the connection
+    frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-canvas.preview.emergentagent.com")
+    
+    # Mark user as drive connected (mock)
+    await users_collection.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"drive_token": "mock_token", "drive_connected_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    return {"authorization_url": f"{frontend_url}/dashboard?drive_connected=true", "message": "Drive connected (mock)"}
+
+@api_router.post("/drive/upload")
+async def upload_to_drive(
+    doc_id: str = Body(...),
+    user: User = Depends(get_current_user)
+):
+    """Upload document to Google Drive"""
+    doc = await docs_collection.find_one({"doc_id": doc_id, "user_id": user.user_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    
+    # Mock upload - in production would use Google Drive API
+    return {"success": True, "message": "Document uploaded to Drive (mock)", "drive_file_id": f"drive_{doc_id}"}
+
+@api_router.get("/drive/files")
+async def list_drive_files(user: User = Depends(get_current_user)):
+    """List files from connected Google Drive"""
+    # Mock file list
+    return {"files": [], "message": "No files in Drive yet"}
 
 @api_router.get("/cloud/icloud/files")
 async def list_icloud_files(user: User = Depends(get_current_user)):

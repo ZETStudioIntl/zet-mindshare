@@ -5,7 +5,7 @@ import {
   Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
   AlignLeft, BarChart3, Contrast, ZoomIn, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
-  PanelTop, Search
+  PanelTop, Search, CircleDashed
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -66,6 +66,7 @@ export const TOOLS = [
   { id: 'triangle', icon: Triangle, nameKey: 'triangle', shortcut: '1' },
   { id: 'square', icon: Square, nameKey: 'square', shortcut: '2' },
   { id: 'circle', icon: Circle, nameKey: 'circle', shortcut: '3' },
+  { id: 'ring', icon: CircleDashed, nameKey: 'ring', shortcut: '5' },
   { id: 'star', icon: Star, nameKey: 'star', shortcut: '4' },
 ];
 
