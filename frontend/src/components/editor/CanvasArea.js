@@ -52,13 +52,29 @@ const isElementInLasso = (el, lasso) => {
   return isPointInLasso({ x: cx, y: cy }, lasso);
 };
 
-// Check if vector path is inside lasso
+// Check if vector path is inside lasso - improved version
 const isVectorInLasso = (path, lasso) => {
+  if (!path.points || path.points.length < 2) return false;
   const bounds = getPathBounds(path);
   if (!bounds) return false;
+  
+  // Check center point
   const cx = bounds.x + bounds.width / 2;
   const cy = bounds.y + bounds.height / 2;
-  return isPointInLasso({ x: cx, y: cy }, lasso);
+  if (isPointInLasso({ x: cx, y: cy }, lasso)) return true;
+  
+  // Check if any point of the path is inside the lasso
+  const anyPointInside = path.points.some(p => isPointInLasso(p, lasso));
+  if (anyPointInside) return true;
+  
+  // Check corners of bounding box
+  const corners = [
+    { x: bounds.x, y: bounds.y },
+    { x: bounds.x + bounds.width, y: bounds.y },
+    { x: bounds.x, y: bounds.y + bounds.height },
+    { x: bounds.x + bounds.width, y: bounds.y + bounds.height }
+  ];
+  return corners.some(c => isPointInLasso(c, lasso));
 };
 
 const ShapeRenderer = ({ el }) => {
@@ -422,9 +438,13 @@ export const CanvasArea = ({
     // Lasso selection - find elements inside the lasso path
     if (activeTool === 'select' && isDrawing && lassoPath.length > 5) {
       const selectedIds = canvasElements.filter(el => !el.hidden && !el.locked && isElementInLasso(el, lassoPath)).map(el => el.id);
-      const selectedVecIdxs = drawPaths.map((p, i) => ({ p, i })).filter(({ p }) => p.isPen && isVectorInLasso(p, lassoPath)).map(({ i }) => i);
+      // Select all vector paths (both pen vectors and regular draw paths)
+      const selectedVecIdxs = drawPaths.map((p, i) => ({ p, i })).filter(({ p }) => {
+        // Include both pen vectors and regular drawings
+        return !p.isHighlight && isVectorInLasso(p, lassoPath);
+      }).map(({ i }) => i);
       if (selectedIds.length > 0) { setSelectedElements(selectedIds); justSelectedRef.current = true; }
-      if (selectedVecIdxs.length > 0) { setSelectedVectors(selectedVecIdxs); }
+      if (selectedVecIdxs.length > 0) { setSelectedVectors(selectedVecIdxs); justSelectedRef.current = true; }
     }
     if (dragging || resizing) onSaveHistory(canvasElements);
     if (draggingVector !== null) setDraggingVector(null);

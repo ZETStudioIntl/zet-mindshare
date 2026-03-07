@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
@@ -15,16 +15,30 @@ export const Toolbox = ({
   const { t } = useLanguage();
   const [toolSearch, setToolSearch] = useState('');
   const [hoveredTool, setHoveredTool] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const containerRef = useRef(null);
 
   const filtered = tools.filter(tool =>
     t(tool.nameKey).toLowerCase().includes(toolSearch.toLowerCase()) ||
     tool.id.includes(toolSearch.toLowerCase())
   );
 
+  const handleMouseMove = (e, toolId) => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    if (rect) {
+      setTooltipPos({
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top - 30
+      });
+    }
+    setHoveredTool(toolId);
+  };
+
   return (
     <div
+      ref={containerRef}
       data-testid="toolbox-panel"
-      className={`border-r flex flex-col transition-all duration-200 ${isOpen ? 'w-72' : 'w-10'}`}
+      className={`border-r flex flex-col transition-all duration-200 relative ${isOpen ? 'w-72' : 'w-10'}`}
       style={{ borderColor: 'var(--zet-border)' }}
     >
       {/* Header */}
@@ -55,29 +69,16 @@ export const Toolbox = ({
         <div className="p-1 flex-1 overflow-y-auto">
           <div className="grid grid-cols-3 gap-1">
             {filtered.map(tool => (
-              <div
+              <button
                 key={tool.id}
-                className="relative"
-                onMouseEnter={() => setHoveredTool(tool.id)}
+                data-testid={`tool-${tool.id}`}
+                onClick={() => onToolSelect(tool.id)}
+                onMouseMove={(e) => handleMouseMove(e, tool.id)}
                 onMouseLeave={() => setHoveredTool(null)}
+                className={`tool-btn h-10 w-full ${activeTool === tool.id ? 'active' : ''}`}
               >
-                <button
-                  data-testid={`tool-${tool.id}`}
-                  onClick={() => onToolSelect(tool.id)}
-                  className={`tool-btn h-10 w-full ${activeTool === tool.id ? 'active' : ''}`}
-                >
-                  <tool.icon className="h-4 w-4" />
-                </button>
-                {/* Tooltip */}
-                {hoveredTool === tool.id && (
-                  <div
-                    className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2 py-1 rounded text-xs whitespace-nowrap z-50 pointer-events-none animate-fadeIn"
-                    style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}
-                  >
-                    {t(tool.nameKey)}
-                  </div>
-                )}
-              </div>
+                <tool.icon className="h-4 w-4" />
+              </button>
             ))}
           </div>
 
@@ -95,6 +96,26 @@ export const Toolbox = ({
             >
               {t('delete')}
             </button>
+          )}
+        </div>
+      )}
+
+      {/* Floating Tooltip above cursor */}
+      {hoveredTool && (
+        <div
+          className="fixed px-2 py-1 rounded text-xs whitespace-nowrap z-[9999] pointer-events-none animate-fadeIn shadow-lg"
+          style={{ 
+            left: tooltipPos.x + (containerRef.current?.getBoundingClientRect().left || 0) - 40,
+            top: tooltipPos.y + (containerRef.current?.getBoundingClientRect().top || 0) - 10,
+            background: 'var(--zet-bg-card)', 
+            color: 'var(--zet-text)', 
+            border: '1px solid var(--zet-border)',
+            transform: 'translateX(-50%)'
+          }}
+        >
+          {t(tools.find(t => t.id === hoveredTool)?.nameKey || '')}
+          {tools.find(t => t.id === hoveredTool)?.shortcut && (
+            <span className="ml-2 opacity-60">({tools.find(t => t.id === hoveredTool)?.shortcut})</span>
           )}
         </div>
       )}

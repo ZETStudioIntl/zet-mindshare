@@ -459,7 +459,7 @@ async def connect_google_drive(request: Request, user: User = Depends(get_curren
     """Initiate Google Drive OAuth flow"""
     # In production, this would redirect to Google OAuth
     # For now, we simulate the connection
-    frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-canvas.preview.emergentagent.com")
+    frontend_url = os.getenv("FRONTEND_URL", "https://zet-mindshare.preview.emergentagent.com")
     
     # Mark user as drive connected (mock)
     await users_collection.update_one(

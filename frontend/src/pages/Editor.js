@@ -18,7 +18,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
-  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -160,6 +160,12 @@ const Editor = () => {
     return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
   });
   const [editingShortcut, setEditingShortcut] = useState(null);
+
+  // Fast Select state
+  const [fastSelectTools] = useState(() => {
+    const saved = localStorage.getItem('zet_fast_select');
+    return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
+  });
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -408,29 +414,60 @@ const Editor = () => {
   const createChart = () => {
     const labels = chartLabels.split(',').map(l => l.trim());
     const data = chartData.split(',').map(d => parseFloat(d.trim()) || 0);
-    const chartConfig = { type: chartType, labels, data, title: chartTitle, colors: PRESET_COLORS.slice(0, labels.length) };
     
-    // Create canvas element for chart
-    const tempCanvas = window.document.createElement('canvas');
-    tempCanvas.width = 400; tempCanvas.height = 300;
-    const ctx = tempCanvas.getContext('2d');
+    // Create SVG-based chart (more reliable than canvas)
+    const width = 400, height = 300;
+    const padding = 40;
+    const chartWidth = width - padding * 2;
+    const chartHeight = height - padding * 2;
+    const maxValue = Math.max(...data, 1);
     
-    const chartInstance = new ChartJS(ctx, {
-      type: chartType,
-      data: {
-        labels,
-        datasets: [{ label: chartTitle, data, backgroundColor: PRESET_COLORS.slice(0, labels.length), borderColor: PRESET_COLORS.slice(0, labels.length), borderWidth: 1 }]
-      },
-      options: { responsive: false, plugins: { legend: { display: chartType !== 'bar' }, title: { display: true, text: chartTitle } } }
-    });
+    let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="background:white">`;
+    svgContent += `<text x="${width/2}" y="20" text-anchor="middle" font-size="14" font-weight="bold">${chartTitle}</text>`;
     
-    setTimeout(() => {
-      const imgSrc = tempCanvas.toDataURL('image/png');
-      const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width: 400, height: 300, src: imgSrc, chartConfig }];
-      setCanvasElements(updated); history.push(updated);
-      chartInstance.destroy();
-      setShowGraphic(false);
-    }, 100);
+    if (chartType === 'bar') {
+      const barWidth = chartWidth / labels.length - 10;
+      labels.forEach((label, i) => {
+        const barHeight = (data[i] / maxValue) * chartHeight;
+        const x = padding + i * (barWidth + 10);
+        const y = padding + chartHeight - barHeight;
+        svgContent += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${PRESET_COLORS[i % PRESET_COLORS.length]}"/>`;
+        svgContent += `<text x="${x + barWidth/2}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
+        svgContent += `<text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" font-size="10">${data[i]}</text>`;
+      });
+    } else if (chartType === 'pie') {
+      const total = data.reduce((a, b) => a + b, 0) || 1;
+      const cx = width / 2, cy = height / 2 + 10, r = 100;
+      let startAngle = 0;
+      labels.forEach((label, i) => {
+        const angle = (data[i] / total) * Math.PI * 2;
+        const endAngle = startAngle + angle;
+        const x1 = cx + r * Math.cos(startAngle);
+        const y1 = cy + r * Math.sin(startAngle);
+        const x2 = cx + r * Math.cos(endAngle);
+        const y2 = cy + r * Math.sin(endAngle);
+        const largeArc = angle > Math.PI ? 1 : 0;
+        svgContent += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${PRESET_COLORS[i % PRESET_COLORS.length]}"/>`;
+        startAngle = endAngle;
+      });
+    } else if (chartType === 'line') {
+      const pointSpacing = chartWidth / (labels.length - 1 || 1);
+      let pathD = '';
+      labels.forEach((label, i) => {
+        const x = padding + i * pointSpacing;
+        const y = padding + chartHeight - (data[i] / maxValue) * chartHeight;
+        pathD += (i === 0 ? 'M' : 'L') + `${x},${y}`;
+        svgContent += `<circle cx="${x}" cy="${y}" r="4" fill="${PRESET_COLORS[0]}"/>`;
+        svgContent += `<text x="${x}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
+      });
+      svgContent += `<path d="${pathD}" stroke="${PRESET_COLORS[0]}" stroke-width="2" fill="none"/>`;
+    }
+    
+    svgContent += '</svg>';
+    const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgContent)));
+    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width, height, src: imgSrc }];
+    setCanvasElements(updated); history.push(updated);
+    setShowGraphic(false);
   };
 
   // === UPDATE SHORTCUT ===
@@ -1223,6 +1260,28 @@ const Editor = () => {
       )}
 
       {floatingPanels}
+
+      {/* Fast Select Floating Bar */}
+      {fastSelectTools.length > 0 && (
+        <div data-testid="fast-select-bar" className="fixed bottom-20 left-1/2 -translate-x-1/2 zet-card p-2 flex items-center gap-2 animate-fadeIn shadow-xl z-40">
+          <Zap className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
+          {fastSelectTools.map(toolId => {
+            const tool = TOOLS.find(t => t.id === toolId);
+            if (!tool) return null;
+            return (
+              <button
+                key={toolId}
+                data-testid={`fast-${toolId}`}
+                onClick={() => handleToolSelect(toolId)}
+                className={`tool-btn w-10 h-10 ${activeTool === toolId ? 'active' : ''}`}
+                title={t(tool.nameKey) || tool.nameKey}
+              >
+                <tool.icon className="h-5 w-5" />
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       {showImageUpload && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}>

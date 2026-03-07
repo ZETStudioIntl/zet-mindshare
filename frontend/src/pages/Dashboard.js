@@ -5,8 +5,9 @@ import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
-  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check
+  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap
 } from 'lucide-react';
+import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -35,6 +36,16 @@ const Dashboard = () => {
   const [driveConnected, setDriveConnected] = useState(false);
   const [connectingDrive, setConnectingDrive] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showFastSelect, setShowFastSelect] = useState(false);
+  const [shortcuts, setShortcuts] = useState(() => {
+    const saved = localStorage.getItem('zet_shortcuts');
+    return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
+  });
+  const [editingShortcut, setEditingShortcut] = useState(null);
+  const [fastSelectTools, setFastSelectTools] = useState(() => {
+    const saved = localStorage.getItem('zet_fast_select');
+    return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
+  });
 
   useEffect(() => {
     fetchData();
@@ -260,6 +271,15 @@ const Dashboard = () => {
             <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Shortcuts'}
           </button>
 
+          {/* Fast Select */}
+          <button 
+            onClick={() => { setShowFastSelect(true); setShowSettings(false); }}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: 'var(--zet-text-muted)' }}
+          >
+            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Fast Select'}
+          </button>
+
           <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
             <Cloud className="h-4 w-4" /> {t('cloudStorage')}
           </button>
@@ -463,6 +483,129 @@ const Dashboard = () => {
             <button onClick={createDocument} className="zet-btn w-full">
               Create Document
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Shortcuts Modal */}
+      {showShortcuts && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
+          <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
+                <Keyboard className="h-5 w-5" /> {t('shortcuts') || 'Keyboard Shortcuts'}
+              </h3>
+              <button onClick={() => setShowShortcuts(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            <div className="overflow-y-auto max-h-[60vh] space-y-1">
+              {TOOLS.map(tool => {
+                const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
+                return (
+                  <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
+                    <div className="flex items-center gap-2">
+                      <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                      <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{t(tool.nameKey) || tool.nameKey}</span>
+                    </div>
+                    {editingShortcut === tool.id ? (
+                      <input 
+                        autoFocus 
+                        className="zet-input w-12 text-center text-xs font-mono" 
+                        maxLength={1} 
+                        onKeyDown={e => { 
+                          if (e.key.length === 1) { 
+                            const newShortcuts = { ...shortcuts };
+                            Object.keys(newShortcuts).forEach(k => { if (newShortcuts[k] === tool.id) delete newShortcuts[k]; });
+                            newShortcuts[e.key.toUpperCase()] = tool.id;
+                            setShortcuts(newShortcuts);
+                            localStorage.setItem('zet_shortcuts', JSON.stringify(newShortcuts));
+                            setEditingShortcut(null);
+                          } else if (e.key === 'Escape') setEditingShortcut(null); 
+                        }} 
+                        onBlur={() => setEditingShortcut(null)} 
+                        placeholder="?" 
+                      />
+                    ) : (
+                      <button 
+                        onClick={() => setEditingShortcut(tool.id)} 
+                        className="px-2 py-1 rounded text-xs font-mono" 
+                        style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}
+                      >
+                        {currentKey || '—'}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            
+            <div className="pt-3 mt-3 border-t text-xs" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+              <p>Click a key to edit. Press a new key to assign.</p>
+              <p className="mt-1">Delete/Backspace: Delete selected</p>
+              <p>Escape: Deselect</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Fast Select Modal */}
+      {showFastSelect && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowFastSelect(false)}>
+          <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
+                <Zap className="h-5 w-5" /> {t('fastSelect') || 'Fast Select'}
+              </h3>
+              <button onClick={() => setShowFastSelect(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>
+              {t('fastSelectDesc') || 'Select 4 favorite tools for quick access in the editor.'}
+            </p>
+
+            <div className="grid grid-cols-4 gap-2 mb-4">
+              {fastSelectTools.map((toolId, idx) => {
+                const tool = TOOLS.find(t => t.id === toolId);
+                return (
+                  <div key={idx} className="flex flex-col items-center p-3 rounded-lg" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>
+                    {tool ? <tool.icon className="h-6 w-6 mb-1" /> : <Plus className="h-6 w-6 mb-1" />}
+                    <span className="text-xs truncate w-full text-center">{tool ? (t(tool.nameKey) || tool.nameKey) : 'Empty'}</span>
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="grid grid-cols-6 gap-1 max-h-48 overflow-y-auto">
+              {TOOLS.map(tool => (
+                <button
+                  key={tool.id}
+                  onClick={() => {
+                    if (fastSelectTools.includes(tool.id)) {
+                      const newTools = fastSelectTools.filter(t => t !== tool.id);
+                      setFastSelectTools(newTools);
+                      localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+                    } else if (fastSelectTools.length < 4) {
+                      const newTools = [...fastSelectTools, tool.id];
+                      setFastSelectTools(newTools);
+                      localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+                    }
+                  }}
+                  className={`p-2 rounded flex flex-col items-center transition-all ${fastSelectTools.includes(tool.id) ? 'ring-2 ring-blue-500' : 'hover:bg-white/10'}`}
+                  style={{ background: fastSelectTools.includes(tool.id) ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
+                  title={t(tool.nameKey) || tool.nameKey}
+                >
+                  <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                </button>
+              ))}
+            </div>
+
+            <p className="text-xs mt-3" style={{ color: 'var(--zet-text-muted)' }}>
+              {fastSelectTools.length}/4 {t('selected') || 'selected'}
+            </p>
           </div>
         </div>
       )}
