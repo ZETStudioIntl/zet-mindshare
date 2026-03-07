@@ -158,6 +158,18 @@ const Editor = () => {
   const [chartLabels, setChartLabels] = useState('A,B,C,D');
   const [chartData, setChartData] = useState('10,20,30,40');
   const [chartTitle, setChartTitle] = useState('Chart');
+  const [chartColors, setChartColors] = useState(['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899']);
+  const [chartImage, setChartImage] = useState(null);
+
+  // Gradient presets
+  const GRADIENT_PRESETS = [
+    { name: 'Sunset', start: '#ff7e5f', end: '#feb47b' },
+    { name: 'Ocean', start: '#2193b0', end: '#6dd5ed' },
+    { name: 'Purple', start: '#7f00ff', end: '#e100ff' },
+    { name: 'Green', start: '#11998e', end: '#38ef7d' },
+    { name: 'Fire', start: '#f12711', end: '#f5af19' },
+    { name: 'Night', start: '#0f0c29', end: '#302b63' },
+  ];
 
   // Keyboard shortcuts
   const [shortcuts, setShortcuts] = useState(() => {
@@ -428,6 +440,12 @@ const Editor = () => {
     const maxValue = Math.max(...data, 1);
     
     let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="background:white">`;
+    
+    // Add background image if selected
+    if (chartImage) {
+      svgContent += `<image href="${chartImage}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity="0.3"/>`;
+    }
+    
     svgContent += `<text x="${width/2}" y="20" text-anchor="middle" font-size="14" font-weight="bold">${chartTitle}</text>`;
     
     if (chartType === 'bar') {
@@ -436,7 +454,7 @@ const Editor = () => {
         const barHeight = (data[i] / maxValue) * chartHeight;
         const x = padding + i * (barWidth + 10);
         const y = padding + chartHeight - barHeight;
-        svgContent += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${PRESET_COLORS[i % PRESET_COLORS.length]}"/>`;
+        svgContent += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${chartColors[i % chartColors.length]}"/>`;
         svgContent += `<text x="${x + barWidth/2}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
         svgContent += `<text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" font-size="10">${data[i]}</text>`;
       });
@@ -452,7 +470,7 @@ const Editor = () => {
         const x2 = cx + r * Math.cos(endAngle);
         const y2 = cy + r * Math.sin(endAngle);
         const largeArc = angle > Math.PI ? 1 : 0;
-        svgContent += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${PRESET_COLORS[i % PRESET_COLORS.length]}"/>`;
+        svgContent += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${chartColors[i % chartColors.length]}"/>`;
         startAngle = endAngle;
       });
     } else if (chartType === 'line') {
@@ -857,21 +875,43 @@ const Editor = () => {
             <button onClick={() => { if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) applyColor(hexInput); }} className="zet-btn px-2 text-xs">Apply</button>
           </div>
         </div>
+        
+        {/* Gradient Presets */}
+        <div className="space-y-2">
+          <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Gradient Presets</label>
+          <div className="grid grid-cols-3 gap-1">
+            {GRADIENT_PRESETS.map(g => (
+              <button 
+                key={g.name} 
+                onClick={() => { setGradientStart(g.start); setGradientEnd(g.end); setUseGradient(true); }}
+                className="h-8 rounded text-xs text-white font-medium shadow-sm hover:scale-105 transition-transform"
+                style={{ background: `linear-gradient(90deg, ${g.start}, ${g.end})` }}
+              >
+                {g.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--zet-text-muted)' }}>
             <input type="checkbox" checked={useGradient} onChange={e => setUseGradient(e.target.checked)} className="rounded" />
             Gradient Text
           </label>
           {useGradient && (
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Start</label>
-                <input type="color" value={gradientStart || '#FF0000'} onChange={e => setGradientStart(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Start</label>
+                  <input type="color" value={gradientStart || '#FF0000'} onChange={e => setGradientStart(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
+                </div>
+                <div className="flex-1">
+                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>End</label>
+                  <input type="color" value={gradientEnd || '#0000FF'} onChange={e => setGradientEnd(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
+                </div>
               </div>
-              <div className="flex-1">
-                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>End</label>
-                <input type="color" value={gradientEnd || '#0000FF'} onChange={e => setGradientEnd(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
-              </div>
+              {/* Preview */}
+              <div className="h-6 rounded" style={{ background: `linear-gradient(90deg, ${gradientStart || '#FF0000'}, ${gradientEnd || '#0000FF'})` }} />
             </div>
           )}
           {useGradient && gradientStart && gradientEnd && (
@@ -990,7 +1030,7 @@ const Editor = () => {
 
     {/* Graphic Chart Panel */}
     {showGraphic && <DraggablePanel title="Chart" onClose={() => setShowGraphic(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-72 space-y-3">
+      <div className="w-80 space-y-3 max-h-[70vh] overflow-y-auto">
         <div>
           <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Chart Type</label>
           <div className="grid grid-cols-3 gap-1">
@@ -1002,6 +1042,64 @@ const Editor = () => {
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Title</label><input value={chartTitle} onChange={e => setChartTitle(e.target.value)} className="zet-input text-xs w-full" placeholder="Chart Title" /></div>
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Labels (comma separated)</label><input value={chartLabels} onChange={e => setChartLabels(e.target.value)} className="zet-input text-xs w-full" placeholder="A,B,C,D" /></div>
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Values (comma separated)</label><input value={chartData} onChange={e => setChartData(e.target.value)} className="zet-input text-xs w-full" placeholder="10,20,30,40" /></div>
+        
+        {/* Column Colors */}
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Column Colors</label>
+          <div className="flex flex-wrap gap-1">
+            {chartLabels.split(',').map((_, i) => (
+              <div key={i} className="flex items-center gap-1">
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{i + 1}:</span>
+                <input 
+                  type="color" 
+                  value={chartColors[i] || '#3b82f6'} 
+                  onChange={e => {
+                    const newColors = [...chartColors];
+                    newColors[i] = e.target.value;
+                    setChartColors(newColors);
+                  }} 
+                  className="w-8 h-6 rounded cursor-pointer border-0"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Background Image */}
+        {(chartType === 'bar' || chartType === 'pie') && (
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Background Image</label>
+            <div className="flex gap-1">
+              <button onClick={() => {
+                const input = window.document.createElement('input');
+                input.type = 'file'; input.accept = 'image/*';
+                input.onchange = (e) => {
+                  const file = e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onload = (ev) => setChartImage(ev.target.result);
+                    reader.readAsDataURL(file);
+                  }
+                };
+                input.click();
+              }} className="zet-btn text-xs px-2 py-1 flex items-center gap-1">
+                <Upload className="h-3 w-3" /> Image
+              </button>
+              <button onClick={async () => {
+                const prompt = window.prompt('Describe the background image:');
+                if (!prompt) return;
+                try {
+                  const res = await axios.post(`${API}/zeta/generate-image`, { prompt }, { withCredentials: true });
+                  if (res.data.image_url) setChartImage(res.data.image_url);
+                } catch (err) { console.error('AI Image failed:', err); }
+              }} className="zet-btn text-xs px-2 py-1 flex items-center gap-1">
+                <Wand2 className="h-3 w-3" /> AI Image
+              </button>
+              {chartImage && <button onClick={() => setChartImage(null)} className="text-xs px-2 py-1 text-red-400">Clear</button>}
+            </div>
+          </div>
+        )}
+
         <button onClick={createChart} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> Create Chart</button>
       </div>
     </DraggablePanel>}

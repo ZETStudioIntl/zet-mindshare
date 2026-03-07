@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2 } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2 } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -30,24 +30,94 @@ export const RightPanel = ({
   const [zetaInput, setZetaInput] = useState('');
   const [zetaLoading, setZetaLoading] = useState(false);
   const [zetaSessionId, setZetaSessionId] = useState(null);
+  const [zetaImage, setZetaImage] = useState(null);
+  const [speakingMsg, setSpeakingMsg] = useState(null);
+  const [ttsLoading, setTtsLoading] = useState(false);
+  const audioRef = useRef(null);
   const chatEndRef = useRef(null);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [zetaMessages]);
 
+  // Upload image to send to ZETA
+  const handleImageUpload = () => {
+    const input = window.document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => setZetaImage(ev.target.result);
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  // Text to speech for ZETA messages
+  const speakMessage = async (text, msgIndex) => {
+    if (speakingMsg === msgIndex) {
+      // Stop playing
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }
+      window.speechSynthesis.cancel();
+      setSpeakingMsg(null);
+      return;
+    }
+
+    setSpeakingMsg(msgIndex);
+    setTtsLoading(true);
+    
+    try {
+      // Try ElevenLabs TTS first
+      const res = await axios.post(`${API}/voice/tts`, {
+        text: text,
+        voice_id: '21m00Tcm4TlvDq8ikWAM', // Rachel
+        model_id: 'eleven_multilingual_v2'
+      }, { withCredentials: true });
+      
+      if (res.data.audio_url && audioRef.current) {
+        audioRef.current.src = res.data.audio_url;
+        audioRef.current.onended = () => setSpeakingMsg(null);
+        await audioRef.current.play();
+      }
+    } catch (err) {
+      console.error('TTS failed, using browser:', err);
+      // Fallback to browser TTS
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.onend = () => setSpeakingMsg(null);
+      window.speechSynthesis.speak(utterance);
+    }
+    setTtsLoading(false);
+  };
+
   const sendZetaMessage = async () => {
     if (!zetaInput.trim() || zetaLoading) return;
     const msg = zetaInput;
-    setZetaMessages(prev => [...prev, { role: 'user', content: msg }]);
+    const imageToSend = zetaImage;
+    
+    // Add user message with image if present
+    setZetaMessages(prev => [...prev, { 
+      role: 'user', 
+      content: msg,
+      image: imageToSend || null 
+    }]);
     setZetaInput('');
+    setZetaImage(null);
     setZetaLoading(true);
+    
     try {
       const res = await axios.post(`${API}/zeta/chat`, { 
         message: msg, 
         doc_id: docId, 
         session_id: zetaSessionId,
-        document_content: documentContent || '' // Send document content for analysis
+        document_content: documentContent || '',
+        image: imageToSend || null
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
@@ -154,14 +224,32 @@ export const RightPanel = ({
               )}
               {zetaMessages.map((msg, i) => (
                 <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  <div
-                    className="inline-block px-2.5 py-1.5 rounded-lg max-w-[90%]"
-                    style={{
-                      background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)',
-                      color: 'var(--zet-text)',
-                    }}
-                  >
-                    {msg.content}
+                  {/* Show image if user sent one */}
+                  {msg.image && (
+                    <div className="mb-1">
+                      <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
+                    </div>
+                  )}
+                  <div className="inline-flex items-start gap-1 max-w-[90%]">
+                    <div
+                      className="px-2.5 py-1.5 rounded-lg"
+                      style={{
+                        background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)',
+                        color: 'var(--zet-text)',
+                      }}
+                    >
+                      {msg.content}
+                    </div>
+                    {/* TTS button for assistant messages */}
+                    {msg.role === 'assistant' && (
+                      <button 
+                        onClick={() => speakMessage(msg.content, i)}
+                        className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${speakingMsg === i ? 'bg-white/10' : ''}`}
+                        title="Listen"
+                      >
+                        <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
@@ -173,9 +261,27 @@ export const RightPanel = ({
                 </div>
               )}
               <div ref={chatEndRef} />
+              <audio ref={audioRef} hidden />
             </div>
             <div className="p-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+              {/* Image preview */}
+              {zetaImage && (
+                <div className="mb-2 relative inline-block">
+                  <img src={zetaImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
+                  <button 
+                    onClick={() => setZetaImage(null)} 
+                    className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center"
+                  >×</button>
+                </div>
+              )}
               <div className="flex gap-1">
+                <button 
+                  onClick={handleImageUpload} 
+                  className="tool-btn w-8 h-8 flex-shrink-0"
+                  title="Add image"
+                >
+                  <Image className="h-3 w-3" />
+                </button>
                 <input
                   data-testid="zeta-input"
                   placeholder={t('askZeta')}

@@ -73,6 +73,7 @@ class ZetaChatRequest(BaseModel):
     doc_id: Optional[str] = None
     session_id: Optional[str] = None
     document_content: Optional[str] = None  # Text content of the current document
+    image: Optional[str] = None  # Base64 image data
 
 class ZetaImageRequest(BaseModel):
     prompt: str

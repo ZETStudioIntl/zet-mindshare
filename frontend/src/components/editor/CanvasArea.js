@@ -218,6 +218,9 @@ export const CanvasArea = ({
     setElementMenu(null);
     setVectorMenu(null);
     if (activeTool !== 'hand') { setSelectedVector(null); }
+    // Auto-activate magnifier when zoom tool is selected
+    if (activeTool === 'zoom') { setMagnifierActive(true); }
+    else { setMagnifierActive(false); }
   }, [activeTool, canvasElements, selectedElement]);
 
   const getCoords = useCallback((e, el) => { const r = el.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }, [zoom]);
@@ -322,9 +325,8 @@ export const CanvasArea = ({
       else if (vIdx !== -1) { setSelectedVector(vIdx); setSelectedVectors([vIdx]); }
       else { setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]); }
     } else if (activeTool === 'zoom') {
-      // Zoom tool - magnifier effect
+      // Zoom tool - just set active, mouse move handles position
       setMagnifierActive(true);
-      setMagnifierPosition({ x, y });
     }
   }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, draggingVector, drawPaths, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements]);
 
@@ -348,8 +350,7 @@ export const CanvasArea = ({
       return; 
     }
     if (activeTool === 'zoom') {
-      setMagnifierActive(true);
-      setMagnifierPosition({ x, y });
+      // Zoom tool is automatic on hover, no click needed
       return;
     }
     if (activeTool === 'cut' && cropTarget && cropRect) { setCropDragging(true); setCropStart({ x, y, rect: { ...cropRect } }); return; }
@@ -400,7 +401,9 @@ export const CanvasArea = ({
       setLassoPath(p => [...p, { x, y }]); 
       return; 
     }
-    if (activeTool === 'zoom' && magnifierActive) {
+    if (activeTool === 'zoom') {
+      // Zoom tool follows mouse automatically
+      setMagnifierActive(true);
       setMagnifierPosition({ x, y });
       return;
     }
@@ -448,7 +451,8 @@ export const CanvasArea = ({
     }
     if (dragging || resizing) onSaveHistory(canvasElements);
     if (draggingVector !== null) setDraggingVector(null);
-    if (activeTool === 'zoom') setMagnifierActive(false);
+    // Keep magnifier active while zoom tool is selected
+    if (activeTool !== 'zoom') setMagnifierActive(false);
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     setCropDragging(false); setCropStart(null); setDragging(null); setResizing(null);
