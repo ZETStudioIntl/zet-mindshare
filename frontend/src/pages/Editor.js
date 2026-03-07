@@ -177,6 +177,7 @@ const Editor = () => {
     return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
   });
   const [editingShortcut, setEditingShortcut] = useState(null);
+  const [shortcutSearch, setShortcutSearch] = useState('');
 
   // Fast Select state
   const [fastSelectTools] = useState(() => {
@@ -896,7 +897,7 @@ const Editor = () => {
         <div className="space-y-2">
           <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--zet-text-muted)' }}>
             <input type="checkbox" checked={useGradient} onChange={e => setUseGradient(e.target.checked)} className="rounded" />
-            Gradient Text
+            Gradient (Text & Shapes)
           </label>
           {useGradient && (
             <div className="space-y-2">
@@ -920,7 +921,7 @@ const Editor = () => {
                 const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart, gradientEnd } : el);
                 setCanvasElements(updated); history.push(updated);
               }
-            }} className="zet-btn w-full text-xs">Apply Gradient</button>
+            }} className="zet-btn w-full text-xs">Apply Gradient to Selected</button>
           )}
         </div>
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Custom Picker</label><input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColor(e.target.value); setHexInput(e.target.value); }} className="w-full h-8 rounded cursor-pointer" /></div>
@@ -1105,24 +1106,39 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Shortcuts Panel */}
-    {showShortcuts && <DraggablePanel title="Keyboard Shortcuts" onClose={() => setShowShortcuts(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
-      <div className="w-80 space-y-2 max-h-96 overflow-y-auto">
-        {TOOLS.map(tool => {
-          const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
-          return (
-            <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
-              <div className="flex items-center gap-2">
-                <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
-                <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{tool.nameKey}</span>
+    {showShortcuts && <DraggablePanel title="Keyboard Shortcuts" onClose={() => { setShowShortcuts(false); setShortcutSearch(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
+      <div className="w-80 space-y-2">
+        <div className="relative">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
+          <input
+            placeholder="Search tools..."
+            value={shortcutSearch}
+            onChange={(e) => setShortcutSearch(e.target.value)}
+            className="zet-input pl-7 text-xs w-full"
+          />
+        </div>
+        <div className="max-h-72 overflow-y-auto space-y-1">
+          {TOOLS.filter(tool => 
+            !shortcutSearch || 
+            tool.nameKey.toLowerCase().includes(shortcutSearch.toLowerCase()) ||
+            tool.id.toLowerCase().includes(shortcutSearch.toLowerCase())
+          ).map(tool => {
+            const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
+            return (
+              <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
+                <div className="flex items-center gap-2">
+                  <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                  <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{tool.nameKey}</span>
+                </div>
+                {editingShortcut === tool.id ? (
+                  <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { updateShortcut(e.key); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
+                ) : (
+                  <button onClick={() => setEditingShortcut(tool.id)} className="px-2 py-1 rounded text-xs font-mono" style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}>{currentKey || '—'}</button>
+                )}
               </div>
-              {editingShortcut === tool.id ? (
-                <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { updateShortcut(e.key); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
-              ) : (
-                <button onClick={() => setEditingShortcut(tool.id)} className="px-2 py-1 rounded text-xs font-mono" style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}>{currentKey || '—'}</button>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
         <div className="pt-2 border-t text-xs" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
           <p>Click a key to edit. Press the new key to assign.</p>
           <p className="mt-1">Delete/Backspace: Delete selected element</p>
@@ -1405,7 +1421,7 @@ const Editor = () => {
         <div className="flex items-center gap-1.5">
           <button data-testid="prev-page-btn" onClick={() => changePage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={`tool-btn w-8 h-8 ${currentPage === 0 ? 'opacity-30' : ''}`}><ArrowLeft className="h-4 w-4" /></button>
           <button data-testid="next-page-btn" onClick={() => changePage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} disabled={currentPage >= (document.pages?.length || 1) - 1} className={`tool-btn w-8 h-8 ${currentPage >= (document.pages?.length || 1) - 1 ? 'opacity-30' : ''}`}><ArrowRight className="h-4 w-4" /></button>
-          <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>
+          {!isMobile && <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>}
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
@@ -1479,9 +1495,9 @@ const Editor = () => {
 
       {floatingPanels}
 
-      {/* Fast Select Floating Bar */}
-      {fastSelectTools.length > 0 && (
-        <div data-testid="fast-select-bar" className="fixed bottom-20 left-1/2 -translate-x-1/2 zet-card p-2 flex items-center gap-2 animate-fadeIn shadow-xl z-40">
+      {/* Fast Select Floating Bar - Top Position */}
+      {fastSelectTools.length > 0 && !isMobile && (
+        <div data-testid="fast-select-bar" className="fixed top-16 left-1/2 -translate-x-1/2 zet-card p-2 flex items-center gap-2 animate-fadeIn shadow-xl z-40">
           <Zap className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
           {fastSelectTools.map(toolId => {
             const tool = TOOLS.find(t => t.id === toolId);

@@ -78,10 +78,24 @@ const isVectorInLasso = (path, lasso) => {
 };
 
 const ShapeRenderer = ({ el }) => {
-  const style = { width: '100%', height: '100%', backgroundColor: el.image ? 'transparent' : el.fill, backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' };
+  // Gradient support for shapes
+  const bgStyle = el.gradientStart && el.gradientEnd 
+    ? { background: `linear-gradient(135deg, ${el.gradientStart}, ${el.gradientEnd})` }
+    : { backgroundColor: el.image ? 'transparent' : el.fill };
+  
+  const style = { width: '100%', height: '100%', ...bgStyle, backgroundImage: el.image ? `url(${el.image})` : (el.gradientStart ? undefined : 'none'), backgroundSize: 'cover', backgroundPosition: 'center' };
   const clips = { triangle: 'polygon(50% 0%, 0% 100%, 100% 100%)', star: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' };
+  
   if (el.shapeType === 'circle') return <div style={{ ...style, borderRadius: '50%' }} />;
-  if (el.shapeType === 'ring') return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: `4px solid ${el.fill || '#000'}`, backgroundColor: 'transparent', backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' }} />;
+  if (el.shapeType === 'ring') {
+    const borderColor = el.gradientStart && el.gradientEnd 
+      ? undefined 
+      : (el.fill || '#000');
+    const ringStyle = el.gradientStart && el.gradientEnd 
+      ? { width: '100%', height: '100%', borderRadius: '50%', border: '4px solid transparent', background: `linear-gradient(white, white) padding-box, linear-gradient(135deg, ${el.gradientStart}, ${el.gradientEnd}) border-box`, backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' }
+      : { width: '100%', height: '100%', borderRadius: '50%', border: `4px solid ${borderColor}`, backgroundColor: 'transparent', backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' };
+    return <div style={ringStyle} />;
+  }
   if (clips[el.shapeType]) return <div style={{ ...style, clipPath: clips[el.shapeType] }} />;
   return <div style={style} />;
 };

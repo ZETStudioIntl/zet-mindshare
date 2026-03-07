@@ -42,6 +42,8 @@ const Dashboard = () => {
     return saved ? JSON.parse(saved) : DEFAULT_SHORTCUTS;
   });
   const [editingShortcut, setEditingShortcut] = useState(null);
+  const [shortcutSearch, setShortcutSearch] = useState('');
+  const [fastSelectSearch, setFastSelectSearch] = useState('');
   const [fastSelectTools, setFastSelectTools] = useState(() => {
     const saved = localStorage.getItem('zet_fast_select');
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
@@ -489,19 +491,34 @@ const Dashboard = () => {
 
       {/* Shortcuts Modal */}
       {showShortcuts && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowShortcuts(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowShortcuts(false); setShortcutSearch(''); }}>
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
                 <Keyboard className="h-5 w-5" /> {t('shortcuts') || 'Keyboard Shortcuts'}
               </h3>
-              <button onClick={() => setShowShortcuts(false)} className="p-1 rounded hover:bg-white/10">
+              <button onClick={() => { setShowShortcuts(false); setShortcutSearch(''); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
               </button>
             </div>
             
-            <div className="overflow-y-auto max-h-[60vh] space-y-1">
-              {TOOLS.map(tool => {
+            {/* Search Bar */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              <input
+                placeholder="Search tools..."
+                value={shortcutSearch}
+                onChange={(e) => setShortcutSearch(e.target.value)}
+                className="zet-input pl-9 w-full"
+              />
+            </div>
+            
+            <div className="overflow-y-auto max-h-[50vh] space-y-1">
+              {TOOLS.filter(tool => 
+                !shortcutSearch || 
+                (t(tool.nameKey) || tool.nameKey).toLowerCase().includes(shortcutSearch.toLowerCase()) ||
+                tool.id.toLowerCase().includes(shortcutSearch.toLowerCase())
+              ).map(tool => {
                 const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
                 return (
                   <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
@@ -552,21 +569,22 @@ const Dashboard = () => {
 
       {/* Fast Select Modal */}
       {showFastSelect && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowFastSelect(false)}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowFastSelect(false); setFastSelectSearch(''); }}>
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
                 <Zap className="h-5 w-5" /> {t('fastSelect') || 'Fast Select'}
               </h3>
-              <button onClick={() => setShowFastSelect(false)} className="p-1 rounded hover:bg-white/10">
+              <button onClick={() => { setShowFastSelect(false); setFastSelectSearch(''); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
               </button>
             </div>
             
-            <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>
+            <p className="text-sm mb-3" style={{ color: 'var(--zet-text-muted)' }}>
               {t('fastSelectDesc') || 'Select 4 favorite tools for quick access in the editor.'}
             </p>
 
+            {/* Selected Tools */}
             <div className="grid grid-cols-4 gap-2 mb-4">
               {fastSelectTools.map((toolId, idx) => {
                 const tool = TOOLS.find(t => t.id === toolId);
@@ -579,8 +597,23 @@ const Dashboard = () => {
               })}
             </div>
 
+            {/* Search Bar */}
+            <div className="relative mb-3">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              <input
+                placeholder="Search tools..."
+                value={fastSelectSearch}
+                onChange={(e) => setFastSelectSearch(e.target.value)}
+                className="zet-input pl-9 w-full"
+              />
+            </div>
+
             <div className="grid grid-cols-6 gap-1 max-h-48 overflow-y-auto">
-              {TOOLS.map(tool => (
+              {TOOLS.filter(tool => 
+                !fastSelectSearch || 
+                (t(tool.nameKey) || tool.nameKey).toLowerCase().includes(fastSelectSearch.toLowerCase()) ||
+                tool.id.toLowerCase().includes(fastSelectSearch.toLowerCase())
+              ).map(tool => (
                 <button
                   key={tool.id}
                   onClick={() => {
