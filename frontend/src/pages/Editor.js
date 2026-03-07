@@ -107,6 +107,11 @@ const Editor = () => {
   const [voiceProgress, setVoiceProgress] = useState(0);
   const voiceTextRef = useRef('');
   const voiceCharIndexRef = useRef(0);
+  const [availableVoices, setAvailableVoices] = useState([]);
+  const [selectedVoice, setSelectedVoice] = useState('21m00Tcm4TlvDq8ikWAM'); // Rachel (female)
+  const [voiceLoading, setVoiceLoading] = useState(false);
+  const [ttsAudio, setTtsAudio] = useState(null);
+  const audioRef = useRef(null);
 
   // Panel visibility
   const [showImageUpload, setShowImageUpload] = useState(false);
@@ -707,7 +712,48 @@ const Editor = () => {
 
   // === VOICE ===
   const getDocText = () => canvasElements.filter(el => el.type === 'text').sort((a, b) => a.y - b.y).map(el => el.content).join('. ');
-  const playVoiceFrom = (startFraction = 0) => {
+  
+  // Fetch available ElevenLabs voices
+  const fetchVoices = async () => {
+    try {
+      const res = await axios.get(`${API}/voice/list`, { withCredentials: true });
+      setAvailableVoices(res.data.voices || []);
+    } catch (err) {
+      console.error('Failed to fetch voices:', err);
+    }
+  };
+  
+  // Generate TTS with ElevenLabs
+  const generateTTS = async () => {
+    const text = getDocText();
+    if (!text) return;
+    
+    setVoiceLoading(true);
+    try {
+      const res = await axios.post(`${API}/voice/tts`, {
+        text: text,
+        voice_id: selectedVoice,
+        model_id: 'eleven_multilingual_v2'
+      }, { withCredentials: true });
+      
+      setTtsAudio(res.data.audio_url);
+      
+      // Play the audio
+      if (audioRef.current) {
+        audioRef.current.src = res.data.audio_url;
+        audioRef.current.play();
+        setIsPlaying(true);
+      }
+    } catch (err) {
+      console.error('TTS generation failed:', err);
+      // Fallback to browser TTS
+      playVoiceFromBrowser();
+    }
+    setVoiceLoading(false);
+  };
+  
+  // Browser TTS fallback
+  const playVoiceFromBrowser = (startFraction = 0) => {
     window.speechSynthesis.cancel();
     const fullText = getDocText(); if (!fullText) return;
     voiceTextRef.current = fullText;
@@ -718,11 +764,41 @@ const Editor = () => {
     utterance.onend = () => { setIsPlaying(false); setVoiceProgress(100); };
     setIsPlaying(true); window.speechSynthesis.speak(utterance);
   };
+  
+  const playVoiceFrom = (startFraction = 0) => {
+    // If we have TTS audio from ElevenLabs, use that
+    if (ttsAudio && audioRef.current) {
+      audioRef.current.currentTime = audioRef.current.duration * startFraction;
+      audioRef.current.play();
+      setIsPlaying(true);
+    } else {
+      // Otherwise use browser TTS
+      playVoiceFromBrowser(startFraction);
+    }
+  };
+  
   const skipVoice = (dir) => {
-    const fullText = voiceTextRef.current || getDocText(); if (!fullText) return;
-    const skip = Math.floor(fullText.length * 0.1);
-    const newIndex = dir === 'back' ? Math.max(0, voiceCharIndexRef.current - skip) : Math.min(fullText.length, voiceCharIndexRef.current + skip);
-    playVoiceFrom(newIndex / fullText.length);
+    if (ttsAudio && audioRef.current) {
+      const skip = audioRef.current.duration * 0.1;
+      audioRef.current.currentTime = dir === 'back' 
+        ? Math.max(0, audioRef.current.currentTime - skip) 
+        : Math.min(audioRef.current.duration, audioRef.current.currentTime + skip);
+    } else {
+      const fullText = voiceTextRef.current || getDocText(); if (!fullText) return;
+      const skip = Math.floor(fullText.length * 0.1);
+      const newIndex = dir === 'back' ? Math.max(0, voiceCharIndexRef.current - skip) : Math.min(fullText.length, voiceCharIndexRef.current + skip);
+      playVoiceFromBrowser(newIndex / fullText.length);
+    }
+  };
+  
+  const stopVoice = () => {
+    window.speechSynthesis.cancel();
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+    }
+    setIsPlaying(false);
+    setVoiceProgress(0);
   };
 
   // === ELEMENT SELECT ===
@@ -1159,7 +1235,8 @@ const Editor = () => {
               <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
                 pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
                 docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-                forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} />
+                forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} 
+                documentContent={getDocText()} />
             </div>
           </div>
         )}
@@ -1167,15 +1244,35 @@ const Editor = () => {
         {/* Voice bar + floating panels */}
         {showVoice && (
           <div className="p-2 border-t flex-shrink-0" style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
+            <div className="flex items-center gap-2 mb-2">
+              <select 
+                value={selectedVoice} 
+                onChange={(e) => setSelectedVoice(e.target.value)}
+                onClick={() => { if (availableVoices.length === 0) fetchVoices(); }}
+                className="zet-input text-xs flex-1"
+              >
+                <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</option>
+                <option value="VR6AewLTigWG4xSOukaG">Arnold (Male)</option>
+                <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</option>
+                <option value="ErXwobaYiN019PkySvjV">Antoni (Male)</option>
+                {availableVoices.filter(v => !['21m00Tcm4TlvDq8ikWAM', 'VR6AewLTigWG4xSOukaG', 'EXAVITQu4vr4xnSDxMaL', 'ErXwobaYiN019PkySvjV'].includes(v.voice_id)).map(v => (
+                  <option key={v.voice_id} value={v.voice_id}>{v.name} {v.gender ? `(${v.gender})` : ''}</option>
+                ))}
+              </select>
+              <button onClick={generateTTS} disabled={voiceLoading} className="zet-btn text-xs px-3">
+                {voiceLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Generate'}
+              </button>
+            </div>
             <div className="flex items-center gap-2">
               <button onClick={() => skipVoice('back')} className="tool-btn w-7 h-7"><SkipBack className="h-3.5 w-3.5" /></button>
-              <button onClick={isPlaying ? () => { window.speechSynthesis.pause(); setIsPlaying(false); } : () => playVoiceFrom(voiceProgress / 100)} className="tool-btn w-8 h-8">{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+              <button onClick={isPlaying ? () => { stopVoice(); } : () => playVoiceFrom(voiceProgress / 100)} className="tool-btn w-8 h-8">{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
               <button onClick={() => skipVoice('forward')} className="tool-btn w-7 h-7"><SkipForward className="h-3.5 w-3.5" /></button>
               <div className="flex-1 h-2 rounded-full cursor-pointer" style={{ background: 'var(--zet-bg)' }} onClick={e => { const f = (e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.getBoundingClientRect().width; playVoiceFrom(f); }}>
                 <div className="h-full rounded-full" style={{ width: `${voiceProgress}%`, background: 'var(--zet-primary-light)' }} />
               </div>
-              <button onClick={() => { window.speechSynthesis.cancel(); setIsPlaying(false); setShowVoice(false); }} className="p-1"><X className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} /></button>
+              <button onClick={() => { stopVoice(); setShowVoice(false); setTtsAudio(null); }} className="p-1"><X className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} /></button>
             </div>
+            <audio ref={audioRef} onEnded={() => { setIsPlaying(false); setVoiceProgress(100); }} onTimeUpdate={() => { if (audioRef.current) setVoiceProgress((audioRef.current.currentTime / audioRef.current.duration) * 100); }} hidden />
           </div>
         )}
         {floatingPanels}
@@ -1242,19 +1339,42 @@ const Editor = () => {
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
           docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-          onExport={exportToPDF} exporting={exporting} />
+          onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} />
       </div>
 
       {showVoice && (
         <div data-testid="voice-bar" className="p-3 border-t flex-shrink-0" style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
-          <div className="max-w-xl mx-auto flex items-center gap-3">
-            <Volume2 className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
-            <button data-testid="voice-skip-back" onClick={() => skipVoice('back')} className="tool-btn w-7 h-7"><SkipBack className="h-3.5 w-3.5" /></button>
-            <button data-testid="voice-play-btn" onClick={isPlaying ? () => { window.speechSynthesis.pause(); setIsPlaying(false); } : () => playVoiceFrom(voiceProgress / 100)} className="tool-btn w-9 h-9">{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
-            <button data-testid="voice-skip-forward" onClick={() => skipVoice('forward')} className="tool-btn w-7 h-7"><SkipForward className="h-3.5 w-3.5" /></button>
-            <div data-testid="voice-timeline" className="flex-1 h-2.5 rounded-full cursor-pointer relative group" style={{ background: 'var(--zet-bg)' }} onClick={e => { const f = (e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.getBoundingClientRect().width; playVoiceFrom(Math.max(0, Math.min(1, f))); }}>
-              <div className="h-full rounded-full transition-all" style={{ width: `${voiceProgress}%`, background: 'var(--zet-primary-light)' }} /><div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" style={{ left: `calc(${voiceProgress}% - 8px)`, background: 'var(--zet-primary-light)' }} /></div>
-            <button onClick={() => { window.speechSynthesis.cancel(); setIsPlaying(false); setShowVoice(false); }} className="p-1 hover:bg-white/10 rounded"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+          <div className="max-w-xl mx-auto space-y-2">
+            <div className="flex items-center gap-2">
+              <Volume2 className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
+              <select 
+                data-testid="voice-select"
+                value={selectedVoice} 
+                onChange={(e) => setSelectedVoice(e.target.value)}
+                onClick={() => { if (availableVoices.length === 0) fetchVoices(); }}
+                className="zet-input text-xs flex-1 max-w-xs"
+              >
+                <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</option>
+                <option value="VR6AewLTigWG4xSOukaG">Arnold (Male)</option>
+                <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</option>
+                <option value="ErXwobaYiN019PkySvjV">Antoni (Male)</option>
+                {availableVoices.filter(v => !['21m00Tcm4TlvDq8ikWAM', 'VR6AewLTigWG4xSOukaG', 'EXAVITQu4vr4xnSDxMaL', 'ErXwobaYiN019PkySvjV'].includes(v.voice_id)).map(v => (
+                  <option key={v.voice_id} value={v.voice_id}>{v.name} {v.gender ? `(${v.gender})` : ''}</option>
+                ))}
+              </select>
+              <button data-testid="voice-generate-btn" onClick={generateTTS} disabled={voiceLoading} className="zet-btn text-xs px-4">
+                {voiceLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Generate AI Voice'}
+              </button>
+            </div>
+            <div className="flex items-center gap-3">
+              <button data-testid="voice-skip-back" onClick={() => skipVoice('back')} className="tool-btn w-7 h-7"><SkipBack className="h-3.5 w-3.5" /></button>
+              <button data-testid="voice-play-btn" onClick={isPlaying ? stopVoice : () => playVoiceFrom(voiceProgress / 100)} className="tool-btn w-9 h-9">{isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}</button>
+              <button data-testid="voice-skip-forward" onClick={() => skipVoice('forward')} className="tool-btn w-7 h-7"><SkipForward className="h-3.5 w-3.5" /></button>
+              <div data-testid="voice-timeline" className="flex-1 h-2.5 rounded-full cursor-pointer relative group" style={{ background: 'var(--zet-bg)' }} onClick={e => { const f = (e.clientX - e.currentTarget.getBoundingClientRect().left) / e.currentTarget.getBoundingClientRect().width; playVoiceFrom(Math.max(0, Math.min(1, f))); }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${voiceProgress}%`, background: 'var(--zet-primary-light)' }} /><div className="absolute top-1/2 -translate-y-1/2 w-4 h-4 rounded-full shadow-lg opacity-0 group-hover:opacity-100 transition-opacity" style={{ left: `calc(${voiceProgress}% - 8px)`, background: 'var(--zet-primary-light)' }} /></div>
+              <button onClick={() => { stopVoice(); setShowVoice(false); setTtsAudio(null); }} className="p-1 hover:bg-white/10 rounded"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+            </div>
+            <audio ref={audioRef} onEnded={() => { setIsPlaying(false); setVoiceProgress(100); }} onTimeUpdate={() => { if (audioRef.current && audioRef.current.duration) setVoiceProgress((audioRef.current.currentTime / audioRef.current.duration) * 100); }} hidden />
           </div>
         </div>
       )}

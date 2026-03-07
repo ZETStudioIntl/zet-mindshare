@@ -72,6 +72,7 @@ class ZetaChatRequest(BaseModel):
     message: str
     doc_id: Optional[str] = None
     session_id: Optional[str] = None
+    document_content: Optional[str] = None  # Text content of the current document
 
 class ZetaImageRequest(BaseModel):
     prompt: str
@@ -358,6 +359,17 @@ TIPS:
 Keep answers SHORT. Match user's language. Türkçe soruya Türkçe yanıt ver!
 """
     
+    # If document content is provided, add it to the context
+    if req.document_content:
+        system_message += f"""
+
+CURRENT DOCUMENT CONTENT:
+---
+{req.document_content[:5000]}
+---
+The user may ask questions about this document. Use this content to provide relevant answers.
+"""
+    
     chat = LlmChat(
         api_key=api_key,
         session_id=session_id,
@@ -432,6 +444,84 @@ async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current
     response = await chat.send_message(msg)
     
     return {"translated_text": response.strip(), "target_language": req.target_language}
+
+# ============ ELEVENLABS TTS ROUTES ============
+
+class TTSRequest(BaseModel):
+    text: str
+    voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Default: Rachel (female)
+    model_id: str = "eleven_multilingual_v2"
+
+class VoiceInfo(BaseModel):
+    voice_id: str
+    name: str
+    gender: Optional[str] = None
+
+@api_router.get("/voice/list")
+async def list_voices(user: User = Depends(get_current_user)):
+    """List available ElevenLabs voices"""
+    from elevenlabs import ElevenLabs
+    
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
+    
+    try:
+        client = ElevenLabs(api_key=api_key)
+        voices_response = client.voices.get_all()
+        
+        # Filter to get some good male/female voices
+        voices = []
+        for voice in voices_response.voices:
+            gender = None
+            if voice.labels:
+                gender = voice.labels.get("gender", None)
+            voices.append({
+                "voice_id": voice.voice_id,
+                "name": voice.name,
+                "gender": gender
+            })
+        
+        return {"voices": voices}
+    except Exception as e:
+        logging.error(f"Error fetching voices: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error fetching voices: {str(e)}")
+
+@api_router.post("/voice/tts")
+async def generate_tts(req: TTSRequest, user: User = Depends(get_current_user)):
+    """Generate text-to-speech audio using ElevenLabs"""
+    from elevenlabs import ElevenLabs
+    
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
+    
+    try:
+        client = ElevenLabs(api_key=api_key)
+        
+        # Generate audio
+        audio_generator = client.text_to_speech.convert(
+            text=req.text,
+            voice_id=req.voice_id,
+            model_id=req.model_id
+        )
+        
+        # Collect audio data
+        audio_data = b""
+        for chunk in audio_generator:
+            audio_data += chunk
+        
+        # Convert to base64 for transfer
+        audio_b64 = base64.b64encode(audio_data).decode()
+        
+        return {
+            "audio_url": f"data:audio/mpeg;base64,{audio_b64}",
+            "text": req.text,
+            "voice_id": req.voice_id
+        }
+    except Exception as e:
+        logging.error(f"Error generating TTS: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error generating TTS: {str(e)}")
 
 # ============ CLOUD STORAGE ROUTES (MOCK) ============
 

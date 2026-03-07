@@ -19,6 +19,7 @@ export const RightPanel = ({
   forceSection,
   onExport,
   exporting,
+  documentContent, // Text content from canvas elements
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -42,7 +43,12 @@ export const RightPanel = ({
     setZetaInput('');
     setZetaLoading(true);
     try {
-      const res = await axios.post(`${API}/zeta/chat`, { message: msg, doc_id: docId, session_id: zetaSessionId }, { withCredentials: true });
+      const res = await axios.post(`${API}/zeta/chat`, { 
+        message: msg, 
+        doc_id: docId, 
+        session_id: zetaSessionId,
+        document_content: documentContent || '' // Send document content for analysis
+      }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
     } catch {

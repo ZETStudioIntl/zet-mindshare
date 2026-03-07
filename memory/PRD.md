@@ -7,13 +7,14 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - **Frontend:** React.js, TailwindCSS, Shadcn/UI, lucide-react, Chart.js, QRCode
 - **Backend:** FastAPI, Python, MongoDB
 - **AI:** Gemini 3 Flash (text/translate), Nano Banana (images) via Emergent LLM Key
+- **Voice:** ElevenLabs (Male/Female TTS) + Browser TTS fallback
 - **Export:** jsPDF, html2canvas
 
-## All Implemented Features (40 Tools)
+## All Implemented Features (40+ Tools)
 
 ### Text & Formatting
 - [x] **Text (T)** - WYSIWYG text editing
-- [x] **Word Type (B)** - Bold, Italic, Underline, Strikethrough
+- [x] **Word Type (B)** - Bold, Italic, Underline, Strikethrough toggles
 - [x] **Text Size** - Slider 8-72pt
 - [x] **Font (F)** - 20 fonts with search
 - [x] **Line Spacing** - 1.0 to 3.0x
@@ -41,7 +42,7 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - [x] **Cut (X)** - Delete + image crop
 
 ### Data & Charts
-- [x] **Graphic (G)** - Bar, Pie, Line charts with Chart.js
+- [x] **Graphic (G)** - Bar, Pie, Line charts (SVG-based)
 - [x] **Table** - Create tables with custom rows/columns
 
 ### Document
@@ -49,68 +50,55 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - [x] **Page Color** - Canvas background color
 - [x] **Page Size** - A4, A5, Letter, Legal, Square, custom
 - [x] **Add Page (N)** - Add new pages
-- [x] **Page Numbers** - Auto numbering (top/bottom, left/center/right)
-- [x] **Header/Footer** - Custom header and footer text (renders on canvas)
-- [x] **Watermark** - Transparent watermark overlay (renders on canvas)
+- [x] **Page Numbers** - Auto numbering
+- [x] **Header/Footer** - Custom header and footer text
+- [x] **Watermark** - Transparent watermark overlay
 - [x] **Find & Replace** - Search and replace text
-- [x] **Auto Page** - Automatically adds new page when text exceeds page height
+- [x] **Auto Page** - Automatically adds new page when text exceeds
 
 ### Export & Integration
-- [x] **Export PDF** - Button above pages panel (jsPDF + html2canvas)
+- [x] **Export PDF** - Button above pages panel
 - [x] **Translate (L)** - AI translation (12 languages)
 - [x] **Google Drive** - Connect/disconnect (MOCK integration)
 
-### Voice & Shapes
-- [x] **Voice (V)** - AI reads document aloud
-- [x] **Shapes** - Triangle (1), Square (2), Circle (3), Star (4), **Ring (5)** ✨
-- [x] **Ring** - Hollow circle (border only, no fill)
+### Voice & AI
+- [x] **Voice (V)** - ElevenLabs TTS with male/female voice selection
+- [x] **ZETA AI** - Document-aware chat assistant (can read document content)
 
-### Stats
-- [x] **Word Count** - Displays "X words" (not characters)
+### Shapes
+- [x] Triangle (1), Square (2), Circle (3), Star (4), Ring (5)
 
-### Keyboard
-- [x] **Shortcuts Panel** - Customize all tool shortcuts (in Dashboard Settings)
-- [x] **Delete/Backspace** - Delete selected element
-- [x] **Escape** - Deselect all
-- [x] **Ctrl+Z/Y** - Undo/Redo
-
-### Dashboard
-- [x] **"ZET Mindshare"** title (not "ZET Notes")
-- [x] **Settings** - Language, Google Drive, Shortcuts
-- [x] **Quick Notes** - Text overflow fixed (break-words)
-
-### Mobile UI
-- [x] Separate mobile layout
-- [x] 42x42px icons, 2px gap toolbar
-- [x] Floating action buttons for Pages/ZETA
-
-### AI Integration
-- [x] ZETA Chat (Gemini 3 Flash) - knows ALL 40 tools
-- [x] AI Image (Nano Banana) with preview
-- [x] AI Translation (12 languages)
+### New Features (This Session)
+- [x] **Fast Select** - 4 favorite tools quick access bar in Editor
+- [x] **Shortcuts Panel** - Customize all keyboard shortcuts (Dashboard Settings)
+- [x] **Tooltip Fix** - Tool names appear above mouse cursor
+- [x] **Vector Selection** - Lasso tool now selects vector drawings
+- [x] **ElevenLabs TTS** - Male/Female AI voice options
 
 ## Key API Endpoints
 - Auth: `/api/auth/session`, `/api/auth/me`
 - Docs: `/api/documents`, `/api/documents/{id}`
 - AI: `/api/zeta/chat`, `/api/zeta/generate-image`, `/api/zeta/translate`
-- Drive: `/api/drive/status`, `/api/drive/connect`, `/api/drive/upload`
+- Voice: `/api/voice/list`, `/api/voice/tts`
+- Drive: `/api/drive/status`, `/api/drive/connect`
 - Notes: `/api/notes`
 
 ## Bug Fixes This Session
-- [x] Dashboard title: "ZET Mindshare" (was "ZET Notes")
-- [x] Layers panel: Added delete button (trash icon)
-- [x] Layers visibility: Hidden elements not rendered on canvas
-- [x] Eraser: Added drag mode toggle
-- [x] Header/Footer/Watermark: Now render on canvas
-- [x] Table: Now renders as image on canvas
-- [x] Ring tool: Hollow circle (içi boş daire)
-- [x] Shortcuts: Moved to Dashboard Settings
+- [x] Tooltip positioning: Now appears above mouse cursor
+- [x] Select tool: Can now select vector drawings (improved isVectorInLasso)
+- [x] Shortcuts panel: Now functional in Dashboard Settings
+- [x] Fast Select: Added to Dashboard and Editor
 
 ## Testing History
-- iteration_12: Backend 24/24, Frontend 16/16 (100%)
-- iteration_13: Backend 100%, Frontend 100% ✨
+- iteration_14: Backend 100%, Frontend 100% ✅
 
 ## Prioritized Backlog
+
+### P0 (Completed):
+- [x] ElevenLabs voice integration
+- [x] ZETA document analysis
+- [x] Fast Select feature
+- [x] Shortcuts panel fix
 
 ### P1:
 - [ ] Real Google Drive OAuth integration (currently mock)
@@ -118,12 +106,19 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 
 ### P2:
 - [ ] Real-time collaboration
-- [ ] Vertical multi-page scrolling
+- [ ] Vertical multi-page scrolling (Word-like)
 
 ### P3:
 - [ ] In-app purchases
 - [ ] iCloud integration
 
 ## MOCKED: Google Drive (mock token), iCloud, Templates content
+
+## 3rd Party Integrations
+- **Gemini 3 Flash** — Emergent LLM Key (ZETA chat & Translate)
+- **Gemini Nano Banana** — Emergent LLM Key (Image generation)
+- **ElevenLabs** — User API Key (TTS with male/female voices)
+- **Google Drive** — Mock integration (auth flow scaffolded)
+- **Emergent Google Auth** — User login
 
 ## Last Updated: 2026-03-07
