@@ -277,10 +277,10 @@ const Dashboard = () => {
                 className="zet-card p-4 flex items-start justify-between group"
                 data-testid={`note-card-${note.note_id}`}
               >
-                <div className="flex items-start gap-3">
-                  <StickyNote className="h-5 w-5 mt-0.5" style={{ color: 'var(--zet-primary-light)' }} />
-                  <div>
-                    <p style={{ color: 'var(--zet-text)' }}>{note.content}</p>
+                <div className="flex items-start gap-3 flex-1 min-w-0">
+                  <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
                     <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
                   </div>
                 </div>

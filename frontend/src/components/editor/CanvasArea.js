@@ -31,6 +31,36 @@ const getPathBounds = (path) => {
   };
 };
 
+// Check if point is inside a lasso polygon
+const isPointInLasso = (point, lasso) => {
+  if (!lasso || lasso.length < 3) return false;
+  let inside = false;
+  for (let i = 0, j = lasso.length - 1; i < lasso.length; j = i++) {
+    const xi = lasso[i].x, yi = lasso[i].y;
+    const xj = lasso[j].x, yj = lasso[j].y;
+    if (((yi > point.y) !== (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+};
+
+// Check if element is inside lasso
+const isElementInLasso = (el, lasso) => {
+  const cx = el.x + (el.width || 50) / 2;
+  const cy = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 80) / 2);
+  return isPointInLasso({ x: cx, y: cy }, lasso);
+};
+
+// Check if vector path is inside lasso
+const isVectorInLasso = (path, lasso) => {
+  const bounds = getPathBounds(path);
+  if (!bounds) return false;
+  const cx = bounds.x + bounds.width / 2;
+  const cy = bounds.y + bounds.height / 2;
+  return isPointInLasso({ x: cx, y: cy }, lasso);
+};
+
 const ShapeRenderer = ({ el }) => {
   const style = { width: '100%', height: '100%', backgroundColor: el.image ? 'transparent' : el.fill, backgroundImage: el.image ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center' };
   const clips = { triangle: 'polygon(50% 0%, 0% 100%, 100% 100%)', star: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' };
@@ -126,6 +156,10 @@ export const CanvasArea = ({
   const [vectorMenu, setVectorMenu] = useState(null);
   const [draggingVector, setDraggingVector] = useState(null);
   const [vectorDragOffset, setVectorDragOffset] = useState({ x: 0, y: 0 });
+  const [lassoPath, setLassoPath] = useState([]);
+  const [selectedVectors, setSelectedVectors] = useState([]);
+  const [magnifierActive, setMagnifierActive] = useState(false);
+  const [magnifierPosition, setMagnifierPosition] = useState({ x: 0, y: 0 });
   const justSelectedRef = useRef(false);
 
   // Zoom tool - scroll towards cursor position
@@ -249,8 +283,16 @@ export const CanvasArea = ({
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setSelectedElement(cl.id); if (onElementSelect) onElementSelect(cl); }
     } else if (activeTool === 'select') {
+      // Single click to select
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
-      if (cl) setSelectedElement(cl.id); else { setSelectedElement(null); setSelectedElements([]); }
+      const vIdx = drawPaths.findIndex(path => path.isPen && isPointNearPath(x, y, path, 20));
+      if (cl) { setSelectedElement(cl.id); setSelectedElements([cl.id]); }
+      else if (vIdx !== -1) { setSelectedVector(vIdx); setSelectedVectors([vIdx]); }
+      else { setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]); }
+    } else if (activeTool === 'zoom') {
+      // Zoom tool - magnifier effect
+      setMagnifierActive(true);
+      setMagnifierPosition({ x, y });
     }
   }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, draggingVector, drawPaths, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements]);
 
@@ -267,7 +309,17 @@ export const CanvasArea = ({
     const { x, y } = getCoords(e, e.currentTarget);
     if (activeTool === 'draw' || activeTool === 'marking') { setIsDrawing(true); setCurrentPath([{ x, y }]); return; }
     if (activeTool === 'eraser') { setIsDrawing(true); setEraserTrail([{ x, y }]); return; }
-    if (activeTool === 'select') { setSelectionStart({ x, y }); setSelectionRect({ x, y, w: 0, h: 0 }); return; }
+    if (activeTool === 'select') { 
+      // Lasso selection - start drawing lasso path
+      setIsDrawing(true);
+      setLassoPath([{ x, y }]);
+      return; 
+    }
+    if (activeTool === 'zoom') {
+      setMagnifierActive(true);
+      setMagnifierPosition({ x, y });
+      return;
+    }
     if (activeTool === 'cut' && cropTarget && cropRect) { setCropDragging(true); setCropStart({ x, y, rect: { ...cropRect } }); return; }
     
     // Hand tool: check for vector dragging first
@@ -311,7 +363,15 @@ export const CanvasArea = ({
     const { x, y } = getCoords(e, e.currentTarget);
     if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) { setCurrentPath(p => [...p, { x, y }]); return; }
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
-    if (activeTool === 'select' && selectionStart) { setSelectionRect({ x: Math.min(selectionStart.x, x), y: Math.min(selectionStart.y, y), w: Math.abs(x - selectionStart.x), h: Math.abs(y - selectionStart.y) }); return; }
+    if (activeTool === 'select' && isDrawing) { 
+      // Lasso selection - continue drawing
+      setLassoPath(p => [...p, { x, y }]); 
+      return; 
+    }
+    if (activeTool === 'zoom' && magnifierActive) {
+      setMagnifierPosition({ x, y });
+      return;
+    }
     if (cropDragging && cropStart) { setCropRect({ x: cropStart.rect.x + x - cropStart.x, y: cropStart.rect.y + y - cropStart.y, w: cropStart.rect.w, h: cropStart.rect.h }); return; }
     
     // Vector dragging
@@ -343,17 +403,20 @@ export const CanvasArea = ({
       const r = eraserSize || 15;
       setDrawPaths(prev => prev.filter(path => !path.points.some(pp => eraserTrail.some(ep => dist(pp, ep) < r))));
     }
-    if (activeTool === 'select' && selectionRect && selectionRect.w > 5 && selectionRect.h > 5) {
-      const sr = selectionRect;
-      const ids = canvasElements.filter(el => { const cx = el.x + (el.width || 50) / 2; const cy = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 80) / 2); return cx >= sr.x && cx <= sr.x + sr.w && cy >= sr.y && cy <= sr.y + sr.h; }).map(el => el.id);
-      if (ids.length > 0) { setSelectedElements(ids); justSelectedRef.current = true; }
+    // Lasso selection - find elements inside the lasso path
+    if (activeTool === 'select' && isDrawing && lassoPath.length > 5) {
+      const selectedIds = canvasElements.filter(el => !el.hidden && !el.locked && isElementInLasso(el, lassoPath)).map(el => el.id);
+      const selectedVecIdxs = drawPaths.map((p, i) => ({ p, i })).filter(({ p }) => p.isPen && isVectorInLasso(p, lassoPath)).map(({ i }) => i);
+      if (selectedIds.length > 0) { setSelectedElements(selectedIds); justSelectedRef.current = true; }
+      if (selectedVecIdxs.length > 0) { setSelectedVectors(selectedVecIdxs); }
     }
     if (dragging || resizing) onSaveHistory(canvasElements);
     if (draggingVector !== null) setDraggingVector(null);
-    setIsDrawing(false); setCurrentPath([]); setEraserTrail([]);
+    if (activeTool === 'zoom') setMagnifierActive(false);
+    setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     setCropDragging(false); setCropStart(null); setDragging(null); setResizing(null);
-  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawSize, dragging, eraserSize, eraserTrail, isDrawing, markingColor, markingOpacity, markingSize, onSaveHistory, resizing, selectionRect, setDrawPaths, setSelectedElements]);
+  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserSize, eraserTrail, isDrawing, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -480,11 +543,39 @@ export const CanvasArea = ({
               {isDrawing && (activeTool === 'draw' || activeTool === 'marking') && currentPath.length > 1 && <path d={`M ${currentPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={activeTool === 'marking' ? (markingColor || '#FFFF00') : currentColor} strokeWidth={(activeTool === 'marking' ? (markingSize || 20) : drawSize) * zoom} strokeOpacity={activeTool === 'marking' ? (markingOpacity || 40) / 100 : drawOpacity / 100} fill="none" strokeLinecap={activeTool === 'marking' ? 'butt' : 'round'} />}
               {/* Pen tool preview */}
               {penPoints.length > 0 && (<><path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />{penPoints.map((p, i) => <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={i === 0 ? '#4ca8ad' : currentColor} stroke="#fff" strokeWidth={1} />)}</>)}
-              {/* Selection rect */}
-              {selectionRect && selectionRect.w > 0 && <rect x={selectionRect.x * zoom} y={selectionRect.y * zoom} width={selectionRect.w * zoom} height={selectionRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="6,3" fill="rgba(76,168,173,0.1)" />}
+              {/* Lasso selection path */}
+              {isDrawing && activeTool === 'select' && lassoPath.length > 1 && (
+                <path d={`M ${lassoPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z`} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="4,4" fill="rgba(76,168,173,0.15)" />
+              )}
               {/* Crop overlay */}
               {cropTarget && cropRect && idx === currentPage && (<><rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" /><rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" /></>)}
             </svg>
+            
+            {/* Magnifier effect */}
+            {activeTool === 'zoom' && magnifierActive && idx === currentPage && (
+              <div className="absolute pointer-events-none rounded-full border-4 border-blue-400 overflow-hidden shadow-2xl"
+                style={{
+                  left: magnifierPosition.x * zoom - (zoomRadius || 100),
+                  top: magnifierPosition.y * zoom - (zoomRadius || 100),
+                  width: (zoomRadius || 100) * 2,
+                  height: (zoomRadius || 100) * 2,
+                  background: pageBg,
+                  transform: `scale(${zoomLevel || 2})`,
+                  transformOrigin: 'center center',
+                }}>
+                <div style={{
+                  position: 'absolute',
+                  left: -(magnifierPosition.x * zoom - (zoomRadius || 100)),
+                  top: -(magnifierPosition.y * zoom - (zoomRadius || 100)),
+                  width: (page.pageSize?.width || pageSize.width) * zoom,
+                  height: (page.pageSize?.height || pageSize.height) * zoom,
+                  transform: `scale(${1 / (zoomLevel || 2)})`,
+                  transformOrigin: `${magnifierPosition.x * zoom}px ${magnifierPosition.y * zoom}px`,
+                }}>
+                  {/* Mirror canvas content inside magnifier */}
+                </div>
+              </div>
+            )}
             
             {/* Vector menu */}
             {vectorMenu && idx === currentPage && (

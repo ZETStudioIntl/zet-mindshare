@@ -88,6 +88,17 @@ const translations = {
     export: 'Export',
     alignJustify: 'Justify',
     shortcuts: 'Shortcuts',
+    table: 'Table',
+    layers: 'Layers',
+    ruler: 'Ruler',
+    grid: 'Grid',
+    templates: 'Templates',
+    qrcode: 'QR Code',
+    watermark: 'Watermark',
+    pageNumbers: 'Page Numbers',
+    headerFooter: 'Header/Footer',
+    findReplace: 'Find & Replace',
+    words: 'words',
   },
   tr: {
     // Login
@@ -176,6 +187,17 @@ const translations = {
     export: 'Dışa Aktar',
     alignJustify: 'İki Yana Yasla',
     shortcuts: 'Kısayollar',
+    table: 'Tablo',
+    layers: 'Katmanlar',
+    ruler: 'Cetvel',
+    grid: 'Izgara',
+    templates: 'Şablonlar',
+    qrcode: 'QR Kod',
+    watermark: 'Filigran',
+    pageNumbers: 'Sayfa Numaraları',
+    headerFooter: 'Üstbilgi/Altbilgi',
+    findReplace: 'Bul ve Değiştir',
+    words: 'kelime',
   }
 };
 

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { ChevronDown, ChevronUp, Plus, Sparkles, Send } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2 } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -14,9 +14,11 @@ export const RightPanel = ({
   onAddPage,
   onDeletePage,
   docId,
-  charCount,
+  wordCount,
   canvasContainerRef,
   forceSection,
+  onExport,
+  exporting,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -49,10 +51,20 @@ export const RightPanel = ({
     setZetaLoading(false);
   };
 
-  const stats = { pageCount: doc?.pages?.length || 0, charCount };
+  const stats = { pageCount: doc?.pages?.length || 0, wordCount };
 
   return (
     <div data-testid="right-panel" className="w-72 border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
+      {/* Export Button */}
+      {showPages && (
+        <div className="p-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+          <button data-testid="export-pdf-btn" onClick={onExport} disabled={exporting} className="zet-btn w-full flex items-center justify-center gap-2 py-2 text-sm">
+            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
+            Export PDF
+          </button>
+        </div>
+      )}
+      
       {/* Pages Section */}
       {showPages && (
       <div className="border-b" style={{ borderColor: 'var(--zet-border)' }}>
@@ -72,7 +84,7 @@ export const RightPanel = ({
         {pagesOpen && (
           <div className="px-2 pb-2">
             <div className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-              {stats.pageCount} {t('pages')} · {stats.charCount} {t('characters')}
+              {stats.pageCount} {t('pages')} · {stats.wordCount} {t('words') || 'words'}
             </div>
             <div className="grid grid-cols-3 gap-1 max-h-28 overflow-y-auto">
               {doc.pages?.map((page, idx) => (

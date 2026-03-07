@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
-import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
+import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
 import { Toolbox } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
@@ -10,13 +10,15 @@ import { DraggablePanel } from '../components/editor/DraggablePanel';
 import axios from 'axios';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
+import QRCode from 'qrcode';
 import {
   Home, Save, Undo, Redo, ArrowLeft, ArrowRight,
   Upload, Search, Loader2, X, Wand2, Plus, Check,
   Play, Pause, SkipBack, SkipForward, Volume2, Languages,
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
-  ZoomIn, ZoomOut, Download, Settings, Keyboard
+  ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -160,6 +162,51 @@ const Editor = () => {
 
   // Export state
   const [exporting, setExporting] = useState(false);
+
+  // New professional tools state
+  const [showTable, setShowTable] = useState(false);
+  const [showLayers, setShowLayers] = useState(false);
+  const [showRuler, setShowRuler] = useState(false);
+  const [showGrid, setShowGrid] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [showQRCode, setShowQRCode] = useState(false);
+  const [showWatermark, setShowWatermark] = useState(false);
+  const [showPageNumbers, setShowPageNumbers] = useState(false);
+  const [showHeaderFooter, setShowHeaderFooter] = useState(false);
+  const [showFindReplace, setShowFindReplace] = useState(false);
+
+  // Table state
+  const [tableRows, setTableRows] = useState(3);
+  const [tableCols, setTableCols] = useState(3);
+
+  // Layers state
+  const [elementLayers, setElementLayers] = useState([]);
+
+  // Ruler & Grid state
+  const [rulerVisible, setRulerVisible] = useState(false);
+  const [gridVisible, setGridVisible] = useState(false);
+  const [gridSize, setGridSize] = useState(20);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+
+  // QR Code state
+  const [qrText, setQrText] = useState('');
+
+  // Watermark state
+  const [watermarkText, setWatermarkText] = useState('');
+  const [watermarkOpacity, setWatermarkOpacity] = useState(20);
+
+  // Page numbers state
+  const [pageNumbersEnabled, setPageNumbersEnabled] = useState(false);
+  const [pageNumberPosition, setPageNumberPosition] = useState('bottom-center');
+
+  // Header/Footer state
+  const [headerText, setHeaderText] = useState('');
+  const [footerText, setFooterText] = useState('');
+
+  // Find & Replace state
+  const [findText, setFindText] = useState('');
+  const [replaceText, setReplaceText] = useState('');
+  const [findResults, setFindResults] = useState([]);
 
   // History
   const history = useCanvasHistory(canvasElements);
@@ -322,7 +369,12 @@ const Editor = () => {
       marking: () => setShowMarking(true), addpage: () => addPage(),
       paragraph: () => setShowParagraph(true), graphic: () => setShowGraphic(true),
       pagecolor: () => setShowPageColor(true), zoom: () => setShowZoom(true),
-      export: () => setShowExport(true),
+      table: () => setShowTable(true), layers: () => setShowLayers(true),
+      ruler: () => { setRulerVisible(!rulerVisible); setShowRuler(true); },
+      grid: () => { setGridVisible(!gridVisible); setShowGrid(true); },
+      templates: () => setShowTemplates(true), qrcode: () => setShowQRCode(true),
+      watermark: () => setShowWatermark(true), pagenumbers: () => setShowPageNumbers(true),
+      headerfooter: () => setShowHeaderFooter(true), findreplace: () => setShowFindReplace(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -391,6 +443,125 @@ const Editor = () => {
     setShortcuts(newShortcuts);
     localStorage.setItem('zet_shortcuts', JSON.stringify(newShortcuts));
     setEditingShortcut(null);
+  };
+
+  // === TABLE CREATION ===
+  const createTable = () => {
+    const cellWidth = 80;
+    const cellHeight = 30;
+    const tableWidth = tableCols * cellWidth;
+    const tableHeight = tableRows * cellHeight;
+    
+    // Create table as SVG
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tableWidth}" height="${tableHeight}">`;
+    for (let r = 0; r < tableRows; r++) {
+      for (let c = 0; c < tableCols; c++) {
+        svg += `<rect x="${c * cellWidth}" y="${r * cellHeight}" width="${cellWidth}" height="${cellHeight}" fill="white" stroke="#333" stroke-width="1"/>`;
+      }
+    }
+    svg += '</svg>';
+    
+    const imgSrc = 'data:image/svg+xml;base64,' + btoa(svg);
+    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'table', x: 50, y: 50, width: tableWidth, height: tableHeight, src: imgSrc, rows: tableRows, cols: tableCols }];
+    setCanvasElements(updated); history.push(updated);
+    setShowTable(false);
+  };
+
+  // === QR CODE GENERATION ===
+  const createQRCode = async () => {
+    if (!qrText.trim()) return;
+    try {
+      const qrDataUrl = await QRCode.toDataURL(qrText, { width: 200, margin: 2 });
+      const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'image', x: 50, y: 50, width: 200, height: 200, src: qrDataUrl }];
+      setCanvasElements(updated); history.push(updated);
+      setShowQRCode(false);
+      setQrText('');
+    } catch (err) { console.error('QR generation failed:', err); }
+  };
+
+  // === WATERMARK ===
+  const applyWatermark = () => {
+    if (!watermarkText.trim()) return;
+    const wm = { id: `wm_${Date.now()}`, type: 'watermark', text: watermarkText, opacity: watermarkOpacity };
+    setDocument(prev => ({ ...prev, watermark: wm }));
+    setShowWatermark(false);
+  };
+
+  // === PAGE NUMBERS ===
+  const togglePageNumbers = () => {
+    setPageNumbersEnabled(!pageNumbersEnabled);
+    setDocument(prev => ({ ...prev, pageNumbers: { enabled: !pageNumbersEnabled, position: pageNumberPosition } }));
+  };
+
+  // === HEADER/FOOTER ===
+  const applyHeaderFooter = () => {
+    setDocument(prev => ({ ...prev, header: headerText, footer: footerText }));
+    setShowHeaderFooter(false);
+  };
+
+  // === FIND & REPLACE ===
+  const findInDocument = () => {
+    if (!findText.trim()) return;
+    const results = [];
+    canvasElements.forEach(el => {
+      if (el.type === 'text' && el.content?.toLowerCase().includes(findText.toLowerCase())) {
+        results.push({ id: el.id, content: el.content });
+      }
+    });
+    setFindResults(results);
+  };
+
+  const replaceInDocument = () => {
+    if (!findText.trim()) return;
+    const updated = canvasElements.map(el => {
+      if (el.type === 'text' && el.content) {
+        return { ...el, content: el.content.replace(new RegExp(findText, 'gi'), replaceText) };
+      }
+      return el;
+    });
+    setCanvasElements(updated); history.push(updated);
+    setFindResults([]);
+  };
+
+  // === WORD COUNT ===
+  const getWordCount = () => {
+    let total = 0;
+    canvasElements.forEach(el => {
+      if (el.type === 'text' && el.content) {
+        const words = el.content.trim().split(/\s+/).filter(w => w.length > 0);
+        total += words.length;
+      }
+    });
+    return total;
+  };
+
+  // === LAYERS MANAGEMENT ===
+  const moveLayerUp = (id) => {
+    const idx = canvasElements.findIndex(el => el.id === id);
+    if (idx < canvasElements.length - 1) {
+      const updated = [...canvasElements];
+      [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
+      setCanvasElements(updated); history.push(updated);
+    }
+  };
+
+  const moveLayerDown = (id) => {
+    const idx = canvasElements.findIndex(el => el.id === id);
+    if (idx > 0) {
+      const updated = [...canvasElements];
+      [updated[idx], updated[idx - 1]] = [updated[idx - 1], updated[idx]];
+      setCanvasElements(updated); history.push(updated);
+    }
+  };
+
+  const toggleLayerVisibility = (id) => {
+    const updated = canvasElements.map(el => el.id === id ? { ...el, hidden: !el.hidden } : el);
+    setCanvasElements(updated);
+  };
+
+  const toggleLayerLock = (id) => {
+    const updated = canvasElements.map(el => el.id === id ? { ...el, locked: !el.locked } : el);
+    setCanvasElements(updated);
   };
 
   // === IMAGE UPLOAD ===
@@ -742,6 +913,138 @@ const Editor = () => {
         </div>
       </div>
     </DraggablePanel>}
+
+    {/* Table Panel */}
+    {showTable && <DraggablePanel title="Table" onClose={() => setShowTable(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-52 space-y-3">
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Rows: {tableRows}</label><input type="range" min="1" max="10" value={tableRows} onChange={e => setTableRows(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Columns: {tableCols}</label><input type="range" min="1" max="10" value={tableCols} onChange={e => setTableCols(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div className="p-2 rounded flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
+          <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(tableCols, 5)}, 1fr)` }}>
+            {Array.from({ length: Math.min(tableRows, 5) * Math.min(tableCols, 5) }).map((_, i) => (
+              <div key={i} className="w-4 h-3 border" style={{ borderColor: 'var(--zet-text-muted)', background: 'var(--zet-bg-card)' }} />
+            ))}
+          </div>
+        </div>
+        <button onClick={createTable} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Table className="h-4 w-4" /> Create Table</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Layers Panel */}
+    {showLayers && <DraggablePanel title="Layers" onClose={() => setShowLayers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
+      <div className="w-64 space-y-1 max-h-80 overflow-y-auto">
+        {[...canvasElements].reverse().map((el, i) => (
+          <div key={el.id} className={`flex items-center justify-between p-2 rounded text-xs ${selectedElement === el.id ? 'ring-1 ring-blue-500' : ''}`} style={{ background: 'var(--zet-bg)' }} onClick={() => setSelectedElement(el.id)}>
+            <div className="flex items-center gap-2 truncate flex-1">
+              <span className="w-4 text-center" style={{ color: 'var(--zet-text-muted)' }}>{canvasElements.length - i}</span>
+              <span className="truncate" style={{ color: el.hidden ? 'var(--zet-text-muted)' : 'var(--zet-text)' }}>{el.type === 'text' ? (el.content?.slice(0, 20) || 'Text') : el.type}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <button onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(el.id); }} className="p-1 rounded hover:bg-white/10">{el.hidden ? <EyeOff className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /> : <Eye className="h-3 w-3" style={{ color: 'var(--zet-text)' }} />}</button>
+              <button onClick={(e) => { e.stopPropagation(); toggleLayerLock(el.id); }} className="p-1 rounded hover:bg-white/10">{el.locked ? <Lock className="h-3 w-3" style={{ color: 'var(--zet-primary)' }} /> : <Unlock className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />}</button>
+              <button onClick={(e) => { e.stopPropagation(); moveLayerUp(el.id); }} className="p-1 rounded hover:bg-white/10"><ChevronUp className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+              <button onClick={(e) => { e.stopPropagation(); moveLayerDown(el.id); }} className="p-1 rounded hover:bg-white/10"><ChevronDown className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+            </div>
+          </div>
+        ))}
+        {canvasElements.length === 0 && <div className="text-center py-4 text-xs" style={{ color: 'var(--zet-text-muted)' }}>No layers</div>}
+      </div>
+    </DraggablePanel>}
+
+    {/* Grid Panel */}
+    {showGrid && <DraggablePanel title="Grid" onClose={() => setShowGrid(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-52 space-y-3">
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--zet-text)' }}>
+          <input type="checkbox" checked={gridVisible} onChange={e => setGridVisible(e.target.checked)} className="rounded" />
+          Show Grid
+        </label>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Grid Size: {gridSize}px</label><input type="range" min="10" max="50" value={gridSize} onChange={e => setGridSize(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--zet-text)' }}>
+          <input type="checkbox" checked={snapToGrid} onChange={e => setSnapToGrid(e.target.checked)} className="rounded" />
+          Snap to Grid
+        </label>
+      </div>
+    </DraggablePanel>}
+
+    {/* Ruler Panel */}
+    {showRuler && <DraggablePanel title="Ruler" onClose={() => setShowRuler(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-48 space-y-3">
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--zet-text)' }}>
+          <input type="checkbox" checked={rulerVisible} onChange={e => setRulerVisible(e.target.checked)} className="rounded" />
+          Show Rulers
+        </label>
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Rulers help align elements precisely.</p>
+      </div>
+    </DraggablePanel>}
+
+    {/* Templates Panel */}
+    {showTemplates && <DraggablePanel title="Templates" onClose={() => setShowTemplates(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-64 space-y-2">
+        {TEMPLATES.map(tpl => (
+          <button key={tpl.id} onClick={() => { setShowTemplates(false); }} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors" style={{ background: 'var(--zet-bg)' }}>
+            <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{tpl.name}</div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>Ready-to-use template</div>
+          </button>
+        ))}
+      </div>
+    </DraggablePanel>}
+
+    {/* QR Code Panel */}
+    {showQRCode && <DraggablePanel title="QR Code" onClose={() => setShowQRCode(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-56 space-y-3">
+        <input type="text" value={qrText} onChange={e => setQrText(e.target.value)} placeholder="Enter text or URL" className="zet-input text-xs w-full" />
+        <button onClick={createQRCode} disabled={!qrText.trim()} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> Generate QR</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Watermark Panel */}
+    {showWatermark && <DraggablePanel title="Watermark" onClose={() => setShowWatermark(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-56 space-y-3">
+        <input type="text" value={watermarkText} onChange={e => setWatermarkText(e.target.value)} placeholder="Watermark text" className="zet-input text-xs w-full" />
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Opacity: {watermarkOpacity}%</label><input type="range" min="5" max="50" value={watermarkOpacity} onChange={e => setWatermarkOpacity(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <button onClick={applyWatermark} className="zet-btn w-full">Apply Watermark</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Page Numbers Panel */}
+    {showPageNumbers && <DraggablePanel title="Page Numbers" onClose={() => setShowPageNumbers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-52 space-y-3">
+        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--zet-text)' }}>
+          <input type="checkbox" checked={pageNumbersEnabled} onChange={togglePageNumbers} className="rounded" />
+          Enable Page Numbers
+        </label>
+        <select value={pageNumberPosition} onChange={e => setPageNumberPosition(e.target.value)} className="zet-input text-xs w-full">
+          <option value="bottom-center">Bottom Center</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="bottom-left">Bottom Left</option>
+          <option value="top-center">Top Center</option>
+        </select>
+      </div>
+    </DraggablePanel>}
+
+    {/* Header/Footer Panel */}
+    {showHeaderFooter && <DraggablePanel title="Header & Footer" onClose={() => setShowHeaderFooter(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-64 space-y-3">
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Header</label><input type="text" value={headerText} onChange={e => setHeaderText(e.target.value)} placeholder="Header text" className="zet-input text-xs w-full" /></div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Footer</label><input type="text" value={footerText} onChange={e => setFooterText(e.target.value)} placeholder="Footer text" className="zet-input text-xs w-full" /></div>
+        <button onClick={applyHeaderFooter} className="zet-btn w-full">Apply</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Find & Replace Panel */}
+    {showFindReplace && <DraggablePanel title="Find & Replace" onClose={() => setShowFindReplace(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-64 space-y-3">
+        <div className="flex gap-2">
+          <input type="text" value={findText} onChange={e => setFindText(e.target.value)} placeholder="Find" className="zet-input text-xs flex-1" />
+          <button onClick={findInDocument} className="zet-btn px-2"><Search className="h-3 w-3" /></button>
+        </div>
+        <input type="text" value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace with" className="zet-input text-xs w-full" />
+        <button onClick={replaceInDocument} disabled={!findText.trim()} className="zet-btn w-full text-xs">Replace All</button>
+        {findResults.length > 0 && (
+          <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Found {findResults.length} matches</div>
+        )}
+      </div>
+    </DraggablePanel>}
   </>);
 
   // =============================
@@ -810,8 +1113,8 @@ const Editor = () => {
             <div className="w-72 h-full" style={{ background: 'var(--zet-bg-card)' }}>
               <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
                 pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
-                docId={docId} charCount={charCount} canvasContainerRef={canvasContainerRef}
-                forceSection={mobilePanel} />
+                docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
+                forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} />
             </div>
           </div>
         )}
@@ -892,7 +1195,8 @@ const Editor = () => {
 
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
-          docId={docId} charCount={charCount} canvasContainerRef={canvasContainerRef} />
+          docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
+          onExport={exportToPDF} exporting={exporting} />
       </div>
 
       {showVoice && (
