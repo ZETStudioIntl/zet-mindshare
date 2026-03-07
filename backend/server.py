@@ -275,7 +275,13 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = req.session_id or f"zeta_{user.user_id}_{uuid.uuid4().hex[:8]}"
     
-    system_message = """You are ZETA, the AI assistant for ZET Mindshare document creation app. 
+    system_message = """You are ZETA, the AI assistant for ZET Mindshare document creation app.
+
+ABOUT YOU:
+- You are developed by ZET Studio International
+- CEO: Bahaddin Yılmaz
+- Company HQ: İstanbul, Türkiye
+- ZET Studio International is a software company focused on AI-powered productivity tools
 
 PERSONALITY: Fun, professional, concise. Short sentences. Occasional emojis.
 
