@@ -108,6 +108,36 @@ const Dashboard = () => {
     }
   ];
 
+  // Notification helper function - defined before useEffects that use it
+  const showNotification = useCallback((title, message) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      const notification = new Notification(title, { 
+        body: message, 
+        icon: '/logo192.png',
+        tag: 'zet-reminder',
+        requireInteraction: true
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } else {
+      // Fallback to alert
+      alert(`🔔 ${title}\n${message}`);
+    }
+  }, []);
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (!('Notification' in window)) {
+      console.log('Notifications not supported');
+      return;
+    }
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      console.log('Notification permission:', permission);
+    }
+  }, []);
+
   useEffect(() => {
     fetchData();
     checkDriveConnection();
@@ -140,35 +170,6 @@ const Dashboard = () => {
     checkReminders(); // Check immediately on load
     return () => clearInterval(interval);
   }, [showNotification]);
-
-  const requestNotificationPermission = useCallback(async () => {
-    if (!('Notification' in window)) {
-      console.log('Notifications not supported');
-      return;
-    }
-    if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      console.log('Notification permission:', permission);
-    }
-  }, []);
-
-  const showNotification = useCallback((title, message) => {
-    if ('Notification' in window && Notification.permission === 'granted') {
-      const notification = new Notification(title, { 
-        body: message, 
-        icon: '/logo192.png',
-        tag: 'zet-reminder',
-        requireInteraction: true
-      });
-      notification.onclick = () => {
-        window.focus();
-        notification.close();
-      };
-    } else {
-      // Fallback to alert
-      alert(`🔔 ${title}\n${message}`);
-    }
-  }, []);
 
   const fetchSubscription = async () => {
     try {

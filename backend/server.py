@@ -1026,14 +1026,14 @@ async def connect_google_drive(request: Request, user: User = Depends(get_curren
     
     # If no credentials configured, return mock
     if not client_id or not client_secret:
-        frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-canvas-1.preview.emergentagent.com")
+        frontend_url = os.getenv("FRONTEND_URL", "https://ai-canvas-68.preview.emergentagent.com")
         await users_collection.update_one(
             {"user_id": user.user_id},
             {"$set": {"drive_token": "mock_token", "drive_connected_at": datetime.now(timezone.utc).isoformat()}}
         )
         return {"authorization_url": f"{frontend_url}/dashboard?drive_connected=true", "message": "Drive connected (mock - no credentials configured)"}
     
-    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://brainstorm-canvas-1.preview.emergentagent.com/api/drive/callback")
+    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://ai-canvas-68.preview.emergentagent.com/api/drive/callback")
     
     try:
         flow = Flow.from_client_config(
@@ -1069,8 +1069,8 @@ async def drive_callback(code: str = Query(...), state: str = Query(...)):
     """Handle Google Drive OAuth callback"""
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://brainstorm-canvas-1.preview.emergentagent.com/api/drive/callback")
-    frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-canvas-1.preview.emergentagent.com")
+    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://ai-canvas-68.preview.emergentagent.com/api/drive/callback")
+    frontend_url = os.getenv("FRONTEND_URL", "https://ai-canvas-68.preview.emergentagent.com")
     
     try:
         flow = Flow.from_client_config(
