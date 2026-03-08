@@ -5,7 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
-  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard
+  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -49,34 +49,36 @@ const Dashboard = () => {
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
   });
   const [showSubscription, setShowSubscription] = useState(false);
+  const [billingCycle, setBillingCycle] = useState('yearly'); // 'monthly' or 'yearly'
+  const [currentPlanIndex, setCurrentPlanIndex] = useState(2); // Start from Ultra (biggest)
 
-  // Subscription plans data
+  // Subscription plans data - ordered from biggest to smallest
   const SUBSCRIPTION_PLANS = [
     {
-      id: 'plus',
-      name: 'Plus',
-      price: '$9.99',
-      period: '/month',
-      features: ['5GB Cloud Storage', '50 AI Images/month', 'Basic Templates', 'Email Support'],
-      color: '#3b82f6',
+      id: 'ultra',
+      name: 'Ultra',
+      monthlyPrice: 39.99,
+      yearlyPrice: 399.99,
+      features: ['Unlimited Storage', 'Unlimited AI Images', 'All Templates', '24/7 Support', 'API Access', 'Team Collaboration', 'White Label', 'ZET Judge Pro'],
+      color: '#f59e0b',
       recommended: false
     },
     {
       id: 'pro',
       name: 'Pro',
-      price: '$19.99',
-      period: '/month',
-      features: ['25GB Cloud Storage', '200 AI Images/month', 'All Templates', 'Priority Support', 'Custom Fonts', 'No Watermark'],
+      monthlyPrice: 19.99,
+      yearlyPrice: 199.99,
+      features: ['25GB Cloud Storage', '200 AI Images/month', 'All Templates', 'Priority Support', 'Custom Fonts', 'No Watermark', 'ZET Judge Mini'],
       color: '#8b5cf6',
       recommended: true
     },
     {
-      id: 'ultra',
-      name: 'Ultra',
-      price: '$39.99',
-      period: '/month',
-      features: ['Unlimited Storage', 'Unlimited AI Images', 'All Templates', '24/7 Support', 'API Access', 'Team Collaboration', 'White Label'],
-      color: '#f59e0b',
+      id: 'plus',
+      name: 'Plus',
+      monthlyPrice: 9.99,
+      yearlyPrice: 99.99,
+      features: ['5GB Cloud Storage', '50 AI Images/month', 'Basic Templates', 'Email Support'],
+      color: '#3b82f6',
       recommended: false
     }
   ];
@@ -685,83 +687,151 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* Subscription Modal */}
+      {/* Subscription Modal - Carousel */}
       {showSubscription && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowSubscription(false)}>
-          <div className="zet-card p-6 max-w-4xl w-full mx-4 animate-fadeIn max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h2 className="text-2xl font-bold" style={{ color: 'var(--zet-text)' }}>
-                  {t('choosePlan') || 'Choose Your Plan'}
-                </h2>
-                <p className="text-sm mt-1" style={{ color: 'var(--zet-text-muted)' }}>
-                  {t('planDescription') || 'Unlock powerful features with ZET Mindshare Premium'}
-                </p>
-              </div>
+          <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>
+                {t('choosePlan') || 'Choose Your Plan'}
+              </h2>
               <button onClick={() => setShowSubscription(false)} className="p-2 rounded-lg hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
               </button>
             </div>
             
-            <div className="grid md:grid-cols-3 gap-4">
-              {SUBSCRIPTION_PLANS.map(plan => (
-                <div 
-                  key={plan.id}
-                  className={`relative rounded-xl p-5 transition-all hover:scale-105 ${plan.recommended ? 'ring-2' : ''}`}
-                  style={{ 
-                    background: 'var(--zet-bg)',
-                    ringColor: plan.color
-                  }}
-                  data-testid={`plan-${plan.id}`}
+            {/* Billing Cycle Toggle */}
+            <div className="flex justify-center mb-6">
+              <div className="flex rounded-lg p-1" style={{ background: 'var(--zet-bg)' }}>
+                <button
+                  onClick={() => setBillingCycle('monthly')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${billingCycle === 'monthly' ? 'text-white' : ''}`}
+                  style={{ background: billingCycle === 'monthly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'monthly' ? 'white' : 'var(--zet-text-muted)' }}
                 >
-                  {plan.recommended && (
-                    <div 
-                      className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white"
-                      style={{ background: plan.color }}
-                    >
-                      {t('recommended') || 'RECOMMENDED'}
-                    </div>
-                  )}
-                  
-                  <div className="text-center mb-4 pt-2">
-                    <h3 className="text-xl font-bold" style={{ color: plan.color }}>
-                      {plan.name}
-                    </h3>
-                    <div className="mt-2">
-                      <span className="text-3xl font-bold" style={{ color: 'var(--zet-text)' }}>
-                        {plan.price}
-                      </span>
-                      <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-                        {plan.period}
-                      </span>
-                    </div>
-                  </div>
-                  
-                  <ul className="space-y-2 mb-6">
-                    {plan.features.map((feature, idx) => (
-                      <li key={idx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}>
-                        <Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  
-                  <button 
-                    className="w-full py-3 rounded-lg font-semibold transition-all hover:opacity-90"
-                    style={{ 
-                      background: plan.recommended ? plan.color : 'transparent',
-                      color: plan.recommended ? 'white' : plan.color,
-                      border: plan.recommended ? 'none' : `2px solid ${plan.color}`
-                    }}
-                    data-testid={`select-plan-${plan.id}`}
-                  >
-                    {t('selectPlan') || 'Select Plan'}
-                  </button>
+                  {t('monthly') || 'Monthly'}
+                </button>
+                <button
+                  onClick={() => setBillingCycle('yearly')}
+                  className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1 ${billingCycle === 'yearly' ? 'text-white' : ''}`}
+                  style={{ background: billingCycle === 'yearly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'yearly' ? 'white' : 'var(--zet-text-muted)' }}
+                >
+                  {t('yearly') || 'Yearly'}
+                  <span className="text-xs px-1.5 py-0.5 rounded bg-green-500 text-white">-17%</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Carousel */}
+            <div className="relative">
+              {/* Navigation Arrows */}
+              <button 
+                onClick={() => setCurrentPlanIndex(Math.max(0, currentPlanIndex - 1))}
+                disabled={currentPlanIndex === 0}
+                className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                style={{ background: 'var(--zet-bg-card)' }}
+              >
+                <ChevronLeft className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+              </button>
+              <button 
+                onClick={() => setCurrentPlanIndex(Math.min(SUBSCRIPTION_PLANS.length - 1, currentPlanIndex + 1))}
+                disabled={currentPlanIndex === SUBSCRIPTION_PLANS.length - 1}
+                className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30"
+                style={{ background: 'var(--zet-bg-card)' }}
+              >
+                <ChevronRight className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+              </button>
+
+              {/* Plan Card */}
+              <div className="overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-300"
+                  style={{ transform: `translateX(-${currentPlanIndex * 100}%)` }}
+                >
+                  {SUBSCRIPTION_PLANS.map((plan, idx) => {
+                    const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+                    const period = billingCycle === 'monthly' ? '/mo' : '/yr';
+                    return (
+                      <div 
+                        key={plan.id}
+                        className="w-full flex-shrink-0 px-2"
+                      >
+                        <div 
+                          className={`relative rounded-2xl p-6 transition-all ${plan.recommended ? 'ring-2' : ''}`}
+                          style={{ 
+                            background: `linear-gradient(135deg, ${plan.color}15 0%, ${plan.color}05 100%)`,
+                            ringColor: plan.color,
+                            border: `1px solid ${plan.color}30`
+                          }}
+                          data-testid={`plan-${plan.id}`}
+                        >
+                          {plan.recommended && (
+                            <div 
+                              className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white"
+                              style={{ background: plan.color }}
+                            >
+                              {t('recommended') || 'RECOMMENDED'}
+                            </div>
+                          )}
+                          
+                          <div className="text-center mb-6 pt-2">
+                            <h3 className="text-2xl font-bold mb-2" style={{ color: plan.color }}>
+                              {plan.name}
+                            </h3>
+                            <div>
+                              <span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>
+                                ${price}
+                              </span>
+                              <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
+                                {period}
+                              </span>
+                            </div>
+                            {billingCycle === 'yearly' && (
+                              <p className="text-xs mt-1 text-green-400">
+                                {t('saveYearly') || `Save $${((plan.monthlyPrice * 12) - plan.yearlyPrice).toFixed(2)}/year`}
+                              </p>
+                            )}
+                          </div>
+                          
+                          <ul className="space-y-3 mb-6">
+                            {plan.features.map((feature, fidx) => (
+                              <li key={fidx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}>
+                                <Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />
+                                {feature}
+                              </li>
+                            ))}
+                          </ul>
+                          
+                          <button 
+                            className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105"
+                            style={{ 
+                              background: plan.color,
+                              color: 'white'
+                            }}
+                            data-testid={`select-plan-${plan.id}`}
+                          >
+                            {t('selectPlan') || 'Select Plan'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              ))}
+              </div>
+
+              {/* Dots Indicator */}
+              <div className="flex justify-center gap-2 mt-4">
+                {SUBSCRIPTION_PLANS.map((_, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => setCurrentPlanIndex(idx)}
+                    className={`w-2 h-2 rounded-full transition-all ${currentPlanIndex === idx ? 'w-6' : ''}`}
+                    style={{ background: currentPlanIndex === idx ? SUBSCRIPTION_PLANS[idx].color : 'var(--zet-text-muted)' }}
+                  />
+                ))}
+              </div>
             </div>
             
-            <p className="text-center text-xs mt-6" style={{ color: 'var(--zet-text-muted)' }}>
+            <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>
               {t('subscriptionNote') || 'All plans include 7-day free trial. Cancel anytime.'}
             </p>
           </div>

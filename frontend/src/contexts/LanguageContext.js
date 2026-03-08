@@ -112,6 +112,9 @@ const translations = {
     recommended: 'RECOMMENDED',
     fastSelect: 'Fast Select',
     selected: 'selected',
+    monthly: 'Monthly',
+    yearly: 'Yearly',
+    saveYearly: 'Save per year',
   },
   tr: {
     // Login
@@ -224,6 +227,9 @@ const translations = {
     recommended: 'ÖNERİLEN',
     fastSelect: 'Hızlı Seçim',
     selected: 'seçildi',
+    monthly: 'Aylık',
+    yearly: 'Yıllık',
+    saveYearly: 'Yılda tasarruf edin',
   }
 };
 

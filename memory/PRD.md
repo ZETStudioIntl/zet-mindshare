@@ -3,106 +3,100 @@
 ## Overview
 ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtınası aracı.
 **Developed by:** ZET Studio International
-**CEO:** Bahaddin Yılmaz
+**CEO:** Muhammed Bahaddin Yılmaz
 **HQ:** İstanbul, Türkiye
 
 ## Tech Stack
 - **Frontend:** React.js, TailwindCSS, Shadcn/UI, lucide-react, Chart.js, QRCode
 - **Backend:** FastAPI, Python, MongoDB
-- **AI:** Gemini 3 Flash (text/translate), Nano Banana (images) via Emergent LLM Key
+- **AI:** Gemini 3 Flash (ZETA + Judge), Nano Banana (images) via Emergent LLM Key
 - **Voice:** ElevenLabs TTS + Web Speech API (STT)
 - **Auth:** Google OAuth + Email/Password
 - **Export:** jsPDF, html2canvas
 
-## Implemented Features (60+ Tools)
+## THIS SESSION ADDITIONS (2026-03-08)
 
-### THIS SESSION ADDITIONS (2026-03-08)
-- [x] **Subscription Modal** - 3 paket: Plus ($9.99), Pro ($19.99), Ultra ($39.99)
-- [x] **Mirror Tool Fix** - scaleX/scaleY CSS transform ile yatay çevirme
-- [x] **Eraser Drag Fix** - Kırmızı trail gösterimi + canvas elements silme
-- [x] **Zoom Tool Fix** - Daha küçük default değerler (1.2x-4x zoom, 30-120px radius)
-- [x] **Çeviri Güncellemesi** - Subscription modal için TR/EN çevirileri
-- [x] **Query Import Fix** - Google Drive callback endpoint düzeltildi
+### New Features
+- [x] **ZET Judge Mini** - İş analizi AI asistanı (#c8005a/#4b0c37 renk teması)
+- [x] **Subscription Carousel** - Yana kaydırmalı, aylık/yıllık, büyükten küçüğe (Ultra→Pro→Plus)
+- [x] **Mirror Tool Fix** - scaleX/scaleY CSS transform
+- [x] **Eraser Drag Fix** - Kırmızı trail + element silme
+- [x] **Zoom Tool Fix** - Daha küçük default değerler
 
-### Core Tools
-- [x] Copy Tool (Ctrl+C/V), Mirror Tool (rotation), Voice Input (STT)
-- [x] Text, Word Type, Text Size, Font (51 fonts), Line Spacing, Paragraph, Color
-- [x] Gradient Presets (6 preset), Gradient for Text & Shapes
-- [x] Hand, Zoom (auto magnifier), Layers, Ruler, Grid
-- [x] Image, AI Image, QR Code
-- [x] Draw, Pen, Eraser (drag mode), Marking, Select (lasso), Cut
-- [x] Graphic (Bar/Pie/Line charts - SVG based), Table
-- [x] Templates (CV, Report, Letter, Invoice, Presentation)
-- [x] Page Color, Page Size, Add Page, Page Numbers
-- [x] Header/Footer, Watermark, Find & Replace, Auto Page
-- [x] Export PDF/PNG/JPEG/SVG/JSON, Translate (12 languages)
+### ZET Judge Mini Özellikleri
+- İş analizi ve strateji odaklı
+- Dobra, dürüst, acı ama kırıcı değil
+- Başarı puanı (1-100) ve Risk puanı (1-100) veriyor
+- Görsel kabul ediyor
+- ZET Studio International asistanı olarak tanıtıyor
 
-### Voice & AI
-- [x] Voice TTS (ElevenLabs)
-- [x] Voice Input STT (Web Speech API)
-- [x] ZETA AI (tüm belge içeriğini görüyor, görsel kabul ediyor)
+### Subscription Paketleri
+| Plan | Aylık | Yıllık | Özellikler |
+|------|-------|--------|------------|
+| Ultra | $39.99 | $399.99 | Unlimited Storage, AI, API Access, Team, White Label, Judge Pro |
+| Pro | $19.99 | $199.99 | 25GB, 200 AI/mo, All Templates, Custom Fonts, Judge Mini |
+| Plus | $9.99 | $99.99 | 5GB, 50 AI/mo, Basic Templates |
 
-### Auth
-- [x] Google OAuth
-- [x] Email/Password
+## Implemented Tools (60+)
+- Text, Font (51), Color, Gradient, Hand, Zoom, Layers, Ruler, Grid
+- Image, AI Image, QR Code, Draw, Pen, Eraser, Marking, Select
+- Chart (Bar/Pie/Line), Table, Templates, Export (PDF/PNG/JPEG/SVG/JSON)
+- Copy, Mirror, Voice Input (STT), Voice Output (TTS)
+- Page Color/Size, Page Numbers, Header/Footer, Watermark
+- Shapes: Triangle, Square, Circle, Star, Ring
 
-### Shapes
-- [x] Triangle, Square, Circle, Star, Ring (all with gradient support)
+## AI Assistants
+1. **ZETA** - Genel asistan, belge yardımı
+2. **ZET Judge Mini** - İş analizi, strateji, vizyon
 
 ## Key API Endpoints
-- Auth: `/api/auth/session`, `/api/auth/me`, `/api/auth/register`, `/api/auth/login`
+- Auth: `/api/auth/register`, `/api/auth/login`, `/api/auth/session`
 - Docs: `/api/documents`, `/api/documents/{id}`
-- AI: `/api/zeta/chat`, `/api/zeta/generate-image`, `/api/zeta/translate`
-- Voice: `/api/voice/list`, `/api/voice/tts`
-- Drive: `/api/drive/status`, `/api/drive/connect`, `/api/drive/callback`
+- AI: `/api/zeta/chat`, `/api/judge/chat`, `/api/zeta/generate-image`
+- Voice: `/api/voice/tts`
+- Drive: `/api/drive/connect`, `/api/drive/callback`
 
 ## Testing History
-- iteration_19: 94% backend, 100% frontend ✅
-- iteration_20: Frontend only - 95% ✅ (all features working, minor translation fix applied)
+- iteration_20: Frontend %95 ✅
 
-## Prioritized Backlog
+## API Key Alma Rehberi
 
-### P0 - Critical (Need User Action):
-- [ ] Google Drive Integration - Kullanıcının credentials gerekli (aşağıya bakın)
+### 1. Google Drive API
+**Adımlar:**
+1. [Google Cloud Console](https://console.cloud.google.com) → New Project
+2. APIs & Services → Enable APIs → "Google Drive API" enable
+3. APIs & Services → Credentials → Create Credentials → OAuth 2.0 Client IDs
+4. Uygulama türü seç:
+   - **iOS:** iOS seç, Bundle ID gir
+   - **Android:** Android seç, Package name + SHA-1 gir
+   - **Web:** Web application seç, Authorized redirect URIs gir
+5. OAuth consent screen → Test users ekle
+6. credentials.json dosyasını indir
 
-### P1 - High Priority:
-- [ ] Template içerikleri oluşturma
+### 2. ElevenLabs TTS API
+**Adımlar:**
+1. [ElevenLabs](https://elevenlabs.io) hesabı oluştur
+2. Profile → API Keys → Create API Key
+3. Key'i kopyala ve backend/.env'e ekle:
+   ```
+   ELEVENLABS_API_KEY=your_key_here
+   ```
 
-### P2 - Medium Priority:
-- [ ] Real-time collaboration
-- [ ] Vertical multi-page scrolling
-
-### P3 - Future:
-- [ ] In-app purchases
-- [ ] iCloud integration
-
-## Google Drive Key Seçimi (App Store / Play Store / Microsoft Store için)
-
-Uygulama 3 platformda yayınlanacağı için **3 farklı OAuth credential** oluşturmanız gerekecek:
-
-| Platform | Credential Türü | Gerekli Bilgiler |
-|----------|----------------|------------------|
-| **iOS** | "iOS" | Bundle ID (örn: com.zetstudio.mindshare) |
-| **Android** | "Android" | Package name + SHA-1 fingerprint |
-| **Web/PWA/Desktop** | "Web application" | Authorized redirect URIs |
-
-### Adımlar:
-1. Google Cloud Console > APIs & Services > Credentials
-2. "Create Credentials" > "OAuth 2.0 Client IDs"
-3. Her platform için ayrı credential oluşturun
-4. credentials.json dosyasını bana gönderin
+### 3. Stripe (Ödeme Entegrasyonu - Gelecek)
+**Adımlar:**
+1. [Stripe Dashboard](https://dashboard.stripe.com) → Developers → API Keys
+2. Publishable key ve Secret key al
+3. Webhook endpoint oluştur
+4. backend/.env'e ekle:
+   ```
+   STRIPE_SECRET_KEY=sk_test_...
+   STRIPE_PUBLISHABLE_KEY=pk_test_...
+   ```
 
 ## MOCKED APIs
-- Google Drive file operations (credentials bekleniyor)
+- Google Drive file operations (credentials.json bekleniyor)
 
-## 3rd Party Integrations
-| Service | Status |
-|---------|--------|
-| Gemini 3 Flash | ✅ Active |
-| Nano Banana | ✅ Active |
-| ElevenLabs TTS | ⚠️ Rate Limited |
-| Web Speech API | ✅ Active |
-| Google OAuth | ✅ Active |
-| Email Auth | ✅ Active |
+## Known Issues
+- ElevenLabs TTS: Kullanıcı API anahtarı rate-limited
 
 ## Last Updated: 2026-03-08
