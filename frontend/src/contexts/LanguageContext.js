@@ -102,6 +102,16 @@ const translations = {
     ring: 'Ring',
     connected: 'Connected',
     connectDrive: 'Connect Drive',
+    
+    // Subscription
+    subscription: 'Subscription',
+    choosePlan: 'Choose Your Plan',
+    planDescription: 'Unlock powerful features with ZET Mindshare Premium',
+    subscriptionNote: 'All plans include 7-day free trial. Cancel anytime.',
+    selectPlan: 'Select Plan',
+    recommended: 'RECOMMENDED',
+    fastSelect: 'Fast Select',
+    selected: 'selected',
   },
   tr: {
     // Login
@@ -204,6 +214,16 @@ const translations = {
     ring: 'Halka',
     connected: 'Bağlı',
     connectDrive: 'Drive Bağla',
+    
+    // Subscription
+    subscription: 'Abonelik',
+    choosePlan: 'Planınızı Seçin',
+    planDescription: 'ZET Mindshare Premium ile güçlü özelliklerin kilidini açın',
+    subscriptionNote: 'Tüm planlar 7 günlük ücretsiz deneme içerir. İstediğiniz zaman iptal edin.',
+    selectPlan: 'Planı Seç',
+    recommended: 'ÖNERİLEN',
+    fastSelect: 'Hızlı Seçim',
+    selected: 'seçildi',
   }
 };
 
