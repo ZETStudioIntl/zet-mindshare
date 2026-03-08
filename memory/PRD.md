@@ -14,68 +14,38 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - **Auth:** Google OAuth + Email/Password
 - **Export:** jsPDF, html2canvas
 
-## Implemented Features (55+ Tools)
+## Implemented Features (60+ Tools)
 
-### NEW TOOLS (This Session)
-- [x] **Copy Tool** - Ctrl+C/V kısayolları, üç nokta menüsünde
-- [x] **Mirror Tool** - Yatay/dikey ayna, rotation slider, preset butonları
-- [x] **Voice Input (STT)** - Web Speech API ile sesden metne
-- [x] **Email Auth** - Email/password ile kayıt ve giriş
+### THIS SESSION ADDITIONS
+- [x] **Templates** - CV, Report, Letter, Invoice, Presentation (çalışan içerikler)
+- [x] **51 Fonts** - Arial'dan Raleway'e kadar (Sans-Serif, Serif, Monospace, Display)
+- [x] **Fast Select Header** - İleri/geri butonlarının yanında
+- [x] **Ruler** - Yatay ve dikey cetvel (50px aralıklarla)
+- [x] **Grid** - SVG pattern ile grid çizgileri
 
-### Text & Formatting
-- [x] Text (T), Word Type (B), Text Size, Font (F), Line Spacing
-- [x] Paragraph Alignment, Color (C) with Hex
-- [x] Gradient Presets (Sunset, Ocean, Purple, Green, Fire, Night)
-- [x] Gradient for Text AND Shapes
-
-### Navigation & View
-- [x] Hand (H), Zoom (Z) - Otomatik Mouse Takipli Büyüteç
-- [x] Layers, Ruler (R), Grid
-
-### Image & Media
-- [x] Image (I), AI Image (W), QR Code (Q)
-
-### Drawing Tools
-- [x] Draw (D), Pen (P), Eraser (E) with drag mode
-- [x] Marking (M), Select (S) - Lasso with vector support
-- [x] Cut (X)
-
-### Data & Charts
-- [x] Graphic (G) - Bar, Pie, Line charts
-- [x] Her sütun için ayrı renk seçimi
-- [x] Grafiklere Image ve AI Image ekleme
-- [x] Table with custom rows/columns
-
-### Document Features
-- [x] Templates, Page Color, Page Size
-- [x] Add Page (N), Page Numbers
-- [x] Header/Footer, Watermark
-- [x] Find & Replace, Auto Page
-
-### Export & Integration
-- [x] Export PDF
-- [x] Translate (L) - 12 languages
-- [x] Google Drive (MOCK)
+### Core Tools
+- [x] Copy Tool (Ctrl+C/V), Mirror Tool (rotation), Voice Input (STT)
+- [x] Text, Word Type, Text Size, Font, Line Spacing, Paragraph, Color
+- [x] Gradient Presets (6 preset), Gradient for Text & Shapes
+- [x] Hand, Zoom (auto magnifier), Layers, Ruler, Grid
+- [x] Image, AI Image, QR Code
+- [x] Draw, Pen, Eraser (drag mode), Marking, Select (lasso), Cut
+- [x] Graphic (Bar/Pie/Line), Table
+- [x] Templates, Page Color, Page Size, Add Page, Page Numbers
+- [x] Header/Footer, Watermark, Find & Replace, Auto Page
+- [x] Export PDF, Translate (12 languages)
 
 ### Voice & AI
-- [x] Voice (V) - ElevenLabs TTS
-- [x] Voice Input (STT) - Web Speech API
-- [x] ZETA AI - Tüm belge içeriğini görüyor (text, shape, image, chart, table, vector)
-- [x] ZETA görsel gönderme + mesaj sesli dinleme
-
-### UI/UX Features
-- [x] Fast Select - Sayfanın üstünde 4 favori araç
-- [x] Shortcuts/Fast Select arama barları
-- [x] Akıcı panel sürükleme
-- [x] Mobilde shortcuts gizli
-- [x] Tooltip - Fare imleci üzerinde
+- [x] Voice TTS (ElevenLabs)
+- [x] Voice Input STT (Web Speech API)
+- [x] ZETA AI (tüm belge içeriğini görüyor)
 
 ### Auth
 - [x] Google OAuth
-- [x] Email/Password login & register
+- [x] Email/Password
 
-### Shapes (All with Gradient Support)
-- [x] Triangle, Square, Circle, Star, Ring
+### Shapes
+- [x] Triangle, Square, Circle, Star, Ring (all with gradient)
 
 ## Key API Endpoints
 - Auth: `/api/auth/session`, `/api/auth/me`, `/api/auth/register`, `/api/auth/login`
@@ -84,16 +54,13 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - Voice: `/api/voice/list`, `/api/voice/tts`
 
 ## Testing History
-- iteration_14: 100% ✅
-- iteration_15: 100% ✅
-- iteration_16: 100% ✅
-- iteration_17: 100% ✅ (Bug fixed: language variable in Voice Input)
+- iteration_14-17: 100% ✅
+- iteration_18: 100% ✅ (Templates, Fonts, Fast Select, Ruler, Grid)
 
 ## Prioritized Backlog
 
-### P1 (Next):
+### P1:
 - [ ] Google Drive gerçek OAuth entegrasyonu
-- [ ] Templates içerik oluşturma
 
 ### P2:
 - [ ] Real-time collaboration
@@ -106,16 +73,15 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 ## MOCKED
 - Google Drive (mock token, file operations)
 - iCloud
-- Templates content
 
 ## 3rd Party Integrations
-| Service | Status | Note |
-|---------|--------|------|
-| Gemini 3 Flash | ✅ Active | Emergent LLM Key |
-| Nano Banana | ✅ Active | Emergent LLM Key |
-| ElevenLabs TTS | ⚠️ Rate Limited | Needs paid plan |
-| Web Speech API | ✅ Active | Browser STT |
-| Google OAuth | ✅ Active | Via Emergent |
-| Email Auth | ✅ Active | Custom JWT |
+| Service | Status |
+|---------|--------|
+| Gemini 3 Flash | ✅ Active |
+| Nano Banana | ✅ Active |
+| ElevenLabs TTS | ⚠️ Rate Limited |
+| Web Speech API | ✅ Active |
+| Google OAuth | ✅ Active |
+| Email Auth | ✅ Active |
 
 ## Last Updated: 2026-03-07
