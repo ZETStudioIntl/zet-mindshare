@@ -18,7 +18,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
-  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -133,8 +133,15 @@ const Editor = () => {
   const [showZoom, setShowZoom] = useState(false);
   const [showExport, setShowExport] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [showPhotoEdit, setShowPhotoEdit] = useState(false);
   const [uploadForShape, setUploadForShape] = useState(null);
   const [changeImageTarget, setChangeImageTarget] = useState(null);
+
+  // Photo Edit state
+  const [photoEditImage, setPhotoEditImage] = useState(null);
+  const [photoEditPrompt, setPhotoEditPrompt] = useState('');
+  const [photoEditLoading, setPhotoEditLoading] = useState(false);
+  const [photoEditResult, setPhotoEditResult] = useState(null);
 
   // Page background color
   const [pageBackground, setPageBackground] = useState('#ffffff');
@@ -434,8 +441,66 @@ const Editor = () => {
       mirror: () => setShowMirror(true),
       voiceinput: () => setShowVoiceInput(true),
       export: () => setShowExport(true),
+      photoedit: () => setShowPhotoEdit(true),
     };
     if (panels[toolId]) panels[toolId]();
+  };
+
+  // === PHOTO EDIT ===
+  const handlePhotoEditUpload = () => {
+    const input = window.document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setPhotoEditImage(ev.target.result);
+          setPhotoEditResult(null);
+        };
+        reader.readAsDataURL(file);
+      }
+    };
+    input.click();
+  };
+
+  const executePhotoEdit = async () => {
+    if (!photoEditImage || !photoEditPrompt.trim()) return;
+    setPhotoEditLoading(true);
+    try {
+      const res = await axios.post(`${API}/zeta/photo-edit`, {
+        image_data: photoEditImage,
+        edit_prompt: photoEditPrompt
+      });
+      if (res.data.images && res.data.images.length > 0) {
+        setPhotoEditResult(`data:${res.data.images[0].mime_type};base64,${res.data.images[0].data}`);
+      }
+    } catch (err) {
+      console.error('Photo edit failed:', err);
+      alert('Photo edit failed. Please try again.');
+    }
+    setPhotoEditLoading(false);
+  };
+
+  const addEditedPhotoToCanvas = () => {
+    if (!photoEditResult) return;
+    const newEl = {
+      id: `el_${Date.now()}`,
+      type: 'image',
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 200,
+      src: photoEditResult
+    };
+    const updated = [...canvasElements, newEl];
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+    setShowPhotoEdit(false);
+    setPhotoEditImage(null);
+    setPhotoEditPrompt('');
+    setPhotoEditResult(null);
   };
 
   // === TEXT ALIGNMENT ===
@@ -1404,6 +1469,57 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
+    {/* Photo Edit Panel */}
+    {showPhotoEdit && <DraggablePanel title="AI Photo Edit" onClose={() => { setShowPhotoEdit(false); setPhotoEditImage(null); setPhotoEditResult(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="space-y-3 w-64">
+        {!photoEditImage ? (
+          <button onClick={handlePhotoEditUpload} className="zet-btn w-full py-6 flex flex-col items-center gap-2">
+            <ImagePlus className="h-6 w-6" />
+            <span className="text-sm">{t('selectPhoto') || 'Select Photo'}</span>
+          </button>
+        ) : (
+          <>
+            <div className="flex gap-2">
+              <div className="flex-1">
+                <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Original</p>
+                <img src={photoEditImage} alt="Original" className="w-full h-24 object-cover rounded" />
+              </div>
+              {photoEditResult && (
+                <div className="flex-1">
+                  <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Edited</p>
+                  <img src={photoEditResult} alt="Edited" className="w-full h-24 object-cover rounded" />
+                </div>
+              )}
+            </div>
+            <textarea
+              placeholder={t('photoEditPrompt') || "Describe the changes... (e.g., 'Remove background', 'Make it sunset', 'Add snow')"}
+              value={photoEditPrompt}
+              onChange={e => setPhotoEditPrompt(e.target.value)}
+              className="zet-input w-full text-xs h-16 resize-none"
+            />
+            <div className="flex gap-2">
+              <button 
+                onClick={executePhotoEdit} 
+                disabled={photoEditLoading || !photoEditPrompt.trim()}
+                className="zet-btn flex-1 py-2 flex items-center justify-center gap-2"
+              >
+                {photoEditLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
+                {t('edit') || 'Edit'}
+              </button>
+              {photoEditResult && (
+                <button onClick={addEditedPhotoToCanvas} className="zet-btn flex-1 py-2 flex items-center justify-center gap-2" style={{ background: 'var(--zet-primary)' }}>
+                  <Plus className="h-4 w-4" /> Add
+                </button>
+              )}
+            </div>
+            <button onClick={handlePhotoEditUpload} className="text-xs underline w-full text-center" style={{ color: 'var(--zet-text-muted)' }}>
+              {t('selectDifferent') || 'Select different photo'}
+            </button>
+          </>
+        )}
+      </div>
+    </DraggablePanel>}
+
     {/* Graphic Chart Panel */}
     {showGraphic && <DraggablePanel title="Chart" onClose={() => setShowGraphic(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-80 space-y-3 max-h-[70vh] overflow-y-auto">
@@ -1828,7 +1944,7 @@ const Editor = () => {
   // =============================
   if (isMobile) {
     return (
-      <div data-testid="editor-page" className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
+      <div data-testid="editor-page" className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
         {/* Mobile Header */}
         <header className="h-11 px-2 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
           <div className="flex items-center gap-1">
@@ -1842,50 +1958,89 @@ const Editor = () => {
           </div>
         </header>
 
-        {/* Mobile Canvas */}
-        <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
-          canvasElements={canvasElements} setCanvasElements={setCanvasElements}
-          drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
-          activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
-          currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
-          drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
-          markingColor={markingColor} markingOpacity={markingOpacity} markingSize={markingSize}
-          selectedElement={selectedElement} setSelectedElement={setSelectedElement}
-          selectedElements={selectedElements} setSelectedElements={setSelectedElements}
-          onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
-          onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
-          onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
-          onAddAiImageToShape={handleAddAiImageToShape}
-          isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
-          pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
-          zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
-          rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
+        {/* Mobile Canvas - with touch scroll fix */}
+        <div className="flex-1 overflow-hidden relative" style={{ touchAction: 'pan-x pan-y' }}>
+          <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
+            canvasElements={canvasElements} setCanvasElements={setCanvasElements}
+            drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
+            activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
+            currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
+            drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
+            markingColor={markingColor} markingOpacity={markingOpacity} markingSize={markingSize}
+            selectedElement={selectedElement} setSelectedElement={setSelectedElement}
+            selectedElements={selectedElements} setSelectedElements={setSelectedElements}
+            onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
+            onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
+            onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
+            onAddAiImageToShape={handleAddAiImageToShape}
+            isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
+            pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
+            zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
+            onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
+            rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
+        </div>
 
-        {/* Mobile Bottom Toolbar */}
-        <div className="border-t flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
-          <div className="flex items-center overflow-x-auto px-1 py-1.5 gap-0.5 no-scrollbar mobile-toolbar">
-            {TOOLS.filter(t => t.id !== 'addpage').map(tool => (
-              <button key={tool.id} onClick={() => handleToolSelect(tool.id)}
-                className={`tool-btn flex-shrink-0 ${activeTool === tool.id ? 'active' : ''}`}>
-                <tool.icon className="h-4 w-4" />
-              </button>
-            ))}
+        {/* Mobile Bottom Navigation Bar */}
+        <div className="border-t flex-shrink-0 safe-area-bottom" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
+          <div className="flex items-center justify-around py-2 px-2">
+            {/* Toolbox Button */}
+            <button 
+              onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}
+              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all ${mobilePanel === 'tools' ? 'bg-white/10' : ''}`}
+            >
+              <Menu className="h-5 w-5" style={{ color: mobilePanel === 'tools' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }} />
+              <span className="text-xs" style={{ color: mobilePanel === 'tools' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>Tools</span>
+            </button>
+            
+            {/* Pages Button */}
+            <button 
+              onClick={() => setMobilePanel(mobilePanel === 'pages' ? null : 'pages')}
+              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all ${mobilePanel === 'pages' ? 'bg-white/10' : ''}`}
+            >
+              <Layers className="h-5 w-5" style={{ color: mobilePanel === 'pages' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }} />
+              <span className="text-xs" style={{ color: mobilePanel === 'pages' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>Pages</span>
+            </button>
+            
+            {/* ZETA Chat Button */}
+            <button 
+              onClick={() => setMobilePanel(mobilePanel === 'zeta' ? null : 'zeta')}
+              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all ${mobilePanel === 'zeta' ? 'bg-white/10' : ''}`}
+            >
+              <Sparkles className="h-5 w-5" style={{ color: mobilePanel === 'zeta' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }} />
+              <span className="text-xs" style={{ color: mobilePanel === 'zeta' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>AI Chat</span>
+            </button>
           </div>
         </div>
 
-        {/* Mobile Floating Action Buttons */}
-        <div className="fixed right-3 bottom-20 flex flex-col gap-2 z-40">
-          <button onClick={() => setMobilePanel(mobilePanel === 'pages' ? null : 'pages')}
-            className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center ${mobilePanel === 'pages' ? 'glow-sm' : ''}`}
-            style={{ background: 'var(--zet-primary)' }}><Layers className="h-4 w-4 text-white" /></button>
-          <button onClick={() => setMobilePanel(mobilePanel === 'zeta' ? null : 'zeta')}
-            className={`w-10 h-10 rounded-full shadow-lg flex items-center justify-center ${mobilePanel === 'zeta' ? 'glow-sm' : ''}`}
-            style={{ background: 'var(--zet-primary-light)' }}><Sparkles className="h-4 w-4 text-white" /></button>
-        </div>
+        {/* Mobile Tools Panel */}
+        {mobilePanel === 'tools' && (
+          <div className="fixed inset-0 z-50 flex flex-col" onClick={(e) => e.target === e.currentTarget && setMobilePanel(null)}>
+            <div className="flex-1" onClick={() => setMobilePanel(null)} />
+            <div className="rounded-t-2xl max-h-[60vh] overflow-y-auto" style={{ background: 'var(--zet-bg-card)' }}>
+              <div className="sticky top-0 p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
+                <span className="font-medium" style={{ color: 'var(--zet-text)' }}>Tools</span>
+                <button onClick={() => setMobilePanel(null)} className="p-1 rounded hover:bg-white/10">
+                  <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+                </button>
+              </div>
+              <div className="grid grid-cols-5 gap-2 p-3">
+                {TOOLS.map(tool => (
+                  <button 
+                    key={tool.id} 
+                    onClick={() => { handleToolSelect(tool.id); if (!['text', 'draw', 'pen', 'marking', 'eraser', 'select'].includes(tool.id)) setMobilePanel(null); }}
+                    className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTool === tool.id ? 'bg-white/10 ring-1 ring-blue-500' : 'hover:bg-white/5'}`}
+                  >
+                    <tool.icon className="h-5 w-5" style={{ color: activeTool === tool.id ? 'var(--zet-primary-light)' : 'var(--zet-text)' }} />
+                    <span className="text-xs truncate w-full text-center" style={{ color: 'var(--zet-text-muted)' }}>{t(tool.nameKey) || tool.nameKey}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
 
-        {/* Mobile Side Panel */}
-        {mobilePanel && (
+        {/* Mobile Side Panel (Pages/ZETA) */}
+        {(mobilePanel === 'pages' || mobilePanel === 'zeta') && (
           <div className="fixed inset-0 z-50 flex">
             <div className="flex-1 bg-black/40" onClick={() => setMobilePanel(null)} />
             <div className="w-72 h-full" style={{ background: 'var(--zet-bg-card)' }}>

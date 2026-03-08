@@ -5,7 +5,7 @@ import {
   Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
   AlignLeft, BarChart3, Contrast, ZoomIn, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
-  PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic
+  PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -52,6 +52,7 @@ export const TOOLS = [
   { id: 'zoom', icon: ZoomIn, nameKey: 'zoom', shortcut: 'Z' },
   { id: 'image', icon: Image, nameKey: 'image', shortcut: 'I' },
   { id: 'createimage', icon: Wand2, nameKey: 'aiImage', shortcut: 'W' },
+  { id: 'photoedit', icon: ImagePlus, nameKey: 'photoEdit', shortcut: null },
   { id: 'draw', icon: Pencil, nameKey: 'pencil', shortcut: 'D' },
   { id: 'pen', icon: PenTool, nameKey: 'penTool', shortcut: 'P' },
   { id: 'eraser', icon: Eraser, nameKey: 'eraser', shortcut: 'E' },

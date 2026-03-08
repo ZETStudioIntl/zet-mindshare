@@ -558,15 +558,18 @@ export const CanvasArea = ({
   };
 
   return (
-    <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto p-6" style={{ background: 'var(--zet-bg-light)' }}>
+    <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto p-6" style={{ background: 'var(--zet-bg-light)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'none', WebkitOverflowScrolling: 'touch' }}>
       <div className="flex flex-col items-center gap-6">
         {doc.pages?.map((page, idx) => (
           <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
             className={`shadow-xl relative select-none ${idx === currentPage ? 'ring-2' : 'opacity-80'}`}
-            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg }}
+            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'manipulation' : 'none' }}
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
-            onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
+            onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+            onTouchStart={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseDown(e, idx); } }}
+            onTouchMove={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseMove(e, idx); } }}
+            onTouchEnd={(e) => { if (activeTool !== 'hand') { handleMouseUp(e); } }}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
             
             {/* Ruler - Horizontal */}
@@ -667,21 +670,35 @@ export const CanvasArea = ({
               {cropTarget && cropRect && idx === currentPage && (<><rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" /><rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" /></>)}
             </svg>
             
-            {/* Magnifier effect - simplified approach */}
+            {/* Magnifier effect - real zoom */}
             {activeTool === 'zoom' && magnifierActive && idx === currentPage && (
               <div 
-                className="absolute pointer-events-none rounded-full border-2 border-blue-400 shadow-xl z-50"
+                className="absolute pointer-events-none rounded-full border-4 border-blue-400 shadow-2xl z-50 overflow-hidden"
                 style={{
-                  left: magnifierPosition.x * zoom - 40,
-                  top: magnifierPosition.y * zoom - 40,
-                  width: 80,
-                  height: 80,
-                  background: `radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.3) 100%)`,
-                  backdropFilter: 'blur(0px)',
+                  left: magnifierPosition.x * zoom - (zoomRadius || 50),
+                  top: magnifierPosition.y * zoom - (zoomRadius || 50),
+                  width: (zoomRadius || 50) * 2,
+                  height: (zoomRadius || 50) * 2,
+                  background: pageBg,
                 }}
               >
-                <div className="absolute inset-0 flex items-center justify-center text-blue-400 text-xs font-bold">
-                  {Math.round((zoomLevel || 2) * 100)}%
+                <div 
+                  style={{
+                    position: 'absolute',
+                    left: '50%',
+                    top: '50%',
+                    width: '100%',
+                    height: '100%',
+                    transform: `translate(-50%, -50%) scale(${zoomLevel || 2})`,
+                    transformOrigin: 'center center',
+                    backgroundImage: `url(${canvasContainerRef?.current?.querySelector('svg')?.outerHTML ? `data:image/svg+xml,${encodeURIComponent(canvasContainerRef?.current?.querySelector('svg')?.outerHTML || '')}` : 'none'})`,
+                    backgroundPosition: `${50 - (magnifierPosition.x / (page.pageSize?.width || pageSize.width)) * 100}% ${50 - (magnifierPosition.y / (page.pageSize?.height || pageSize.height)) * 100}%`,
+                    backgroundSize: 'cover',
+                    backgroundRepeat: 'no-repeat',
+                  }}
+                />
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-blue-400 text-xs font-bold bg-black/50 px-1 rounded">{Math.round((zoomLevel || 2) * 100)}%</span>
                 </div>
               </div>
             )}
