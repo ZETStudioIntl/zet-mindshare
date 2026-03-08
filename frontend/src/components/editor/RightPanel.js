@@ -20,6 +20,8 @@ export const RightPanel = ({
   onExport,
   exporting,
   documentContent, // Text content from canvas elements
+  userUsage,
+  userPlan,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -407,11 +409,27 @@ export const RightPanel = ({
               className="flex-1 p-2 overflow-y-auto text-xs" 
               style={{ background: 'linear-gradient(135deg, #4b0c37 0%, #1a0a14 100%)' }}
             >
-              {judgeMessages.length === 0 && (
+              {/* Free plan lock message */}
+              {userPlan === 'free' && judgeMessages.length === 0 && (
+                <div className="text-center py-6" style={{ color: '#c8005a' }}>
+                  <div className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center" style={{ background: 'rgba(200, 0, 90, 0.2)', border: '2px solid #c8005a' }}>
+                    <Scale className="h-6 w-6" />
+                  </div>
+                  <p className="font-semibold text-sm">ZET Judge Mini</p>
+                  <p className="text-xs mt-2 opacity-70">⚠️ Free planda kullanılamaz</p>
+                  <p className="text-xs mt-1 opacity-50">Plus veya üzeri plana yükseltin</p>
+                </div>
+              )}
+              {userPlan !== 'free' && judgeMessages.length === 0 && (
                 <div className="text-center py-6" style={{ color: '#c8005a' }}>
                   <Scale className="h-6 w-6 mx-auto mb-2 opacity-70" />
                   <p className="font-semibold">ZET Judge Mini</p>
                   <p className="text-xs mt-1 opacity-70">İş analizi • Vizyon • Strateji</p>
+                  {userUsage && (
+                    <p className="text-xs mt-2 opacity-50">
+                      Kalan: {userUsage.remaining?.judge_basic || 0} temel, {userUsage.remaining?.judge_deep || 0} derin
+                    </p>
+                  )}
                 </div>
               )}
               {judgeMessages.map((msg, i) => (

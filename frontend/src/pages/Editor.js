@@ -205,6 +205,10 @@ const Editor = () => {
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
   });
 
+  // Usage & Subscription state
+  const [userUsage, setUserUsage] = useState(null);
+  const [userPlan, setUserPlan] = useState('free');
+
   // Export state
   const [exporting, setExporting] = useState(false);
 
@@ -331,6 +335,20 @@ const Editor = () => {
   // === DATA LOADING ===
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDocument(); }, [docId]);
+
+  // Fetch user usage and plan
+  useEffect(() => {
+    const fetchUsage = async () => {
+      try {
+        const res = await axios.get(`${API}/usage`, { withCredentials: true });
+        setUserUsage(res.data);
+        setUserPlan(res.data.plan || 'free');
+      } catch (err) {
+        console.log('Failed to fetch usage');
+      }
+    };
+    fetchUsage();
+  }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
@@ -1175,11 +1193,31 @@ const Editor = () => {
   // === AI IMAGE ===
   const generateAIImage = async () => {
     if (!aiPrompt.trim()) return;
+    
+    // Check usage limit before making request
+    if (userUsage && userUsage.remaining?.ai_images <= 0) {
+      alert(`⚠️ Günlük AI görsel limitinize ulaştınız (${userUsage.limits?.ai_images || 0}/${userUsage.limits?.ai_images || 0}).\n\nYarın tekrar deneyin veya planınızı yükseltin.`);
+      return;
+    }
+    
     setAiGenerating(true); setAiPreview(null);
     try {
       const res = await axios.post(`${API}/zeta/generate-image`, { prompt: aiPrompt, reference_image: aiReference }, { withCredentials: true });
-      if (res.data.images?.length > 0) { setAiMimeType(res.data.images[0].mime_type || 'image/png'); setAiPreview(res.data.images[0].data); }
-    } catch {}
+      if (res.data.images?.length > 0) { 
+        setAiMimeType(res.data.images[0].mime_type || 'image/png'); 
+        setAiPreview(res.data.images[0].data);
+        // Update local usage count
+        setUserUsage(prev => prev ? {
+          ...prev,
+          usage: { ...prev.usage, ai_images: (prev.usage?.ai_images || 0) + 1 },
+          remaining: { ...prev.remaining, ai_images: Math.max(0, (prev.remaining?.ai_images || 0) - 1) }
+        } : prev);
+      }
+    } catch (err) {
+      if (err.response?.status === 429) {
+        alert(err.response?.data?.detail || 'Günlük AI görsel limitinize ulaştınız.');
+      }
+    }
     setAiGenerating(false); setAiPrompt('');
   };
 
@@ -1496,10 +1534,19 @@ const Editor = () => {
     </DraggablePanel>}
     {showCreateImage && <DraggablePanel title={aiTargetShape ? "AI Image (Shape)" : "AI Image"} onClose={() => { setShowCreateImage(false); setAiPreview(null); setAiTargetShape(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-72 space-y-3">
+        {/* Usage limit info */}
+        {userUsage && (
+          <div className="text-xs px-2 py-1.5 rounded flex items-center justify-between" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
+            <span style={{ color: 'var(--zet-text-muted)' }}>Kalan AI Görsel:</span>
+            <span style={{ color: userUsage.remaining?.ai_images > 0 ? '#22c55e' : '#ef4444' }}>
+              {userUsage.remaining?.ai_images || 0} / {userUsage.limits?.ai_images || 0}
+            </span>
+          </div>
+        )}
         {aiTargetShape && <div className="text-xs px-2 py-1.5 rounded" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>Adding to: {aiTargetShape.startsWith('vector_') ? 'Vector Shape' : 'Shape'}</div>}
         <div><label className="text-xs mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Reference</label><label className="zet-btn text-xs w-full flex items-center justify-center gap-1 cursor-pointer py-2"><Upload className="h-3 w-3" />{aiReference ? 'Loaded' : 'Upload'}<input type="file" accept="image/*" onChange={e => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = ev => setAiReference(ev.target.result.split(',')[1]); r.readAsDataURL(f); } }} className="hidden" /></label></div>
         {aiPreview && <div className="space-y-2"><img data-testid="ai-image-preview" src={`data:${aiMimeType};base64,${aiPreview}`} alt="AI" className="w-full rounded border" style={{ borderColor: 'var(--zet-border)', maxHeight: 200, objectFit: 'contain' }} /><button data-testid="ai-image-add-btn" onClick={addAiImageToCanvas} className="zet-btn w-full flex items-center justify-center gap-1.5 text-sm py-2"><Plus className="h-4 w-4" /> {aiTargetShape ? 'Add to Shape' : 'Add to Document'}</button></div>}
-        <div className="flex gap-1"><input data-testid="ai-image-prompt" placeholder="Describe image..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateAIImage()} className="zet-input flex-1 text-xs" /><button data-testid="ai-image-generate-btn" onClick={generateAIImage} disabled={aiGenerating} className="zet-btn px-2">{aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}</button></div>
+        <div className="flex gap-1"><input data-testid="ai-image-prompt" placeholder="Describe image..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateAIImage()} className="zet-input flex-1 text-xs" /><button data-testid="ai-image-generate-btn" onClick={generateAIImage} disabled={aiGenerating || (userUsage?.remaining?.ai_images === 0)} className="zet-btn px-2">{aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}</button></div>
         
         {/* Photo Edit Shortcut */}
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
@@ -2278,7 +2325,7 @@ const Editor = () => {
                 pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
                 docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
                 forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} 
-                documentContent={getFullDocContent()} />
+                documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan} />
             </div>
           </div>
         )}
@@ -2406,7 +2453,7 @@ const Editor = () => {
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
           docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-          onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} />
+          onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan} />
       </div>
 
       {showVoice && (
