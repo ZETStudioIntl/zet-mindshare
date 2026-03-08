@@ -1,15 +1,30 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
-  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight
+  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
+  Bell, BellRing, Upload, FileEdit, Crown
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Available languages
+const LANGUAGES = [
+  { code: 'en', name: 'English', flag: '🇬🇧' },
+  { code: 'tr', name: 'Türkçe', flag: '🇹🇷' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'ar', name: 'العربية', flag: '🇸🇦' },
+  { code: 'ru', name: 'Русский', flag: '🇷🇺' },
+  { code: 'ja', name: '日本語', flag: '🇯🇵' },
+  { code: 'ko', name: '한국어', flag: '🇰🇷' },
+  { code: 'zh', name: '中文', flag: '🇨🇳' },
+];
 
 const PAGE_SIZES = [
   { name: 'A4', width: 595, height: 842 },
@@ -20,7 +35,7 @@ const PAGE_SIZES = [
 ];
 
 const Dashboard = () => {
-  const { user, logout } = useAuth();
+  const { user, logout, updateUser } = useAuth();
   const { t, language, changeLanguage } = useLanguage();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('documents');
@@ -28,9 +43,13 @@ const Dashboard = () => {
   const [notes, setNotes] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNote, setQuickNote] = useState('');
+  const [noteReminder, setNoteReminder] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [showNewDoc, setShowNewDoc] = useState(false);
+  const [showLanguages, setShowLanguages] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
+  const [newDocType, setNewDocType] = useState('new'); // 'new' or 'pdf'
+  const [pdfFile, setPdfFile] = useState(null);
   const [selectedPageSize, setSelectedPageSize] = useState(PAGE_SIZES[0]);
   const [loading, setLoading] = useState(true);
   const [driveConnected, setDriveConnected] = useState(false);
@@ -49,8 +68,14 @@ const Dashboard = () => {
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
   });
   const [showSubscription, setShowSubscription] = useState(false);
-  const [billingCycle, setBillingCycle] = useState('yearly'); // 'monthly' or 'yearly'
-  const [currentPlanIndex, setCurrentPlanIndex] = useState(2); // Start from Ultra (biggest)
+  const [billingCycle, setBillingCycle] = useState('yearly');
+  const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
+  const [userSubscription, setUserSubscription] = useState('free');
+  const [subscribing, setSubscribing] = useState(false);
+
+  // Fast select limits based on subscription
+  const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, ultra: 8 };
+  const fastSelectLimit = FAST_SELECT_LIMITS[userSubscription] || 3;
 
   // Subscription plans data - ordered from biggest to smallest
   const SUBSCRIPTION_PLANS = [
@@ -59,7 +84,7 @@ const Dashboard = () => {
       name: 'Ultra',
       monthlyPrice: 39.99,
       yearlyPrice: 399.99,
-      features: ['Unlimited Storage', 'Unlimited AI Images', 'All Templates', '24/7 Support', 'API Access', 'Team Collaboration', 'White Label', 'ZET Judge Pro'],
+      features: ['Unlimited Storage', 'Unlimited AI Images', 'All Templates', '24/7 Support', 'API Access', 'Team Collaboration', 'White Label', 'ZET Judge Pro', 'Fast Select: 8 tools'],
       color: '#f59e0b',
       recommended: false
     },
@@ -68,7 +93,7 @@ const Dashboard = () => {
       name: 'Pro',
       monthlyPrice: 19.99,
       yearlyPrice: 199.99,
-      features: ['25GB Cloud Storage', '200 AI Images/month', 'All Templates', 'Priority Support', 'Custom Fonts', 'No Watermark', 'ZET Judge Mini'],
+      features: ['25GB Cloud Storage', '200 AI Images/month', 'All Templates', 'Priority Support', 'Custom Fonts', 'No Watermark', 'ZET Judge Mini', 'Fast Select: 8 tools'],
       color: '#8b5cf6',
       recommended: true
     },
@@ -77,7 +102,7 @@ const Dashboard = () => {
       name: 'Plus',
       monthlyPrice: 9.99,
       yearlyPrice: 99.99,
-      features: ['5GB Cloud Storage', '50 AI Images/month', 'Basic Templates', 'Email Support'],
+      features: ['5GB Cloud Storage', '50 AI Images/month', 'Basic Templates', 'Email Support', 'Fast Select: 5 tools'],
       color: '#3b82f6',
       recommended: false
     }
@@ -86,6 +111,8 @@ const Dashboard = () => {
   useEffect(() => {
     fetchData();
     checkDriveConnection();
+    fetchSubscription();
+    requestNotificationPermission();
     // Check if redirected from Drive OAuth
     const params = new URLSearchParams(window.location.search);
     if (params.get('drive_connected') === 'true') {
@@ -93,6 +120,67 @@ const Dashboard = () => {
       window.history.replaceState({}, '', '/dashboard');
     }
   }, []);
+
+  // Check for due reminders every 30 seconds
+  useEffect(() => {
+    const checkReminders = async () => {
+      try {
+        const res = await axios.get(`${API}/notes/reminders`, { withCredentials: true });
+        res.data.forEach(note => {
+          showNotification(note.content);
+          axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true });
+        });
+      } catch { /* ignore */ }
+    };
+    const interval = setInterval(checkReminders, 30000);
+    checkReminders();
+    return () => clearInterval(interval);
+  }, []);
+
+  const requestNotificationPermission = () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  };
+
+  const showNotification = (message) => {
+    if ('Notification' in window && Notification.permission === 'granted') {
+      new Notification('ZET Mindshare Reminder', { body: message, icon: '/logo192.png' });
+    }
+  };
+
+  const fetchSubscription = async () => {
+    try {
+      const res = await axios.get(`${API}/subscription`, { withCredentials: true });
+      setUserSubscription(res.data.plan || 'free');
+    } catch { setUserSubscription('free'); }
+  };
+
+  const handleSubscribe = async (planId) => {
+    setSubscribing(true);
+    try {
+      const res = await axios.post(`${API}/subscription`, { plan: planId, action: 'subscribe' }, { withCredentials: true });
+      setUserSubscription(res.data.plan);
+      setShowSubscription(false);
+      alert(`${planId.toUpperCase()} planına başarıyla abone oldunuz! (Demo)`);
+    } catch (err) {
+      alert('Subscription failed');
+    }
+    setSubscribing(false);
+  };
+
+  const handleCancelSubscription = async () => {
+    if (!window.confirm('Aboneliğinizi iptal etmek istediğinizden emin misiniz?')) return;
+    setSubscribing(true);
+    try {
+      await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
+      setUserSubscription('free');
+      alert('Aboneliğiniz iptal edildi (Demo)');
+    } catch (err) {
+      alert('Cancel failed');
+    }
+    setSubscribing(false);
+  };
 
   const checkDriveConnection = async () => {
     try {
@@ -132,16 +220,35 @@ const Dashboard = () => {
   const createDocument = async () => {
     const title = newDocTitle.trim() || 'Untitled Document';
     try {
-      const res = await axios.post(`${API}/documents`, {
+      const payload = {
         title: title,
-        doc_type: 'document',
+        doc_type: newDocType === 'pdf' ? 'pdf_edit' : 'document',
         pageSize: selectedPageSize
-      }, { withCredentials: true });
+      };
+      // If PDF file is selected, add file_data
+      if (newDocType === 'pdf' && pdfFile) {
+        payload.file_data = pdfFile;
+      }
+      const res = await axios.post(`${API}/documents`, payload, { withCredentials: true });
       setShowNewDoc(false);
       setNewDocTitle('');
+      setNewDocType('new');
+      setPdfFile(null);
       navigate(`/editor/${res.data.doc_id}`);
     } catch (error) {
       console.error('Error creating document:', error);
+    }
+  };
+
+  const handlePdfUpload = (e) => {
+    const file = e.target.files[0];
+    if (file && file.type === 'application/pdf') {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setPdfFile(ev.target.result);
+        setNewDocTitle(file.name.replace('.pdf', ''));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -157,9 +264,13 @@ const Dashboard = () => {
   const addQuickNote = async () => {
     if (!quickNote.trim()) return;
     try {
-      const res = await axios.post(`${API}/notes`, { content: quickNote }, { withCredentials: true });
+      const res = await axios.post(`${API}/notes`, { 
+        content: quickNote,
+        reminder_time: noteReminder || null
+      }, { withCredentials: true });
       setNotes([res.data, ...notes]);
       setQuickNote('');
+      setNoteReminder('');
     } catch (error) {
       console.error('Error adding note:', error);
     }
@@ -249,31 +360,58 @@ const Dashboard = () => {
 
           {/* Language Selector */}
           <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            <label className="flex items-center gap-2 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
-              <Globe className="h-4 w-4" /> {t('language')}
-            </label>
-            <div className="flex gap-2">
-              <button 
-                onClick={() => changeLanguage('en')}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${language === 'en' ? 'glow-sm' : ''}`}
-                style={{ 
-                  background: language === 'en' ? 'var(--zet-primary)' : 'var(--zet-bg)',
-                  color: 'var(--zet-text)'
-                }}
-              >
-                English
-              </button>
-              <button 
-                onClick={() => changeLanguage('tr')}
-                className={`flex-1 py-2 px-3 rounded-lg text-sm transition-all ${language === 'tr' ? 'glow-sm' : ''}`}
-                style={{ 
-                  background: language === 'tr' ? 'var(--zet-primary)' : 'var(--zet-bg)',
-                  color: 'var(--zet-text)'
-                }}
-              >
-                Türkçe
-              </button>
+            <button 
+              onClick={() => setShowLanguages(!showLanguages)}
+              className="flex items-center justify-between w-full p-2 rounded hover:bg-white/5"
+            >
+              <span className="flex items-center gap-2" style={{ color: 'var(--zet-text-muted)' }}>
+                <Globe className="h-4 w-4" /> {t('language') || 'Language'}
+              </span>
+              <span className="text-sm" style={{ color: 'var(--zet-text)' }}>
+                {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
+              </span>
+            </button>
+            {showLanguages && (
+              <div className="grid grid-cols-2 gap-1 mt-2 max-h-48 overflow-y-auto">
+                {LANGUAGES.map(lang => (
+                  <button 
+                    key={lang.code}
+                    onClick={() => { changeLanguage(lang.code); setShowLanguages(false); }}
+                    className={`flex items-center gap-2 p-2 rounded text-sm transition-all ${language === lang.code ? 'ring-1 ring-blue-500' : 'hover:bg-white/5'}`}
+                    style={{ background: language === lang.code ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}
+                  >
+                    <span>{lang.flag}</span>
+                    <span className="truncate">{lang.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Current Subscription Status */}
+          <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+            <div className="flex items-center justify-between p-2 rounded" style={{ background: userSubscription !== 'free' ? 'linear-gradient(135deg, #8b5cf620, #f59e0b20)' : 'var(--zet-bg)' }}>
+              <div className="flex items-center gap-2">
+                {userSubscription !== 'free' && <Crown className="h-4 w-4 text-yellow-500" />}
+                <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan') || 'Current Plan'}</span>
+              </div>
+              <span className="font-bold" style={{ 
+                color: userSubscription === 'ultra' ? '#f59e0b' : 
+                       userSubscription === 'pro' ? '#8b5cf6' : 
+                       userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)'
+              }}>
+                {userSubscription.toUpperCase()}
+              </span>
             </div>
+            {userSubscription !== 'free' && (
+              <button 
+                onClick={handleCancelSubscription}
+                disabled={subscribing}
+                className="text-xs text-red-400 hover:text-red-300 mt-2 w-full text-center"
+              >
+                {t('cancelSubscription') || 'Cancel Subscription'}
+              </button>
+            )}
           </div>
 
           {/* Google Drive Connection */}
@@ -313,7 +451,7 @@ const Dashboard = () => {
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: 'var(--zet-text-muted)' }}
           >
-            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Fast Select'}
+            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Fast Select'} ({fastSelectTools.length}/{fastSelectLimit})
           </button>
 
           {/* Subscription */}
@@ -408,7 +546,15 @@ const Dashboard = () => {
                   <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
                   <div className="min-w-0 flex-1">
                     <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
-                    <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
+                      {note.reminder_time && (
+                        <span className="text-xs flex items-center gap-1 px-2 py-0.5 rounded" style={{ background: note.reminder_sent ? 'var(--zet-bg)' : 'rgba(234, 179, 8, 0.2)', color: note.reminder_sent ? 'var(--zet-text-muted)' : '#eab308' }}>
+                          {note.reminder_sent ? <Bell className="h-3 w-3" /> : <BellRing className="h-3 w-3" />}
+                          {new Date(note.reminder_time).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <button 
@@ -430,7 +576,7 @@ const Dashboard = () => {
 
         {/* Quick Note Input */}
         <div className="zet-card p-4 mb-20">
-          <div className="flex gap-2">
+          <div className="flex gap-2 mb-2">
             <input
               type="text"
               placeholder={t('quickNote')}
@@ -448,6 +594,25 @@ const Dashboard = () => {
               <Plus className="h-5 w-5" />
             </button>
           </div>
+          {/* Reminder time input */}
+          <div className="flex items-center gap-2">
+            <Bell className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+            <input
+              type="datetime-local"
+              value={noteReminder}
+              onChange={(e) => setNoteReminder(e.target.value)}
+              className="zet-input flex-1 text-xs"
+              style={{ background: 'var(--zet-bg)' }}
+            />
+            {noteReminder && (
+              <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10">
+                <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            )}
+          </div>
+          <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
+            {t('setReminder') || 'Set a reminder to get notified'}
+          </p>
         </div>
       </main>
 
@@ -481,15 +646,66 @@ const Dashboard = () => {
 
       {/* New Document Modal */}
       {showNewDoc && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => setShowNewDoc(false)}>
-          <div className="zet-card p-6 max-w-sm w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowNewDoc(false); setNewDocType('new'); setPdfFile(null); }}>
+          <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('newDocument')}</h3>
-              <button onClick={() => setShowNewDoc(false)} className="p-1 rounded hover:bg-white/10">
+              <button onClick={() => { setShowNewDoc(false); setNewDocType('new'); setPdfFile(null); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
               </button>
             </div>
             
+            {/* Document Type Selection */}
+            <div className="grid grid-cols-2 gap-3 mb-4">
+              <button
+                onClick={() => { setNewDocType('new'); setPdfFile(null); }}
+                className={`p-4 rounded-lg text-center transition-all ${newDocType === 'new' ? 'ring-2 ring-blue-500' : ''}`}
+                style={{ background: newDocType === 'new' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
+              >
+                <Plus className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--zet-text)' }} />
+                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('newDocument') || 'New Document'}</span>
+              </button>
+              <button
+                onClick={() => setNewDocType('pdf')}
+                className={`p-4 rounded-lg text-center transition-all ${newDocType === 'pdf' ? 'ring-2 ring-blue-500' : ''}`}
+                style={{ background: newDocType === 'pdf' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
+              >
+                <FileEdit className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--zet-text)' }} />
+                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF') || 'Edit PDF'}</span>
+              </button>
+            </div>
+
+            {/* PDF Upload (if PDF mode) */}
+            {newDocType === 'pdf' && (
+              <div className="mb-4">
+                <label className="text-xs mb-2 block" style={{ color: 'var(--zet-text-muted)' }}>Select PDF File</label>
+                <div 
+                  className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:bg-white/5 transition-all"
+                  style={{ borderColor: pdfFile ? 'var(--zet-primary)' : 'var(--zet-border)' }}
+                  onClick={() => document.getElementById('pdf-upload').click()}
+                >
+                  <input 
+                    id="pdf-upload" 
+                    type="file" 
+                    accept=".pdf" 
+                    className="hidden" 
+                    onChange={handlePdfUpload} 
+                  />
+                  {pdfFile ? (
+                    <div className="flex items-center justify-center gap-2" style={{ color: 'var(--zet-primary-light)' }}>
+                      <Check className="h-5 w-5" />
+                      <span>{newDocTitle}.pdf</span>
+                    </div>
+                  ) : (
+                    <div style={{ color: 'var(--zet-text-muted)' }}>
+                      <Upload className="h-8 w-8 mx-auto mb-2" />
+                      <span className="text-sm">{t('clickToUpload') || 'Click to upload PDF'}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* Document Title */}
             <div className="mb-4">
               <label className="text-xs mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Title</label>
@@ -503,31 +719,37 @@ const Dashboard = () => {
               />
             </div>
 
-            {/* Page Size Selection */}
-            <div className="mb-4">
-              <label className="text-xs mb-2 block" style={{ color: 'var(--zet-text-muted)' }}>Page Size</label>
-              <div className="grid grid-cols-2 gap-2">
-                {PAGE_SIZES.map(size => (
-                  <button
-                    key={size.name}
-                    onClick={() => setSelectedPageSize(size)}
-                    className={`p-3 rounded-lg text-left ${selectedPageSize.name === size.name ? 'glow-sm' : ''}`}
-                    style={{ 
-                      background: selectedPageSize.name === size.name ? 'var(--zet-primary)' : 'var(--zet-bg)',
-                      color: 'var(--zet-text)'
-                    }}
-                  >
-                    <span className="block font-medium">{size.name}</span>
-                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                      {size.width} × {size.height}
-                    </span>
-                  </button>
-                ))}
+            {/* Page Size Selection (only for new documents) */}
+            {newDocType === 'new' && (
+              <div className="mb-4">
+                <label className="text-xs mb-2 block" style={{ color: 'var(--zet-text-muted)' }}>Page Size</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PAGE_SIZES.map(size => (
+                    <button
+                      key={size.name}
+                      onClick={() => setSelectedPageSize(size)}
+                      className={`p-3 rounded-lg text-left ${selectedPageSize.name === size.name ? 'glow-sm' : ''}`}
+                      style={{ 
+                        background: selectedPageSize.name === size.name ? 'var(--zet-primary)' : 'var(--zet-bg)',
+                        color: 'var(--zet-text)'
+                      }}
+                    >
+                      <span className="block font-medium">{size.name}</span>
+                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                        {size.width} × {size.height}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            <button onClick={createDocument} className="zet-btn w-full">
-              Create Document
+            <button 
+              onClick={createDocument} 
+              disabled={newDocType === 'pdf' && !pdfFile}
+              className="zet-btn w-full disabled:opacity-50"
+            >
+              {newDocType === 'pdf' ? (t('openPDF') || 'Open & Edit PDF') : 'Create Document'}
             </button>
           </div>
         </div>
@@ -665,7 +887,7 @@ const Dashboard = () => {
                       const newTools = fastSelectTools.filter(t => t !== tool.id);
                       setFastSelectTools(newTools);
                       localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
-                    } else if (fastSelectTools.length < 4) {
+                    } else if (fastSelectTools.length < fastSelectLimit) {
                       const newTools = [...fastSelectTools, tool.id];
                       setFastSelectTools(newTools);
                       localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
@@ -681,7 +903,8 @@ const Dashboard = () => {
             </div>
 
             <p className="text-xs mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-              {fastSelectTools.length}/4 {t('selected') || 'selected'}
+              {fastSelectTools.length}/{fastSelectLimit} {t('selected') || 'selected'}
+              {userSubscription === 'free' && <span className="ml-1 text-blue-400">({t('upgradePlan') || 'Upgrade for more'})</span>}
             </p>
           </div>
         </div>
@@ -802,14 +1025,17 @@ const Dashboard = () => {
                           </ul>
                           
                           <button 
-                            className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105"
+                            onClick={() => handleSubscribe(plan.id)}
+                            disabled={subscribing || userSubscription === plan.id}
+                            className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50"
                             style={{ 
-                              background: plan.color,
-                              color: 'white'
+                              background: userSubscription === plan.id ? 'var(--zet-bg)' : plan.color,
+                              color: userSubscription === plan.id ? plan.color : 'white',
+                              border: userSubscription === plan.id ? `2px solid ${plan.color}` : 'none'
                             }}
                             data-testid={`select-plan-${plan.id}`}
                           >
-                            {t('selectPlan') || 'Select Plan'}
+                            {userSubscription === plan.id ? (t('currentPlan') || 'Current Plan') : (t('selectPlan') || 'Select Plan')}
                           </button>
                         </div>
                       </div>

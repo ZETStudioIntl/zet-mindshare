@@ -45,6 +45,38 @@ export const RightPanel = ({
   const [judgeImage, setJudgeImage] = useState(null);
   const judgeChatEndRef = useRef(null);
 
+  // Load chat history on mount
+  useEffect(() => {
+    if (docId) {
+      loadChatHistory();
+    }
+  }, [docId]);
+
+  const loadChatHistory = async () => {
+    try {
+      const [zetaRes, judgeRes] = await Promise.all([
+        axios.get(`${API}/chat-history/${docId}?ai_type=zeta`),
+        axios.get(`${API}/chat-history/${docId}?ai_type=judge`)
+      ]);
+      // Transform chat history to messages format
+      const zetaMsgs = zetaRes.data.flatMap(h => [
+        { role: 'user', content: h.user_message },
+        { role: 'assistant', content: h.ai_response }
+      ]);
+      const judgeMsgs = judgeRes.data.flatMap(h => [
+        { role: 'user', content: h.user_message },
+        { role: 'assistant', content: h.ai_response }
+      ]);
+      if (zetaMsgs.length) setZetaMessages(zetaMsgs);
+      if (judgeMsgs.length) setJudgeMessages(judgeMsgs);
+      // Set session IDs from last messages
+      if (zetaRes.data.length) setZetaSessionId(zetaRes.data[zetaRes.data.length - 1].session_id);
+      if (judgeRes.data.length) setJudgeSessionId(judgeRes.data[judgeRes.data.length - 1].session_id);
+    } catch (err) {
+      console.log('No chat history found');
+    }
+  };
+
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [zetaMessages]);

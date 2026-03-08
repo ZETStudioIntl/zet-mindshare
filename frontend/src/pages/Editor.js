@@ -134,6 +134,7 @@ const Editor = () => {
   const [showExport, setShowExport] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPhotoEdit, setShowPhotoEdit] = useState(false);
+  const [showSignature, setShowSignature] = useState(false);
   const [uploadForShape, setUploadForShape] = useState(null);
   const [changeImageTarget, setChangeImageTarget] = useState(null);
 
@@ -142,6 +143,12 @@ const Editor = () => {
   const [photoEditPrompt, setPhotoEditPrompt] = useState('');
   const [photoEditLoading, setPhotoEditLoading] = useState(false);
   const [photoEditResult, setPhotoEditResult] = useState(null);
+
+  // Signature state
+  const [signatureData, setSignatureData] = useState(null);
+  const signatureCanvasRef = useRef(null);
+  const [isDrawingSignature, setIsDrawingSignature] = useState(false);
+  const [signaturePoints, setSignaturePoints] = useState([]);
 
   // Page background color
   const [pageBackground, setPageBackground] = useState('#ffffff');
@@ -430,7 +437,7 @@ const Editor = () => {
       linespacing: () => setShowLineSpacing(true), wordtype: () => setShowWordType(true),
       marking: () => setShowMarking(true), addpage: () => addPage(),
       paragraph: () => setShowParagraph(true), graphic: () => setShowGraphic(true),
-      pagecolor: () => setShowPageColor(true), zoom: () => setShowZoom(true),
+      pagecolor: () => setShowPageColor(true),
       table: () => setShowTable(true), layers: () => setShowLayers(true),
       ruler: () => { setRulerVisible(!rulerVisible); setShowRuler(true); },
       grid: () => { setGridVisible(!gridVisible); setShowGrid(true); },
@@ -442,6 +449,7 @@ const Editor = () => {
       voiceinput: () => setShowVoiceInput(true),
       export: () => setShowExport(true),
       photoedit: () => setShowPhotoEdit(true),
+      signature: () => setShowSignature(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -597,6 +605,78 @@ const Editor = () => {
     link.click();
     URL.revokeObjectURL(url);
     setShowExport(false);
+  };
+
+  // === SIGNATURE ===
+  const clearSignature = () => {
+    setSignaturePoints([]);
+    setSignatureData(null);
+    const canvas = signatureCanvasRef.current;
+    if (canvas) {
+      const ctx = canvas.getContext('2d');
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  };
+
+  const handleSignatureMouseDown = (e) => {
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setIsDrawingSignature(true);
+    setSignaturePoints([{ x, y }]);
+  };
+
+  const handleSignatureMouseMove = (e) => {
+    if (!isDrawingSignature) return;
+    const canvas = signatureCanvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    const newPoints = [...signaturePoints, { x, y }];
+    setSignaturePoints(newPoints);
+    
+    // Draw on canvas
+    const ctx = canvas.getContext('2d');
+    ctx.strokeStyle = currentColor || '#000';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    if (signaturePoints.length > 0) {
+      const lastPoint = signaturePoints[signaturePoints.length - 1];
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(x, y);
+      ctx.stroke();
+    }
+  };
+
+  const handleSignatureMouseUp = () => {
+    setIsDrawingSignature(false);
+    // Save signature as data URL
+    const canvas = signatureCanvasRef.current;
+    if (canvas && signaturePoints.length > 2) {
+      setSignatureData(canvas.toDataURL('image/png'));
+    }
+  };
+
+  const addSignatureToCanvas = () => {
+    if (!signatureData) return;
+    const newEl = {
+      id: `el_${Date.now()}`,
+      type: 'image',
+      x: 100,
+      y: 100,
+      width: 200,
+      height: 80,
+      src: signatureData
+    };
+    const updated = [...canvasElements, newEl];
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+    setShowSignature(false);
+    clearSignature();
   };
 
   // Import JSON project
@@ -1407,6 +1487,16 @@ const Editor = () => {
         <div><label className="text-xs mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Reference</label><label className="zet-btn text-xs w-full flex items-center justify-center gap-1 cursor-pointer py-2"><Upload className="h-3 w-3" />{aiReference ? 'Loaded' : 'Upload'}<input type="file" accept="image/*" onChange={e => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = ev => setAiReference(ev.target.result.split(',')[1]); r.readAsDataURL(f); } }} className="hidden" /></label></div>
         {aiPreview && <div className="space-y-2"><img data-testid="ai-image-preview" src={`data:${aiMimeType};base64,${aiPreview}`} alt="AI" className="w-full rounded border" style={{ borderColor: 'var(--zet-border)', maxHeight: 200, objectFit: 'contain' }} /><button data-testid="ai-image-add-btn" onClick={addAiImageToCanvas} className="zet-btn w-full flex items-center justify-center gap-1.5 text-sm py-2"><Plus className="h-4 w-4" /> {aiTargetShape ? 'Add to Shape' : 'Add to Document'}</button></div>}
         <div className="flex gap-1"><input data-testid="ai-image-prompt" placeholder="Describe image..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateAIImage()} className="zet-input flex-1 text-xs" /><button data-testid="ai-image-generate-btn" onClick={generateAIImage} disabled={aiGenerating} className="zet-btn px-2">{aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}</button></div>
+        
+        {/* Photo Edit Shortcut */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <button 
+            onClick={() => { setShowCreateImage(false); setShowPhotoEdit(true); }}
+            className="zet-btn w-full flex items-center justify-center gap-2 py-2 text-xs"
+          >
+            <ImagePlus className="h-4 w-4" /> {t('photoEdit') || 'Edit Existing Photo'}
+          </button>
+        </div>
       </div>
     </DraggablePanel>}
     {showTranslate && <DraggablePanel title={t('translate')} onClose={() => setShowTranslate(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 120 }}>
@@ -1441,20 +1531,6 @@ const Editor = () => {
           ))}
         </div>
         <input type="color" value={pageBackground} onChange={e => setPageBackground(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
-      </div>
-    </DraggablePanel>}
-
-    {/* Zoom Tool Panel */}
-    {showZoom && <DraggablePanel title="Zoom" onClose={() => setShowZoom(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
-      <div className="space-y-3 w-56">
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Zoom Level: {zoomLevel}x</label><input type="range" min="1.2" max="4" step="0.2" value={zoomLevel} onChange={e => setZoomLevel(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Lens Size: {zoomRadius}px</label><input type="range" min="30" max="120" value={zoomRadius} onChange={e => setZoomRadius(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}><ZoomIn className="h-4 w-4" /> Move mouse on canvas to magnify</div>
-        <div className="flex gap-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <button onClick={() => setZoom(Math.min(2, zoom + 0.25))} className="zet-btn flex-1 text-xs flex items-center justify-center gap-1"><ZoomIn className="h-3 w-3" /> In</button>
-          <button onClick={() => setZoom(Math.max(0.25, zoom - 0.25))} className="zet-btn flex-1 text-xs flex items-center justify-center gap-1"><ZoomOut className="h-3 w-3" /> Out</button>
-        </div>
-        <div className="text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>Canvas: {Math.round(zoom * 100)}%</div>
       </div>
     </DraggablePanel>}
 
@@ -1517,6 +1593,35 @@ const Editor = () => {
             </button>
           </>
         )}
+      </div>
+    </DraggablePanel>}
+
+    {/* Signature Panel */}
+    {showSignature && <DraggablePanel title="Digital Signature" onClose={() => { setShowSignature(false); clearSignature(); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="space-y-3 w-72">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('drawSignature') || 'Draw your signature below:'}</p>
+        <canvas
+          ref={signatureCanvasRef}
+          width={256}
+          height={100}
+          onMouseDown={handleSignatureMouseDown}
+          onMouseMove={handleSignatureMouseMove}
+          onMouseUp={handleSignatureMouseUp}
+          onMouseLeave={handleSignatureMouseUp}
+          className="rounded border cursor-crosshair"
+          style={{ background: '#fff', borderColor: 'var(--zet-border)' }}
+        />
+        <div className="flex gap-2">
+          <button onClick={clearSignature} className="zet-btn flex-1 py-2 text-xs">{t('clear') || 'Clear'}</button>
+          <button 
+            onClick={addSignatureToCanvas} 
+            disabled={!signatureData}
+            className="zet-btn flex-1 py-2 text-xs flex items-center justify-center gap-1 disabled:opacity-50"
+            style={{ background: signatureData ? 'var(--zet-primary)' : undefined }}
+          >
+            <Plus className="h-3 w-3" /> {t('addToDocument') || 'Add to Document'}
+          </button>
+        </div>
       </div>
     </DraggablePanel>}
 

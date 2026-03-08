@@ -33,6 +33,8 @@ class User(BaseModel):
     email: str
     name: str
     picture: Optional[str] = None
+    subscription: str = "free"  # free, plus, pro, ultra
+    subscription_date: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 class Document(BaseModel):
@@ -48,6 +50,15 @@ class Document(BaseModel):
 class DocumentCreate(BaseModel):
     title: str
     doc_type: str = "document"
+    file_data: Optional[str] = None  # Base64 PDF data for editing
+
+class NoteCreate(BaseModel):
+    content: str
+    reminder_time: Optional[str] = None  # ISO datetime string for alarm
+
+class SubscriptionUpdate(BaseModel):
+    plan: str  # 'free', 'plus', 'pro', 'ultra'
+    action: str  # 'subscribe' or 'cancel'
 
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
@@ -62,6 +73,7 @@ class QuickNote(BaseModel):
 
 class QuickNoteCreate(BaseModel):
     content: str
+    reminder_time: Optional[str] = None
 
 class ChatMessage(BaseModel):
     role: str
@@ -188,7 +200,16 @@ async def create_session(request: Request, response: Response):
 
 @api_router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
-    return user.model_dump()
+    # Get full user data including subscription
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    return {
+        "user_id": user_data.get("user_id"),
+        "email": user_data.get("email"),
+        "name": user_data.get("name", ""),
+        "picture": user_data.get("picture"),
+        "subscription": user_data.get("subscription", "free"),
+        "subscription_date": user_data.get("subscription_date")
+    }
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
@@ -333,10 +354,40 @@ async def create_note(note: QuickNoteCreate, user: User = Depends(get_current_us
         "note_id": note_id,
         "user_id": user.user_id,
         "content": note.content,
+        "reminder_time": note.reminder_time,
+        "reminder_sent": False,
         "created_at": now.isoformat()
     }
     await db.quick_notes.insert_one(note_dict)
     return {k: v for k, v in note_dict.items() if k != "_id"}
+
+@api_router.put("/notes/{note_id}/reminder")
+async def update_note_reminder(note_id: str, reminder_time: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    result = await db.quick_notes.update_one(
+        {"note_id": note_id, "user_id": user.user_id},
+        {"$set": {"reminder_time": reminder_time, "reminder_sent": False}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"message": "Reminder set"}
+
+@api_router.get("/notes/reminders")
+async def get_due_reminders(user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    reminders = await db.quick_notes.find({
+        "user_id": user.user_id,
+        "reminder_time": {"$lte": now},
+        "reminder_sent": False
+    }, {"_id": 0}).to_list(100)
+    return reminders
+
+@api_router.put("/notes/{note_id}/reminder-sent")
+async def mark_reminder_sent(note_id: str, user: User = Depends(get_current_user)):
+    await db.quick_notes.update_one(
+        {"note_id": note_id, "user_id": user.user_id},
+        {"$set": {"reminder_sent": True}}
+    )
+    return {"message": "Marked as sent"}
 
 @api_router.delete("/notes/{note_id}")
 async def delete_note(note_id: str, user: User = Depends(get_current_user)):
@@ -344,6 +395,50 @@ async def delete_note(note_id: str, user: User = Depends(get_current_user)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Note not found")
     return {"message": "Note deleted"}
+
+# ============ SUBSCRIPTION ROUTES ============
+
+@api_router.get("/subscription")
+async def get_subscription(user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    return {
+        "plan": user_data.get("subscription", "free"),
+        "subscription_date": user_data.get("subscription_date")
+    }
+
+@api_router.post("/subscription")
+async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_current_user)):
+    if sub.action == "subscribe":
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"subscription": sub.plan, "subscription_date": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"message": f"Subscribed to {sub.plan}", "plan": sub.plan}
+    elif sub.action == "cancel":
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"subscription": "free", "subscription_date": None}}
+        )
+        return {"message": "Subscription cancelled", "plan": "free"}
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+
+# ============ CHAT HISTORY ROUTES ============
+
+@api_router.get("/chat-history/{doc_id}")
+async def get_chat_history(doc_id: str, ai_type: str = "zeta", user: User = Depends(get_current_user)):
+    collection = db.zeta_chats if ai_type == "zeta" else db.judge_chats
+    history = await collection.find(
+        {"user_id": user.user_id, "doc_id": doc_id},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(100)
+    return history
+
+@api_router.delete("/chat-history/{doc_id}")
+async def clear_chat_history(doc_id: str, ai_type: str = "zeta", user: User = Depends(get_current_user)):
+    collection = db.zeta_chats if ai_type == "zeta" else db.judge_chats
+    await collection.delete_many({"user_id": user.user_id, "doc_id": doc_id})
+    return {"message": "Chat history cleared"}
 
 # ============ ZETA AI ROUTES ============
 
