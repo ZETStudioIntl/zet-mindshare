@@ -115,6 +115,8 @@ const translations = {
     monthly: 'Monthly',
     yearly: 'Yearly',
     saveYearly: 'Save per year',
+    setReminder: 'Set a reminder to get notified',
+    currentPlan: 'Current Plan',
   },
   tr: {
     // Login
@@ -230,6 +232,8 @@ const translations = {
     monthly: 'Aylık',
     yearly: 'Yıllık',
     saveYearly: 'Yılda tasarruf edin',
+    setReminder: 'Bildirim almak için hatırlatıcı ayarlayın',
+    currentPlan: 'Mevcut Plan',
   },
   de: {
     documentCreation: 'Dokumenterstellung mit KI-Power',

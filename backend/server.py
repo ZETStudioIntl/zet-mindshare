@@ -12,6 +12,8 @@ from typing import List, Optional
 import uuid
 from datetime import datetime, timezone, timedelta
 import base64
+import asyncio
+import resend
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -100,6 +102,27 @@ class EmailAuthRequest(BaseModel):
     email: str
     password: str
     name: Optional[str] = None
+
+# ============ EMAIL HELPER ============
+
+resend.api_key = os.environ.get("RESEND_API_KEY")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+
+async def send_email(to_email: str, subject: str, html_content: str) -> dict:
+    """Send email using Resend API"""
+    try:
+        params = {
+            "from": SENDER_EMAIL,
+            "to": [to_email],
+            "subject": subject,
+            "html": html_content
+        }
+        result = await asyncio.to_thread(resend.Emails.send, params)
+        logging.info(f"Email sent to {to_email}: {result}")
+        return {"success": True, "email_id": result.get("id")}
+    except Exception as e:
+        logging.error(f"Failed to send email to {to_email}: {str(e)}")
+        return {"success": False, "error": str(e)}
 
 # ============ AUTH HELPERS ============
 
@@ -384,6 +407,22 @@ async def get_due_reminders(user: User = Depends(get_current_user)):
 
 @api_router.put("/notes/{note_id}/reminder-sent")
 async def mark_reminder_sent(note_id: str, user: User = Depends(get_current_user)):
+    # Get the note content
+    note = await db.quick_notes.find_one({"note_id": note_id, "user_id": user.user_id}, {"_id": 0})
+    if note:
+        # Send email notification
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+            <h2 style="color: #4ca8ad; margin-bottom: 20px;">🔔 ZET Mindshare Hatırlatıcı</h2>
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                <p style="margin: 0; font-size: 16px;">{note.get('content', '')}</p>
+            </div>
+            <p style="color: #888; font-size: 12px;">Bu e-posta, ayarladığınız hatırlatıcı için gönderilmiştir.</p>
+            <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 10px;">ZET Mindshare'i Aç</a>
+        </div>
+        """
+        await send_email(user.email, "🔔 ZET Mindshare Hatırlatıcı", html_content)
+    
     await db.quick_notes.update_one(
         {"note_id": note_id, "user_id": user.user_id},
         {"$set": {"reminder_sent": True}}
@@ -404,7 +443,8 @@ async def get_subscription(user: User = Depends(get_current_user)):
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
     return {
         "plan": user_data.get("subscription", "free"),
-        "subscription_date": user_data.get("subscription_date")
+        "subscription_date": user_data.get("subscription_date"),
+        "cancel_pending": user_data.get("cancel_pending", False)
     }
 
 @api_router.post("/subscription")
@@ -412,17 +452,75 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
     if sub.action == "subscribe":
         await db.users.update_one(
             {"user_id": user.user_id},
-            {"$set": {"subscription": sub.plan, "subscription_date": datetime.now(timezone.utc).isoformat()}}
+            {"$set": {"subscription": sub.plan, "subscription_date": datetime.now(timezone.utc).isoformat(), "cancel_pending": False}}
         )
+        # Send welcome email
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+            <h2 style="color: #4ca8ad; margin-bottom: 20px;">🎉 ZET Mindshare {sub.plan.upper()} Planına Hoş Geldiniz!</h2>
+            <p style="font-size: 16px; line-height: 1.6;">Aboneliğiniz başarıyla aktifleştirildi. Artık tüm premium özelliklerden yararlanabilirsiniz!</p>
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; color: #4ca8ad;"><strong>Plan:</strong> {sub.plan.upper()}</p>
+            </div>
+            <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">ZET Mindshare'e Git</a>
+        </div>
+        """
+        await send_email(user.email, f"🎉 ZET Mindshare {sub.plan.upper()} Planına Hoş Geldiniz!", html_content)
         return {"message": f"Subscribed to {sub.plan}", "plan": sub.plan}
     elif sub.action == "cancel":
+        # Generate cancellation token
+        cancel_token = f"cancel_{uuid.uuid4().hex}"
         await db.users.update_one(
             {"user_id": user.user_id},
-            {"$set": {"subscription": "free", "subscription_date": None}}
+            {"$set": {"cancel_token": cancel_token, "cancel_pending": True, "cancel_requested_at": datetime.now(timezone.utc).isoformat()}}
         )
-        return {"message": "Subscription cancelled", "plan": "free"}
+        # Send cancellation confirmation email
+        cancel_link = f"https://ai-canvas-68.preview.emergentagent.com/api/subscription/confirm-cancel?token={cancel_token}"
+        html_content = f"""
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+            <h2 style="color: #f59e0b; margin-bottom: 20px;">⚠️ Abonelik İptal Onayı</h2>
+            <p style="font-size: 16px; line-height: 1.6;">Aboneliğinizi iptal etmek istediğinizi anlıyoruz. Bu işlemi tamamlamak için aşağıdaki butona tıklayın.</p>
+            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 20px 0;">
+                <p style="margin: 0; color: #f87171;"><strong>Dikkat:</strong> İptal işlemi sonrasında premium özelliklerinizi kaybedeceksiniz.</p>
+            </div>
+            <a href="{cancel_link}" style="display: inline-block; background: #ef4444; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">İptali Onayla</a>
+            <p style="color: #888; font-size: 12px; margin-top: 20px;">Bu linke tıklamazsanız aboneliğiniz devam edecektir.</p>
+        </div>
+        """
+        await send_email(user.email, "⚠️ ZET Mindshare Abonelik İptal Onayı", html_content)
+        return {"message": "Cancellation email sent. Please check your email to confirm.", "plan": user.subscription, "cancel_pending": True}
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
+
+@api_router.get("/subscription/confirm-cancel")
+async def confirm_cancellation(token: str):
+    """Confirm subscription cancellation via email link"""
+    user = await db.users.find_one({"cancel_token": token}, {"_id": 0})
+    if not user:
+        return JSONResponse(content={"message": "Invalid or expired cancellation link"}, status_code=400)
+    
+    old_plan = user.get("subscription", "free")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"subscription": "free", "subscription_date": None, "cancel_token": None, "cancel_pending": False}}
+    )
+    
+    # Send confirmation email
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+        <h2 style="color: #4ca8ad; margin-bottom: 20px;">Aboneliğiniz İptal Edildi</h2>
+        <p style="font-size: 16px; line-height: 1.6;">{old_plan.upper()} planı aboneliğiniz başarıyla iptal edildi. Artık ücretsiz plandaki özelliklerle devam edebilirsiniz.</p>
+        <p style="color: #888; margin-top: 20px;">Bizi tercih ettiğiniz için teşekkür ederiz. Dilediğiniz zaman tekrar abone olabilirsiniz!</p>
+        <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 10px;">ZET Mindshare'e Git</a>
+    </div>
+    """
+    await send_email(user["email"], "ZET Mindshare Aboneliğiniz İptal Edildi", html_content)
+    
+    # Return HTML page
+    return JSONResponse(content={
+        "success": True,
+        "message": "Aboneliğiniz başarıyla iptal edildi. FREE plana düştünüz."
+    })
 
 # ============ USAGE LIMITS ============
 

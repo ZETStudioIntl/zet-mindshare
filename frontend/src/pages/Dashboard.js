@@ -209,18 +209,21 @@ Devam etmek istiyor musunuz?`;
     if (!window.confirm(confirmMsg)) return;
     
     // Second confirmation
-    const secondConfirm = window.confirm('Son kez onaylıyor musunuz?\n\nİptal edildikten sonra FREE plana düşeceksiniz ve günlük limitler sıfırlanacak.');
+    const secondConfirm = window.confirm('Son kez onaylıyor musunuz?\n\nOnayladığınızda e-posta adresinize bir iptal onay linki gönderilecektir.');
     if (!secondConfirm) return;
     
     setSubscribing(true);
     try {
-      await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
-      setUserSubscription('free');
-      // Reset fast select tools to free limit
-      const newTools = fastSelectTools.slice(0, 3);
-      setFastSelectTools(newTools);
-      localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
-      alert('Aboneliğiniz iptal edildi. FREE plana düştünüz.');
+      const res = await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
+      if (res.data.cancel_pending) {
+        alert('📧 İptal onay e-postası gönderildi!\n\nAboneliğinizi iptal etmek için e-postanızdaki linke tıklayın.');
+      } else {
+        setUserSubscription('free');
+        const newTools = fastSelectTools.slice(0, 3);
+        setFastSelectTools(newTools);
+        localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+        alert('Aboneliğiniz iptal edildi. FREE plana düştünüz.');
+      }
     } catch (err) {
       alert('Cancel failed');
     }

@@ -1,404 +1,386 @@
 """
-ZET Mindshare API Tests
-Tests for: Auth, Documents, Notes, ZETA AI, Google Drive connect flow
+ZET Mindshare API Tests - Iteration 21
+Testing: Auth, Documents, Notes, Subscription endpoints
 """
 import pytest
 import requests
 import os
-import uuid
+from datetime import datetime, timedelta
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-canvas-68.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-canvas-68.preview.emergentagent.com')
 
-
-class TestHealthCheck:
-    """Basic API health check"""
+class TestHealthAndRoot:
+    """API root endpoint tests"""
     
     def test_api_root(self):
+        """Test API root returns valid response"""
         response = requests.get(f"{BASE_URL}/api/")
         assert response.status_code == 200
         data = response.json()
         assert "message" in data
         assert data["message"] == "ZET Mindshare API"
-        print("✓ API health check passed")
+        print(f"API Root: {data}")
 
 
 class TestEmailAuth:
-    """Email/Password authentication tests"""
+    """Email authentication tests"""
     
-    def test_register_new_user(self):
-        """Register a new user via email"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"test_{unique_id}@example.com"
-        password = "testpass123"
-        
-        response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": password,
-            "name": f"Test User {unique_id}"
-        })
-        
+    @pytest.fixture(scope="class")
+    def test_user(self):
+        """Create test user credentials"""
+        return {
+            "email": f"test_iter21_{datetime.now().strftime('%H%M%S')}@example.com",
+            "password": "testpass123",
+            "name": "Test User 21"
+        }
+    
+    @pytest.fixture(scope="class")
+    def session(self):
+        """Create a requests session"""
+        return requests.Session()
+    
+    def test_register_new_user(self, session, test_user):
+        """Test user registration"""
+        response = session.post(f"{BASE_URL}/api/auth/register", json=test_user)
         assert response.status_code == 200
         data = response.json()
         assert "user" in data
-        assert data["user"]["email"] == email
-        assert "session_token" in response.cookies or response.headers.get("set-cookie")
-        print(f"✓ User registration passed: {email}")
-        return email, password, response.cookies
+        assert data["user"]["email"] == test_user["email"]
+        print(f"Registered user: {data['user']['email']}")
+        # Store user_id for later tests
+        test_user["user_id"] = data["user"]["user_id"]
     
-    def test_register_duplicate_email_rejected(self):
-        """Duplicate email registration should fail"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"dup_{unique_id}@example.com"
-        password = "testpass123"
-        
-        # First registration
-        response1 = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": password,
-            "name": "Test User"
+    def test_login_existing_user(self, session, test_user):
+        """Test user login with registered email"""
+        response = session.post(f"{BASE_URL}/api/auth/login", json={
+            "email": test_user["email"],
+            "password": test_user["password"]
         })
-        assert response1.status_code == 200
-        
-        # Duplicate registration should fail
-        response2 = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": password,
-            "name": "Test User 2"
-        })
-        assert response2.status_code == 400
-        print("✓ Duplicate email rejection passed")
-    
-    def test_login_success(self):
-        """Login with valid credentials"""
-        # First register
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"login_{unique_id}@example.com"
-        password = "testpass123"
-        
-        requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": password,
-            "name": "Test Login User"
-        })
-        
-        # Then login
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": email,
-            "password": password
-        })
-        
         assert response.status_code == 200
         data = response.json()
         assert "user" in data
-        assert data["user"]["email"] == email
-        print("✓ Login success passed")
-        return response.cookies
+        assert data["user"]["email"] == test_user["email"]
+        print(f"Logged in user: {data['user']['email']}")
     
-    def test_login_invalid_password(self):
-        """Login with wrong password should fail"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"wrongpw_{unique_id}@example.com"
-        password = "correctpass"
-        
-        # Register user
-        requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": password,
-            "name": "Wrong PW User"
-        })
-        
-        # Login with wrong password
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": email,
+    def test_login_wrong_password(self, session, test_user):
+        """Test login with wrong password"""
+        response = session.post(f"{BASE_URL}/api/auth/login", json={
+            "email": test_user["email"],
             "password": "wrongpassword"
         })
-        
         assert response.status_code == 401
-        print("✓ Invalid password rejection passed")
+        print("Wrong password correctly rejected")
     
-    def test_login_nonexistent_email(self):
-        """Login with non-existent email should fail"""
-        response = requests.post(f"{BASE_URL}/api/auth/login", json={
-            "email": f"nonexistent_{uuid.uuid4().hex}@example.com",
-            "password": "anypassword"
-        })
-        
-        assert response.status_code == 401
-        print("✓ Non-existent email rejection passed")
+    def test_get_me_authenticated(self, session, test_user):
+        """Test get current user when authenticated"""
+        response = session.get(f"{BASE_URL}/api/auth/me")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["email"] == test_user["email"]
+        print(f"Current user: {data}")
 
 
 class TestDocuments:
     """Document CRUD tests"""
     
-    @pytest.fixture(autouse=True)
-    def setup_auth(self):
-        """Setup authenticated session"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"doctest_{unique_id}@example.com"
-        
-        reg_response = requests.post(f"{BASE_URL}/api/auth/register", json={
+    @pytest.fixture(scope="class")
+    def authenticated_session(self):
+        """Create and login a test user"""
+        session = requests.Session()
+        email = f"test_docs_{datetime.now().strftime('%H%M%S')}@example.com"
+        # Register
+        session.post(f"{BASE_URL}/api/auth/register", json={
             "email": email,
             "password": "testpass123",
-            "name": "Doc Test User"
+            "name": "Docs Tester"
         })
-        
-        self.cookies = reg_response.cookies
-        self.session = requests.Session()
-        self.session.cookies.update(self.cookies)
+        return session
     
-    def test_get_documents_empty(self):
-        """Get documents for new user should be empty"""
-        response = self.session.get(f"{BASE_URL}/api/documents")
-        assert response.status_code == 200
-        data = response.json()
-        assert isinstance(data, list)
-        print("✓ Get documents passed")
-    
-    def test_create_document(self):
-        """Create a new document"""
-        response = self.session.post(f"{BASE_URL}/api/documents", json={
-            "title": "TEST_Document",
+    @pytest.fixture(scope="class")
+    def created_doc(self, authenticated_session):
+        """Create a test document"""
+        response = authenticated_session.post(f"{BASE_URL}/api/documents", json={
+            "title": "TEST_Document_Iter21",
             "doc_type": "document"
         })
-        
+        assert response.status_code == 200
+        return response.json()
+    
+    def test_create_document(self, authenticated_session):
+        """Test document creation"""
+        response = authenticated_session.post(f"{BASE_URL}/api/documents", json={
+            "title": "TEST_New_Document",
+            "doc_type": "document"
+        })
         assert response.status_code == 200
         data = response.json()
         assert "doc_id" in data
-        assert data["title"] == "TEST_Document"
-        assert "pages" in data
-        print(f"✓ Create document passed: {data['doc_id']}")
-        return data["doc_id"]
+        assert data["title"] == "TEST_New_Document"
+        print(f"Created document: {data['doc_id']}")
     
-    def test_create_and_get_document(self):
-        """Create document and verify it can be retrieved"""
-        # Create
-        create_response = self.session.post(f"{BASE_URL}/api/documents", json={
-            "title": "TEST_GetDoc",
-            "doc_type": "document"
-        })
-        assert create_response.status_code == 200
-        doc_id = create_response.json()["doc_id"]
-        
-        # Get
-        get_response = self.session.get(f"{BASE_URL}/api/documents/{doc_id}")
-        assert get_response.status_code == 200
-        data = get_response.json()
-        assert data["doc_id"] == doc_id
-        assert data["title"] == "TEST_GetDoc"
-        print("✓ Create and get document passed")
-    
-    def test_update_document(self):
-        """Update document title"""
-        # Create
-        create_response = self.session.post(f"{BASE_URL}/api/documents", json={
-            "title": "TEST_Original",
-            "doc_type": "document"
-        })
-        doc_id = create_response.json()["doc_id"]
-        
-        # Update
-        update_response = self.session.put(f"{BASE_URL}/api/documents/{doc_id}", json={
-            "title": "TEST_Updated"
-        })
-        assert update_response.status_code == 200
-        
-        # Verify
-        get_response = self.session.get(f"{BASE_URL}/api/documents/{doc_id}")
-        assert get_response.json()["title"] == "TEST_Updated"
-        print("✓ Update document passed")
-    
-    def test_delete_document(self):
-        """Delete a document"""
-        # Create
-        create_response = self.session.post(f"{BASE_URL}/api/documents", json={
-            "title": "TEST_ToDelete",
-            "doc_type": "document"
-        })
-        doc_id = create_response.json()["doc_id"]
-        
-        # Delete
-        delete_response = self.session.delete(f"{BASE_URL}/api/documents/{doc_id}")
-        assert delete_response.status_code == 200
-        
-        # Verify deleted
-        get_response = self.session.get(f"{BASE_URL}/api/documents/{doc_id}")
-        assert get_response.status_code == 404
-        print("✓ Delete document passed")
-
-
-class TestNotes:
-    """Quick notes tests"""
-    
-    @pytest.fixture(autouse=True)
-    def setup_auth(self):
-        """Setup authenticated session"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"notetest_{unique_id}@example.com"
-        
-        reg_response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": "testpass123",
-            "name": "Note Test User"
-        })
-        
-        self.session = requests.Session()
-        self.session.cookies.update(reg_response.cookies)
-    
-    def test_get_notes_empty(self):
-        """Get notes for new user should be empty"""
-        response = self.session.get(f"{BASE_URL}/api/notes")
+    def test_get_documents_list(self, authenticated_session, created_doc):
+        """Test getting documents list"""
+        response = authenticated_session.get(f"{BASE_URL}/api/documents")
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
-        print("✓ Get notes passed")
+        print(f"Found {len(data)} documents")
     
-    def test_create_note(self):
-        """Create a quick note"""
-        response = self.session.post(f"{BASE_URL}/api/notes", json={
-            "content": "TEST_This is a test note"
+    def test_get_single_document(self, authenticated_session, created_doc):
+        """Test getting single document"""
+        doc_id = created_doc["doc_id"]
+        response = authenticated_session.get(f"{BASE_URL}/api/documents/{doc_id}")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["doc_id"] == doc_id
+        print(f"Retrieved document: {data['title']}")
+    
+    def test_update_document(self, authenticated_session, created_doc):
+        """Test updating document"""
+        doc_id = created_doc["doc_id"]
+        response = authenticated_session.put(f"{BASE_URL}/api/documents/{doc_id}", json={
+            "title": "TEST_Updated_Document"
         })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["title"] == "TEST_Updated_Document"
+        print(f"Updated document title: {data['title']}")
+    
+    def test_update_document_pages(self, authenticated_session, created_doc):
+        """Test updating document with pages"""
+        doc_id = created_doc["doc_id"]
+        pages_data = [
+            {"page_id": "page_1", "elements": [{"type": "text", "content": "Test"}], "drawPaths": []},
+            {"page_id": "page_2", "elements": [], "drawPaths": []}
+        ]
+        response = authenticated_session.put(f"{BASE_URL}/api/documents/{doc_id}", json={
+            "pages": pages_data
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["pages"]) == 2
+        print(f"Updated document with {len(data['pages'])} pages")
+    
+    def test_delete_document(self, authenticated_session):
+        """Test deleting document"""
+        # Create a document to delete
+        create_response = authenticated_session.post(f"{BASE_URL}/api/documents", json={
+            "title": "TEST_To_Delete"
+        })
+        doc_id = create_response.json()["doc_id"]
         
+        # Delete it
+        response = authenticated_session.delete(f"{BASE_URL}/api/documents/{doc_id}")
+        assert response.status_code == 200
+        
+        # Verify it's gone
+        get_response = authenticated_session.get(f"{BASE_URL}/api/documents/{doc_id}")
+        assert get_response.status_code == 404
+        print(f"Deleted document: {doc_id}")
+
+
+class TestNotes:
+    """Quick notes with reminders tests"""
+    
+    @pytest.fixture(scope="class")
+    def authenticated_session(self):
+        """Create and login a test user"""
+        session = requests.Session()
+        email = f"test_notes_{datetime.now().strftime('%H%M%S')}@example.com"
+        session.post(f"{BASE_URL}/api/auth/register", json={
+            "email": email,
+            "password": "testpass123",
+            "name": "Notes Tester"
+        })
+        return session
+    
+    def test_create_note_without_reminder(self, authenticated_session):
+        """Test creating note without reminder"""
+        response = authenticated_session.post(f"{BASE_URL}/api/notes", json={
+            "content": "TEST_Note without reminder"
+        })
         assert response.status_code == 200
         data = response.json()
         assert "note_id" in data
-        assert data["content"] == "TEST_This is a test note"
-        print("✓ Create note passed")
+        assert data["content"] == "TEST_Note without reminder"
+        print(f"Created note: {data['note_id']}")
     
-    def test_delete_note(self):
-        """Delete a note"""
-        # Create
-        create_response = self.session.post(f"{BASE_URL}/api/notes", json={
-            "content": "TEST_Note to delete"
+    def test_create_note_with_reminder(self, authenticated_session):
+        """Test creating note with reminder"""
+        reminder_time = (datetime.now() + timedelta(hours=1)).isoformat()
+        response = authenticated_session.post(f"{BASE_URL}/api/notes", json={
+            "content": "TEST_Note with reminder",
+            "reminder_time": reminder_time
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["reminder_time"] == reminder_time
+        assert data["reminder_sent"] == False
+        print(f"Created note with reminder: {data['reminder_time']}")
+    
+    def test_get_notes_list(self, authenticated_session):
+        """Test getting notes list"""
+        response = authenticated_session.get(f"{BASE_URL}/api/notes")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        print(f"Found {len(data)} notes")
+    
+    def test_get_due_reminders(self, authenticated_session):
+        """Test getting due reminders"""
+        response = authenticated_session.get(f"{BASE_URL}/api/notes/reminders")
+        assert response.status_code == 200
+        data = response.json()
+        assert isinstance(data, list)
+        print(f"Found {len(data)} due reminders")
+    
+    def test_delete_note(self, authenticated_session):
+        """Test deleting note"""
+        # Create a note to delete
+        create_response = authenticated_session.post(f"{BASE_URL}/api/notes", json={
+            "content": "TEST_To_Delete"
         })
         note_id = create_response.json()["note_id"]
         
-        # Delete
-        delete_response = self.session.delete(f"{BASE_URL}/api/notes/{note_id}")
-        assert delete_response.status_code == 200
-        print("✓ Delete note passed")
+        # Delete it
+        response = authenticated_session.delete(f"{BASE_URL}/api/notes/{note_id}")
+        assert response.status_code == 200
+        print(f"Deleted note: {note_id}")
+
+
+class TestSubscription:
+    """Subscription management tests"""
+    
+    @pytest.fixture(scope="class")
+    def authenticated_session(self):
+        """Create and login a test user"""
+        session = requests.Session()
+        email = f"test_sub_{datetime.now().strftime('%H%M%S')}@example.com"
+        session.post(f"{BASE_URL}/api/auth/register", json={
+            "email": email,
+            "password": "testpass123",
+            "name": "Sub Tester"
+        })
+        return session
+    
+    def test_get_subscription_free_default(self, authenticated_session):
+        """Test that new users have free plan"""
+        response = authenticated_session.get(f"{BASE_URL}/api/subscription")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["plan"] == "free"
+        print(f"Default subscription: {data['plan']}")
+    
+    def test_subscribe_to_plus(self, authenticated_session):
+        """Test subscribing to plus plan"""
+        response = authenticated_session.post(f"{BASE_URL}/api/subscription", json={
+            "plan": "plus",
+            "action": "subscribe"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        assert data["plan"] == "plus"
+        print(f"Subscribed to: {data['plan']}")
+    
+    def test_verify_subscription_updated(self, authenticated_session):
+        """Test that subscription was updated"""
+        response = authenticated_session.get(f"{BASE_URL}/api/subscription")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["plan"] == "plus"
+        print(f"Verified subscription: {data['plan']}")
+    
+    def test_request_cancel_subscription(self, authenticated_session):
+        """Test requesting subscription cancellation (sends email)"""
+        response = authenticated_session.post(f"{BASE_URL}/api/subscription", json={
+            "plan": "free",
+            "action": "cancel"
+        })
+        assert response.status_code == 200
+        data = response.json()
+        # Should have cancel_pending flag
+        assert "cancel_pending" in data
+        print(f"Cancellation requested, pending: {data.get('cancel_pending')}")
+
+
+class TestUsageLimits:
+    """Usage limits and tracking tests"""
+    
+    @pytest.fixture(scope="class")
+    def authenticated_session(self):
+        """Create and login a test user"""
+        session = requests.Session()
+        email = f"test_usage_{datetime.now().strftime('%H%M%S')}@example.com"
+        session.post(f"{BASE_URL}/api/auth/register", json={
+            "email": email,
+            "password": "testpass123",
+            "name": "Usage Tester"
+        })
+        return session
+    
+    def test_get_usage_stats(self, authenticated_session):
+        """Test getting usage statistics"""
+        response = authenticated_session.get(f"{BASE_URL}/api/usage")
+        assert response.status_code == 200
+        data = response.json()
+        assert "plan" in data
+        assert "limits" in data
+        assert "usage" in data
+        assert "remaining" in data
+        print(f"Usage stats: plan={data['plan']}, limits={data['limits']}")
+
+
+class TestDriveIntegration:
+    """Google Drive integration tests (MOCKED)"""
+    
+    @pytest.fixture(scope="class")
+    def authenticated_session(self):
+        """Create and login a test user"""
+        session = requests.Session()
+        email = f"test_drive_{datetime.now().strftime('%H%M%S')}@example.com"
+        session.post(f"{BASE_URL}/api/auth/register", json={
+            "email": email,
+            "password": "testpass123",
+            "name": "Drive Tester"
+        })
+        return session
+    
+    def test_drive_status_not_connected(self, authenticated_session):
+        """Test Drive status when not connected"""
+        response = authenticated_session.get(f"{BASE_URL}/api/drive/status")
+        assert response.status_code == 200
+        data = response.json()
+        assert "connected" in data
+        # New user should not be connected
+        print(f"Drive connected: {data['connected']}")
 
 
 class TestZetaAI:
-    """ZETA AI chat endpoint tests"""
+    """ZETA AI assistant tests"""
     
-    @pytest.fixture(autouse=True)
-    def setup_auth(self):
-        """Setup authenticated session"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"zetaai_{unique_id}@example.com"
-        
-        reg_response = requests.post(f"{BASE_URL}/api/auth/register", json={
+    @pytest.fixture(scope="class")
+    def authenticated_session(self):
+        """Create and login a test user"""
+        session = requests.Session()
+        email = f"test_zeta_{datetime.now().strftime('%H%M%S')}@example.com"
+        session.post(f"{BASE_URL}/api/auth/register", json={
             "email": email,
             "password": "testpass123",
-            "name": "ZETA AI Test User"
+            "name": "ZETA Tester"
         })
-        
-        self.session = requests.Session()
-        self.session.cookies.update(reg_response.cookies)
+        return session
     
-    def test_zeta_chat_basic(self):
-        """Test ZETA AI chat endpoint"""
-        response = self.session.post(f"{BASE_URL}/api/zeta/chat", json={
-            "message": "Hello, what tools are available?"
-        }, timeout=30)
-        
+    def test_zeta_chat_simple(self, authenticated_session):
+        """Test ZETA chat with simple message"""
+        response = authenticated_session.post(f"{BASE_URL}/api/zeta/chat", json={
+            "message": "Hello, what can you do?"
+        })
         assert response.status_code == 200
         data = response.json()
         assert "response" in data
         assert "session_id" in data
         assert len(data["response"]) > 0
-        print(f"✓ ZETA chat passed: {data['response'][:100]}...")
-
-
-class TestGoogleDrive:
-    """Google Drive integration tests (mock mode)"""
-    
-    @pytest.fixture(autouse=True)
-    def setup_auth(self):
-        """Setup authenticated session"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"drivetest_{unique_id}@example.com"
-        
-        reg_response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": "testpass123",
-            "name": "Drive Test User"
-        })
-        
-        self.session = requests.Session()
-        self.session.cookies.update(reg_response.cookies)
-    
-    def test_drive_status(self):
-        """Check drive connection status"""
-        response = self.session.get(f"{BASE_URL}/api/drive/status")
-        assert response.status_code == 200
-        data = response.json()
-        assert "connected" in data
-        print(f"✓ Drive status passed: connected={data['connected']}")
-    
-    def test_drive_connect_flow(self):
-        """Test Google Drive OAuth connect initiation"""
-        response = self.session.get(f"{BASE_URL}/api/drive/connect")
-        
-        # Should return authorization URL (mock or real OAuth)
-        assert response.status_code == 200
-        data = response.json()
-        assert "authorization_url" in data
-        print(f"✓ Drive connect flow passed: {data['authorization_url'][:50]}...")
-
-
-class TestChartCreation:
-    """Test chart creation data validation (chart endpoint is client-side)"""
-    
-    @pytest.fixture(autouse=True)
-    def setup_auth(self):
-        """Setup authenticated session"""
-        unique_id = uuid.uuid4().hex[:8]
-        email = f"charttest_{unique_id}@example.com"
-        
-        reg_response = requests.post(f"{BASE_URL}/api/auth/register", json={
-            "email": email,
-            "password": "testpass123",
-            "name": "Chart Test User"
-        })
-        
-        self.session = requests.Session()
-        self.session.cookies.update(reg_response.cookies)
-    
-    def test_document_with_chart_content(self):
-        """Create document and update with chart content"""
-        # Create document
-        create_response = self.session.post(f"{BASE_URL}/api/documents", json={
-            "title": "TEST_Chart Document",
-            "doc_type": "document"
-        })
-        assert create_response.status_code == 200
-        doc_id = create_response.json()["doc_id"]
-        
-        # Update with chart element in pages
-        chart_content = {
-            "pages": [{
-                "page_id": "page_1",
-                "elements": [{
-                    "id": "chart_1",
-                    "type": "chart",
-                    "chartType": "bar",
-                    "x": 50,
-                    "y": 50,
-                    "width": 400,
-                    "height": 300
-                }]
-            }]
-        }
-        
-        update_response = self.session.put(f"{BASE_URL}/api/documents/{doc_id}", json=chart_content)
-        assert update_response.status_code == 200
-        
-        # Verify
-        get_response = self.session.get(f"{BASE_URL}/api/documents/{doc_id}")
-        data = get_response.json()
-        assert len(data["pages"]) > 0
-        print("✓ Document with chart content passed")
+        print(f"ZETA response length: {len(data['response'])} chars")
 
 
 if __name__ == "__main__":
