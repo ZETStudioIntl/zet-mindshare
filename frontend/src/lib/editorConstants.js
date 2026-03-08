@@ -17,10 +17,21 @@ export const PAGE_SIZES = [
 ];
 
 export const FONTS = [
-  'Arial', 'Times New Roman', 'Courier New', 'Georgia', 'Verdana',
-  'Helvetica', 'Trebuchet MS', 'Palatino', 'Garamond', 'Comic Sans MS',
-  'Impact', 'Lucida Console', 'Monaco', 'Bookman', 'Avant Garde',
-  'Brush Script MT', 'Copperplate', 'Rockwell', 'Century Gothic', 'Tahoma'
+  // Sans-Serif
+  'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Geneva', 
+  'Lucida Grande', 'Lucida Sans', 'Segoe UI', 'Open Sans', 'Roboto', 
+  'Lato', 'Montserrat', 'Poppins', 'Nunito', 'Ubuntu', 'Inter',
+  // Serif
+  'Times New Roman', 'Georgia', 'Palatino', 'Garamond', 'Bookman', 
+  'Cambria', 'Constantia', 'Didot', 'Baskerville', 'Bodoni', 
+  'Merriweather', 'Playfair Display', 'Libre Baskerville',
+  // Monospace
+  'Courier New', 'Lucida Console', 'Monaco', 'Consolas', 'Source Code Pro',
+  'Fira Code', 'JetBrains Mono',
+  // Display & Decorative
+  'Impact', 'Comic Sans MS', 'Brush Script MT', 'Copperplate', 
+  'Rockwell', 'Century Gothic', 'Avant Garde', 'Futura', 'Gill Sans',
+  'Optima', 'Franklin Gothic', 'Bebas Neue', 'Oswald', 'Raleway'
 ];
 
 export const PRESET_COLORS = [

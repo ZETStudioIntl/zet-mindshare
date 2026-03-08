@@ -584,6 +584,95 @@ const Editor = () => {
     setDocument(prev => ({ ...prev, pageNumbers: { enabled: !pageNumbersEnabled, position: pageNumberPosition } }));
   };
 
+  // === TEMPLATES ===
+  const applyTemplate = (templateId) => {
+    let elements = [];
+    const now = Date.now();
+    
+    if (templateId === 'cv') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 40, content: 'YOUR NAME', font: 'Montserrat', fontSize: 32, color: '#1a1a2e', bold: true, textAlign: 'left' },
+        { id: `el_${now}_2`, type: 'text', x: 40, y: 85, content: 'Professional Title', font: 'Open Sans', fontSize: 16, color: '#666666', textAlign: 'left' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 130, content: 'CONTACT', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 155, content: 'email@example.com | +90 555 000 00 00 | Istanbul, Turkey', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 200, content: 'EXPERIENCE', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 225, content: 'Job Title - Company Name', font: 'Open Sans', fontSize: 12, color: '#333333', bold: true },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 245, content: '2020 - Present', font: 'Open Sans', fontSize: 10, color: '#888888' },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 265, content: '• Responsible for key projects and deliverables\n• Led team of 5 developers\n• Increased efficiency by 30%', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 340, content: 'EDUCATION', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 365, content: 'Bachelor of Science in Computer Engineering', font: 'Open Sans', fontSize: 12, color: '#333333' },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 385, content: 'University Name - 2016-2020', font: 'Open Sans', fontSize: 10, color: '#888888' },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 420, content: 'SKILLS', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_13`, type: 'text', x: 40, y: 445, content: 'JavaScript, React, Node.js, Python, SQL, Git, Agile', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_14`, type: 'shape', x: 0, y: 0, width: 8, height: 842, shapeType: 'square', fill: '#1a1a2e' },
+      ];
+    } else if (templateId === 'report') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 180, y: 100, content: 'ANNUAL REPORT', font: 'Montserrat', fontSize: 36, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_2`, type: 'text', x: 180, y: 150, content: '2024', font: 'Open Sans', fontSize: 24, color: '#666666', textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 180, y: 250, content: 'Company Name', font: 'Montserrat', fontSize: 18, color: '#333333', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'shape', x: 150, y: 200, width: 295, height: 3, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 350, content: 'Executive Summary', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 380, content: 'This report provides a comprehensive overview of our company\'s performance, achievements, and strategic initiatives throughout the fiscal year.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 450, content: 'Key Highlights', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 480, content: '• Revenue growth of 25% year-over-year\n• Expanded to 3 new markets\n• Launched 5 innovative products\n• Employee satisfaction increased to 92%', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+      ];
+    } else if (templateId === 'letter') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 60, content: 'Your Company Name', font: 'Montserrat', fontSize: 18, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_2`, type: 'text', x: 40, y: 85, content: '123 Business Street, Istanbul 34000\nPhone: +90 212 000 00 00 | Email: info@company.com', font: 'Open Sans', fontSize: 10, color: '#666666', lineHeight: 1.5 },
+        { id: `el_${now}_3`, type: 'shape', x: 40, y: 125, width: 515, height: 1, shapeType: 'square', fill: '#dddddd' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 160, content: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }), font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 200, content: 'Recipient Name\nCompany Name\nAddress Line 1\nCity, Country', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 290, content: 'Dear Recipient,', font: 'Open Sans', fontSize: 11, color: '#333333' },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 330, content: 'I am writing to you regarding [subject]. Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\nUt enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.\n\nPlease feel free to contact me if you have any questions.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.7 },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 500, content: 'Sincerely,', font: 'Open Sans', fontSize: 11, color: '#333333' },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 550, content: 'Your Name\nYour Title', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
+      ];
+    } else if (templateId === 'invoice') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 40, content: 'INVOICE', font: 'Montserrat', fontSize: 36, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_2`, type: 'text', x: 400, y: 40, content: '#INV-001', font: 'Open Sans', fontSize: 14, color: '#666666' },
+        { id: `el_${now}_3`, type: 'text', x: 400, y: 60, content: new Date().toLocaleDateString(), font: 'Open Sans', fontSize: 11, color: '#888888' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 100, content: 'From:', font: 'Open Sans', fontSize: 10, color: '#888888' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 115, content: 'Your Company Name\n123 Street, City\nPhone: +90 555 000 00 00', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
+        { id: `el_${now}_6`, type: 'text', x: 300, y: 100, content: 'Bill To:', font: 'Open Sans', fontSize: 10, color: '#888888' },
+        { id: `el_${now}_7`, type: 'text', x: 300, y: 115, content: 'Client Name\nClient Address\nClient City', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
+        { id: `el_${now}_8`, type: 'shape', x: 40, y: 200, width: 515, height: 30, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_9`, type: 'text', x: 50, y: 207, content: 'Description', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 300, y: 207, content: 'Qty', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
+        { id: `el_${now}_11`, type: 'text', x: 380, y: 207, content: 'Price', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
+        { id: `el_${now}_12`, type: 'text', x: 480, y: 207, content: 'Total', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
+        { id: `el_${now}_13`, type: 'text', x: 50, y: 245, content: 'Service/Product 1', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_14`, type: 'text', x: 300, y: 245, content: '2', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_15`, type: 'text', x: 380, y: 245, content: '$500', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_16`, type: 'text', x: 480, y: 245, content: '$1,000', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_17`, type: 'shape', x: 40, y: 270, width: 515, height: 1, shapeType: 'square', fill: '#eeeeee' },
+        { id: `el_${now}_18`, type: 'text', x: 380, y: 320, content: 'Subtotal:', font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_19`, type: 'text', x: 480, y: 320, content: '$1,000', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_20`, type: 'text', x: 380, y: 345, content: 'Tax (18%):', font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_21`, type: 'text', x: 480, y: 345, content: '$180', font: 'Open Sans', fontSize: 11, color: '#444444' },
+        { id: `el_${now}_22`, type: 'text', x: 380, y: 375, content: 'TOTAL:', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_23`, type: 'text', x: 480, y: 375, content: '$1,180', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+      ];
+    } else if (templateId === 'presentation') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 842, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 300, content: 'PRESENTATION TITLE', font: 'Montserrat', fontSize: 42, color: '#ffffff', bold: true, textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 380, content: 'Your Subtitle Goes Here', font: 'Open Sans', fontSize: 18, color: '#aaaaaa', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'shape', x: 200, y: 430, width: 195, height: 3, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_5`, type: 'text', x: 297, y: 500, content: 'Presenter Name', font: 'Open Sans', fontSize: 14, color: '#cccccc', textAlign: 'center' },
+        { id: `el_${now}_6`, type: 'text', x: 297, y: 525, content: new Date().toLocaleDateString(), font: 'Open Sans', fontSize: 12, color: '#888888', textAlign: 'center' },
+      ];
+    }
+    
+    if (elements.length > 0) {
+      setCanvasElements(elements);
+      history.push(elements);
+    }
+    setShowTemplates(false);
+  };
+
   // === HEADER/FOOTER ===
   const applyHeaderFooter = () => {
     setDocument(prev => ({ ...prev, header: headerText, footer: footerText }));
@@ -1399,9 +1488,16 @@ const Editor = () => {
     {showTemplates && <DraggablePanel title="Templates" onClose={() => setShowTemplates(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-64 space-y-2">
         {TEMPLATES.map(tpl => (
-          <button key={tpl.id} onClick={() => { setShowTemplates(false); }} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors" style={{ background: 'var(--zet-bg)' }}>
+          <button key={tpl.id} onClick={() => applyTemplate(tpl.id)} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors" style={{ background: 'var(--zet-bg)' }}>
             <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{tpl.name}</div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>Ready-to-use template</div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>
+              {tpl.id === 'cv' && 'Professional resume layout'}
+              {tpl.id === 'report' && 'Annual/project report'}
+              {tpl.id === 'letter' && 'Formal business letter'}
+              {tpl.id === 'invoice' && 'Bill/invoice template'}
+              {tpl.id === 'presentation' && 'Title slide design'}
+              {tpl.id === 'blank' && 'Start from scratch'}
+            </div>
           </button>
         ))}
       </div>
@@ -1575,7 +1671,8 @@ const Editor = () => {
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
           pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
           zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} />
+          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
+          rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
 
         {/* Mobile Bottom Toolbar */}
         <div className="border-t flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
@@ -1679,6 +1776,29 @@ const Editor = () => {
         <div className="flex items-center gap-1.5">
           <button data-testid="prev-page-btn" onClick={() => changePage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={`tool-btn w-8 h-8 ${currentPage === 0 ? 'opacity-30' : ''}`}><ArrowLeft className="h-4 w-4" /></button>
           <button data-testid="next-page-btn" onClick={() => changePage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} disabled={currentPage >= (document.pages?.length || 1) - 1} className={`tool-btn w-8 h-8 ${currentPage >= (document.pages?.length || 1) - 1 ? 'opacity-30' : ''}`}><ArrowRight className="h-4 w-4" /></button>
+          
+          {/* Fast Select in Header */}
+          {fastSelectTools.length > 0 && (
+            <div className="flex items-center gap-1 ml-2 pl-2 border-l" style={{ borderColor: 'var(--zet-border)' }}>
+              <Zap className="h-3 w-3" style={{ color: 'var(--zet-primary-light)' }} />
+              {fastSelectTools.map(toolId => {
+                const tool = TOOLS.find(t => t.id === toolId);
+                if (!tool) return null;
+                return (
+                  <button
+                    key={toolId}
+                    data-testid={`fast-${toolId}`}
+                    onClick={() => handleToolSelect(toolId)}
+                    className={`tool-btn w-7 h-7 ${activeTool === toolId ? 'active' : ''}`}
+                    title={t(tool.nameKey) || tool.nameKey}
+                  >
+                    <tool.icon className="h-4 w-4" />
+                  </button>
+                );
+              })}
+            </div>
+          )}
+          
           {!isMobile && <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>}
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
@@ -1706,7 +1826,8 @@ const Editor = () => {
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
           pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
           zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} />
+          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
+          rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
 
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
@@ -1752,28 +1873,6 @@ const Editor = () => {
       )}
 
       {floatingPanels}
-
-      {/* Fast Select Floating Bar - Top Position */}
-      {fastSelectTools.length > 0 && !isMobile && (
-        <div data-testid="fast-select-bar" className="fixed top-16 left-1/2 -translate-x-1/2 zet-card p-2 flex items-center gap-2 animate-fadeIn shadow-xl z-40">
-          <Zap className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
-          {fastSelectTools.map(toolId => {
-            const tool = TOOLS.find(t => t.id === toolId);
-            if (!tool) return null;
-            return (
-              <button
-                key={toolId}
-                data-testid={`fast-${toolId}`}
-                onClick={() => handleToolSelect(toolId)}
-                className={`tool-btn w-10 h-10 ${activeTool === toolId ? 'active' : ''}`}
-                title={t(tool.nameKey) || tool.nameKey}
-              >
-                <tool.icon className="h-5 w-5" />
-              </button>
-            );
-          })}
-        </div>
-      )}
 
       {showImageUpload && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}>

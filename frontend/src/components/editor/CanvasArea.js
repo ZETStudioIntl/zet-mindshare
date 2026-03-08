@@ -170,6 +170,7 @@ export const CanvasArea = ({
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd,
   zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage, onCopyElement, onMirrorElement,
+  rulerVisible, gridVisible, gridSize,
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
@@ -554,6 +555,42 @@ export const CanvasArea = ({
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
             onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
+            
+            {/* Ruler - Horizontal */}
+            {rulerVisible && idx === currentPage && (
+              <>
+                <div className="absolute -top-6 left-0 h-5 flex items-end overflow-hidden" style={{ width: (page.pageSize?.width || pageSize.width) * zoom }}>
+                  {Array.from({ length: Math.ceil((page.pageSize?.width || pageSize.width) / 50) + 1 }).map((_, i) => (
+                    <div key={`rh${i}`} className="flex-shrink-0" style={{ width: 50 * zoom }}>
+                      <div className="h-3 border-l" style={{ borderColor: 'var(--zet-text-muted)' }} />
+                      <span className="text-[9px] ml-0.5" style={{ color: 'var(--zet-text-muted)' }}>{i * 50}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Ruler - Vertical */}
+                <div className="absolute -left-6 top-0 w-5 flex flex-col items-end overflow-hidden" style={{ height: (page.pageSize?.height || pageSize.height) * zoom }}>
+                  {Array.from({ length: Math.ceil((page.pageSize?.height || pageSize.height) / 50) + 1 }).map((_, i) => (
+                    <div key={`rv${i}`} className="flex-shrink-0 flex items-start" style={{ height: 50 * zoom }}>
+                      <span className="text-[9px] mr-0.5" style={{ color: 'var(--zet-text-muted)', writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>{i * 50}</span>
+                      <div className="w-3 border-t" style={{ borderColor: 'var(--zet-text-muted)' }} />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+            
+            {/* Grid */}
+            {gridVisible && idx === currentPage && (
+              <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
+                <defs>
+                  <pattern id="grid" width={gridSize * zoom} height={gridSize * zoom} patternUnits="userSpaceOnUse">
+                    <path d={`M ${gridSize * zoom} 0 L 0 0 0 ${gridSize * zoom}`} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
+                  </pattern>
+                </defs>
+                <rect width="100%" height="100%" fill="url(#grid)" />
+              </svg>
+            )}
+            
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
               {/* Highlight paths */}
               {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => (
