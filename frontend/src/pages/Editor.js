@@ -149,8 +149,8 @@ const Editor = () => {
   const [hexInput, setHexInput] = useState('#000000');
 
   // Zoom tool state
-  const [zoomLevel, setZoomLevel] = useState(2);
-  const [zoomRadius, setZoomRadius] = useState(100);
+  const [zoomLevel, setZoomLevel] = useState(1.5);
+  const [zoomRadius, setZoomRadius] = useState(50);
   const [magnifierPos, setMagnifierPos] = useState(null);
 
   // Graphic chart state
@@ -1382,9 +1382,9 @@ const Editor = () => {
     {/* Zoom Tool Panel */}
     {showZoom && <DraggablePanel title="Zoom" onClose={() => setShowZoom(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
       <div className="space-y-3 w-56">
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Zoom Level: {zoomLevel}x</label><input type="range" min="1.5" max="5" step="0.5" value={zoomLevel} onChange={e => setZoomLevel(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Lens Size: {zoomRadius}px</label><input type="range" min="50" max="200" value={zoomRadius} onChange={e => setZoomRadius(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}><ZoomIn className="h-4 w-4" /> Click canvas while zoom tool active</div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Zoom Level: {zoomLevel}x</label><input type="range" min="1.2" max="4" step="0.2" value={zoomLevel} onChange={e => setZoomLevel(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Lens Size: {zoomRadius}px</label><input type="range" min="30" max="120" value={zoomRadius} onChange={e => setZoomRadius(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}><ZoomIn className="h-4 w-4" /> Move mouse on canvas to magnify</div>
         <div className="flex gap-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
           <button onClick={() => setZoom(Math.min(2, zoom + 0.25))} className="zet-btn flex-1 text-xs flex items-center justify-center gap-1"><ZoomIn className="h-3 w-3" /> In</button>
           <button onClick={() => setZoom(Math.max(0.25, zoom - 0.25))} className="zet-btn flex-1 text-xs flex items-center justify-center gap-1"><ZoomOut className="h-3 w-3" /> Out</button>

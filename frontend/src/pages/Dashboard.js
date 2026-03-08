@@ -48,6 +48,38 @@ const Dashboard = () => {
     const saved = localStorage.getItem('zet_fast_select');
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
   });
+  const [showSubscription, setShowSubscription] = useState(false);
+
+  // Subscription plans data
+  const SUBSCRIPTION_PLANS = [
+    {
+      id: 'plus',
+      name: 'Plus',
+      price: '$9.99',
+      period: '/month',
+      features: ['5GB Cloud Storage', '50 AI Images/month', 'Basic Templates', 'Email Support'],
+      color: '#3b82f6',
+      recommended: false
+    },
+    {
+      id: 'pro',
+      name: 'Pro',
+      price: '$19.99',
+      period: '/month',
+      features: ['25GB Cloud Storage', '200 AI Images/month', 'All Templates', 'Priority Support', 'Custom Fonts', 'No Watermark'],
+      color: '#8b5cf6',
+      recommended: true
+    },
+    {
+      id: 'ultra',
+      name: 'Ultra',
+      price: '$39.99',
+      period: '/month',
+      features: ['Unlimited Storage', 'Unlimited AI Images', 'All Templates', '24/7 Support', 'API Access', 'Team Collaboration', 'White Label'],
+      color: '#f59e0b',
+      recommended: false
+    }
+  ];
 
   useEffect(() => {
     fetchData();
@@ -284,7 +316,7 @@ const Dashboard = () => {
 
           {/* Subscription */}
           <button 
-            onClick={() => window.open('https://zetstudio.com/subscription', '_blank')}
+            onClick={() => { setShowSubscription(true); setShowSettings(false); }}
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: 'var(--zet-primary-light)' }}
             data-testid="subscription-btn"
@@ -648,6 +680,89 @@ const Dashboard = () => {
 
             <p className="text-xs mt-3" style={{ color: 'var(--zet-text-muted)' }}>
               {fastSelectTools.length}/4 {t('selected') || 'selected'}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Subscription Modal */}
+      {showSubscription && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4" onClick={() => setShowSubscription(false)}>
+          <div className="zet-card p-6 max-w-4xl w-full mx-4 animate-fadeIn max-h-[90vh] overflow-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--zet-text)' }}>
+                  {t('choosePlan') || 'Choose Your Plan'}
+                </h2>
+                <p className="text-sm mt-1" style={{ color: 'var(--zet-text-muted)' }}>
+                  {t('planDescription') || 'Unlock powerful features with ZET Mindshare Premium'}
+                </p>
+              </div>
+              <button onClick={() => setShowSubscription(false)} className="p-2 rounded-lg hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            <div className="grid md:grid-cols-3 gap-4">
+              {SUBSCRIPTION_PLANS.map(plan => (
+                <div 
+                  key={plan.id}
+                  className={`relative rounded-xl p-5 transition-all hover:scale-105 ${plan.recommended ? 'ring-2' : ''}`}
+                  style={{ 
+                    background: 'var(--zet-bg)',
+                    ringColor: plan.color
+                  }}
+                  data-testid={`plan-${plan.id}`}
+                >
+                  {plan.recommended && (
+                    <div 
+                      className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-1 rounded-full text-xs font-bold text-white"
+                      style={{ background: plan.color }}
+                    >
+                      {t('recommended') || 'RECOMMENDED'}
+                    </div>
+                  )}
+                  
+                  <div className="text-center mb-4 pt-2">
+                    <h3 className="text-xl font-bold" style={{ color: plan.color }}>
+                      {plan.name}
+                    </h3>
+                    <div className="mt-2">
+                      <span className="text-3xl font-bold" style={{ color: 'var(--zet-text)' }}>
+                        {plan.price}
+                      </span>
+                      <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
+                        {plan.period}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <ul className="space-y-2 mb-6">
+                    {plan.features.map((feature, idx) => (
+                      <li key={idx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}>
+                        <Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />
+                        {feature}
+                      </li>
+                    ))}
+                  </ul>
+                  
+                  <button 
+                    className="w-full py-3 rounded-lg font-semibold transition-all hover:opacity-90"
+                    style={{ 
+                      background: plan.recommended ? plan.color : 'transparent',
+                      color: plan.recommended ? 'white' : plan.color,
+                      border: plan.recommended ? 'none' : `2px solid ${plan.color}`
+                    }}
+                    data-testid={`select-plan-${plan.id}`}
+                  >
+                    {t('selectPlan') || 'Select Plan'}
+                  </button>
+                </div>
+              ))}
+            </div>
+            
+            <p className="text-center text-xs mt-6" style={{ color: 'var(--zet-text-muted)' }}>
+              {t('subscriptionNote') || 'All plans include 7-day free trial. Cancel anytime.'}
             </p>
           </div>
         </div>

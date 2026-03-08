@@ -452,10 +452,23 @@ export const CanvasArea = ({
   const handleMouseUp = useCallback(() => {
     if (isDrawing && activeTool === 'draw' && currentPath.length > 1) setDrawPaths(p => [...p, { points: currentPath, size: drawSize, opacity: drawOpacity, color: currentColor }]);
     if (isDrawing && activeTool === 'marking' && currentPath.length > 1) setDrawPaths(p => [...p, { points: currentPath, size: markingSize || 20, opacity: markingOpacity || 40, color: markingColor || '#FFFF00', isHighlight: true }]);
-    // Eraser: remove paths that intersect with eraser trail
+    // Eraser: remove paths and elements that intersect with eraser trail
     if (isDrawing && activeTool === 'eraser' && eraserTrail.length > 0) {
       const r = eraserSize || 15;
+      // Remove draw paths
       setDrawPaths(prev => prev.filter(path => !path.points.some(pp => eraserTrail.some(ep => dist(pp, ep) < r))));
+      // Remove canvas elements that intersect with eraser trail
+      const elementsToRemove = canvasElements.filter(el => {
+        if (el.locked || el.hidden) return false;
+        const elCenterX = el.x + (el.width || 50) / 2;
+        const elCenterY = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 50) / 2);
+        return eraserTrail.some(ep => dist({ x: elCenterX, y: elCenterY }, ep) < r + Math.max(el.width || 50, el.height || 50) / 2);
+      });
+      if (elementsToRemove.length > 0) {
+        const updatedElements = canvasElements.filter(el => !elementsToRemove.includes(el));
+        setCanvasElements(updatedElements);
+        onSaveHistory(updatedElements);
+      }
     }
     // Lasso selection - find elements inside the lasso path
     if (activeTool === 'select' && isDrawing && lassoPath.length > 5) {
@@ -642,32 +655,33 @@ export const CanvasArea = ({
               {isDrawing && activeTool === 'select' && lassoPath.length > 1 && (
                 <path d={`M ${lassoPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z`} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="4,4" fill="rgba(76,168,173,0.15)" />
               )}
+              {/* Eraser trail visualization */}
+              {isDrawing && activeTool === 'eraser' && eraserTrail.length > 0 && (
+                <>
+                  {eraserTrail.map((pt, i) => (
+                    <circle key={i} cx={pt.x * zoom} cy={pt.y * zoom} r={(eraserSize || 15) * zoom * 0.5} fill="rgba(255,100,100,0.3)" stroke="#ff6464" strokeWidth={1} strokeDasharray="3,3" />
+                  ))}
+                </>
+              )}
               {/* Crop overlay */}
               {cropTarget && cropRect && idx === currentPage && (<><rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" /><rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" /></>)}
             </svg>
             
-            {/* Magnifier effect */}
+            {/* Magnifier effect - simplified approach */}
             {activeTool === 'zoom' && magnifierActive && idx === currentPage && (
-              <div className="absolute pointer-events-none rounded-full border-4 border-blue-400 overflow-hidden shadow-2xl"
+              <div 
+                className="absolute pointer-events-none rounded-full border-2 border-blue-400 shadow-xl z-50"
                 style={{
-                  left: magnifierPosition.x * zoom - (zoomRadius || 100),
-                  top: magnifierPosition.y * zoom - (zoomRadius || 100),
-                  width: (zoomRadius || 100) * 2,
-                  height: (zoomRadius || 100) * 2,
-                  background: pageBg,
-                  transform: `scale(${zoomLevel || 2})`,
-                  transformOrigin: 'center center',
-                }}>
-                <div style={{
-                  position: 'absolute',
-                  left: -(magnifierPosition.x * zoom - (zoomRadius || 100)),
-                  top: -(magnifierPosition.y * zoom - (zoomRadius || 100)),
-                  width: (page.pageSize?.width || pageSize.width) * zoom,
-                  height: (page.pageSize?.height || pageSize.height) * zoom,
-                  transform: `scale(${1 / (zoomLevel || 2)})`,
-                  transformOrigin: `${magnifierPosition.x * zoom}px ${magnifierPosition.y * zoom}px`,
-                }}>
-                  {/* Mirror canvas content inside magnifier */}
+                  left: magnifierPosition.x * zoom - 40,
+                  top: magnifierPosition.y * zoom - 40,
+                  width: 80,
+                  height: 80,
+                  background: `radial-gradient(circle, rgba(59, 130, 246, 0.1) 0%, rgba(59, 130, 246, 0.3) 100%)`,
+                  backdropFilter: 'blur(0px)',
+                }}
+              >
+                <div className="absolute inset-0 flex items-center justify-center text-blue-400 text-xs font-bold">
+                  {Math.round((zoomLevel || 2) * 100)}%
                 </div>
               </div>
             )}
@@ -689,9 +703,22 @@ export const CanvasArea = ({
             {(idx === currentPage ? canvasElements : page.elements || []).filter(el => !el.hidden).map(el => {
               const isSel = selectedElement === el.id || selectedElements.includes(el.id);
               const isLocked = el.locked;
+              // Mirror transform
+              const scaleX = el.scaleX || 1;
+              const scaleY = el.scaleY || 1;
+              const rotation = el.rotation || 0;
+              const transformStyle = `scaleX(${scaleX}) scaleY(${scaleY}) rotate(${rotation}deg)`;
               return (
                 <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${isSel ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''}`}
-                  style={{ left: el.x * zoom, top: el.y * zoom, width: el.type !== 'text' ? (el.width || 80) * zoom : 'auto', height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto', cursor: activeTool === 'hand' && !isLocked ? 'move' : undefined }}
+                  style={{ 
+                    left: el.x * zoom, 
+                    top: el.y * zoom, 
+                    width: el.type !== 'text' ? (el.width || 80) * zoom : 'auto', 
+                    height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto', 
+                    cursor: activeTool === 'hand' && !isLocked ? 'move' : undefined,
+                    transform: transformStyle,
+                    transformOrigin: 'center center'
+                  }}
                   onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
                   {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => setEditingId(id)} onCommit={handleTextCommit} />}
                   {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
