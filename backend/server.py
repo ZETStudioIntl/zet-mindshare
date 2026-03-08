@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -620,30 +620,162 @@ async def list_google_drive_files(user: User = Depends(get_current_user)):
 async def upload_to_google_drive(user: User = Depends(get_current_user)):
     return {"message": "Google Drive upload coming soon"}
 
-# ============ GOOGLE DRIVE ============
+# ============ GOOGLE DRIVE REAL INTEGRATION ============
+
+from google_auth_oauthlib.flow import Flow
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request as GoogleRequest
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload
+import io
+import json as jsonlib
+
+# Get Drive service with auto-refresh
+async def get_drive_service(user: User):
+    """Get Google Drive service with auto-refresh credentials"""
+    creds_doc = await db.drive_credentials.find_one({"user_id": user.user_id})
+    if not creds_doc:
+        raise HTTPException(
+            status_code=400, 
+            detail="Google Drive not connected. Please connect your Drive first."
+        )
+    
+    # Create credentials object
+    creds = Credentials(
+        token=creds_doc["access_token"],
+        refresh_token=creds_doc.get("refresh_token"),
+        token_uri=creds_doc["token_uri"],
+        client_id=creds_doc["client_id"],
+        client_secret=creds_doc["client_secret"],
+        scopes=creds_doc["scopes"]
+    )
+    
+    # Auto-refresh if expired
+    if creds.expired and creds.refresh_token:
+        logging.info(f"Refreshing expired token for user {user.user_id}")
+        creds.refresh(GoogleRequest())
+        
+        # Update in database
+        await db.drive_credentials.update_one(
+            {"user_id": user.user_id},
+            {"$set": {
+                "access_token": creds.token,
+                "expiry": creds.expiry.isoformat() if creds.expiry else None,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }}
+        )
+    
+    return build('drive', 'v3', credentials=creds)
 
 @api_router.get("/drive/status")
 async def get_drive_status(user: User = Depends(get_current_user)):
     """Check if user's Google Drive is connected"""
-    user_data = await users_collection.find_one({"user_id": user.user_id})
-    if user_data and user_data.get("drive_token"):
-        return {"connected": True}
+    creds_doc = await db.drive_credentials.find_one({"user_id": user.user_id})
+    if creds_doc and creds_doc.get("access_token"):
+        return {"connected": True, "email": creds_doc.get("email")}
     return {"connected": False}
 
 @api_router.get("/drive/connect")
 async def connect_google_drive(request: Request, user: User = Depends(get_current_user)):
     """Initiate Google Drive OAuth flow"""
-    # In production, this would redirect to Google OAuth
-    # For now, we simulate the connection
-    frontend_url = os.getenv("FRONTEND_URL", "https://zet-mindshare.preview.emergentagent.com")
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     
-    # Mark user as drive connected (mock)
-    await users_collection.update_one(
-        {"user_id": user.user_id},
-        {"$set": {"drive_token": "mock_token", "drive_connected_at": datetime.now(timezone.utc).isoformat()}}
-    )
+    # If no credentials configured, return mock
+    if not client_id or not client_secret:
+        frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-canvas-1.preview.emergentagent.com")
+        await users_collection.update_one(
+            {"user_id": user.user_id},
+            {"$set": {"drive_token": "mock_token", "drive_connected_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        return {"authorization_url": f"{frontend_url}/dashboard?drive_connected=true", "message": "Drive connected (mock - no credentials configured)"}
     
-    return {"authorization_url": f"{frontend_url}/dashboard?drive_connected=true", "message": "Drive connected (mock)"}
+    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://brainstorm-canvas-1.preview.emergentagent.com/api/drive/callback")
+    
+    try:
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [redirect_uri]
+                }
+            },
+            scopes=['https://www.googleapis.com/auth/drive.file'],
+            redirect_uri=redirect_uri
+        )
+        
+        authorization_url, state = flow.authorization_url(
+            access_type='offline',
+            include_granted_scopes='true',
+            prompt='consent',
+            state=user.user_id
+        )
+        
+        logging.info(f"Drive OAuth initiated for user {user.user_id}")
+        return {"authorization_url": authorization_url}
+    
+    except Exception as e:
+        logging.error(f"Failed to initiate OAuth: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to initiate OAuth: {str(e)}")
+
+@api_router.get("/drive/callback")
+async def drive_callback(code: str = Query(...), state: str = Query(...)):
+    """Handle Google Drive OAuth callback"""
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://brainstorm-canvas-1.preview.emergentagent.com/api/drive/callback")
+    frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-canvas-1.preview.emergentagent.com")
+    
+    try:
+        flow = Flow.from_client_config(
+            {
+                "web": {
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                    "token_uri": "https://oauth2.googleapis.com/token",
+                    "redirect_uris": [redirect_uri]
+                }
+            },
+            scopes=None,
+            redirect_uri=redirect_uri
+        )
+        
+        flow.fetch_token(code=code)
+        credentials = flow.credentials
+        
+        logging.info(f"Drive credentials obtained for user {state}, scopes: {credentials.scopes}")
+        
+        # Store credentials in database
+        await db.drive_credentials.update_one(
+            {"user_id": state},
+            {"$set": {
+                "user_id": state,
+                "access_token": credentials.token,
+                "refresh_token": credentials.refresh_token,
+                "token_uri": credentials.token_uri,
+                "client_id": credentials.client_id,
+                "client_secret": credentials.client_secret,
+                "scopes": list(credentials.scopes) if credentials.scopes else [],
+                "expiry": credentials.expiry.isoformat() if credentials.expiry else None,
+                "updated_at": datetime.now(timezone.utc).isoformat()
+            }},
+            upsert=True
+        )
+        
+        logging.info(f"Drive credentials stored for user {state}")
+        
+        # Redirect to frontend
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/dashboard?drive_connected=true")
+    
+    except Exception as e:
+        logging.error(f"OAuth callback failed: {str(e)}")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{frontend_url}/dashboard?drive_error={str(e)}")
 
 @api_router.post("/drive/upload")
 async def upload_to_drive(
@@ -655,14 +787,100 @@ async def upload_to_drive(
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
     
-    # Mock upload - in production would use Google Drive API
-    return {"success": True, "message": "Document uploaded to Drive (mock)", "drive_file_id": f"drive_{doc_id}"}
+    try:
+        service = await get_drive_service(user)
+        
+        # Create file content (JSON)
+        file_content = jsonlib.dumps({
+            "title": doc.get("title", "Untitled"),
+            "content": doc.get("content", {}),
+            "created_at": doc.get("created_at"),
+            "updated_at": doc.get("updated_at"),
+            "app": "ZET Mindshare"
+        }, indent=2)
+        
+        file_metadata = {
+            'name': f"{doc.get('title', 'Untitled')}.zet.json",
+            'mimeType': 'application/json'
+        }
+        
+        media = MediaIoBaseUpload(
+            io.BytesIO(file_content.encode()),
+            mimetype='application/json',
+            resumable=True
+        )
+        
+        file = service.files().create(
+            body=file_metadata,
+            media_body=media,
+            fields='id, name, webViewLink'
+        ).execute()
+        
+        logging.info(f"File uploaded to Drive: {file.get('id')}")
+        
+        return {
+            "success": True,
+            "drive_file_id": file.get('id'),
+            "drive_file_name": file.get('name'),
+            "drive_link": file.get('webViewLink')
+        }
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Drive upload failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
 @api_router.get("/drive/files")
 async def list_drive_files(user: User = Depends(get_current_user)):
-    """List files from connected Google Drive"""
-    # Mock file list
-    return {"files": [], "message": "No files in Drive yet"}
+    """List ZET files from connected Google Drive"""
+    try:
+        service = await get_drive_service(user)
+        
+        results = service.files().list(
+            q="name contains '.zet.json'",
+            pageSize=50,
+            fields="files(id, name, modifiedTime, webViewLink, size)"
+        ).execute()
+        
+        files = results.get('files', [])
+        return {"files": files, "count": len(files)}
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"Drive list failed: {str(e)}")
+        return {"files": [], "error": str(e)}
+
+@api_router.get("/drive/download/{file_id}")
+async def download_from_drive(file_id: str, user: User = Depends(get_current_user)):
+    """Download file from Google Drive"""
+    try:
+        service = await get_drive_service(user)
+        
+        request = service.files().get_media(fileId=file_id)
+        file_content = io.BytesIO()
+        
+        from googleapiclient.http import MediaIoBaseDownload
+        downloader = MediaIoBaseDownload(file_content, request)
+        done = False
+        while not done:
+            status, done = downloader.next_chunk()
+        
+        file_content.seek(0)
+        content = jsonlib.loads(file_content.read().decode())
+        
+        return {"success": True, "content": content}
+    
+    except Exception as e:
+        logging.error(f"Drive download failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Download failed: {str(e)}")
+
+@api_router.post("/drive/disconnect")
+async def disconnect_drive(user: User = Depends(get_current_user)):
+    """Disconnect Google Drive"""
+    await db.drive_credentials.delete_one({"user_id": user.user_id})
+    return {"success": True, "message": "Google Drive disconnected"}
 
 @api_router.get("/cloud/icloud/files")
 async def list_icloud_files(user: User = Depends(get_current_user)):

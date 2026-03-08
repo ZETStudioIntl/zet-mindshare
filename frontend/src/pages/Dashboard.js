@@ -5,7 +5,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
-  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap
+  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -280,6 +280,16 @@ const Dashboard = () => {
             style={{ color: 'var(--zet-text-muted)' }}
           >
             <Zap className="h-4 w-4" /> {t('fastSelect') || 'Fast Select'}
+          </button>
+
+          {/* Subscription */}
+          <button 
+            onClick={() => window.open('https://zetstudio.com/subscription', '_blank')}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: 'var(--zet-primary-light)' }}
+            data-testid="subscription-btn"
+          >
+            <CreditCard className="h-4 w-4" /> {t('subscription') || 'Subscription'}
           </button>
 
           <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" style={{ color: 'var(--zet-text-muted)' }}>

@@ -224,6 +224,10 @@ const Editor = () => {
   const [pageNumbersEnabled, setPageNumbersEnabled] = useState(false);
   const [pageNumberPosition, setPageNumberPosition] = useState('bottom-center');
 
+  // Export format and quality state
+  const [exportFormat, setExportFormat] = useState('pdf');
+  const [exportQuality, setExportQuality] = useState('high');
+
   // Header/Footer state
   const [headerText, setHeaderText] = useState('');
   const [footerText, setFooterText] = useState('');
@@ -429,6 +433,7 @@ const Editor = () => {
       copy: () => copyElement(), 
       mirror: () => setShowMirror(true),
       voiceinput: () => setShowVoiceInput(true),
+      export: () => setShowExport(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -455,6 +460,103 @@ const Editor = () => {
     } catch (err) { console.error('Export failed:', err); }
     setExporting(false);
     setShowExport(false);
+  };
+
+  // Export to PNG/JPEG
+  const exportToImage = async (format = 'png') => {
+    if (!canvasContainerRef.current) return;
+    setExporting(true);
+    try {
+      const scale = exportQuality === 'high' ? 3 : exportQuality === 'medium' ? 2 : 1;
+      const canvas = await html2canvas(canvasContainerRef.current.querySelector('[data-testid="canvas-page-0"]') || canvasContainerRef.current, { scale, useCORS: true, backgroundColor: pageBackground });
+      const imgData = canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.92 : undefined);
+      const link = window.document.createElement('a');
+      link.download = `${document.title || 'document'}.${format}`;
+      link.href = imgData;
+      link.click();
+    } catch (err) { console.error('Export failed:', err); }
+    setExporting(false);
+    setShowExport(false);
+  };
+
+  // Export to SVG
+  const exportToSVG = () => {
+    const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${pageSize.height}" viewBox="0 0 ${pageSize.width} ${pageSize.height}">
+  <rect width="100%" height="100%" fill="${pageBackground}"/>
+  ${canvasElements.map(el => {
+    if (el.type === 'text') {
+      return `<text x="${el.x}" y="${el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italic ? 'font-style="italic"' : ''}>${el.content || ''}</text>`;
+    } else if (el.type === 'shape') {
+      if (el.shapeType === 'circle') return `<circle cx="${el.x + el.width/2}" cy="${el.y + el.height/2}" r="${Math.min(el.width, el.height)/2}" fill="${el.fill || '#000'}"/>`;
+      if (el.shapeType === 'square') return `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${el.fill || '#000'}"/>`;
+      if (el.shapeType === 'triangle') return `<polygon points="${el.x + el.width/2},${el.y} ${el.x},${el.y + el.height} ${el.x + el.width},${el.y + el.height}" fill="${el.fill || '#000'}"/>`;
+    } else if (el.type === 'image' && el.src) {
+      return `<image href="${el.src}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}"/>`;
+    }
+    return '';
+  }).join('\n  ')}
+  ${drawPaths.map(p => {
+    if (!p.points || p.points.length < 2) return '';
+    const d = p.points.map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x},${pt.y}`).join(' ');
+    return `<path d="${d}" stroke="${p.color || '#000'}" stroke-width="${p.size || 2}" fill="none" opacity="${(p.opacity || 100) / 100}"/>`;
+  }).join('\n  ')}
+</svg>`;
+    const blob = new Blob([svgContent], { type: 'image/svg+xml' });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement('a');
+    link.download = `${document.title || 'document'}.svg`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  // Export to JSON (project file)
+  const exportToJSON = () => {
+    const projectData = {
+      version: '1.0',
+      title: document.title,
+      pageSize,
+      pageBackground,
+      canvasElements,
+      drawPaths,
+      createdAt: new Date().toISOString(),
+      app: 'ZET Mindshare'
+    };
+    const blob = new Blob([JSON.stringify(projectData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement('a');
+    link.download = `${document.title || 'document'}.zet.json`;
+    link.href = url;
+    link.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  // Import JSON project
+  const importFromJSON = (file) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const data = JSON.parse(e.target.result);
+        if (data.canvasElements) setCanvasElements(data.canvasElements);
+        if (data.drawPaths) setDrawPaths(data.drawPaths);
+        if (data.pageBackground) setPageBackground(data.pageBackground);
+        if (data.title) setDocument(prev => ({ ...prev, title: data.title }));
+      } catch (err) { console.error('Import failed:', err); alert('Invalid project file'); }
+    };
+    reader.readAsText(file);
+  };
+
+  // Export handler
+  const handleExport = (format) => {
+    setExportFormat(format);
+    if (format === 'pdf') exportToPDF();
+    else if (format === 'png') exportToImage('png');
+    else if (format === 'jpeg') exportToImage('jpeg');
+    else if (format === 'svg') exportToSVG();
+    else if (format === 'json') exportToJSON();
   };
 
   // === GRAPHIC CHART ===
@@ -1503,6 +1605,92 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
+    {/* Export Panel */}
+    {showExport && <DraggablePanel title="Export Document" onClose={() => setShowExport(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-72 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Choose export format:</p>
+        
+        <div className="space-y-2">
+          <button onClick={() => handleExport('pdf')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#e74c3c' }}>
+              <span className="text-white text-xs font-bold">PDF</span>
+            </div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>PDF Document</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Best for printing & sharing</div>
+            </div>
+          </button>
+          
+          <button onClick={() => handleExport('png')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#3498db' }}>
+              <span className="text-white text-xs font-bold">PNG</span>
+            </div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>PNG Image</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>High quality, transparent background</div>
+            </div>
+          </button>
+          
+          <button onClick={() => handleExport('jpeg')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#27ae60' }}>
+              <span className="text-white text-xs font-bold">JPG</span>
+            </div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>JPEG Image</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Smaller file size, web optimized</div>
+            </div>
+          </button>
+          
+          <button onClick={() => handleExport('svg')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#9b59b6' }}>
+              <span className="text-white text-xs font-bold">SVG</span>
+            </div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>SVG Vector</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Scalable, editable graphics</div>
+            </div>
+          </button>
+          
+          <button onClick={() => handleExport('json')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#f39c12' }}>
+              <span className="text-white text-xs font-bold">ZET</span>
+            </div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>Project File (.zet.json)</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Re-open and edit later</div>
+            </div>
+          </button>
+        </div>
+
+        {/* Quality selector for images */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Image Quality</label>
+          <div className="grid grid-cols-3 gap-1">
+            {['low', 'medium', 'high'].map(q => (
+              <button key={q} onClick={() => setExportQuality(q)} className={`p-1.5 rounded text-xs capitalize ${exportQuality === q ? 'glow-sm' : ''}`} style={{ background: exportQuality === q ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{q}</button>
+            ))}
+          </div>
+        </div>
+
+        {/* Import Project */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Import Project</label>
+          <input 
+            type="file" 
+            accept=".json,.zet.json" 
+            onChange={(e) => { if (e.target.files[0]) importFromJSON(e.target.files[0]); }}
+            className="hidden"
+            id="import-json"
+          />
+          <label htmlFor="import-json" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer">
+            <Upload className="h-4 w-4" /> Open .zet.json File
+          </label>
+        </div>
+
+        {exporting && <div className="text-center py-2"><Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: 'var(--zet-primary-light)' }} /></div>}
+      </div>
+    </DraggablePanel>}
+
     {/* QR Code Panel */}
     {showQRCode && <DraggablePanel title="QR Code" onClose={() => setShowQRCode(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-56 space-y-3">
@@ -1800,6 +1988,7 @@ const Editor = () => {
           )}
           
           {!isMobile && <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>}
+          <button data-testid="export-btn" onClick={() => setShowExport(true)} className="tool-btn w-8 h-8" title="Export"><Download className="h-4 w-4" /></button>
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
