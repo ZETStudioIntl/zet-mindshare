@@ -126,28 +126,49 @@ const Dashboard = () => {
     const checkReminders = async () => {
       try {
         const res = await axios.get(`${API}/notes/reminders`, { withCredentials: true });
-        res.data.forEach(note => {
-          showNotification(note.content);
-          axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true });
-        });
-      } catch { /* ignore */ }
+        if (res.data && res.data.length > 0) {
+          res.data.forEach(note => {
+            showNotification('ZET Mindshare Hatırlatıcı', note.content);
+            axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true });
+          });
+        }
+      } catch (err) { 
+        console.log('Reminder check error:', err);
+      }
     };
     const interval = setInterval(checkReminders, 30000);
-    checkReminders();
+    checkReminders(); // Check immediately on load
     return () => clearInterval(interval);
+  }, [showNotification]);
+
+  const requestNotificationPermission = useCallback(async () => {
+    if (!('Notification' in window)) {
+      console.log('Notifications not supported');
+      return;
+    }
+    if (Notification.permission === 'default') {
+      const permission = await Notification.requestPermission();
+      console.log('Notification permission:', permission);
+    }
   }, []);
 
-  const requestNotificationPermission = () => {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  };
-
-  const showNotification = (message) => {
+  const showNotification = useCallback((title, message) => {
     if ('Notification' in window && Notification.permission === 'granted') {
-      new Notification('ZET Mindshare Reminder', { body: message, icon: '/logo192.png' });
+      const notification = new Notification(title, { 
+        body: message, 
+        icon: '/logo192.png',
+        tag: 'zet-reminder',
+        requireInteraction: true
+      });
+      notification.onclick = () => {
+        window.focus();
+        notification.close();
+      };
+    } else {
+      // Fallback to alert
+      alert(`🔔 ${title}\n${message}`);
     }
-  };
+  }, []);
 
   const fetchSubscription = async () => {
     try {
@@ -170,12 +191,35 @@ const Dashboard = () => {
   };
 
   const handleCancelSubscription = async () => {
-    if (!window.confirm('Aboneliğinizi iptal etmek istediğinizden emin misiniz?')) return;
+    // Get features user will lose
+    const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === userSubscription);
+    const featuresList = currentPlan ? currentPlan.features.join('\n• ') : '';
+    
+    const confirmMsg = `⚠️ ABONELİK İPTALİ
+
+Emin misiniz? ${userSubscription.toUpperCase()} planını iptal ettiğinizde şu özellikleri kaybedeceksiniz:
+
+• ${featuresList}
+
+Bu işlem geri alınabilir ancak şu anki faturalandırma döneminin sonuna kadar geçerlidir.
+
+Devam etmek istiyor musunuz?`;
+    
+    if (!window.confirm(confirmMsg)) return;
+    
+    // Second confirmation
+    const secondConfirm = window.confirm('Son kez onaylıyor musunuz?\n\nİptal edildikten sonra FREE plana düşeceksiniz ve günlük limitler sıfırlanacak.');
+    if (!secondConfirm) return;
+    
     setSubscribing(true);
     try {
       await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
       setUserSubscription('free');
-      alert('Aboneliğiniz iptal edildi (Demo)');
+      // Reset fast select tools to free limit
+      const newTools = fastSelectTools.slice(0, 3);
+      setFastSelectTools(newTools);
+      localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+      alert('Aboneliğiniz iptal edildi. FREE plana düştünüz.');
     } catch (err) {
       alert('Cancel failed');
     }

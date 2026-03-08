@@ -86,6 +86,7 @@ class ZetaChatRequest(BaseModel):
     session_id: Optional[str] = None
     document_content: Optional[str] = None  # Text content of the current document
     image: Optional[str] = None  # Base64 image data
+    mode: Optional[str] = "fast"  # 'fast' or 'deep' for Judge
 
 class ZetaImageRequest(BaseModel):
     prompt: str
@@ -423,6 +424,71 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
 
+# ============ USAGE LIMITS ============
+
+# Plan limits
+PLAN_LIMITS = {
+    'free': {'ai_images': 1, 'judge_basic': 0, 'judge_deep': 0, 'judge_chars': 0},
+    'plus': {'ai_images': 5, 'judge_basic': 3, 'judge_deep': 0, 'judge_chars': 400},
+    'pro': {'ai_images': 30, 'judge_basic': 7, 'judge_deep': 1, 'judge_chars': 900},
+    'ultra': {'ai_images': 50, 'judge_basic': 12, 'judge_deep': 5, 'judge_chars': 2000}
+}
+
+@api_router.get("/usage")
+async def get_usage(user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    plan = user_data.get("subscription", "free")
+    
+    # Get today's usage
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage = await db.usage.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
+    
+    if not usage:
+        usage = {"ai_images": 0, "judge_basic": 0, "judge_deep": 0}
+    
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    return {
+        "plan": plan,
+        "limits": limits,
+        "usage": {
+            "ai_images": usage.get("ai_images", 0),
+            "judge_basic": usage.get("judge_basic", 0),
+            "judge_deep": usage.get("judge_deep", 0)
+        },
+        "remaining": {
+            "ai_images": max(0, limits['ai_images'] - usage.get("ai_images", 0)),
+            "judge_basic": max(0, limits['judge_basic'] - usage.get("judge_basic", 0)),
+            "judge_deep": max(0, limits['judge_deep'] - usage.get("judge_deep", 0)),
+            "judge_chars": limits['judge_chars']
+        }
+    }
+
+async def check_and_increment_usage(user_id: str, usage_type: str) -> bool:
+    """Check if user has remaining usage and increment if allowed"""
+    user_data = await db.users.find_one({"user_id": user_id})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage = await db.usage.find_one({"user_id": user_id, "date": today})
+    
+    if not usage:
+        usage = {"user_id": user_id, "date": today, "ai_images": 0, "judge_basic": 0, "judge_deep": 0}
+        await db.usage.insert_one(usage)
+    
+    current = usage.get(usage_type, 0)
+    limit = limits.get(usage_type, 0)
+    
+    if current >= limit:
+        return False
+    
+    await db.usage.update_one(
+        {"user_id": user_id, "date": today},
+        {"$inc": {usage_type: 1}}
+    )
+    return True
+
 # ============ CHAT HISTORY ROUTES ============
 
 @api_router.get("/chat-history/{doc_id}")
@@ -447,10 +513,55 @@ async def clear_chat_history(doc_id: str, ai_type: str = "zeta", user: User = De
 async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage
     
+    # Get user's plan and limits
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    # Check if Judge is available for this plan
+    if plan == "free":
+        return {"response": "⚠️ ZET Judge Mini, Free planda kullanılamaz. Lütfen Plus veya üzeri bir plana yükseltin.", "session_id": None, "locked": True}
+    
+    # Check character limit
+    if len(req.message) > limits['judge_chars']:
+        return {"response": f"⚠️ Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
+    
+    # Determine usage type based on mode
+    mode = req.mode or "fast"
+    usage_type = "judge_deep" if mode == "deep" else "judge_basic"
+    
+    # Check usage limit
+    allowed = await check_and_increment_usage(user.user_id, usage_type)
+    if not allowed:
+        limit = limits[usage_type]
+        mode_name = "derin analiz" if mode == "deep" else "temel analiz"
+        return {"response": f"⚠️ Günlük {mode_name} limitinize ulaştınız ({limit}/{limit}). Yarın tekrar deneyin veya planınızı yükseltin.", "session_id": None, "limit_exceeded": True}
+    
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
     
-    system_message = """Sen ZET Judge Mini - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
+    # Different system messages for fast vs deep mode
+    mode_instruction = ""
+    if mode == "deep":
+        mode_instruction = """
+DERİN ANALİZ MODU:
+- Detaylı ve kapsamlı analiz yap
+- Tüm açılardan incele
+- Rakamlar, metrikler, projeksiyonlar sun
+- Alternatif senaryolar öner
+- Uzun vadeli stratejiler belirt
+"""
+    else:
+        mode_instruction = """
+HIZLI ANALİZ MODU:
+- Kısa ve öz ol
+- Ana noktaları vurgula
+- Hızlı sonuç ver
+"""
+    
+    system_message = f"""Sen ZET Judge Mini - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
+
+{mode_instruction}
 
 KİMLİĞİN:
 - ZET Studio International tarafından geliştirildin
@@ -664,6 +775,14 @@ The user may ask questions about this document. Use this content to provide rele
 @api_router.post("/zeta/generate-image")
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+    
+    # Check AI image usage limit
+    allowed = await check_and_increment_usage(user.user_id, "ai_images")
+    if not allowed:
+        user_data = await db.users.find_one({"user_id": user.user_id})
+        plan = user_data.get("subscription", "free") if user_data else "free"
+        limit = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])['ai_images']
+        raise HTTPException(status_code=429, detail=f"Günlük AI görsel limitinize ulaştınız ({limit}/{limit}). Yarın tekrar deneyin veya planınızı yükseltin.")
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = f"zeta_img_{uuid.uuid4().hex[:8]}"

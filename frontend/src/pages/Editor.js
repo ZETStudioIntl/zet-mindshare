@@ -18,7 +18,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
-  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -143,6 +143,12 @@ const Editor = () => {
   const [photoEditPrompt, setPhotoEditPrompt] = useState('');
   const [photoEditLoading, setPhotoEditLoading] = useState(false);
   const [photoEditResult, setPhotoEditResult] = useState(null);
+
+  // Photo Edit drawing state
+  const photoEditCanvasRef = useRef(null);
+  const [isDrawingOnPhoto, setIsDrawingOnPhoto] = useState(false);
+  const [photoEditDrawings, setPhotoEditDrawings] = useState([]);
+  const [photoEditDrawMode, setPhotoEditDrawMode] = useState(false);
 
   // Signature state
   const [signatureData, setSignatureData] = useState(null);
@@ -1438,8 +1444,15 @@ const Editor = () => {
           {useGradient && gradientStart && gradientEnd && (
             <button onClick={() => {
               if (selectedElement) {
-                const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart, gradientEnd } : el);
-                setCanvasElements(updated); history.push(updated);
+                const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart, gradientEnd, color: null } : el);
+                setCanvasElements(updated); 
+                handleSaveHistory(updated);
+              } else if (selectedElements.length > 0) {
+                const updated = canvasElements.map(el => selectedElements.includes(el.id) ? { ...el, gradientStart, gradientEnd, color: null } : el);
+                setCanvasElements(updated);
+                handleSaveHistory(updated);
+              } else {
+                alert('Lütfen önce bir öğe seçin');
               }
             }} className="zet-btn w-full text-xs">Apply Gradient to Selected</button>
           )}
@@ -1546,8 +1559,8 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Photo Edit Panel */}
-    {showPhotoEdit && <DraggablePanel title="AI Photo Edit" onClose={() => { setShowPhotoEdit(false); setPhotoEditImage(null); setPhotoEditResult(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="space-y-3 w-64">
+    {showPhotoEdit && <DraggablePanel title="AI Photo Edit" onClose={() => { setShowPhotoEdit(false); setPhotoEditImage(null); setPhotoEditResult(null); setPhotoEditDrawings([]); setPhotoEditDrawMode(false); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="space-y-3 w-72">
         {!photoEditImage ? (
           <button onClick={handlePhotoEditUpload} className="zet-btn w-full py-6 flex flex-col items-center gap-2">
             <ImagePlus className="h-6 w-6" />
@@ -1555,23 +1568,135 @@ const Editor = () => {
           </button>
         ) : (
           <>
-            <div className="flex gap-2">
-              <div className="flex-1">
-                <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Original</p>
-                <img src={photoEditImage} alt="Original" className="w-full h-24 object-cover rounded" />
+            {/* Photo with drawing overlay */}
+            <div className="relative">
+              <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                {photoEditDrawMode ? '✏️ Düzenlemek istediğiniz yeri çizin' : 'Original'}
+              </p>
+              <div className="relative">
+                <img src={photoEditImage} alt="Original" className="w-full rounded" style={{ maxHeight: 180 }} />
+                {photoEditDrawMode && (
+                  <canvas
+                    ref={photoEditCanvasRef}
+                    className="absolute inset-0 w-full h-full cursor-crosshair"
+                    style={{ touchAction: 'none' }}
+                    onMouseDown={(e) => {
+                      const rect = e.target.getBoundingClientRect();
+                      setIsDrawingOnPhoto(true);
+                      setPhotoEditDrawings(prev => [...prev, [{ x: e.clientX - rect.left, y: e.clientY - rect.top }]]);
+                    }}
+                    onMouseMove={(e) => {
+                      if (!isDrawingOnPhoto) return;
+                      const rect = e.target.getBoundingClientRect();
+                      const x = e.clientX - rect.left;
+                      const y = e.clientY - rect.top;
+                      setPhotoEditDrawings(prev => {
+                        const newDrawings = [...prev];
+                        if (newDrawings.length > 0) {
+                          newDrawings[newDrawings.length - 1] = [...newDrawings[newDrawings.length - 1], { x, y }];
+                        }
+                        return newDrawings;
+                      });
+                      // Draw on canvas
+                      const canvas = photoEditCanvasRef.current;
+                      if (canvas) {
+                        const ctx = canvas.getContext('2d');
+                        ctx.strokeStyle = '#ff0000';
+                        ctx.lineWidth = 3;
+                        ctx.lineCap = 'round';
+                        const drawings = photoEditDrawings;
+                        if (drawings.length > 0) {
+                          const lastPath = drawings[drawings.length - 1];
+                          if (lastPath.length > 1) {
+                            ctx.beginPath();
+                            ctx.moveTo(lastPath[lastPath.length - 2].x, lastPath[lastPath.length - 2].y);
+                            ctx.lineTo(x, y);
+                            ctx.stroke();
+                          }
+                        }
+                      }
+                    }}
+                    onMouseUp={() => setIsDrawingOnPhoto(false)}
+                    onMouseLeave={() => setIsDrawingOnPhoto(false)}
+                  />
+                )}
+                {/* Show red circles where user drew */}
+                {photoEditDrawings.length > 0 && !photoEditDrawMode && (
+                  <div className="absolute inset-0 pointer-events-none">
+                    <svg className="w-full h-full">
+                      {photoEditDrawings.map((path, i) => (
+                        <path 
+                          key={i} 
+                          d={`M ${path.map(p => `${p.x} ${p.y}`).join(' L ')}`} 
+                          stroke="#ff0000" 
+                          strokeWidth="3" 
+                          fill="none" 
+                          strokeLinecap="round"
+                        />
+                      ))}
+                    </svg>
+                  </div>
+                )}
               </div>
-              {photoEditResult && (
-                <div className="flex-1">
-                  <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Edited</p>
-                  <img src={photoEditResult} alt="Edited" className="w-full h-24 object-cover rounded" />
-                </div>
+            </div>
+            
+            {/* Draw mode toggle */}
+            <div className="flex gap-2">
+              <button 
+                onClick={() => {
+                  setPhotoEditDrawMode(!photoEditDrawMode);
+                  if (!photoEditDrawMode) {
+                    // Initialize canvas when entering draw mode
+                    setTimeout(() => {
+                      const canvas = photoEditCanvasRef.current;
+                      if (canvas) {
+                        const img = canvas.parentElement.querySelector('img');
+                        if (img) {
+                          canvas.width = img.clientWidth;
+                          canvas.height = img.clientHeight;
+                        }
+                      }
+                    }, 100);
+                  }
+                }}
+                className={`flex-1 py-1.5 text-xs rounded flex items-center justify-center gap-1 ${photoEditDrawMode ? 'ring-2 ring-red-500' : ''}`}
+                style={{ background: photoEditDrawMode ? 'rgba(255,0,0,0.2)' : 'var(--zet-bg)', color: photoEditDrawMode ? '#ff6464' : 'var(--zet-text)' }}
+              >
+                <Pencil className="h-3 w-3" /> {photoEditDrawMode ? 'Çizim Modu Açık' : 'Kalemle İşaretle'}
+              </button>
+              {photoEditDrawings.length > 0 && (
+                <button 
+                  onClick={() => {
+                    setPhotoEditDrawings([]);
+                    const canvas = photoEditCanvasRef.current;
+                    if (canvas) {
+                      const ctx = canvas.getContext('2d');
+                      ctx.clearRect(0, 0, canvas.width, canvas.height);
+                    }
+                  }}
+                  className="px-2 py-1.5 text-xs rounded"
+                  style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)' }}
+                >
+                  Temizle
+                </button>
               )}
             </div>
+            
+            {/* Result preview */}
+            {photoEditResult && (
+              <div>
+                <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Düzenlenmiş</p>
+                <img src={photoEditResult} alt="Edited" className="w-full rounded" style={{ maxHeight: 120 }} />
+              </div>
+            )}
+            
             <textarea
-              placeholder={t('photoEditPrompt') || "Describe the changes... (e.g., 'Remove background', 'Make it sunset', 'Add snow')"}
+              placeholder={photoEditDrawings.length > 0 
+                ? "Çizdiğiniz alanı nasıl değiştirelim? (örn: 'Bu alanı sil', 'Buraya çiçek ekle')" 
+                : "Değişiklikleri açıklayın... (örn: 'Arka planı kaldır', 'Gün batımı yap')"}
               value={photoEditPrompt}
               onChange={e => setPhotoEditPrompt(e.target.value)}
-              className="zet-input w-full text-xs h-16 resize-none"
+              className="zet-input w-full text-xs h-14 resize-none"
             />
             <div className="flex gap-2">
               <button 
@@ -1580,16 +1705,16 @@ const Editor = () => {
                 className="zet-btn flex-1 py-2 flex items-center justify-center gap-2"
               >
                 {photoEditLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
-                {t('edit') || 'Edit'}
+                {t('edit') || 'Düzenle'}
               </button>
               {photoEditResult && (
                 <button onClick={addEditedPhotoToCanvas} className="zet-btn flex-1 py-2 flex items-center justify-center gap-2" style={{ background: 'var(--zet-primary)' }}>
-                  <Plus className="h-4 w-4" /> Add
+                  <Plus className="h-4 w-4" /> Ekle
                 </button>
               )}
             </div>
             <button onClick={handlePhotoEditUpload} className="text-xs underline w-full text-center" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('selectDifferent') || 'Select different photo'}
+              {t('selectDifferent') || 'Farklı fotoğraf seç'}
             </button>
           </>
         )}

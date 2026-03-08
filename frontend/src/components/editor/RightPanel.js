@@ -43,6 +43,7 @@ export const RightPanel = ({
   const [judgeLoading, setJudgeLoading] = useState(false);
   const [judgeSessionId, setJudgeSessionId] = useState(null);
   const [judgeImage, setJudgeImage] = useState(null);
+  const [judgeMode, setJudgeMode] = useState('fast'); // 'fast' or 'deep'
   const judgeChatEndRef = useRef(null);
 
   // Load chat history on mount
@@ -104,7 +105,7 @@ export const RightPanel = ({
   // Send message to ZET Judge
   const sendJudgeMessage = async () => {
     if (!judgeInput.trim() && !judgeImage) return;
-    const userMsg = { role: 'user', content: judgeInput, image: judgeImage };
+    const userMsg = { role: 'user', content: judgeInput, image: judgeImage, mode: judgeMode };
     setJudgeMessages(prev => [...prev, userMsg]);
     setJudgeInput('');
     const sentImage = judgeImage;
@@ -116,10 +117,19 @@ export const RightPanel = ({
         session_id: judgeSessionId,
         doc_id: docId,
         document_content: documentContent || '',
-        image_data: sentImage
+        image_data: sentImage,
+        mode: judgeMode
       });
-      setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
-      setJudgeSessionId(res.data.session_id);
+      
+      // Check for limit/lock responses
+      if (res.data.locked) {
+        setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response, isWarning: true }]);
+      } else if (res.data.limit_exceeded || res.data.char_limit_exceeded) {
+        setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response, isWarning: true }]);
+      } else {
+        setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
+        setJudgeSessionId(res.data.session_id);
+      }
     } catch (err) {
       setJudgeMessages(prev => [...prev, { role: 'assistant', content: 'Hata oluştu. Lütfen tekrar deneyin.' }]);
     } finally {
@@ -441,13 +451,30 @@ export const RightPanel = ({
                   <button onClick={() => setJudgeImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">×</button>
                 </div>
               )}
+              {/* Fast/Deep Mode Selector */}
+              <div className="flex gap-1 mb-2">
+                <button 
+                  onClick={() => setJudgeMode('fast')}
+                  className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${judgeMode === 'fast' ? 'text-white' : 'opacity-60'}`}
+                  style={{ background: judgeMode === 'fast' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)' }}
+                >
+                  ⚡ Hızlı
+                </button>
+                <button 
+                  onClick={() => setJudgeMode('deep')}
+                  className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${judgeMode === 'deep' ? 'text-white' : 'opacity-60'}`}
+                  style={{ background: judgeMode === 'deep' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)' }}
+                >
+                  🔬 Derin
+                </button>
+              </div>
               <div className="flex gap-1">
                 <button onClick={handleJudgeImageUpload} className="w-8 h-8 flex-shrink-0 rounded flex items-center justify-center" style={{ background: 'rgba(200, 0, 90, 0.3)' }} title="Görsel ekle">
                   <Image className="h-3 w-3" style={{ color: '#c8005a' }} />
                 </button>
                 <input
                   data-testid="judge-input"
-                  placeholder="Analiz için materyal veya soru..."
+                  placeholder={judgeMode === 'deep' ? 'Detaylı analiz için...' : 'Hızlı analiz için...'}
                   value={judgeInput}
                   onChange={e => setJudgeInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendJudgeMessage()}
