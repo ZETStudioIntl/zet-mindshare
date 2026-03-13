@@ -202,6 +202,11 @@ export const CanvasArea = ({
   const [magnifierActive, setMagnifierActive] = useState(false);
   const [magnifierPosition, setMagnifierPosition] = useState({ x: 0, y: 0 });
   const justSelectedRef = useRef(false);
+  
+  // Right-click rectangle selection state
+  const [rectSelectStart, setRectSelectStart] = useState(null);
+  const [rectSelectEnd, setRectSelectEnd] = useState(null);
+  const [isRectSelecting, setIsRectSelecting] = useState(false);
 
   // Zoom tool - scroll towards cursor position
   useEffect(() => {
@@ -365,6 +370,16 @@ export const CanvasArea = ({
   const handleMouseDown = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;
     const { x, y } = getCoords(e, e.currentTarget);
+    
+    // Right-click rectangle selection (button === 2 is right click)
+    if (e.button === 2) {
+      e.preventDefault();
+      setIsRectSelecting(true);
+      setRectSelectStart({ x, y });
+      setRectSelectEnd({ x, y });
+      return;
+    }
+    
     if (activeTool === 'draw' || activeTool === 'marking') { setIsDrawing(true); setCurrentPath([{ x, y }]); return; }
     if (activeTool === 'eraser') { setIsDrawing(true); setEraserTrail([{ x, y }]); return; }
     if (activeTool === 'select') { 
@@ -418,6 +433,13 @@ export const CanvasArea = ({
   const handleMouseMove = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;
     const { x, y } = getCoords(e, e.currentTarget);
+    
+    // Right-click rectangle selection
+    if (isRectSelecting && rectSelectStart) {
+      setRectSelectEnd({ x, y });
+      return;
+    }
+    
     if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) { setCurrentPath(p => [...p, { x, y }]); return; }
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
     if (activeTool === 'select' && isDrawing) { 
@@ -452,9 +474,42 @@ export const CanvasArea = ({
     
     if (dragging) { const el = canvasElements.find(el => el.id === dragging); if (el) setCanvasElements(p => p.map(i => i.id === dragging ? { ...i, x: Math.max(0, x - dragOffset.x), y: Math.max(0, y - dragOffset.y) } : i)); }
     if (resizing) setCanvasElements(p => p.map(el => el.id === resizing.id ? { ...el, width: Math.max(30, x - resizing.startX), height: Math.max(30, y - resizing.startY) } : el));
-  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
+  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, isRectSelecting, rectSelectStart, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
 
   const handleMouseUp = useCallback(() => {
+    // Right-click rectangle selection - find elements inside rectangle
+    if (isRectSelecting && rectSelectStart && rectSelectEnd) {
+      const minX = Math.min(rectSelectStart.x, rectSelectEnd.x);
+      const maxX = Math.max(rectSelectStart.x, rectSelectEnd.x);
+      const minY = Math.min(rectSelectStart.y, rectSelectEnd.y);
+      const maxY = Math.max(rectSelectStart.y, rectSelectEnd.y);
+      
+      // Find elements in rectangle
+      const selectedIds = canvasElements.filter(el => {
+        if (el.hidden || el.locked) return false;
+        const elX = el.x;
+        const elY = el.y;
+        const elW = el.width || 50;
+        const elH = el.type === 'text' ? (el.fontSize || 16) : (el.height || 50);
+        // Check if element intersects with selection rectangle
+        return elX < maxX && elX + elW > minX && elY < maxY && elY + elH > minY;
+      }).map(el => el.id);
+      
+      // Find vectors in rectangle
+      const selectedVecIdxs = drawPaths.map((p, i) => ({ p, i })).filter(({ p }) => {
+        if (p.isHighlight || !p.points || p.points.length === 0) return false;
+        return p.points.some(pt => pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY);
+      }).map(({ i }) => i);
+      
+      if (selectedIds.length > 0) { setSelectedElements(selectedIds); justSelectedRef.current = true; }
+      if (selectedVecIdxs.length > 0) { setSelectedVectors(selectedVecIdxs); justSelectedRef.current = true; }
+      
+      setIsRectSelecting(false);
+      setRectSelectStart(null);
+      setRectSelectEnd(null);
+      return;
+    }
+    
     if (isDrawing && activeTool === 'draw' && currentPath.length > 1) setDrawPaths(p => [...p, { points: currentPath, size: drawSize, opacity: drawOpacity, color: currentColor }]);
     if (isDrawing && activeTool === 'marking' && currentPath.length > 1) setDrawPaths(p => [...p, { points: currentPath, size: markingSize || 20, opacity: markingOpacity || 40, color: markingColor || '#FFFF00', isHighlight: true }]);
     // Eraser: remove paths and elements that intersect with eraser trail
@@ -493,7 +548,7 @@ export const CanvasArea = ({
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     setCropDragging(false); setCropStart(null); setDragging(null); setResizing(null);
-  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserSize, eraserTrail, isDrawing, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -572,6 +627,7 @@ export const CanvasArea = ({
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
             onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+            onContextMenu={(e) => e.preventDefault()}
             onTouchStart={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseDown(e, idx); } }}
             onTouchMove={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseMove(e, idx); } }}
             onTouchEnd={(e) => { if (activeTool !== 'hand') { handleMouseUp(e); } }}>
@@ -662,6 +718,19 @@ export const CanvasArea = ({
               {/* Lasso selection path */}
               {isDrawing && activeTool === 'select' && lassoPath.length > 1 && (
                 <path d={`M ${lassoPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z`} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="4,4" fill="rgba(76,168,173,0.15)" />
+              )}
+              {/* Right-click rectangle selection */}
+              {isRectSelecting && rectSelectStart && rectSelectEnd && idx === currentPage && (
+                <rect 
+                  x={Math.min(rectSelectStart.x, rectSelectEnd.x) * zoom}
+                  y={Math.min(rectSelectStart.y, rectSelectEnd.y) * zoom}
+                  width={Math.abs(rectSelectEnd.x - rectSelectStart.x) * zoom}
+                  height={Math.abs(rectSelectEnd.y - rectSelectStart.y) * zoom}
+                  stroke="#3b82f6" 
+                  strokeWidth={2} 
+                  strokeDasharray="5,5" 
+                  fill="rgba(59, 130, 246, 0.15)"
+                />
               )}
               {/* Eraser trail visualization */}
               {isDrawing && activeTool === 'eraser' && eraserTrail.length > 0 && (

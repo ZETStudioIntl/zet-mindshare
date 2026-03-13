@@ -6,7 +6,7 @@ import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
-  Bell, BellRing, Upload, FileEdit, Crown
+  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -72,6 +72,19 @@ const Dashboard = () => {
   const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
   const [userSubscription, setUserSubscription] = useState('free');
   const [subscribing, setSubscribing] = useState(false);
+  
+  // New Settings states
+  const [showProfileEdit, setShowProfileEdit] = useState(false);
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [showRanks, setShowRanks] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  
+  // AI Settings states (shared with Editor)
+  const [zetaMood, setZetaMood] = useState(() => localStorage.getItem('zet_zeta_mood') || 'professional');
+  const [zetaEmoji, setZetaEmoji] = useState(() => localStorage.getItem('zet_zeta_emoji') || 'medium');
+  const [zetaCustomPrompt, setZetaCustomPrompt] = useState(() => localStorage.getItem('zet_zeta_custom') || '');
+  const [judgeMood, setJudgeMood] = useState(() => localStorage.getItem('zet_judge_mood') || 'normal');
 
   // Fast select limits based on subscription
   const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, ultra: 8 };
@@ -502,6 +515,26 @@ Devam etmek istiyor musunuz?`;
             <Zap className="h-4 w-4" /> {t('fastSelect') || 'Fast Select'} ({fastSelectTools.length}/{fastSelectLimit})
           </button>
 
+          {/* AI Settings */}
+          <button 
+            onClick={() => { setShowAISettings(true); setShowSettings(false); }}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: '#4ca8ad' }}
+            data-testid="ai-settings-btn"
+          >
+            <Sparkles className="h-4 w-4" /> AI Ayarları
+          </button>
+
+          {/* Ranks & Missions */}
+          <button 
+            onClick={() => { setShowRanks(true); setShowSettings(false); }}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: '#f59e0b' }}
+            data-testid="ranks-btn"
+          >
+            <Award className="h-4 w-4" /> Rütbe & Görevler
+          </button>
+
           {/* Subscription */}
           <button 
             onClick={() => { setShowSubscription(true); setShowSettings(false); }}
@@ -510,6 +543,16 @@ Devam etmek istiyor musunuz?`;
             data-testid="subscription-btn"
           >
             <CreditCard className="h-4 w-4" /> {t('subscription') || 'Subscription'}
+          </button>
+
+          {/* Edit Profile */}
+          <button 
+            onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowProfileEdit(true); setShowSettings(false); }}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: 'var(--zet-text-muted)' }}
+            data-testid="profile-edit-btn"
+          >
+            <User className="h-4 w-4" /> Profili Düzenle
           </button>
 
           <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
@@ -1108,6 +1151,223 @@ Devam etmek istiyor musunuz?`;
             <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>
               {t('subscriptionNote') || 'All plans include 7-day free trial. Cancel anytime.'}
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Profile Edit Modal */}
+      {showProfileEdit && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowProfileEdit(false)}>
+          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Profili Düzenle</h2>
+              <button onClick={() => setShowProfileEdit(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>İsim</label>
+                <input 
+                  type="text" 
+                  value={editName} 
+                  onChange={e => setEditName(e.target.value)}
+                  className="zet-input w-full"
+                  placeholder="Adınız"
+                />
+              </div>
+              <div>
+                <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta</label>
+                <input 
+                  type="email" 
+                  value={editEmail} 
+                  onChange={e => setEditEmail(e.target.value)}
+                  className="zet-input w-full"
+                  placeholder="E-posta adresiniz"
+                  disabled
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta değiştirilemez</p>
+              </div>
+              
+              <button 
+                onClick={async () => {
+                  try {
+                    await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
+                    if (updateUser) updateUser({ ...user, name: editName });
+                    setShowProfileEdit(false);
+                    alert('Profil güncellendi!');
+                  } catch (err) {
+                    alert('Güncelleme başarısız');
+                  }
+                }}
+                className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:scale-105"
+                style={{ background: 'var(--zet-primary)' }}
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI Settings Modal */}
+      {showAISettings && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowAISettings(false)}>
+          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>AI Ayarları</h2>
+              <button onClick={() => setShowAISettings(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              {/* ZETA Settings */}
+              <div className="p-4 rounded-xl" style={{ background: 'rgba(76, 168, 173, 0.1)', border: '1px solid rgba(76, 168, 173, 0.3)' }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
+                  <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Özelleştirme</h3>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
+                    <select 
+                      value={zetaMood} 
+                      onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }}
+                      className="zet-input text-sm w-full"
+                    >
+                      <option value="cheerful">🎉 Neşeli</option>
+                      <option value="professional">💼 Profesyonel</option>
+                      <option value="curious">🔍 Meraklı</option>
+                      <option value="custom">✨ Özel</option>
+                    </select>
+                  </div>
+                  {zetaMood === 'custom' && (
+                    <div>
+                      <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Özel Prompt</label>
+                      <textarea 
+                        value={zetaCustomPrompt} 
+                        onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }}
+                        placeholder="ZETA nasıl davransın?"
+                        className="zet-input text-sm w-full h-20 resize-none"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
+                    <select 
+                      value={zetaEmoji} 
+                      onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }}
+                      className="zet-input text-sm w-full"
+                    >
+                      <option value="none">❌ Kullanma</option>
+                      <option value="low">📍 Az Kullan</option>
+                      <option value="medium">📌 Orta</option>
+                      <option value="high">🎯 Çok Kullan</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Judge Settings */}
+              <div className="p-4 rounded-xl" style={{ background: 'rgba(200, 0, 90, 0.1)', border: '1px solid rgba(200, 0, 90, 0.3)' }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Scale className="h-5 w-5" style={{ color: '#c8005a' }} />
+                  <h3 className="font-semibold" style={{ color: '#c8005a' }}>ZET Judge Mini Özelleştirme</h3>
+                </div>
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
+                  <select 
+                    value={judgeMood} 
+                    onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }}
+                    className="zet-input text-sm w-full"
+                  >
+                    <option value="normal">⚖️ Normal (Yapıcı eleştiri)</option>
+                    <option value="harsh">🔥 Sert (Esprili dalga geçme)</option>
+                  </select>
+                  <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
+                    {judgeMood === 'harsh' ? '😈 Judge sizi esprilerle "kavuracak"!' : '🤝 Judge yapıcı ve profesyonel olacak.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ranks & Missions Modal */}
+      {showRanks && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowRanks(false)}>
+          <div className="zet-card p-6 w-full max-w-lg animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Rütbe & Görevler</h2>
+              <button onClick={() => setShowRanks(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
+            {/* Current Rank */}
+            <div className="p-4 rounded-xl mb-6 text-center" style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
+              <Award className="h-12 w-12 mx-auto mb-2" style={{ color: '#f59e0b' }} />
+              <h3 className="text-lg font-bold" style={{ color: '#f59e0b' }}>Çırak</h3>
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Seviye 1 • 0/100 XP</p>
+              <div className="w-full h-2 rounded-full mt-2" style={{ background: 'var(--zet-bg)' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: '10%', background: 'linear-gradient(90deg, #f59e0b, #8b5cf6)' }} />
+              </div>
+            </div>
+
+            {/* Ranks List */}
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Rütbeler</h4>
+              <div className="space-y-2">
+                {[
+                  { name: 'Çırak', xp: 0, color: '#9ca3af', current: true },
+                  { name: 'Kalfa', xp: 100, color: '#22c55e' },
+                  { name: 'Usta', xp: 500, color: '#3b82f6' },
+                  { name: 'Uzman', xp: 1500, color: '#8b5cf6' },
+                  { name: 'Maestro', xp: 5000, color: '#f59e0b' },
+                  { name: 'Efsane', xp: 15000, color: '#ef4444' },
+                ].map((rank, i) => (
+                  <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${rank.current ? 'ring-2' : ''}`} style={{ background: rank.current ? 'rgba(245, 158, 11, 0.1)' : 'var(--zet-bg)', ringColor: rank.current ? '#f59e0b' : undefined }}>
+                    <div className="flex items-center gap-2">
+                      <Award className="h-4 w-4" style={{ color: rank.color }} />
+                      <span className="text-sm" style={{ color: rank.current ? rank.color : 'var(--zet-text)' }}>{rank.name}</span>
+                    </div>
+                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{rank.xp} XP</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Active Missions */}
+            <div>
+              <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Aktif Görevler</h4>
+              <div className="space-y-2">
+                {[
+                  { title: 'İlk Belge', desc: 'İlk belgenizi oluşturun', xp: 10, progress: 100, done: true },
+                  { title: 'AI Keşifçisi', desc: 'ZETA ile 5 sohbet yapın', xp: 25, progress: 40 },
+                  { title: 'Renk Ustası', desc: 'Gradient kullanın', xp: 15, progress: 0 },
+                  { title: 'Grafik Sihirbazı', desc: '3 grafik oluşturun', xp: 30, progress: 33 },
+                ].map((mission, i) => (
+                  <div key={i} className="p-3 rounded-lg" style={{ background: mission.done ? 'rgba(34, 197, 94, 0.1)' : 'var(--zet-bg)' }}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm font-medium" style={{ color: mission.done ? '#22c55e' : 'var(--zet-text)' }}>
+                        {mission.done && <Check className="h-3 w-3 inline mr-1" />}
+                        {mission.title}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded" style={{ background: '#f59e0b', color: 'white' }}>+{mission.xp} XP</span>
+                    </div>
+                    <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>{mission.desc}</p>
+                    {!mission.done && (
+                      <div className="w-full h-1.5 rounded-full" style={{ background: 'var(--zet-border)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${mission.progress}%`, background: '#4ca8ad' }} />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}

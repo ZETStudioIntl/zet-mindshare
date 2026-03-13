@@ -239,6 +239,20 @@ async def get_me(user: User = Depends(get_current_user)):
         "subscription_date": user_data.get("subscription_date")
     }
 
+class ProfileUpdate(BaseModel):
+    name: Optional[str] = None
+
+@api_router.put("/auth/profile")
+async def update_profile(req: ProfileUpdate, user: User = Depends(get_current_user)):
+    update_data = {}
+    if req.name is not None:
+        update_data["name"] = req.name
+    
+    if update_data:
+        await db.users.update_one({"user_id": user.user_id}, {"$set": update_data})
+    
+    return {"message": "Profile updated", "name": req.name}
+
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
     session_token = request.cookies.get("session_token")
