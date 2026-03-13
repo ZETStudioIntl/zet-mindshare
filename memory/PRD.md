@@ -2,52 +2,60 @@
 
 ## Overview
 ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtınası aracı.
-**Developed by:** ZET Studio International
-**CEO:** Muhammed Bahaddin Yılmaz
 
-## Core Features
-- Dashboard: Dosya yönetimi, arama, ayarlar, hızlı notlar, abonelik yönetimi
-- Editor: 3 sütunlu yapı (Araçlar, Canvas, AI Chat)
-- AI Assistants: ZETA (genel), ZET Judge (analitik)
-- Subscription: Free, Plus, Pro, Ultra
+## SESSION - 2026-03-13 Iterations 26-29
 
-## SESSION - 2026-03-13 Iterations 26-28
+### Iteration 29 (Completed) - Kredi Sistemi
+**Tam kredi sistemi ve paket bazlı kısıtlamalar uygulandı:**
 
-### Iteration 26 (Completed)
-- Templates: 20 şablon tamamen çalışır durumda, kategorilere göre gruplandırma
-- Redact AI gizliliği: Sansürlü içerikler AI'dan gizlendi
-- Rütbe & Görevler: Ayrı modallara ayrıldı
-- Rütbe rozeti: "ZET Mindshare" yanında görünüyor
-- Profil fotoğrafı yükleme: Frontend + Backend tamamlandı
+**Kredi Maliyetleri:**
+- Nano Banana görsel: 20 kredi
+- Nano Banana Pro görsel: 50 kredi
+- Fotoğraf düzeltme: 15 kredi
+- Fotoğraf düzeltme Pro: 40 kredi
+- ZET Judge temel analiz: 25 kredi
+- Judge derin analiz: 70 kredi
+
+**Paketler:**
+- **Free:** 20 kredi/gün, Judge kapalı, 3 fastselect, ZETA 250 harf, Pro yok, boyut: 16:9, Layers/Signature/Watermark/PageColor/Grafikler kapalı
+- **Plus:** 100 kredi/gün, Judge Mini 150 harf, Layers açık, ZETA 500 harf, derin analiz yok, boyut: 16:9, 9:16, 1:1
+- **Pro:** 250 kredi/gün, Tüm araçlar, Nano Pro, ZETA sınırsız, Judge 600 harf, 7 boyut (16:9, 9:16, 1:1, 2.55:1, 2.39:1, 1.85:1, 2.00:1)
+- **Ultra:** 1000 kredi/gün, Herşey sınırsız
+
+**Frontend:**
+- Header'da kredi göstergesi (⚡ kalan kredi)
+- Kilitli araçlarda kilit ikonu
+- AI Image panelinde Pro toggle + boyut seçimi + kredi bilgisi
+- Yetersiz kredi uyarısı + yükseltme popup
+- Paket bazlı araç kilitleme
 
 ### Iteration 27-28 (Completed)
-- **Chart Tool Güvenilirliği:** SVG tabanlı grafikler axis çizgileri, grid, etiketler, veri doğrulama ile yeniden yazıldı. Bar, Pie, Line chart hepsi çalışıyor.
-- **Şekillere Gradient:** CSS `backgroundImage` ile gradient rendering düzeltildi. Square, Circle, Triangle, Star, Ring hepsi gradient destekliyor. Oluşturma sırasında gradient modu açıksa otomatik uygulanıyor.
-- **DraggablePanel Performansı:** ref-based DOM manipülasyonu ile yeniden yazıldı (React state yerine). Sürükleme artık pürüzsüz.
-- **PDF İçe Aktarma:** pdfjs-dist ile PDF dosyalarını sayfa görüntülerine dönüştürme. Her sayfa canvas'a image olarak ekleniyor.
-- **Highlighter Aracı:** Sansür aracı gibi çalışıyor - metin seç, araç çubuğundan Highlighter'a tıkla, metin işaretleniyor. 6 renk seçeneği.
-- **Sağ Tık Metin Seçimi:** Metin üzerinde sağ tık native context menu (kopyala/yapıştır). Boş alanda sağ tık rectangle selection.
+- Chart Tool güvenilirliği (SVG axis, grid, labels)
+- Şekillere gradient (CSS backgroundImage fix)
+- DraggablePanel performansı (ref-based DOM)
+- PDF içe aktarma (pdfjs-dist)
+- Highlighter aracı (sansür gibi çalışıyor)
+- Sağ tık metin seçimi
+
+### Iteration 26 (Completed)
+- Templates: 20 şablon çalışır
+- Redact AI gizliliği
+- Rütbe & Görevler ayrımı
+- Profil fotoğrafı yükleme
 
 ### Test Results
-- iteration_28: Frontend 100% (12/12 features)
-- iteration_27: Frontend 100% (shape gradient bug identified)
+- iteration_29: Backend 100% (10/10), Frontend 100%
+- iteration_28: Frontend 100% (12/12)
 - iteration_26: Backend 100% (11/11), Frontend 100%
 
-## Known Issues / Remaining
-- **Lasso Vector Selection:** Kement aracı vektörleri düzgün seçemiyor (P1)
-- **Note Reminders (Browser):** Tarayıcı bildirimleri sorunlu olabilir (P3)
-- **Google Drive:** MOCKED
-- **ElevenLabs TTS:** Invalid API key (Blocked)
+## Known Issues
+- Lasso Vector Selection (P1)
+- Google Drive (MOCKED)
+- ElevenLabs TTS (Blocked)
 
 ## Tech Stack
 - Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react, pdfjs-dist
 - Backend: FastAPI, MongoDB, Pydantic
 - Integrations: Gemini 3 Flash, Nano Banana, Resend
-
-## Upcoming Tasks
-- Gerçek zamanlı ortak çalışma
-- Dikey çoklu sayfa kaydırma
-- iCloud entegrasyonu
-- Dashboard belge önizlemeleri
 
 ## Last Updated: 2026-03-13
