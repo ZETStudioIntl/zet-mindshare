@@ -242,6 +242,9 @@ async def get_me(user: User = Depends(get_current_user)):
 class ProfileUpdate(BaseModel):
     name: Optional[str] = None
 
+class ProfilePictureUpload(BaseModel):
+    image_data: str  # Base64 encoded image data
+
 @api_router.put("/auth/profile")
 async def update_profile(req: ProfileUpdate, user: User = Depends(get_current_user)):
     update_data = {}
@@ -252,6 +255,16 @@ async def update_profile(req: ProfileUpdate, user: User = Depends(get_current_us
         await db.users.update_one({"user_id": user.user_id}, {"$set": update_data})
     
     return {"message": "Profile updated", "name": req.name}
+
+@api_router.post("/auth/profile-picture")
+async def upload_profile_picture(req: ProfilePictureUpload, user: User = Depends(get_current_user)):
+    image_data = req.image_data
+    # Store the base64 image directly in the user document
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"picture": image_data}}
+    )
+    return {"message": "Profile picture updated", "picture_url": image_data}
 
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):

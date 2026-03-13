@@ -138,7 +138,6 @@ export const TEMPLATES = [
   { id: 'presentation', name: 'Sunum', nameKey: 'templatePresentation', icon: '📽️', category: 'İş' },
   { id: 'letter', name: 'Mektup', nameKey: 'templateLetter', icon: '✉️', category: 'Kişisel' },
   { id: 'invoice', name: 'Fatura', nameKey: 'templateInvoice', icon: '🧾', category: 'İş' },
-  // Yeni Şablonlar
   { id: 'meeting', name: 'Toplantı Notları', nameKey: 'templateMeeting', icon: '📝', category: 'İş' },
   { id: 'proposal', name: 'Teklif / Proposal', nameKey: 'templateProposal', icon: '💼', category: 'İş' },
   { id: 'contract', name: 'Sözleşme', nameKey: 'templateContract', icon: '📜', category: 'Hukuki' },
@@ -149,6 +148,11 @@ export const TEMPLATES = [
   { id: 'checklist', name: 'Kontrol Listesi', nameKey: 'templateChecklist', icon: '✅', category: 'Kişisel' },
   { id: 'brainstorm', name: 'Beyin Fırtınası', nameKey: 'templateBrainstorm', icon: '💡', category: 'Yaratıcı' },
   { id: 'socialmedia', name: 'Sosyal Medya', nameKey: 'templateSocial', icon: '📱', category: 'Pazarlama' },
+  // Yeni Eklenen Şablonlar
+  { id: 'weeklyplan', name: 'Haftalık Plan', nameKey: 'templateWeekly', icon: '📅', category: 'Kişisel' },
+  { id: 'swot', name: 'SWOT Analizi', nameKey: 'templateSwot', icon: '🔍', category: 'İş' },
+  { id: 'blogpost', name: 'Blog Yazısı', nameKey: 'templateBlog', icon: '✍️', category: 'Yaratıcı' },
+  { id: 'eventflyer', name: 'Etkinlik Afişi', nameKey: 'templateEvent', icon: '🎉', category: 'Pazarlama' },
 ];
 
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];

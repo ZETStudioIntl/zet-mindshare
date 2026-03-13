@@ -87,6 +87,10 @@ const Editor = () => {
   const [markingOpacity, setMarkingOpacity] = useState(40);
   const [markingSize, setMarkingSize] = useState(20);
 
+  // Highlighter auto mode
+  const [highlighterAuto, setHighlighterAuto] = useState(false);
+  const [highlighterColor, setHighlighterColor] = useState('#FFFF00');
+
   // AI Image state
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiQuality, setAiQuality] = useState('standard');
@@ -524,6 +528,19 @@ const Editor = () => {
     setCanvasElements(updated);
     history.push(updated);
   }, [canvasElements, selectedElement, history]);
+
+  // === HIGHLIGHTER AUTO MODE ===
+  // When auto mode is on, selecting a text element auto-applies highlight
+  useEffect(() => {
+    if (!highlighterAuto || !selectedElement) return;
+    const el = canvasElements.find(e => e.id === selectedElement);
+    if (!el || el.type !== 'text' || el.highlightColor) return;
+    const updated = canvasElements.map(e =>
+      e.id === selectedElement ? { ...e, highlightColor: highlighterColor } : e
+    );
+    setCanvasElements(updated);
+    history.push(updated);
+  }, [selectedElement, highlighterAuto]);
 
   // === PHOTO EDIT ===
   const handlePhotoEditUpload = () => {
@@ -1000,6 +1017,199 @@ const Editor = () => {
         { id: `el_${now}_5`, type: 'text', x: 297, y: 500, content: 'Presenter Name', font: 'Open Sans', fontSize: 14, color: '#cccccc', textAlign: 'center' },
         { id: `el_${now}_6`, type: 'text', x: 297, y: 525, content: new Date().toLocaleDateString(), font: 'Open Sans', fontSize: 12, color: '#888888', textAlign: 'center' },
       ];
+    } else if (templateId === 'meeting') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 40, content: 'TOPLANTI NOTLARI', font: 'Montserrat', fontSize: 28, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_2`, type: 'shape', x: 40, y: 80, width: 515, height: 2, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 100, content: `Tarih: ${new Date().toLocaleDateString('tr-TR')}`, font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_4`, type: 'text', x: 300, y: 100, content: 'Saat: 14:00 - 15:30', font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 130, content: 'Katılımcılar:', font: 'Montserrat', fontSize: 12, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 150, content: '• Ad Soyad - Pozisyon\n• Ad Soyad - Pozisyon\n• Ad Soyad - Pozisyon', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 220, content: 'Gündem Maddeleri', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 245, content: '1. Proje durumu gözden geçirme\n2. Önümüzdeki hafta hedefleri\n3. Açık konular ve sorunlar\n4. Diğer', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 350, content: 'Kararlar', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 375, content: '•\n•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 440, content: 'Aksiyon Maddeleri', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 465, content: '| Görev | Sorumlu | Tarih |\n|-------|---------|-------|\n|       |         |       |', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+      ];
+    } else if (templateId === 'proposal') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 200, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 60, content: 'PROJE TEKLİFİ', font: 'Montserrat', fontSize: 36, color: '#ffffff', bold: true, textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 110, content: 'Şirket Adı', font: 'Open Sans', fontSize: 16, color: '#4ca8ad', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'text', x: 297, y: 140, content: new Date().toLocaleDateString('tr-TR'), font: 'Open Sans', fontSize: 12, color: '#aaaaaa', textAlign: 'center' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 230, content: 'Yönetici Özeti', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 260, content: 'Bu teklif, projenin kapsamını, hedeflerini ve bütçesini özetlemektedir.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 310, content: 'Proje Kapsamı', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 340, content: '• Hedef 1: ...\n• Hedef 2: ...\n• Hedef 3: ...', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 420, content: 'Zaman Çizelgesi', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 450, content: 'Faz 1: Planlama (2 hafta)\nFaz 2: Geliştirme (6 hafta)\nFaz 3: Test & Lansman (2 hafta)', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 540, content: 'Bütçe', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 570, content: 'Toplam Proje Maliyeti: ₺XX,XXX', font: 'Open Sans', fontSize: 14, color: '#1a1a2e', bold: true },
+      ];
+    } else if (templateId === 'contract') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 297, y: 40, content: 'SÖZLEŞME', font: 'Montserrat', fontSize: 28, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_2`, type: 'shape', x: 100, y: 80, width: 395, height: 2, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 110, content: `Sözleşme No: SOZ-${Date.now().toString().slice(-6)}`, font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_4`, type: 'text', x: 400, y: 110, content: `Tarih: ${new Date().toLocaleDateString('tr-TR')}`, font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 150, content: 'MADDE 1 - TARAFLAR', font: 'Montserrat', fontSize: 13, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 175, content: 'Bu sözleşme, aşağıda bilgileri belirtilen taraflar arasında akdedilmiştir:\n\nTaraf 1: [Şirket/Kişi Adı]\nTaraf 2: [Şirket/Kişi Adı]', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 280, content: 'MADDE 2 - KONU', font: 'Montserrat', fontSize: 13, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 305, content: 'Bu sözleşmenin konusu...', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 360, content: 'MADDE 3 - SÜRE VE ŞARTLAR', font: 'Montserrat', fontSize: 13, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 385, content: 'Sözleşme süresi ve genel şartlar...', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 600, content: '___________________\nTaraf 1 İmza', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
+        { id: `el_${now}_12`, type: 'text', x: 350, y: 600, content: '___________________\nTaraf 2 İmza', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
+      ];
+    } else if (templateId === 'newsletter') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 120, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 35, content: 'HAFTALIK BÜLTEN', font: 'Montserrat', fontSize: 32, color: '#ffffff', bold: true, textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 80, content: `Sayı #1 • ${new Date().toLocaleDateString('tr-TR')}`, font: 'Open Sans', fontSize: 12, color: '#e0f2f1', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 150, content: 'Öne Çıkan Haber', font: 'Montserrat', fontSize: 18, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 180, content: 'Burada ana haberin başlığı ve kısa özeti yer alır. Okuyucu ilgisini çekmek için dikkat çekici bir açılış yapın.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.7 },
+        { id: `el_${now}_6`, type: 'shape', x: 40, y: 240, width: 515, height: 1, shapeType: 'square', fill: '#e0e0e0' },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 260, content: 'Hızlı Notlar', font: 'Montserrat', fontSize: 14, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 285, content: '• İlk önemli gelişme\n• İkinci dikkat çekici haber\n• Üçüncü bilgi notu', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 370, content: 'Etkinlikler', font: 'Montserrat', fontSize: 14, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 395, content: '15 Mart - Konferans\n22 Mart - Workshop\n30 Mart - Webinar', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+      ];
+    } else if (templateId === 'recipe') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 297, y: 40, content: 'TARİF KARTI', font: 'Montserrat', fontSize: 28, color: '#e74c3c', bold: true, textAlign: 'center' },
+        { id: `el_${now}_2`, type: 'shape', x: 200, y: 80, width: 195, height: 3, shapeType: 'square', fill: '#e74c3c' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 100, content: 'Yemek Adı', font: 'Montserrat', fontSize: 20, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'text', x: 60, y: 140, content: '⏱ 30 dk', font: 'Open Sans', fontSize: 12, color: '#666666' },
+        { id: `el_${now}_5`, type: 'text', x: 200, y: 140, content: '👥 4 Kişilik', font: 'Open Sans', fontSize: 12, color: '#666666' },
+        { id: `el_${now}_6`, type: 'text', x: 360, y: 140, content: '⭐ Orta', font: 'Open Sans', fontSize: 12, color: '#666666' },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 180, content: 'Malzemeler', font: 'Montserrat', fontSize: 14, color: '#e74c3c', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 205, content: '• 2 su bardağı un\n• 1 çay bardağı şeker\n• 3 yumurta\n• 1 paket kabartma tozu\n• 200ml süt', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.7 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 340, content: 'Hazırlanışı', font: 'Montserrat', fontSize: 14, color: '#e74c3c', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 365, content: '1. Kuru malzemeleri bir kapta karıştırın\n2. Yumurtaları ve sütü ayrı bir kapta çırpın\n3. İki karışımı birleştirin\n4. Yağlanmış kalıba dökün\n5. 180°C fırında 30-35 dk pişirin', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+      ];
+    } else if (templateId === 'projectplan') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 40, content: 'PROJE PLANI', font: 'Montserrat', fontSize: 28, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_2`, type: 'shape', x: 40, y: 80, width: 515, height: 2, shapeType: 'square', fill: '#3b82f6' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 100, content: 'Proje Adı: [Proje Adı]', font: 'Open Sans', fontSize: 13, color: '#333333' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 125, content: `Başlangıç: ${new Date().toLocaleDateString('tr-TR')}  |  Bitiş: [Tarih]  |  Yönetici: [İsim]`, font: 'Open Sans', fontSize: 11, color: '#666666' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 165, content: 'Proje Hedefleri', font: 'Montserrat', fontSize: 14, color: '#3b82f6', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 190, content: '1. Ana hedef...\n2. İkincil hedef...\n3. Başarı kriteri...', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.7 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 270, content: 'Kilometre Taşları', font: 'Montserrat', fontSize: 14, color: '#3b82f6', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 295, content: '✓ Faz 1: Planlama (Hafta 1-2)\n○ Faz 2: Tasarım (Hafta 3-4)\n○ Faz 3: Geliştirme (Hafta 5-8)\n○ Faz 4: Test (Hafta 9-10)\n○ Faz 5: Lansman (Hafta 11-12)', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 420, content: 'Riskler ve Çözümler', font: 'Montserrat', fontSize: 14, color: '#3b82f6', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 445, content: '• Risk: [Tanım] → Çözüm: [Eylem]\n• Risk: [Tanım] → Çözüm: [Eylem]', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
+      ];
+    } else if (templateId === 'certificate') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 20, y: 20, width: 555, height: 802, shapeType: 'square', fill: 'transparent', stroke: '#f59e0b', strokeWidth: 3 },
+        { id: `el_${now}_2`, type: 'shape', x: 30, y: 30, width: 535, height: 782, shapeType: 'square', fill: 'transparent', stroke: '#f59e0b', strokeWidth: 1 },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 120, content: 'SERTİFİKA', font: 'Montserrat', fontSize: 42, color: '#f59e0b', bold: true, textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'text', x: 297, y: 200, content: 'Bu belge ile', font: 'Open Sans', fontSize: 14, color: '#666666', textAlign: 'center' },
+        { id: `el_${now}_5`, type: 'text', x: 297, y: 260, content: 'AD SOYAD', font: 'Montserrat', fontSize: 32, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_6`, type: 'shape', x: 150, y: 300, width: 295, height: 2, shapeType: 'square', fill: '#f59e0b' },
+        { id: `el_${now}_7`, type: 'text', x: 297, y: 330, content: '[Program/Kurs Adı]\nbaşarıyla tamamladığını belgeler.', font: 'Open Sans', fontSize: 14, color: '#444444', lineHeight: 1.6, textAlign: 'center' },
+        { id: `el_${now}_8`, type: 'text', x: 297, y: 420, content: new Date().toLocaleDateString('tr-TR', { year: 'numeric', month: 'long', day: 'numeric' }), font: 'Open Sans', fontSize: 12, color: '#888888', textAlign: 'center' },
+        { id: `el_${now}_9`, type: 'text', x: 150, y: 550, content: '___________________\nYetkili İmza', font: 'Open Sans', fontSize: 11, color: '#444444', textAlign: 'center' },
+        { id: `el_${now}_10`, type: 'text', x: 440, y: 550, content: '___________________\nMühür', font: 'Open Sans', fontSize: 11, color: '#444444', textAlign: 'center' },
+      ];
+    } else if (templateId === 'checklist') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 40, content: 'KONTROL LİSTESİ', font: 'Montserrat', fontSize: 24, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_2`, type: 'text', x: 40, y: 75, content: `Tarih: ${new Date().toLocaleDateString('tr-TR')}`, font: 'Open Sans', fontSize: 11, color: '#888888' },
+        { id: `el_${now}_3`, type: 'shape', x: 40, y: 95, width: 515, height: 2, shapeType: 'square', fill: '#22c55e' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 120, content: '☐ Görev 1: İlk adım açıklaması\n☐ Görev 2: İkinci adım açıklaması\n☐ Görev 3: Üçüncü adım açıklaması\n☐ Görev 4: Dördüncü adım açıklaması\n☐ Görev 5: Beşinci adım açıklaması\n☐ Görev 6: Altıncı adım açıklaması\n☐ Görev 7: Yedinci adım açıklaması\n☐ Görev 8: Sekizinci adım açıklaması', font: 'Open Sans', fontSize: 12, color: '#333333', lineHeight: 2.2 },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 400, content: 'Notlar:', font: 'Montserrat', fontSize: 13, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 425, content: '...', font: 'Open Sans', fontSize: 11, color: '#666666' },
+      ];
+    } else if (templateId === 'brainstorm') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 842, shapeType: 'square', fill: '#fef3c7' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 40, content: 'BEYİN FIRTINASI', font: 'Montserrat', fontSize: 28, color: '#92400e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 80, content: 'Konu: [Ana Konu]', font: 'Open Sans', fontSize: 16, color: '#b45309', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'shape', x: 220, y: 350, width: 155, height: 80, shapeType: 'circle', fill: '#f59e0b' },
+        { id: `el_${now}_5`, type: 'text', x: 297, y: 380, content: 'ANA FİKİR', font: 'Montserrat', fontSize: 14, color: '#ffffff', bold: true, textAlign: 'center' },
+        { id: `el_${now}_6`, type: 'text', x: 80, y: 200, content: 'Fikir 1', font: 'Open Sans', fontSize: 13, color: '#92400e', bold: true },
+        { id: `el_${now}_7`, type: 'text', x: 80, y: 225, content: '- Alt fikir\n- Detay', font: 'Open Sans', fontSize: 11, color: '#b45309', lineHeight: 1.6 },
+        { id: `el_${now}_8`, type: 'text', x: 400, y: 200, content: 'Fikir 2', font: 'Open Sans', fontSize: 13, color: '#92400e', bold: true },
+        { id: `el_${now}_9`, type: 'text', x: 400, y: 225, content: '- Alt fikir\n- Detay', font: 'Open Sans', fontSize: 11, color: '#b45309', lineHeight: 1.6 },
+        { id: `el_${now}_10`, type: 'text', x: 80, y: 500, content: 'Fikir 3', font: 'Open Sans', fontSize: 13, color: '#92400e', bold: true },
+        { id: `el_${now}_11`, type: 'text', x: 80, y: 525, content: '- Alt fikir\n- Detay', font: 'Open Sans', fontSize: 11, color: '#b45309', lineHeight: 1.6 },
+        { id: `el_${now}_12`, type: 'text', x: 400, y: 500, content: 'Fikir 4', font: 'Open Sans', fontSize: 13, color: '#92400e', bold: true },
+        { id: `el_${now}_13`, type: 'text', x: 400, y: 525, content: '- Alt fikir\n- Detay', font: 'Open Sans', fontSize: 11, color: '#b45309', lineHeight: 1.6 },
+      ];
+    } else if (templateId === 'socialmedia') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 842, shapeType: 'square', fill: '#0f172a' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 60, content: 'SOSYAL MEDYA\nİÇERİK PLANI', font: 'Montserrat', fontSize: 28, color: '#e879f9', bold: true, textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'shape', x: 200, y: 130, width: 195, height: 3, shapeType: 'square', fill: '#e879f9' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 170, content: 'Platform: Instagram / Twitter / LinkedIn', font: 'Open Sans', fontSize: 12, color: '#94a3b8' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 210, content: 'Pazartesi', font: 'Montserrat', fontSize: 14, color: '#38bdf8', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 235, content: 'Konu: Motivasyon Postu\nFormat: Carousel\nSaat: 10:00', font: 'Open Sans', fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 310, content: 'Çarşamba', font: 'Montserrat', fontSize: 14, color: '#38bdf8', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 335, content: 'Konu: Ürün Tanıtımı\nFormat: Reels/Video\nSaat: 14:00', font: 'Open Sans', fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 410, content: 'Cuma', font: 'Montserrat', fontSize: 14, color: '#38bdf8', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 435, content: 'Konu: Kullanıcı Yorumları\nFormat: Story\nSaat: 18:00', font: 'Open Sans', fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 530, content: 'Hashtag Listesi', font: 'Montserrat', fontSize: 14, color: '#e879f9', bold: true },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 555, content: '#marka #dijitalpazarlama #sosyalmedya\n#icerikuretimi #pazarlama #girisimci', font: 'Open Sans', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 },
+      ];
+    } else if (templateId === 'weeklyplan') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 297, y: 40, content: 'HAFTALIK PLAN', font: 'Montserrat', fontSize: 26, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_2`, type: 'shape', x: 200, y: 78, width: 195, height: 2, shapeType: 'square', fill: '#8b5cf6' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 110, content: 'Pazartesi', font: 'Montserrat', fontSize: 13, color: '#8b5cf6', bold: true },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 130, content: '•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 175, content: 'Salı', font: 'Montserrat', fontSize: 13, color: '#8b5cf6', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 195, content: '•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 240, content: 'Çarşamba', font: 'Montserrat', fontSize: 13, color: '#8b5cf6', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 260, content: '•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 305, content: 'Perşembe', font: 'Montserrat', fontSize: 13, color: '#8b5cf6', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 325, content: '•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 370, content: 'Cuma', font: 'Montserrat', fontSize: 13, color: '#8b5cf6', bold: true },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 390, content: '•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+      ];
+    } else if (templateId === 'swot') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 297, y: 30, content: 'SWOT ANALİZİ', font: 'Montserrat', fontSize: 26, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_2`, type: 'shape', x: 40, y: 80, width: 250, height: 280, shapeType: 'square', fill: '#dcfce7' },
+        { id: `el_${now}_3`, type: 'text', x: 165, y: 95, content: 'GÜÇLÜ YANLAR', font: 'Montserrat', fontSize: 13, color: '#16a34a', bold: true, textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'text', x: 55, y: 125, content: '•\n•\n•', font: 'Open Sans', fontSize: 11, color: '#333333', lineHeight: 1.8 },
+        { id: `el_${now}_5`, type: 'shape', x: 305, y: 80, width: 250, height: 280, shapeType: 'square', fill: '#fef9c3' },
+        { id: `el_${now}_6`, type: 'text', x: 430, y: 95, content: 'ZAYIF YANLAR', font: 'Montserrat', fontSize: 13, color: '#ca8a04', bold: true, textAlign: 'center' },
+        { id: `el_${now}_7`, type: 'text', x: 320, y: 125, content: '•\n•\n•', font: 'Open Sans', fontSize: 11, color: '#333333', lineHeight: 1.8 },
+        { id: `el_${now}_8`, type: 'shape', x: 40, y: 380, width: 250, height: 280, shapeType: 'square', fill: '#dbeafe' },
+        { id: `el_${now}_9`, type: 'text', x: 165, y: 395, content: 'FIRSATLAR', font: 'Montserrat', fontSize: 13, color: '#2563eb', bold: true, textAlign: 'center' },
+        { id: `el_${now}_10`, type: 'text', x: 55, y: 425, content: '•\n•\n•', font: 'Open Sans', fontSize: 11, color: '#333333', lineHeight: 1.8 },
+        { id: `el_${now}_11`, type: 'shape', x: 305, y: 380, width: 250, height: 280, shapeType: 'square', fill: '#fee2e2' },
+        { id: `el_${now}_12`, type: 'text', x: 430, y: 395, content: 'TEHDİTLER', font: 'Montserrat', fontSize: 13, color: '#dc2626', bold: true, textAlign: 'center' },
+        { id: `el_${now}_13`, type: 'text', x: 320, y: 425, content: '•\n•\n•', font: 'Open Sans', fontSize: 11, color: '#333333', lineHeight: 1.8 },
+      ];
+    } else if (templateId === 'blogpost') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 40, y: 60, content: 'Blog Yazısı Başlığı', font: 'Montserrat', fontSize: 30, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_2`, type: 'text', x: 40, y: 105, content: `Yazar Adı • ${new Date().toLocaleDateString('tr-TR')} • 5 dk okuma`, font: 'Open Sans', fontSize: 11, color: '#888888' },
+        { id: `el_${now}_3`, type: 'shape', x: 40, y: 130, width: 515, height: 1, shapeType: 'square', fill: '#e0e0e0' },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 160, content: 'Giriş paragrafı burada başlar. Okuyucunun dikkatini çekmek için güçlü bir açılış yapın. Bu bölümde konunun önemini ve yazının amacını belirtin.', font: 'Open Sans', fontSize: 12, color: '#333333', lineHeight: 1.8 },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 260, content: 'Alt Başlık 1', font: 'Montserrat', fontSize: 18, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 290, content: 'İlk bölümün içeriği burada yer alır. Detaylı açıklamalar, örnekler ve destekleyici bilgiler ekleyin.', font: 'Open Sans', fontSize: 12, color: '#333333', lineHeight: 1.8 },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 370, content: 'Alt Başlık 2', font: 'Montserrat', fontSize: 18, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 400, content: 'İkinci bölümde konuyu derinleştirin. Farklı perspektifler sunun ve okuyucuya değer katın.', font: 'Open Sans', fontSize: 12, color: '#333333', lineHeight: 1.8 },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 480, content: 'Sonuç', font: 'Montserrat', fontSize: 18, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 510, content: 'Yazının ana mesajını özetleyin ve okuyucuyu bir sonraki adıma yönlendirin.', font: 'Open Sans', fontSize: 12, color: '#333333', lineHeight: 1.8 },
+      ];
+    } else if (templateId === 'eventflyer') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 842, shapeType: 'square', fill: '#1e1b4b' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 100, content: 'ETKİNLİK', font: 'Montserrat', fontSize: 48, color: '#c084fc', bold: true, textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 170, content: 'DAVET', font: 'Montserrat', fontSize: 36, color: '#e879f9', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'shape', x: 180, y: 220, width: 235, height: 2, shapeType: 'square', fill: '#c084fc' },
+        { id: `el_${now}_5`, type: 'text', x: 297, y: 270, content: 'Etkinlik Adı', font: 'Montserrat', fontSize: 22, color: '#ffffff', bold: true, textAlign: 'center' },
+        { id: `el_${now}_6`, type: 'text', x: 297, y: 340, content: '📅 15 Mart 2026', font: 'Open Sans', fontSize: 16, color: '#e2e8f0', textAlign: 'center' },
+        { id: `el_${now}_7`, type: 'text', x: 297, y: 380, content: '🕐 19:00 - 23:00', font: 'Open Sans', fontSize: 16, color: '#e2e8f0', textAlign: 'center' },
+        { id: `el_${now}_8`, type: 'text', x: 297, y: 420, content: '📍 Mekan Adı, İstanbul', font: 'Open Sans', fontSize: 16, color: '#e2e8f0', textAlign: 'center' },
+        { id: `el_${now}_9`, type: 'text', x: 297, y: 520, content: 'Kayıt için: etkinlik@example.com', font: 'Open Sans', fontSize: 14, color: '#c084fc', textAlign: 'center' },
+      ];
     }
     
     if (elements.length > 0) {
@@ -1346,11 +1556,12 @@ const Editor = () => {
   };
 
   // === VOICE ===
-  const getDocText = () => canvasElements.filter(el => el.type === 'text').sort((a, b) => a.y - b.y).map(el => el.content).join('. ');
+  const getDocText = () => canvasElements.filter(el => el.type === 'text' && !el.isRedacted).sort((a, b) => a.y - b.y).map(el => el.content).join('. ');
   
-  // Get full document content for ZETA (includes all element types)
+  // Get full document content for ZETA (includes all element types, EXCLUDES redacted content)
   const getFullDocContent = () => {
     const elements = canvasElements.map(el => {
+      if (el.isRedacted) return `[REDACTED]`;
       if (el.type === 'text') return `[TEXT]: ${el.content}`;
       if (el.type === 'shape') return `[SHAPE]: ${el.shapeType} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
       if (el.type === 'image') return `[IMAGE]: at (${Math.round(el.x)}, ${Math.round(el.y)}), size: ${el.width}x${el.height}`;
@@ -1590,6 +1801,34 @@ const Editor = () => {
           <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyTextStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItalic ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItalic ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italic className="h-4 w-4" /> Italic</button>
           <button data-testid="toggle-underline" onClick={() => { setIsUnderline(!isUnderline); applyTextStyle('underline', !isUnderline); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isUnderline ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isUnderline ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Underline className="h-4 w-4" /> Underline</button>
           <button data-testid="toggle-strikethrough" onClick={() => { setIsStrikethrough(!isStrikethrough); applyTextStyle('strikethrough', !isStrikethrough); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isStrikethrough ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isStrikethrough ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Strikethrough className="h-4 w-4" /> Strike</button>
+        </div>
+        {/* Highlighter Section */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium flex items-center gap-1.5" style={{ color: 'var(--zet-text)' }}><Highlighter className="h-3.5 w-3.5" /> Highlighter</span>
+            <button 
+              data-testid="highlighter-auto-toggle"
+              onClick={() => setHighlighterAuto(!highlighterAuto)}
+              className={`text-xs px-2 py-0.5 rounded transition-colors ${highlighterAuto ? 'glow-sm' : ''}`}
+              style={{ background: highlighterAuto ? '#FFFF0030' : 'var(--zet-bg)', color: highlighterAuto ? '#eab308' : 'var(--zet-text-muted)', border: highlighterAuto ? '1px solid #eab30840' : '1px solid transparent' }}
+            >
+              {highlighterAuto ? 'Oto: Açık' : 'Oto: Kapalı'}
+            </button>
+          </div>
+          <div className="flex items-center gap-1">
+            {['#FFFF00', '#00FF00', '#00FFFF', '#FF69B4', '#FFA500', '#FF0000'].map(c => (
+              <button key={c} onClick={() => {
+                setHighlighterColor(c);
+                if (selectedElement) { applyTextStyle('highlightColor', c); }
+              }} className={`w-6 h-6 rounded transition-all ${highlighterColor === c ? 'ring-2 ring-white scale-110' : ''}`} style={{ background: c }} data-testid={`highlight-color-${c}`} />
+            ))}
+            <button onClick={() => {
+              if (selectedElement) { applyTextStyle('highlightColor', null); }
+            }} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }} data-testid="highlight-remove" title="Kaldır">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          {highlighterAuto && <p className="text-xs mt-1" style={{ color: '#eab308' }}>Metin seçtiğinizde otomatik işaretlenir</p>}
         </div>
       </div>
     </DraggablePanel>}
@@ -2244,20 +2483,24 @@ const Editor = () => {
 
     {/* Templates Panel */}
     {showTemplates && <DraggablePanel title="Templates" onClose={() => setShowTemplates(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-64 space-y-2">
-        {TEMPLATES.map(tpl => (
-          <button key={tpl.id} onClick={() => applyTemplate(tpl.id)} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors" style={{ background: 'var(--zet-bg)' }}>
-            <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{tpl.name}</div>
-            <div className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>
-              {tpl.id === 'cv' && 'Professional resume layout'}
-              {tpl.id === 'report' && 'Annual/project report'}
-              {tpl.id === 'letter' && 'Formal business letter'}
-              {tpl.id === 'invoice' && 'Bill/invoice template'}
-              {tpl.id === 'presentation' && 'Title slide design'}
-              {tpl.id === 'blank' && 'Start from scratch'}
+      <div className="w-72 space-y-1 max-h-[60vh] overflow-y-auto">
+        {['Temel', 'İş', 'Kariyer', 'Hukuki', 'Eğitim', 'Kişisel', 'Pazarlama', 'Yaratıcı'].map(cat => {
+          const catTemplates = TEMPLATES.filter(t => t.category === cat);
+          if (!catTemplates.length) return null;
+          return (
+            <div key={cat}>
+              <p className="text-xs font-semibold px-2 pt-2 pb-1" style={{ color: 'var(--zet-text-muted)' }}>{cat}</p>
+              {catTemplates.map(tpl => (
+                <button key={tpl.id} onClick={() => applyTemplate(tpl.id)} className="w-full p-2.5 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }} data-testid={`template-${tpl.id}`}>
+                  <span className="text-lg flex-shrink-0">{tpl.icon}</span>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate" style={{ color: 'var(--zet-text)' }}>{tpl.name}</div>
+                  </div>
+                </button>
+              ))}
             </div>
-          </button>
-        ))}
+          );
+        })}
       </div>
     </DraggablePanel>}
 

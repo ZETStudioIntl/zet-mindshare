@@ -151,6 +151,7 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
         paddingRight: (el.paddingRight || 0) * zoom,
         paddingTop: (el.paddingTop || 0) * zoom,
         paddingBottom: (el.paddingBottom || 0) * zoom,
+        backgroundColor: el.highlightColor || undefined,
         ...gradientStyle,
       }}>
       {el.content || (isEditing ? '' : '\u00A0')}

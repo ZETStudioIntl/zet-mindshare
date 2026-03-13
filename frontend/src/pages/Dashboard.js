@@ -77,8 +77,12 @@ const Dashboard = () => {
   const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [showRanks, setShowRanks] = useState(false);
+  const [showMissions, setShowMissions] = useState(false);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
+  const [profilePhoto, setProfilePhoto] = useState(null);
+  const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   
   // AI Settings states (shared with Editor)
   const [zetaMood, setZetaMood] = useState(() => localStorage.getItem('zet_zeta_mood') || 'professional');
@@ -389,6 +393,9 @@ Devam etmek istiyor musunuz?`;
             className="h-10 w-10"
           />
           <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
+          <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }} data-testid="header-rank-badge">
+            <Award className="h-3 w-3" /> Çırak
+          </span>
         </div>
         <div className="flex items-center gap-2">
           <button 
@@ -525,14 +532,24 @@ Devam etmek istiyor musunuz?`;
             <Sparkles className="h-4 w-4" /> AI Ayarları
           </button>
 
-          {/* Ranks & Missions */}
+          {/* Ranks */}
           <button 
             onClick={() => { setShowRanks(true); setShowSettings(false); }}
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: '#f59e0b' }}
             data-testid="ranks-btn"
           >
-            <Award className="h-4 w-4" /> Rütbe & Görevler
+            <Award className="h-4 w-4" /> Rütbe
+          </button>
+
+          {/* Missions */}
+          <button 
+            onClick={() => { setShowMissions(true); setShowSettings(false); }}
+            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
+            style={{ color: '#4ca8ad' }}
+            data-testid="missions-btn"
+          >
+            <Target className="h-4 w-4" /> Görevler
           </button>
 
           {/* Subscription */}
@@ -1167,6 +1184,36 @@ Devam etmek istiyor musunuz?`;
             </div>
             
             <div className="space-y-4">
+              {/* Profile Photo */}
+              <div className="flex flex-col items-center gap-3">
+                <div className="relative group">
+                  <img 
+                    src={profilePhotoPreview || user?.picture || 'https://via.placeholder.com/80'} 
+                    alt="Profile" 
+                    className="w-20 h-20 rounded-full object-cover border-2" 
+                    style={{ borderColor: 'var(--zet-primary)' }}
+                    data-testid="profile-photo-preview"
+                  />
+                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Upload className="h-6 w-6 text-white" />
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      data-testid="profile-photo-input"
+                      onChange={(e) => {
+                        const file = e.target.files[0];
+                        if (file) {
+                          setProfilePhoto(file);
+                          setProfilePhotoPreview(URL.createObjectURL(file));
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Fotoğrafı değiştirmek için tıklayın</span>
+              </div>
+
               <div>
                 <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>İsim</label>
                 <input 
@@ -1175,6 +1222,7 @@ Devam etmek istiyor musunuz?`;
                   onChange={e => setEditName(e.target.value)}
                   className="zet-input w-full"
                   placeholder="Adınız"
+                  data-testid="profile-name-input"
                 />
               </div>
               <div>
@@ -1191,20 +1239,38 @@ Devam etmek istiyor musunuz?`;
               </div>
               
               <button 
+                data-testid="profile-save-btn"
+                disabled={uploadingPhoto}
                 onClick={async () => {
+                  setUploadingPhoto(true);
                   try {
+                    let pictureUrl = user?.picture;
+                    // Upload photo if selected
+                    if (profilePhoto) {
+                      const reader = new FileReader();
+                      const base64 = await new Promise((resolve) => {
+                        reader.onload = (ev) => resolve(ev.target.result);
+                        reader.readAsDataURL(profilePhoto);
+                      });
+                      const photoRes = await axios.post(`${API}/auth/profile-picture`, { image_data: base64 }, { withCredentials: true });
+                      pictureUrl = photoRes.data.picture_url;
+                    }
+                    // Update name
                     await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
-                    if (updateUser) updateUser({ ...user, name: editName });
+                    if (updateUser) updateUser({ ...user, name: editName, picture: pictureUrl });
                     setShowProfileEdit(false);
+                    setProfilePhoto(null);
+                    setProfilePhotoPreview(null);
                     alert('Profil güncellendi!');
                   } catch (err) {
                     alert('Güncelleme başarısız');
                   }
+                  setUploadingPhoto(false);
                 }}
-                className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:scale-105"
+                className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
                 style={{ background: 'var(--zet-primary)' }}
               >
-                Kaydet
+                {uploadingPhoto ? 'Kaydediliyor...' : 'Kaydet'}
               </button>
             </div>
           </div>
@@ -1296,12 +1362,12 @@ Devam etmek istiyor musunuz?`;
         </div>
       )}
 
-      {/* Ranks & Missions Modal */}
+      {/* Ranks Modal */}
       {showRanks && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowRanks(false)}>
-          <div className="zet-card p-6 w-full max-w-lg animate-fadeIn" onClick={e => e.stopPropagation()}>
+          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Rütbe & Görevler</h2>
+              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Rütbe</h2>
               <button onClick={() => setShowRanks(false)} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
               </button>
@@ -1318,8 +1384,8 @@ Devam etmek istiyor musunuz?`;
             </div>
 
             {/* Ranks List */}
-            <div className="mb-6">
-              <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Rütbeler</h4>
+            <div>
+              <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Tüm Rütbeler</h4>
               <div className="space-y-2">
                 {[
                   { name: 'Çırak', xp: 0, color: '#9ca3af', current: true },
@@ -1339,7 +1405,21 @@ Devam etmek istiyor musunuz?`;
                 ))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
 
+      {/* Missions Modal */}
+      {showMissions && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowMissions(false)}>
+          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Görevler</h2>
+              <button onClick={() => setShowMissions(false)} className="p-1 rounded hover:bg-white/10">
+                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+            
             {/* Active Missions */}
             <div>
               <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Aktif Görevler</h4>
@@ -1349,6 +1429,8 @@ Devam etmek istiyor musunuz?`;
                   { title: 'AI Keşifçisi', desc: 'ZETA ile 5 sohbet yapın', xp: 25, progress: 40 },
                   { title: 'Renk Ustası', desc: 'Gradient kullanın', xp: 15, progress: 0 },
                   { title: 'Grafik Sihirbazı', desc: '3 grafik oluşturun', xp: 30, progress: 33 },
+                  { title: 'Şablon Uzmanı', desc: '5 farklı şablon kullanın', xp: 20, progress: 0 },
+                  { title: 'Organizatör', desc: '10 not oluşturun', xp: 15, progress: 0 },
                 ].map((mission, i) => (
                   <div key={i} className="p-3 rounded-lg" style={{ background: mission.done ? 'rgba(34, 197, 94, 0.1)' : 'var(--zet-bg)' }}>
                     <div className="flex items-center justify-between mb-1">
