@@ -9,7 +9,7 @@ import requests
 import os
 import base64
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://brainstorm-hub-386.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://spider-mind.preview.emergentagent.com')
 
 
 class TestProfilePictureUpload:
