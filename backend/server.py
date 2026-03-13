@@ -1577,6 +1577,35 @@ async def list_icloud_files(user: User = Depends(get_current_user)):
 async def upload_to_icloud(user: User = Depends(get_current_user)):
     return {"message": "iCloud upload coming soon"}
 
+# ============ QUEST MAP ============
+
+@api_router.get("/quests/progress")
+async def get_quest_progress(user: User = Depends(get_current_user)):
+    user_data = await users_collection.find_one({"user_id": user.user_id}, {"_id": 0, "completed_quests": 1, "quest_xp": 1})
+    return {
+        "completed_quests": user_data.get("completed_quests", []) if user_data else [],
+        "quest_xp": user_data.get("quest_xp", 0) if user_data else 0
+    }
+
+class QuestCompleteRequest(BaseModel):
+    xp: int = 10
+
+@api_router.post("/quests/{quest_id}/complete")
+async def complete_quest(quest_id: int, req: QuestCompleteRequest, user: User = Depends(get_current_user)):
+    user_data = await users_collection.find_one({"user_id": user.user_id}, {"_id": 0, "completed_quests": 1, "quest_xp": 1})
+    completed = user_data.get("completed_quests", []) if user_data else []
+    current_xp = user_data.get("quest_xp", 0) if user_data else 0
+    if quest_id in completed:
+        return {"completed_quests": completed, "quest_xp": current_xp, "already_completed": True}
+    completed.append(quest_id)
+    new_xp = current_xp + req.xp
+    await users_collection.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"completed_quests": completed, "quest_xp": new_xp}},
+        upsert=True
+    )
+    return {"completed_quests": completed, "quest_xp": new_xp}
+
 # ============ ROOT ============
 
 @api_router.get("/")

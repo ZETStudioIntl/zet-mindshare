@@ -6,7 +6,7 @@ import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
-  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target
+  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target, Map
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -542,14 +542,14 @@ Devam etmek istiyor musunuz?`;
             <Award className="h-4 w-4" /> Rütbe
           </button>
 
-          {/* Missions */}
+          {/* Missions - Quest Map */}
           <button 
-            onClick={() => { setShowMissions(true); setShowSettings(false); }}
+            onClick={() => { navigate('/quest-map'); setShowSettings(false); }}
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: '#4ca8ad' }}
             data-testid="missions-btn"
           >
-            <Target className="h-4 w-4" /> Görevler
+            <Map className="h-4 w-4" /> Görev Haritası
           </button>
 
           {/* Subscription */}

@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
+import QuestMap from "./pages/QuestMap";
 
 const AppRouter = () => {
   const location = useLocation();
@@ -28,6 +29,11 @@ const AppRouter = () => {
       <Route path="/editor/:docId" element={
         <ProtectedRoute>
           <Editor />
+        </ProtectedRoute>
+      } />
+      <Route path="/quest-map" element={
+        <ProtectedRoute>
+          <QuestMap />
         </ProtectedRoute>
       } />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
