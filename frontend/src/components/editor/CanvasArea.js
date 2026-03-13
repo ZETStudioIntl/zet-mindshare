@@ -109,6 +109,24 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
       r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
     }
   }, [isEditing]);
+  
+  // Redacted text - show as black bar
+  if (el.isRedacted) {
+    return (
+      <div 
+        data-testid={`text-element-${el.id}`}
+        style={{
+          width: (el.content?.length || 10) * (el.fontSize || 16) * 0.6 * zoom,
+          height: (el.fontSize || 16) * 1.4 * zoom,
+          background: '#000000',
+          borderRadius: 2,
+          cursor: 'pointer',
+        }}
+        title="🔒 Sansürlenmiş İçerik"
+      />
+    );
+  }
+  
   const gradientStyle = el.gradientStart && el.gradientEnd ? {
     background: `linear-gradient(90deg, ${el.gradientStart}, ${el.gradientEnd})`,
     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',

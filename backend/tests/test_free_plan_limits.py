@@ -11,7 +11,7 @@ import requests
 import os
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-canvas-68.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zeta-judge-editor.preview.emergentagent.com')
 
 # Test credentials for demo user (FREE plan)
 DEMO_USER = {

@@ -499,9 +499,31 @@ const Editor = () => {
       signature: () => setShowSignature(true),
       indent: () => setShowIndent(true),
       margins: () => setShowMargins(true),
+      redact: () => applyRedaction(),
     };
     if (panels[toolId]) panels[toolId]();
   };
+
+  // === REDACT (Security) Tool ===
+  const applyRedaction = useCallback(() => {
+    if (!selectedElement) {
+      alert('Lütfen önce sansürlemek istediğiniz metni seçin!');
+      return;
+    }
+    const el = canvasElements.find(e => e.id === selectedElement);
+    if (!el || el.type !== 'text') {
+      alert('Sadece metin elementleri sansürlenebilir!');
+      return;
+    }
+    // Apply redaction - replace with black bar
+    const updated = canvasElements.map(e => 
+      e.id === selectedElement 
+        ? { ...e, isRedacted: true, originalContent: e.content, color: '#000000', background: '#000000' }
+        : e
+    );
+    setCanvasElements(updated);
+    history.push(updated);
+  }, [canvasElements, selectedElement, history]);
 
   // === PHOTO EDIT ===
   const handlePhotoEditUpload = () => {

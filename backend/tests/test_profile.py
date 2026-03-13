@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://ai-canvas-68.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zeta-judge-editor.preview.emergentagent.com')
 
 class TestProfileEndpoint:
     """Test suite for profile update functionality"""

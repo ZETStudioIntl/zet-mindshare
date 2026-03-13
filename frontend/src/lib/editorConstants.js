@@ -6,7 +6,7 @@ import {
   AlignLeft, BarChart3, Contrast, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
-  IndentIncrease, Maximize
+  IndentIncrease, Maximize, ShieldOff
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -76,6 +76,7 @@ export const TOOLS = [
   { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
   { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
+  { id: 'redact', icon: ShieldOff, nameKey: 'redact', shortcut: null },
   { id: 'translate', icon: Languages, nameKey: 'translate', shortcut: 'L' },
   { id: 'graphic', icon: BarChart3, nameKey: 'graphic', shortcut: 'G' },
   { id: 'table', icon: Table, nameKey: 'table', shortcut: null },
@@ -131,12 +132,23 @@ export const CHART_TYPES = [
 ];
 
 export const TEMPLATES = [
-  { id: 'blank', name: 'Blank Document', nameKey: 'templateBlank' },
-  { id: 'cv', name: 'CV / Resume', nameKey: 'templateCV' },
-  { id: 'report', name: 'Report', nameKey: 'templateReport' },
-  { id: 'presentation', name: 'Presentation', nameKey: 'templatePresentation' },
-  { id: 'letter', name: 'Letter', nameKey: 'templateLetter' },
-  { id: 'invoice', name: 'Invoice', nameKey: 'templateInvoice' },
+  { id: 'blank', name: 'Boş Belge', nameKey: 'templateBlank', icon: '📄', category: 'Temel' },
+  { id: 'cv', name: 'CV / Özgeçmiş', nameKey: 'templateCV', icon: '👤', category: 'Kariyer' },
+  { id: 'report', name: 'Rapor', nameKey: 'templateReport', icon: '📊', category: 'İş' },
+  { id: 'presentation', name: 'Sunum', nameKey: 'templatePresentation', icon: '📽️', category: 'İş' },
+  { id: 'letter', name: 'Mektup', nameKey: 'templateLetter', icon: '✉️', category: 'Kişisel' },
+  { id: 'invoice', name: 'Fatura', nameKey: 'templateInvoice', icon: '🧾', category: 'İş' },
+  // Yeni Şablonlar
+  { id: 'meeting', name: 'Toplantı Notları', nameKey: 'templateMeeting', icon: '📝', category: 'İş' },
+  { id: 'proposal', name: 'Teklif / Proposal', nameKey: 'templateProposal', icon: '💼', category: 'İş' },
+  { id: 'contract', name: 'Sözleşme', nameKey: 'templateContract', icon: '📜', category: 'Hukuki' },
+  { id: 'newsletter', name: 'Bülten', nameKey: 'templateNewsletter', icon: '📰', category: 'Pazarlama' },
+  { id: 'recipe', name: 'Tarif Kartı', nameKey: 'templateRecipe', icon: '🍳', category: 'Kişisel' },
+  { id: 'projectplan', name: 'Proje Planı', nameKey: 'templateProject', icon: '🎯', category: 'İş' },
+  { id: 'certificate', name: 'Sertifika', nameKey: 'templateCertificate', icon: '🏆', category: 'Eğitim' },
+  { id: 'checklist', name: 'Kontrol Listesi', nameKey: 'templateChecklist', icon: '✅', category: 'Kişisel' },
+  { id: 'brainstorm', name: 'Beyin Fırtınası', nameKey: 'templateBrainstorm', icon: '💡', category: 'Yaratıcı' },
+  { id: 'socialmedia', name: 'Sosyal Medya', nameKey: 'templateSocial', icon: '📱', category: 'Pazarlama' },
 ];
 
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];
