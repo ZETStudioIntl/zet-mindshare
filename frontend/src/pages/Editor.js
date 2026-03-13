@@ -18,7 +18,7 @@ import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
-  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil, Crown
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -208,6 +208,8 @@ const Editor = () => {
   // Usage & Subscription state
   const [userUsage, setUserUsage] = useState(null);
   const [userPlan, setUserPlan] = useState('free');
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeReason, setUpgradeReason] = useState('');
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -740,7 +742,21 @@ const Editor = () => {
     const chartHeight = height - padding * 2;
     const maxValue = Math.max(...data, 1);
     
+    // Create gradient definitions
+    let gradientDefs = '';
+    if (gradientStart && gradientEnd) {
+      gradientDefs = `<defs>`;
+      chartColors.forEach((_, i) => {
+        gradientDefs += `<linearGradient id="chartGrad${i}" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" style="stop-color:${gradientStart};stop-opacity:1" />
+          <stop offset="100%" style="stop-color:${gradientEnd};stop-opacity:1" />
+        </linearGradient>`;
+      });
+      gradientDefs += `</defs>`;
+    }
+    
     let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="background:white">`;
+    svgContent += gradientDefs;
     
     // Add background image if selected
     if (chartImage) {
@@ -749,13 +765,16 @@ const Editor = () => {
     
     svgContent += `<text x="${width/2}" y="20" text-anchor="middle" font-size="14" font-weight="bold">${chartTitle}</text>`;
     
+    // Determine fill - use gradient if available, otherwise use chartColors
+    const getFill = (i) => gradientStart && gradientEnd ? `url(#chartGrad${i})` : chartColors[i % chartColors.length];
+    
     if (chartType === 'bar') {
       const barWidth = chartWidth / labels.length - 10;
       labels.forEach((label, i) => {
         const barHeight = (data[i] / maxValue) * chartHeight;
         const x = padding + i * (barWidth + 10);
         const y = padding + chartHeight - barHeight;
-        svgContent += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${chartColors[i % chartColors.length]}"/>`;
+        svgContent += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${getFill(i)}"/>`;
         svgContent += `<text x="${x + barWidth/2}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
         svgContent += `<text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" font-size="10">${data[i]}</text>`;
       });
@@ -771,25 +790,26 @@ const Editor = () => {
         const x2 = cx + r * Math.cos(endAngle);
         const y2 = cy + r * Math.sin(endAngle);
         const largeArc = angle > Math.PI ? 1 : 0;
-        svgContent += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${chartColors[i % chartColors.length]}"/>`;
+        svgContent += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${getFill(i)}"/>`;
         startAngle = endAngle;
       });
     } else if (chartType === 'line') {
       const pointSpacing = chartWidth / (labels.length - 1 || 1);
       let pathD = '';
+      const lineColor = gradientStart || PRESET_COLORS[0];
       labels.forEach((label, i) => {
         const x = padding + i * pointSpacing;
         const y = padding + chartHeight - (data[i] / maxValue) * chartHeight;
         pathD += (i === 0 ? 'M' : 'L') + `${x},${y}`;
-        svgContent += `<circle cx="${x}" cy="${y}" r="4" fill="${PRESET_COLORS[0]}"/>`;
+        svgContent += `<circle cx="${x}" cy="${y}" r="4" fill="${lineColor}"/>`;
         svgContent += `<text x="${x}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
       });
-      svgContent += `<path d="${pathD}" stroke="${PRESET_COLORS[0]}" stroke-width="2" fill="none"/>`;
+      svgContent += `<path d="${pathD}" stroke="${lineColor}" stroke-width="2" fill="none"/>`;
     }
     
     svgContent += '</svg>';
     const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgContent)));
-    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width, height, src: imgSrc }];
+    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width, height, src: imgSrc, gradientStart, gradientEnd }];
     setCanvasElements(updated); history.push(updated);
     setShowGraphic(false);
   };
@@ -1196,7 +1216,8 @@ const Editor = () => {
     
     // Check usage limit before making request
     if (userUsage && userUsage.remaining?.ai_images <= 0) {
-      alert(`⚠️ Günlük AI görsel limitinize ulaştınız (${userUsage.limits?.ai_images || 0}/${userUsage.limits?.ai_images || 0}).\n\nYarın tekrar deneyin veya planınızı yükseltin.`);
+      setUpgradeReason('ai_image');
+      setShowUpgradeModal(true);
       return;
     }
     
@@ -1215,7 +1236,8 @@ const Editor = () => {
       }
     } catch (err) {
       if (err.response?.status === 429) {
-        alert(err.response?.data?.detail || 'Günlük AI görsel limitinize ulaştınız.');
+        setUpgradeReason('ai_image');
+        setShowUpgradeModal(true);
       }
     }
     setAiGenerating(false); setAiPrompt('');
@@ -1869,6 +1891,29 @@ const Editor = () => {
           </div>
         )}
 
+        {/* Gradient Option for Chart */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--zet-text-muted)' }}>
+            <input
+              type="checkbox"
+              checked={!!(gradientStart && gradientEnd)}
+              onChange={(e) => {
+                if (!e.target.checked) {
+                  setGradientStart('');
+                  setGradientEnd('');
+                }
+              }}
+              className="rounded"
+            />
+            Gradient Kullan (Mevcut renk seçili)
+          </label>
+          {gradientStart && gradientEnd && (
+            <div className="flex items-center gap-2 mt-2">
+              <div className="w-full h-6 rounded" style={{ background: `linear-gradient(90deg, ${gradientStart}, ${gradientEnd})` }} />
+            </div>
+          )}
+        </div>
+
         <button onClick={createChart} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> Create Chart</button>
       </div>
     </DraggablePanel>}
@@ -2325,7 +2370,8 @@ const Editor = () => {
                 pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
                 docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
                 forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} 
-                documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan} />
+                documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan} 
+                onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }} />
             </div>
           </div>
         )}
@@ -2453,7 +2499,8 @@ const Editor = () => {
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
           docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-          onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan} />
+          onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan}
+          onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }} />
       </div>
 
       {showVoice && (
@@ -2494,6 +2541,77 @@ const Editor = () => {
       )}
 
       {floatingPanels}
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowUpgradeModal(false)}>
+          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="text-center mb-6">
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f59e0b 0%, #8b5cf6 100%)' }}>
+                <Crown className="h-8 w-8 text-white" />
+              </div>
+              <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--zet-text)' }}>
+                {upgradeReason === 'ai_image' ? 'AI Görsel Limitine Ulaştınız!' : 
+                 upgradeReason === 'judge' ? 'ZET Judge Mini Premium Özellik' : 
+                 'Planınızı Yükseltin'}
+              </h2>
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
+                {upgradeReason === 'ai_image' ? `Günlük ${userUsage?.limits?.ai_images || 1} görsel limitinize ulaştınız.` : 
+                 upgradeReason === 'judge' ? 'ZET Judge Mini analiz özelliği premium planlarda kullanılabilir.' : 
+                 'Daha fazla özellik için planınızı yükseltin.'}
+              </p>
+            </div>
+            
+            {/* Plans */}
+            <div className="space-y-3 mb-6">
+              {/* Ultra */}
+              <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(245, 158, 11, 0.1)', borderColor: '#f59e0b' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold" style={{ color: '#f59e0b' }}>Ultra</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$39.99/ay</span>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>50 AI Görsel/gün • Judge Pro (12+5) • Sınırsız</p>
+              </div>
+              
+              {/* Pro - Recommended */}
+              <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] relative" style={{ background: 'rgba(139, 92, 246, 0.1)', borderColor: '#8b5cf6' }}>
+                <div className="absolute -top-2 left-4 px-2 py-0.5 rounded text-xs font-bold" style={{ background: '#8b5cf6', color: 'white' }}>Önerilen</div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold" style={{ color: '#8b5cf6' }}>Pro</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$19.99/ay</span>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>30 AI Görsel/gün • Judge Mini (7+1) • 25GB</p>
+              </div>
+              
+              {/* Plus */}
+              <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: '#3b82f6' }}>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-bold" style={{ color: '#3b82f6' }}>Plus</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$9.99/ay</span>
+                </div>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>5 AI Görsel/gün • Judge Mini (3) • 5GB</p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button 
+                onClick={() => setShowUpgradeModal(false)}
+                className="flex-1 py-3 rounded-xl text-sm font-medium"
+                style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
+              >
+                Daha Sonra
+              </button>
+              <button 
+                onClick={() => window.location.href = '/dashboard?upgrade=true'}
+                className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
+                style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #f59e0b 100%)' }}
+              >
+                Planları Gör
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showImageUpload && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}>

@@ -22,6 +22,7 @@ export const RightPanel = ({
   documentContent, // Text content from canvas elements
   userUsage,
   userPlan,
+  onShowUpgrade,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -417,7 +418,16 @@ export const RightPanel = ({
                   </div>
                   <p className="font-semibold text-sm">ZET Judge Mini</p>
                   <p className="text-xs mt-2 opacity-70">⚠️ Free planda kullanılamaz</p>
-                  <p className="text-xs mt-1 opacity-50">Plus veya üzeri plana yükseltin</p>
+                  <p className="text-xs mt-1 opacity-50 mb-3">Plus veya üzeri plana yükseltin</p>
+                  {onShowUpgrade && (
+                    <button 
+                      onClick={() => onShowUpgrade('judge')}
+                      className="px-4 py-2 rounded-lg text-xs font-medium transition-all hover:scale-105"
+                      style={{ background: '#c8005a', color: 'white' }}
+                    >
+                      Planı Yükselt
+                    </button>
+                  )}
                 </div>
               )}
               {userPlan !== 'free' && judgeMessages.length === 0 && (

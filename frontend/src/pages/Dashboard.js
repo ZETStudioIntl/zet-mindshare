@@ -84,7 +84,7 @@ const Dashboard = () => {
       name: 'Ultra',
       monthlyPrice: 39.99,
       yearlyPrice: 399.99,
-      features: ['Unlimited Storage', 'Unlimited AI Images', 'All Templates', '24/7 Support', 'API Access', 'Team Collaboration', 'White Label', 'ZET Judge Pro', 'Fast Select: 8 tools'],
+      features: ['Sınırsız Depolama', '50 AI Görsel/gün', 'Tüm Şablonlar', '7/24 Destek', 'API Erişimi', 'Takım İşbirliği', 'White Label', 'ZET Judge Pro (12 temel + 5 derin/gün)', 'Fast Select: 8 araç'],
       color: '#f59e0b',
       recommended: false
     },
@@ -93,7 +93,7 @@ const Dashboard = () => {
       name: 'Pro',
       monthlyPrice: 19.99,
       yearlyPrice: 199.99,
-      features: ['25GB Cloud Storage', '200 AI Images/month', 'All Templates', 'Priority Support', 'Custom Fonts', 'No Watermark', 'ZET Judge Mini', 'Fast Select: 8 tools'],
+      features: ['25GB Depolama', '30 AI Görsel/gün', 'Tüm Şablonlar', 'Öncelikli Destek', 'Özel Fontlar', 'Filigransız', 'ZET Judge Mini (7 temel + 1 derin/gün)', 'Fast Select: 8 araç'],
       color: '#8b5cf6',
       recommended: true
     },
@@ -102,7 +102,7 @@ const Dashboard = () => {
       name: 'Plus',
       monthlyPrice: 9.99,
       yearlyPrice: 99.99,
-      features: ['5GB Cloud Storage', '50 AI Images/month', 'Basic Templates', 'Email Support', 'Fast Select: 5 tools'],
+      features: ['5GB Depolama', '5 AI Görsel/gün', 'Temel Şablonlar', 'E-posta Desteği', 'ZET Judge Mini (3 temel/gün)', 'Fast Select: 5 araç'],
       color: '#3b82f6',
       recommended: false
     }
