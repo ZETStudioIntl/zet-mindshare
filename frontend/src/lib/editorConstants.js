@@ -5,7 +5,8 @@ import {
   Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
   AlignLeft, BarChart3, Contrast, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
-  PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine
+  PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
+  IndentIncrease, Maximize
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -17,21 +18,33 @@ export const PAGE_SIZES = [
 ];
 
 export const FONTS = [
-  // Sans-Serif
+  // === Sans-Serif (Modern) ===
   'Arial', 'Helvetica', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Geneva', 
   'Lucida Grande', 'Lucida Sans', 'Segoe UI', 'Open Sans', 'Roboto', 
   'Lato', 'Montserrat', 'Poppins', 'Nunito', 'Ubuntu', 'Inter',
-  // Serif
+  'Source Sans Pro', 'Work Sans', 'Karla', 'Manrope', 'DM Sans',
+  'Quicksand', 'Outfit', 'Figtree', 'Plus Jakarta Sans',
+  // === Serif (Klasik) ===
   'Times New Roman', 'Georgia', 'Palatino', 'Garamond', 'Bookman', 
   'Cambria', 'Constantia', 'Didot', 'Baskerville', 'Bodoni', 
-  'Merriweather', 'Playfair Display', 'Libre Baskerville',
-  // Monospace
+  'Merriweather', 'Playfair Display', 'Libre Baskerville', 'Crimson Text',
+  'Lora', 'EB Garamond', 'Cormorant', 'Spectral', 'Bitter',
+  // === Monospace (Kod) ===
   'Courier New', 'Lucida Console', 'Monaco', 'Consolas', 'Source Code Pro',
-  'Fira Code', 'JetBrains Mono',
-  // Display & Decorative
+  'Fira Code', 'JetBrains Mono', 'IBM Plex Mono', 'Space Mono', 'Roboto Mono',
+  // === Display & Decorative ===
   'Impact', 'Comic Sans MS', 'Brush Script MT', 'Copperplate', 
   'Rockwell', 'Century Gothic', 'Avant Garde', 'Futura', 'Gill Sans',
-  'Optima', 'Franklin Gothic', 'Bebas Neue', 'Oswald', 'Raleway'
+  'Optima', 'Franklin Gothic', 'Bebas Neue', 'Oswald', 'Raleway',
+  // === Türkçe Uyumlu ===
+  'Noto Sans', 'Noto Serif', 'PT Sans', 'PT Serif', 'Rubik', 'Exo 2',
+  'Titillium Web', 'Cabin', 'Mulish', 'Barlow', 'Lexend', 'Sora',
+  // === El Yazısı & Script ===
+  'Dancing Script', 'Pacifico', 'Great Vibes', 'Satisfy', 'Caveat',
+  'Kalam', 'Indie Flower', 'Shadows Into Light', 'Patrick Hand',
+  // === Başlık Fontları ===
+  'Anton', 'Archivo Black', 'Russo One', 'Righteous', 'Fredoka One',
+  'Alfa Slab One', 'Lilita One', 'Passion One', 'Bangers', 'Permanent Marker'
 ];
 
 export const PRESET_COLORS = [
@@ -47,6 +60,8 @@ export const TOOLS = [
   { id: 'font', icon: ALargeSmall, nameKey: 'font', shortcut: 'F' },
   { id: 'linespacing', icon: AlignJustify, nameKey: 'lineSpacing', shortcut: null },
   { id: 'paragraph', icon: AlignLeft, nameKey: 'paragraph', shortcut: 'A' },
+  { id: 'indent', icon: IndentIncrease, nameKey: 'indent', shortcut: null },
+  { id: 'margins', icon: Maximize, nameKey: 'margins', shortcut: null },
   { id: 'color', icon: Palette, nameKey: 'colorPicker', shortcut: 'C' },
   { id: 'hand', icon: Hand, nameKey: 'pan', shortcut: 'H' },
   { id: 'image', icon: Image, nameKey: 'image', shortcut: 'I' },

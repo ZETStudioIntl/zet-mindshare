@@ -89,6 +89,10 @@ class ZetaChatRequest(BaseModel):
     document_content: Optional[str] = None  # Text content of the current document
     image: Optional[str] = None  # Base64 image data
     mode: Optional[str] = "fast"  # 'fast' or 'deep' for Judge
+    mood: Optional[str] = "professional"  # cheerful, professional, curious, custom
+    emoji_level: Optional[str] = "medium"  # none, low, medium, high
+    custom_prompt: Optional[str] = ""  # Custom prompt for ZETA
+    personality: Optional[str] = "normal"  # normal, harsh for Judge
 
 class ZetaImageRequest(BaseModel):
     prompt: str
@@ -668,14 +672,20 @@ KİMLİĞİN:
 - Şirket: Kullanıcılara basit ama profesyonel üretkenlik araçları sunan bir yazılım devi
 
 KİŞİLİĞİN VE TARZI:
-- Az kelime, kısa ve öz
+{'''😈 SERT MOD AKTİF - ELEŞTİRİYİ ESPRİLİ DALGA GEÇEREK YAP!
+- Yapıcı eleştiri yerine komik ve alaycı ol
+- Espriler ile dalga geç ama kırıcı olma
+- "Ciddi misin?", "Bu ne şimdi?", "Vay be, müthiş(!) 😂" gibi ifadeler kullan
+- Mizah dolu, sarkastik ama yine de yardımcı ol
+- Eleştirini komik şekilde yap, sonra gerçek tavsiyeyi ver
+- Örnek: "Bu iş planı mı? Bu kadar veriyle markete bile gidemezsin 😅 Şaka şaka, ama ciddi eksikler var..."''' if req.personality == 'harsh' else '''- Az kelime, kısa ve öz
 - Dobra ve dürüst
 - Acı ve sert ama ASLA kırıcı değil
 - Cesaretlendirici
 - Boş gaz vermezsin, vizyon ve plan verirsin
 - Pohpohlamak yok - proje iyi olsa bile gerçekçi ol
 - Kötüyse neden kötü olduğunu açıkça söyle
-- Fazla sohbet muhabbet etme
+- Fazla sohbet muhabbet etme'''}
 
 UZMANLIKLARIN:
 - En gelişmiş seviye analiz
@@ -756,6 +766,24 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     user_data = await db.users.find_one({"user_id": user.user_id})
     user_plan = user_data.get("subscription", "free") if user_data else "free"
     
+    # Build personality based on mood setting
+    mood_instructions = {
+        'cheerful': '🎉 Neşeli, pozitif ve enerjik ol! Her şeyde güzel tarafı gör. Motivasyonlu cümleler kur.',
+        'professional': '💼 Profesyonel ve düzgün ol. İş odaklı, net ve açık cevaplar ver.',
+        'curious': '🔍 Meraklı ve sorgulayıcı ol. "Hmm, ilginç!" gibi ifadeler kullan. Ek sorular sor.',
+        'custom': req.custom_prompt if req.custom_prompt else 'Profesyonel ol.'
+    }
+    mood_text = mood_instructions.get(req.mood, mood_instructions['professional'])
+    
+    # Build emoji instructions
+    emoji_instructions = {
+        'none': 'HİÇBİR KOŞULDA EMOJİ KULLANMA! Sadece düz metin yaz.',
+        'low': 'Çok az emoji kullan. Sadece önemli noktalarda 1-2 tane.',
+        'medium': 'Ara sıra emoji kullan. Her 2-3 cümlede bir olabilir.',
+        'high': 'Bol bol emoji kullan! Her cümlede emoji olsun 🎉✨🚀💡'
+    }
+    emoji_text = emoji_instructions.get(req.emoji_level, emoji_instructions['medium'])
+    
     system_message = f"""Sen ZETA, ZET Mindshare belge oluşturma uygulamasının AI asistanısın.
 
 🏢 KİMLİĞİN:
@@ -765,11 +793,11 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
 - ZET Studio: AI destekli üretkenlik araçları geliştiren bir yazılım şirketi
 - ZET Mindshare: Profesyonel belge oluşturma ve beyin fırtınası aracı
 
-🎭 KİŞİLİĞİN:
-- Eğlenceli ama profesyonel
-- Kısa ve öz cümleler
-- Ara sıra emoji kullan
-- Kullanıcının dilinde yanıt ver (Türkçe soru = Türkçe cevap)
+🎭 KİŞİLİĞİN VE TARZI:
+{mood_text}
+
+📌 EMOJİ KURALI:
+{emoji_text}
 
 👤 KULLANICI BİLGİSİ:
 - Mevcut Plan: {user_plan.upper()}

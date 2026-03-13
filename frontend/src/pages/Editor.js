@@ -225,6 +225,27 @@ const Editor = () => {
   const [showPageNumbers, setShowPageNumbers] = useState(false);
   const [showHeaderFooter, setShowHeaderFooter] = useState(false);
   const [showFindReplace, setShowFindReplace] = useState(false);
+  const [showIndent, setShowIndent] = useState(false);
+  const [showMargins, setShowMargins] = useState(false);
+  const [showChatSettings, setShowChatSettings] = useState(false);
+
+  // Indent state
+  const [indentLeft, setIndentLeft] = useState(0);
+  const [indentRight, setIndentRight] = useState(0);
+  const [indentTop, setIndentTop] = useState(0);
+  const [indentBottom, setIndentBottom] = useState(0);
+
+  // Margins state
+  const [marginTop, setMarginTop] = useState(40);
+  const [marginBottom, setMarginBottom] = useState(40);
+  const [marginLeft, setMarginLeft] = useState(40);
+  const [marginRight, setMarginRight] = useState(40);
+
+  // Chat AI Settings state
+  const [zetaMood, setZetaMood] = useState(() => localStorage.getItem('zet_zeta_mood') || 'professional');
+  const [zetaEmoji, setZetaEmoji] = useState(() => localStorage.getItem('zet_zeta_emoji') || 'medium');
+  const [zetaCustomPrompt, setZetaCustomPrompt] = useState(() => localStorage.getItem('zet_zeta_custom') || '');
+  const [judgeMood, setJudgeMood] = useState(() => localStorage.getItem('zet_judge_mood') || 'normal');
 
   // Table state
   const [tableRows, setTableRows] = useState(3);
@@ -456,7 +477,7 @@ const Editor = () => {
     setActiveTool(toolId);
     const panels = {
       image: () => setShowImageUpload(true), pagesize: () => setShowPageSize(true),
-      textsize: () => setShowTextSize(true), font: () => setShowFont(true),
+      textsize: () => setShowTextSize(true), font: () => { setFontSearch(''); setShowFont(true); },
       voice: () => setShowVoice(true), color: () => setShowColor(true),
       draw: () => setShowDraw(true), createimage: () => setShowCreateImage(true),
       eraser: () => setShowEraser(true), translate: () => setShowTranslate(true),
@@ -476,6 +497,8 @@ const Editor = () => {
       export: () => setShowExport(true),
       photoedit: () => setShowPhotoEdit(true),
       signature: () => setShowSignature(true),
+      indent: () => setShowIndent(true),
+      margins: () => setShowMargins(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -1819,6 +1842,179 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
+    {/* Indent Panel */}
+    {showIndent && <DraggablePanel title="Girinti" onClose={() => setShowIndent(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-64 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Seçili elementin girintisini ayarlayın</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sol</label>
+            <div className="flex items-center gap-2">
+              <input type="range" min="0" max="100" value={indentLeft} onChange={e => {
+                const val = parseInt(e.target.value);
+                setIndentLeft(val);
+                if (selectedElement) {
+                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingLeft: val } : el));
+                }
+              }} className="flex-1" />
+              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentLeft}px</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sağ</label>
+            <div className="flex items-center gap-2">
+              <input type="range" min="0" max="100" value={indentRight} onChange={e => {
+                const val = parseInt(e.target.value);
+                setIndentRight(val);
+                if (selectedElement) {
+                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingRight: val } : el));
+                }
+              }} className="flex-1" />
+              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentRight}px</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Üst</label>
+            <div className="flex items-center gap-2">
+              <input type="range" min="0" max="100" value={indentTop} onChange={e => {
+                const val = parseInt(e.target.value);
+                setIndentTop(val);
+                if (selectedElement) {
+                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingTop: val } : el));
+                }
+              }} className="flex-1" />
+              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentTop}px</span>
+            </div>
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Alt</label>
+            <div className="flex items-center gap-2">
+              <input type="range" min="0" max="100" value={indentBottom} onChange={e => {
+                const val = parseInt(e.target.value);
+                setIndentBottom(val);
+                if (selectedElement) {
+                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingBottom: val } : el));
+                }
+              }} className="flex-1" />
+              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentBottom}px</span>
+            </div>
+          </div>
+        </div>
+        <button 
+          onClick={() => {
+            setIndentLeft(0); setIndentRight(0); setIndentTop(0); setIndentBottom(0);
+            if (selectedElement) {
+              setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } : el));
+            }
+          }}
+          className="zet-btn w-full py-2 text-xs"
+        >
+          Sıfırla
+        </button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Margins Panel */}
+    {showMargins && <DraggablePanel title="Kenar Boşlukları" onClose={() => setShowMargins(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-64 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Sayfa kenar boşluklarını ayarlayın</p>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Üst</label>
+            <input type="number" min="0" max="200" value={marginTop} onChange={e => setMarginTop(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Alt</label>
+            <input type="number" min="0" max="200" value={marginBottom} onChange={e => setMarginBottom(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sol</label>
+            <input type="number" min="0" max="200" value={marginLeft} onChange={e => setMarginLeft(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
+          </div>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sağ</label>
+            <input type="number" min="0" max="200" value={marginRight} onChange={e => setMarginRight(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
+          </div>
+        </div>
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</label>
+          <div className="grid grid-cols-3 gap-1">
+            <button onClick={() => { setMarginTop(40); setMarginBottom(40); setMarginLeft(40); setMarginRight(40); }} className="zet-btn text-xs py-1.5">Normal</button>
+            <button onClick={() => { setMarginTop(20); setMarginBottom(20); setMarginLeft(20); setMarginRight(20); }} className="zet-btn text-xs py-1.5">Dar</button>
+            <button onClick={() => { setMarginTop(60); setMarginBottom(60); setMarginLeft(60); setMarginRight(60); }} className="zet-btn text-xs py-1.5">Geniş</button>
+          </div>
+        </div>
+      </div>
+    </DraggablePanel>}
+
+    {/* Chat Settings Panel */}
+    {showChatSettings && <DraggablePanel title="Chat Ayarları" onClose={() => setShowChatSettings(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-80 space-y-4">
+        {/* ZETA Settings */}
+        <div className="p-3 rounded-lg" style={{ background: 'rgba(76, 168, 173, 0.1)', border: '1px solid rgba(76, 168, 173, 0.3)' }}>
+          <h4 className="font-semibold text-sm mb-3" style={{ color: '#4ca8ad' }}>ZETA Özelleştirme</h4>
+          <div className="space-y-3">
+            <div>
+              <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
+              <select 
+                value={zetaMood} 
+                onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }}
+                className="zet-input text-xs w-full"
+              >
+                <option value="cheerful">🎉 Neşeli</option>
+                <option value="professional">💼 Profesyonel</option>
+                <option value="curious">🔍 Meraklı</option>
+                <option value="custom">✨ Özel</option>
+              </select>
+            </div>
+            {zetaMood === 'custom' && (
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Özel Prompt</label>
+                <textarea 
+                  value={zetaCustomPrompt} 
+                  onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }}
+                  placeholder="ZETA nasıl davransın? Örn: Kısa ve öz cevaplar ver, her cevabın sonuna bir bilgi ekle..."
+                  className="zet-input text-xs w-full h-20 resize-none"
+                />
+              </div>
+            )}
+            <div>
+              <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
+              <select 
+                value={zetaEmoji} 
+                onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }}
+                className="zet-input text-xs w-full"
+              >
+                <option value="none">❌ Kullanma</option>
+                <option value="low">📍 Az Kullan</option>
+                <option value="medium">📌 Orta</option>
+                <option value="high">🎯 Çok Kullan</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {/* Judge Settings */}
+        <div className="p-3 rounded-lg" style={{ background: 'rgba(200, 0, 90, 0.1)', border: '1px solid rgba(200, 0, 90, 0.3)' }}>
+          <h4 className="font-semibold text-sm mb-3" style={{ color: '#c8005a' }}>ZET Judge Mini Özelleştirme</h4>
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
+            <select 
+              value={judgeMood} 
+              onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }}
+              className="zet-input text-xs w-full"
+            >
+              <option value="normal">⚖️ Normal (Yapıcı eleştiri)</option>
+              <option value="harsh">🔥 Sert (Esprili dalga geçme)</option>
+            </select>
+            <p className="text-xs mt-2 opacity-70" style={{ color: 'var(--zet-text-muted)' }}>
+              {judgeMood === 'harsh' ? '😈 Judge sizi esprilerle "kavuracak"!' : '🤝 Judge yapıcı ve profesyonel olacak.'}
+            </p>
+          </div>
+        </div>
+      </div>
+    </DraggablePanel>}
+
     {/* Graphic Chart Panel */}
     {showGraphic && <DraggablePanel title="Chart" onClose={() => setShowGraphic(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-80 space-y-3 max-h-[70vh] overflow-y-auto">
@@ -2371,7 +2567,9 @@ const Editor = () => {
                 docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
                 forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} 
                 documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan} 
-                onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }} />
+                onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
+                onShowChatSettings={() => setShowChatSettings(true)}
+                zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood} />
             </div>
           </div>
         )}
@@ -2500,7 +2698,9 @@ const Editor = () => {
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
           docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
           onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan}
-          onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }} />
+          onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
+          onShowChatSettings={() => setShowChatSettings(true)}
+          zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood} />
       </div>
 
       {showVoice && (

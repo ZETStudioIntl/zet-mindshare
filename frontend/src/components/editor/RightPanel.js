@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2, Scale } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2, Scale, Settings } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -23,6 +23,11 @@ export const RightPanel = ({
   userUsage,
   userPlan,
   onShowUpgrade,
+  onShowChatSettings,
+  zetaMood,
+  zetaEmoji,
+  zetaCustomPrompt,
+  judgeMood,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -121,7 +126,8 @@ export const RightPanel = ({
         doc_id: docId,
         document_content: documentContent || '',
         image_data: sentImage,
-        mode: judgeMode
+        mode: judgeMode,
+        personality: judgeMood || 'normal'
       });
       
       // Check for limit/lock responses
@@ -217,7 +223,10 @@ export const RightPanel = ({
         doc_id: docId, 
         session_id: zetaSessionId,
         document_content: documentContent || '',
-        image: imageToSend || null
+        image: imageToSend || null,
+        mood: zetaMood || 'professional',
+        emoji_level: zetaEmoji || 'medium',
+        custom_prompt: zetaCustomPrompt || ''
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
@@ -324,6 +333,16 @@ export const RightPanel = ({
             <Scale className="h-4 w-4" style={{ color: '#c8005a' }} />
             <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>Judge</span>
           </button>
+          {onShowChatSettings && (
+            <button 
+              onClick={onShowChatSettings}
+              data-testid="chat-settings-btn"
+              className="p-2 hover:bg-white/10 rounded transition-all"
+              title="Chat Ayarları"
+            >
+              <Settings className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+            </button>
+          )}
         </div>
 
         {/* ZETA Chat */}

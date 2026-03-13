@@ -128,7 +128,12 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
         maxWidth: (pageWidth - el.x - 20) * zoom, minWidth: isEditing ? 60 * zoom : undefined,
         wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
         cursor: isEditing ? 'text' : 'default', caretColor: 'var(--zet-primary)',
-        padding: isEditing ? '2px 4px' : 0, ...gradientStyle,
+        padding: isEditing ? '2px 4px' : 0,
+        paddingLeft: (el.paddingLeft || 0) * zoom,
+        paddingRight: (el.paddingRight || 0) * zoom,
+        paddingTop: (el.paddingTop || 0) * zoom,
+        paddingBottom: (el.paddingBottom || 0) * zoom,
+        ...gradientStyle,
       }}>
       {el.content || (isEditing ? '' : '\u00A0')}
     </div>
