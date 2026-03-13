@@ -4,58 +4,50 @@
 ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtınası aracı.
 **Developed by:** ZET Studio International
 **CEO:** Muhammed Bahaddin Yılmaz
-**HQ:** İstanbul, Türkiye
 
-## SESSION - 2026-03-13 Iteration 26
+## Core Features
+- Dashboard: Dosya yönetimi, arama, ayarlar, hızlı notlar, abonelik yönetimi
+- Editor: 3 sütunlu yapı (Araçlar, Canvas, AI Chat)
+- AI Assistants: ZETA (genel), ZET Judge (analitik)
+- Subscription: Free, Plus, Pro, Ultra
 
-### New Features
-1. **Templates Düzeltme ve Genişletme**
-   - 20 şablon tamamen çalışır durumda (eskiden sadece 5 tanesi çalışıyordu)
-   - Yeni eklenen şablonlar: Toplantı Notları, Teklif, Sözleşme, Bülten, Tarif Kartı, Proje Planı, Sertifika, Kontrol Listesi, Beyin Fırtınası, Sosyal Medya, Haftalık Plan, SWOT Analizi, Blog Yazısı, Etkinlik Afişi
-   - Kategorilere göre gruplandırma (Temel, İş, Kariyer, Hukuki, Eğitim, Kişisel, Pazarlama, Yaratıcı)
+## SESSION - 2026-03-13 Iterations 26-28
 
-2. **Redact (Sansür) AI Gizliliği**
-   - Sansürlenmiş içerikler artık AI (ZETA/Judge) tarafından görülemiyor
-   - getDocText() isRedacted olanları filtreliyor
-   - getFullDocContent() sansürlü elementleri [REDACTED] olarak gösteriyor
+### Iteration 26 (Completed)
+- Templates: 20 şablon tamamen çalışır durumda, kategorilere göre gruplandırma
+- Redact AI gizliliği: Sansürlü içerikler AI'dan gizlendi
+- Rütbe & Görevler: Ayrı modallara ayrıldı
+- Rütbe rozeti: "ZET Mindshare" yanında görünüyor
+- Profil fotoğrafı yükleme: Frontend + Backend tamamlandı
 
-3. **Highlighter Oto Modu**
-   - Word Type paneline Highlighter bölümü eklendi
-   - "Oto: Açık/Kapalı" toggle düğmesi
-   - 6 renk seçeneği (sarı, yeşil, cyan, pembe, turuncu, kırmızı)
-   - Oto mod açıkken metin seçildiğinde otomatik işaretleme
-
-4. **Rütbe ve Görevler Ayrımı**
-   - "Rütbe & Görevler" tek buton → "Rütbe" ve "Görevler" iki ayrı butona dönüştürüldü
-   - Her biri kendi modalına sahip
-   - Görevler modalına 2 yeni görev eklendi (Şablon Uzmanı, Organizatör)
-
-5. **Rütbe Rozeti Header'da**
-   - Kullanıcı rütbesi "ZET Mindshare" yazısının yanında görünüyor
-   - Altın renk rozet ile "Çırak" rütbesi gösteriliyor
-
-6. **Profil Fotoğrafı Yükleme**
-   - Profil düzenleme modalına fotoğraf yükleme eklendi
-   - Fotoğraf önizleme, hover ile değiştirme
-   - Backend'de base64 olarak MongoDB'de saklama
-   - POST /api/auth/profile-picture endpoint'i
+### Iteration 27-28 (Completed)
+- **Chart Tool Güvenilirliği:** SVG tabanlı grafikler axis çizgileri, grid, etiketler, veri doğrulama ile yeniden yazıldı. Bar, Pie, Line chart hepsi çalışıyor.
+- **Şekillere Gradient:** CSS `backgroundImage` ile gradient rendering düzeltildi. Square, Circle, Triangle, Star, Ring hepsi gradient destekliyor. Oluşturma sırasında gradient modu açıksa otomatik uygulanıyor.
+- **DraggablePanel Performansı:** ref-based DOM manipülasyonu ile yeniden yazıldı (React state yerine). Sürükleme artık pürüzsüz.
+- **PDF İçe Aktarma:** pdfjs-dist ile PDF dosyalarını sayfa görüntülerine dönüştürme. Her sayfa canvas'a image olarak ekleniyor.
+- **Highlighter Aracı:** Sansür aracı gibi çalışıyor - metin seç, araç çubuğundan Highlighter'a tıkla, metin işaretleniyor. 6 renk seçeneği.
+- **Sağ Tık Metin Seçimi:** Metin üzerinde sağ tık native context menu (kopyala/yapıştır). Boş alanda sağ tık rectangle selection.
 
 ### Test Results
+- iteration_28: Frontend 100% (12/12 features)
+- iteration_27: Frontend 100% (shape gradient bug identified)
 - iteration_26: Backend 100% (11/11), Frontend 100%
-- iteration_25: Backend 100% (6/6), Frontend 100%
 
-## Known Issues / Pending
+## Known Issues / Remaining
 - **Lasso Vector Selection:** Kement aracı vektörleri düzgün seçemiyor (P1)
-- **Chart Tool Reliability:** Grafik aracının güvenilirliği düşük (P1)
-- **Gradient on Shapes:** Renk geçişi tüm şekillere uygulanmıyor (P1)
-- **Draggable Panel Lag:** Panellerin yavaş hareket etmesi (P2)
-- **PDF Editing:** İçe aktarma özelliği (Upcoming)
+- **Note Reminders (Browser):** Tarayıcı bildirimleri sorunlu olabilir (P3)
 - **Google Drive:** MOCKED
 - **ElevenLabs TTS:** Invalid API key (Blocked)
 
 ## Tech Stack
-- Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react
+- Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react, pdfjs-dist
 - Backend: FastAPI, MongoDB, Pydantic
 - Integrations: Gemini 3 Flash, Nano Banana, Resend
+
+## Upcoming Tasks
+- Gerçek zamanlı ortak çalışma
+- Dikey çoklu sayfa kaydırma
+- iCloud entegrasyonu
+- Dashboard belge önizlemeleri
 
 ## Last Updated: 2026-03-13
