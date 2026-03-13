@@ -1,41 +1,48 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useRef, useCallback, useEffect } from 'react';
 import { X, GripVertical } from 'lucide-react';
 
 export const DraggablePanel = ({ children, title, onClose, initialPosition = { x: 100, y: 100 } }) => {
-  const [position, setPosition] = useState(initialPosition);
-  const [dragging, setDragging] = useState(false);
-  const offsetRef = useRef({ x: 0, y: 0 });
   const panelRef = useRef(null);
-
-  const handleMouseDown = (e) => {
-    if (e.target.closest('.panel-drag-handle')) {
-      setDragging(true);
-      offsetRef.current = { x: e.clientX - position.x, y: e.clientY - position.y };
-    }
-  };
-
-  const handleMouseMove = useCallback((e) => {
-    if (!dragging) return;
-    // Use requestAnimationFrame for smooth updates
-    requestAnimationFrame(() => {
-      setPosition({ 
-        x: e.clientX - offsetRef.current.x, 
-        y: e.clientY - offsetRef.current.y 
-      });
-    });
-  }, [dragging]);
-
-  const handleMouseUp = useCallback(() => setDragging(false), []);
+  const posRef = useRef(initialPosition);
+  const draggingRef = useRef(false);
+  const offsetRef = useRef({ x: 0, y: 0 });
 
   useEffect(() => {
-    if (!dragging) return;
-    window.addEventListener('mousemove', handleMouseMove);
-    window.addEventListener('mouseup', handleMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', handleMouseMove);
-      window.removeEventListener('mouseup', handleMouseUp);
+    if (panelRef.current) {
+      panelRef.current.style.transform = `translate3d(${initialPosition.x}px, ${initialPosition.y}px, 0)`;
+      posRef.current = initialPosition;
+    }
+  }, []);
+
+  const handleMouseDown = useCallback((e) => {
+    if (!e.target.closest('.panel-drag-handle')) return;
+    draggingRef.current = true;
+    offsetRef.current = { x: e.clientX - posRef.current.x, y: e.clientY - posRef.current.y };
+    if (panelRef.current) panelRef.current.style.willChange = 'transform';
+    e.preventDefault();
+  }, []);
+
+  useEffect(() => {
+    const onMove = (e) => {
+      if (!draggingRef.current) return;
+      const nx = e.clientX - offsetRef.current.x;
+      const ny = e.clientY - offsetRef.current.y;
+      posRef.current = { x: nx, y: ny };
+      if (panelRef.current) {
+        panelRef.current.style.transform = `translate3d(${nx}px, ${ny}px, 0)`;
+      }
     };
-  }, [dragging, handleMouseMove, handleMouseUp]);
+    const onUp = () => {
+      draggingRef.current = false;
+      if (panelRef.current) panelRef.current.style.willChange = 'auto';
+    };
+    window.addEventListener('mousemove', onMove, { passive: true });
+    window.addEventListener('mouseup', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+  }, []);
 
   return (
     <div
@@ -43,10 +50,8 @@ export const DraggablePanel = ({ children, title, onClose, initialPosition = { x
       data-testid={`draggable-panel-${title.toLowerCase().replace(/\s+/g, '-')}`}
       className="fixed zet-card shadow-2xl z-50 min-w-[280px] animate-fadeIn"
       style={{ 
-        transform: `translate3d(${position.x}px, ${position.y}px, 0)`,
         left: 0,
         top: 0,
-        willChange: dragging ? 'transform' : 'auto',
         backfaceVisibility: 'hidden',
       }}
       onMouseDown={handleMouseDown}

@@ -504,9 +504,31 @@ const Editor = () => {
       indent: () => setShowIndent(true),
       margins: () => setShowMargins(true),
       redact: () => applyRedaction(),
+      highlighter: () => applyHighlight(),
+      importpdf: () => pdfInputRef.current?.click(),
     };
     if (panels[toolId]) panels[toolId]();
   };
+
+  // === HIGHLIGHTER Tool (like Redact - applies to selected text) ===
+  const applyHighlight = useCallback(() => {
+    if (!selectedElement) {
+      alert('Lütfen önce işaretlemek istediğiniz metni seçin!');
+      return;
+    }
+    const el = canvasElements.find(e => e.id === selectedElement);
+    if (!el || el.type !== 'text') {
+      alert('Sadece metin elementleri işaretlenebilir!');
+      return;
+    }
+    const updated = canvasElements.map(e => 
+      e.id === selectedElement 
+        ? { ...e, highlightColor: highlighterColor }
+        : e
+    );
+    setCanvasElements(updated);
+    history.push(updated);
+  }, [selectedElement, canvasElements, highlighterColor]);
 
   // === REDACT (Security) Tool ===
   const applyRedaction = useCallback(() => {
@@ -528,19 +550,6 @@ const Editor = () => {
     setCanvasElements(updated);
     history.push(updated);
   }, [canvasElements, selectedElement, history]);
-
-  // === HIGHLIGHTER AUTO MODE ===
-  // When auto mode is on, selecting a text element auto-applies highlight
-  useEffect(() => {
-    if (!highlighterAuto || !selectedElement) return;
-    const el = canvasElements.find(e => e.id === selectedElement);
-    if (!el || el.type !== 'text' || el.highlightColor) return;
-    const updated = canvasElements.map(e =>
-      e.id === selectedElement ? { ...e, highlightColor: highlighterColor } : e
-    );
-    setCanvasElements(updated);
-    history.push(updated);
-  }, [selectedElement, highlighterAuto]);
 
   // === PHOTO EDIT ===
   const handlePhotoEditUpload = () => {
@@ -782,6 +791,55 @@ const Editor = () => {
     reader.readAsText(file);
   };
 
+  // Import PDF
+  const [pdfImporting, setPdfImporting] = useState(false);
+  const pdfInputRef = useRef(null);
+  const importPDF = async (file) => {
+    if (!file || !file.name.endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
+    setPdfImporting(true);
+    try {
+      const pdfjsLib = await import('pdfjs-dist/build/pdf');
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      const arrayBuf = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+      const newElements = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const viewport = page.getViewport({ scale: 1.5 });
+        const canvas = window.document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const ctx = canvas.getContext('2d');
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        const imgSrc = canvas.toDataURL('image/png');
+        newElements.push({
+          id: `el_pdf_${Date.now()}_${i}`,
+          type: 'image',
+          x: 20,
+          y: 20 + (i - 1) * (pageSize.height - 40),
+          width: Math.min(pageSize.width - 40, viewport.width),
+          height: Math.min(pageSize.height - 40, viewport.height * ((pageSize.width - 40) / viewport.width)),
+          src: imgSrc,
+        });
+        // Add new pages if needed
+        if (i > 1 && document.pages && i > document.pages.length) {
+          setDocument(prev => ({
+            ...prev,
+            pages: [...(prev.pages || []), { page_id: `page_${Date.now()}_${i}`, elements: [], drawPaths: [] }]
+          }));
+        }
+      }
+      const updated = [...canvasElements, ...newElements];
+      setCanvasElements(updated);
+      history.push(updated);
+      alert(`PDF başarıyla içe aktarıldı! (${pdf.numPages} sayfa)`);
+    } catch (err) {
+      console.error('PDF import failed:', err);
+      alert('PDF içe aktarma başarısız: ' + err.message);
+    }
+    setPdfImporting(false);
+  };
+
   // Export handler
   const handleExport = (format) => {
     setExportFormat(format);
@@ -794,83 +852,121 @@ const Editor = () => {
 
   // === GRAPHIC CHART ===
   const createChart = () => {
-    const labels = chartLabels.split(',').map(l => l.trim());
-    const data = chartData.split(',').map(d => parseFloat(d.trim()) || 0);
+    const labels = chartLabels.split(',').map(l => l.trim()).filter(Boolean);
+    const rawData = chartData.split(',').map(d => parseFloat(d.trim()));
+    const data = rawData.map(d => isNaN(d) ? 0 : d);
     
-    // Create SVG-based chart (more reliable than canvas)
-    const width = 400, height = 300;
-    const padding = 40;
-    const chartWidth = width - padding * 2;
-    const chartHeight = height - padding * 2;
-    const maxValue = Math.max(...data, 1);
+    if (labels.length === 0 || data.length === 0) { alert('Lütfen en az bir etiket ve veri girin'); return; }
+    // Ensure data length matches labels
+    while (data.length < labels.length) data.push(0);
     
-    // Create gradient definitions
-    let gradientDefs = '';
+    const width = 420, height = 320;
+    const pad = { top: 40, right: 20, bottom: 45, left: 50 };
+    const cw = width - pad.left - pad.right;
+    const ch = height - pad.top - pad.bottom;
+    const maxVal = Math.max(...data, 1);
+    
+    // Gradient defs
+    let defs = '<defs>';
     if (gradientStart && gradientEnd) {
-      gradientDefs = `<defs>`;
-      chartColors.forEach((_, i) => {
-        gradientDefs += `<linearGradient id="chartGrad${i}" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" style="stop-color:${gradientStart};stop-opacity:1" />
-          <stop offset="100%" style="stop-color:${gradientEnd};stop-opacity:1" />
-        </linearGradient>`;
+      data.forEach((_, i) => {
+        defs += `<linearGradient id="cg${i}" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="${gradientStart}"/><stop offset="100%" stop-color="${gradientEnd}"/></linearGradient>`;
       });
-      gradientDefs += `</defs>`;
     }
+    defs += '</defs>';
     
-    let svgContent = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="background:white">`;
-    svgContent += gradientDefs;
-    
-    // Add background image if selected
-    if (chartImage) {
-      svgContent += `<image href="${chartImage}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity="0.3"/>`;
-    }
-    
-    svgContent += `<text x="${width/2}" y="20" text-anchor="middle" font-size="14" font-weight="bold">${chartTitle}</text>`;
-    
-    // Determine fill - use gradient if available, otherwise use chartColors
-    const getFill = (i) => gradientStart && gradientEnd ? `url(#chartGrad${i})` : chartColors[i % chartColors.length];
+    const fill = (i) => gradientStart && gradientEnd ? `url(#cg${i})` : chartColors[i % chartColors.length];
+    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="font-family:Arial,sans-serif">`;
+    svg += `<rect width="${width}" height="${height}" fill="white" rx="8"/>`;
+    svg += defs;
+    if (chartImage) svg += `<image href="${chartImage}" x="0" y="0" width="${width}" height="${height}" preserveAspectRatio="xMidYMid slice" opacity="0.2"/>`;
+    svg += `<text x="${width/2}" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a2e">${chartTitle.replace(/</g, '&lt;')}</text>`;
     
     if (chartType === 'bar') {
-      const barWidth = chartWidth / labels.length - 10;
+      // Y-axis
+      svg += `<line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + ch}" stroke="#e5e7eb" stroke-width="1"/>`;
+      // X-axis
+      svg += `<line x1="${pad.left}" y1="${pad.top + ch}" x2="${pad.left + cw}" y2="${pad.top + ch}" stroke="#e5e7eb" stroke-width="1"/>`;
+      // Grid lines
+      for (let g = 0; g <= 4; g++) {
+        const gy = pad.top + ch - (g / 4) * ch;
+        const gv = Math.round((maxVal * g) / 4);
+        svg += `<line x1="${pad.left}" y1="${gy}" x2="${pad.left + cw}" y2="${gy}" stroke="#f3f4f6" stroke-width="0.5"/>`;
+        svg += `<text x="${pad.left - 6}" y="${gy + 4}" text-anchor="end" font-size="9" fill="#9ca3af">${gv}</text>`;
+      }
+      const gap = 8;
+      const bw = Math.max(10, (cw - gap * (labels.length + 1)) / labels.length);
       labels.forEach((label, i) => {
-        const barHeight = (data[i] / maxValue) * chartHeight;
-        const x = padding + i * (barWidth + 10);
-        const y = padding + chartHeight - barHeight;
-        svgContent += `<rect x="${x}" y="${y}" width="${barWidth}" height="${barHeight}" fill="${getFill(i)}"/>`;
-        svgContent += `<text x="${x + barWidth/2}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
-        svgContent += `<text x="${x + barWidth/2}" y="${y - 5}" text-anchor="middle" font-size="10">${data[i]}</text>`;
+        const bh = Math.max(2, (data[i] / maxVal) * ch);
+        const x = pad.left + gap + i * (bw + gap);
+        const y = pad.top + ch - bh;
+        svg += `<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${fill(i)}" rx="3"><animate attributeName="height" from="0" to="${bh}" dur="0.4s"/><animate attributeName="y" from="${pad.top + ch}" to="${y}" dur="0.4s"/></rect>`;
+        svg += `<text x="${x + bw/2}" y="${y - 4}" text-anchor="middle" font-size="9" fill="#374151" font-weight="500">${data[i]}</text>`;
+        svg += `<text x="${x + bw/2}" y="${pad.top + ch + 14}" text-anchor="middle" font-size="9" fill="#6b7280">${label.length > 8 ? label.slice(0, 8) + '..' : label}</text>`;
       });
     } else if (chartType === 'pie') {
       const total = data.reduce((a, b) => a + b, 0) || 1;
-      const cx = width / 2, cy = height / 2 + 10, r = 100;
-      let startAngle = 0;
+      const cx = width / 2, cy = height / 2 + 10, r = Math.min(cw, ch) / 2 - 20;
+      let sa = -Math.PI / 2;
       labels.forEach((label, i) => {
         const angle = (data[i] / total) * Math.PI * 2;
-        const endAngle = startAngle + angle;
-        const x1 = cx + r * Math.cos(startAngle);
-        const y1 = cy + r * Math.sin(startAngle);
-        const x2 = cx + r * Math.cos(endAngle);
-        const y2 = cy + r * Math.sin(endAngle);
-        const largeArc = angle > Math.PI ? 1 : 0;
-        svgContent += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${largeArc} 1 ${x2},${y2} Z" fill="${getFill(i)}"/>`;
-        startAngle = endAngle;
+        if (angle < 0.001) { sa += angle; return; }
+        const ea = sa + angle;
+        const x1 = cx + r * Math.cos(sa), y1 = cy + r * Math.sin(sa);
+        const x2 = cx + r * Math.cos(ea), y2 = cy + r * Math.sin(ea);
+        const la = angle > Math.PI ? 1 : 0;
+        svg += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${la} 1 ${x2},${y2} Z" fill="${fill(i)}" stroke="white" stroke-width="2"/>`;
+        // Label on slice
+        const mid = sa + angle / 2;
+        const lx = cx + (r * 0.65) * Math.cos(mid);
+        const ly = cy + (r * 0.65) * Math.sin(mid);
+        const pct = Math.round((data[i] / total) * 100);
+        if (pct >= 5) svg += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" font-size="9" fill="white" font-weight="600">${pct}%</text>`;
+        sa = ea;
+      });
+      // Legend
+      const lgX = 10, lgY = height - 18;
+      labels.forEach((label, i) => {
+        const lx = lgX + i * Math.min(90, width / labels.length);
+        svg += `<rect x="${lx}" y="${lgY}" width="8" height="8" fill="${fill(i)}" rx="2"/>`;
+        svg += `<text x="${lx + 12}" y="${lgY + 8}" font-size="8" fill="#6b7280">${label.length > 8 ? label.slice(0, 8) + '..' : label}</text>`;
       });
     } else if (chartType === 'line') {
-      const pointSpacing = chartWidth / (labels.length - 1 || 1);
-      let pathD = '';
-      const lineColor = gradientStart || PRESET_COLORS[0];
+      // Axes
+      svg += `<line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top + ch}" stroke="#e5e7eb" stroke-width="1"/>`;
+      svg += `<line x1="${pad.left}" y1="${pad.top + ch}" x2="${pad.left + cw}" y2="${pad.top + ch}" stroke="#e5e7eb" stroke-width="1"/>`;
+      // Grid
+      for (let g = 0; g <= 4; g++) {
+        const gy = pad.top + ch - (g / 4) * ch;
+        const gv = Math.round((maxVal * g) / 4);
+        svg += `<line x1="${pad.left}" y1="${gy}" x2="${pad.left + cw}" y2="${gy}" stroke="#f3f4f6" stroke-width="0.5"/>`;
+        svg += `<text x="${pad.left - 6}" y="${gy + 4}" text-anchor="end" font-size="9" fill="#9ca3af">${gv}</text>`;
+      }
+      const sp = cw / Math.max(1, labels.length - 1);
+      const lc = gradientStart || chartColors[0];
+      // Area fill
+      let area = `M${pad.left},${pad.top + ch}`;
+      let line = '';
       labels.forEach((label, i) => {
-        const x = padding + i * pointSpacing;
-        const y = padding + chartHeight - (data[i] / maxValue) * chartHeight;
-        pathD += (i === 0 ? 'M' : 'L') + `${x},${y}`;
-        svgContent += `<circle cx="${x}" cy="${y}" r="4" fill="${lineColor}"/>`;
-        svgContent += `<text x="${x}" y="${height - 10}" text-anchor="middle" font-size="10">${label}</text>`;
+        const x = pad.left + i * sp;
+        const y = pad.top + ch - (data[i] / maxVal) * ch;
+        line += (i === 0 ? 'M' : 'L') + `${x},${y}`;
+        area += `L${x},${y}`;
+        svg += `<text x="${x}" y="${pad.top + ch + 14}" text-anchor="middle" font-size="9" fill="#6b7280">${label.length > 8 ? label.slice(0, 8) + '..' : label}</text>`;
       });
-      svgContent += `<path d="${pathD}" stroke="${lineColor}" stroke-width="2" fill="none"/>`;
+      area += `L${pad.left + (labels.length - 1) * sp},${pad.top + ch}Z`;
+      svg += `<path d="${area}" fill="${lc}" opacity="0.1"/>`;
+      svg += `<path d="${line}" stroke="${lc}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+      labels.forEach((label, i) => {
+        const x = pad.left + i * sp;
+        const y = pad.top + ch - (data[i] / maxVal) * ch;
+        svg += `<circle cx="${x}" cy="${y}" r="4" fill="white" stroke="${lc}" stroke-width="2"/>`;
+        svg += `<text x="${x}" y="${y - 8}" text-anchor="middle" font-size="9" fill="#374151" font-weight="500">${data[i]}</text>`;
+      });
     }
     
-    svgContent += '</svg>';
-    const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgContent)));
+    svg += '</svg>';
+    const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
     const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width, height, src: imgSrc, gradientStart, gradientEnd }];
     setCanvasElements(updated); history.push(updated);
     setShowGraphic(false);
@@ -1804,22 +1900,11 @@ const Editor = () => {
         </div>
         {/* Highlighter Section */}
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-xs font-medium flex items-center gap-1.5" style={{ color: 'var(--zet-text)' }}><Highlighter className="h-3.5 w-3.5" /> Highlighter</span>
-            <button 
-              data-testid="highlighter-auto-toggle"
-              onClick={() => setHighlighterAuto(!highlighterAuto)}
-              className={`text-xs px-2 py-0.5 rounded transition-colors ${highlighterAuto ? 'glow-sm' : ''}`}
-              style={{ background: highlighterAuto ? '#FFFF0030' : 'var(--zet-bg)', color: highlighterAuto ? '#eab308' : 'var(--zet-text-muted)', border: highlighterAuto ? '1px solid #eab30840' : '1px solid transparent' }}
-            >
-              {highlighterAuto ? 'Oto: Açık' : 'Oto: Kapalı'}
-            </button>
-          </div>
+          <span className="text-xs font-medium flex items-center gap-1.5 mb-2" style={{ color: 'var(--zet-text)' }}><Highlighter className="h-3.5 w-3.5" /> Highlighter Rengi</span>
           <div className="flex items-center gap-1">
             {['#FFFF00', '#00FF00', '#00FFFF', '#FF69B4', '#FFA500', '#FF0000'].map(c => (
               <button key={c} onClick={() => {
                 setHighlighterColor(c);
-                if (selectedElement) { applyTextStyle('highlightColor', c); }
               }} className={`w-6 h-6 rounded transition-all ${highlighterColor === c ? 'ring-2 ring-white scale-110' : ''}`} style={{ background: c }} data-testid={`highlight-color-${c}`} />
             ))}
             <button onClick={() => {
@@ -1828,7 +1913,7 @@ const Editor = () => {
               <X className="h-3 w-3" />
             </button>
           </div>
-          {highlighterAuto && <p className="text-xs mt-1" style={{ color: '#eab308' }}>Metin seçtiğinizde otomatik işaretlenir</p>}
+          <p className="text-xs mt-1.5" style={{ color: 'var(--zet-text-muted)' }}>Metin seçin, araç çubuğundan Highlighter'a tıklayın</p>
         </div>
       </div>
     </DraggablePanel>}
@@ -2757,7 +2842,7 @@ const Editor = () => {
             onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
             onAddAiImageToShape={handleAddAiImageToShape}
             isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
-            pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
+            pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
@@ -2891,6 +2976,9 @@ const Editor = () => {
   // =============================
   return (
     <div data-testid="editor-page" className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
+      {/* Hidden PDF input */}
+      <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importPDF(f); e.target.value = ''; }} />
+      {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><div className="animate-spin w-8 h-8 border-2 border-t-transparent rounded-full mx-auto mb-3" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} /><p style={{ color: 'var(--zet-text)' }}>PDF içe aktarılıyor...</p></div></div>}
       <header data-testid="editor-header" className="h-12 px-3 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-2">
           <button data-testid="home-btn" onClick={() => navigate('/dashboard')} className="tool-btn w-8 h-8"><Home className="h-4 w-4" /></button>
@@ -2954,7 +3042,7 @@ const Editor = () => {
           onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
           onAddAiImageToShape={handleAddAiImageToShape}
           isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
-          pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd}
+          pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
           zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
           onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
           rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />

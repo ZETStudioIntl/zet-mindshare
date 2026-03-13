@@ -6,7 +6,7 @@ import {
   AlignLeft, BarChart3, Contrast, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
-  IndentIncrease, Maximize, ShieldOff
+  IndentIncrease, Maximize, ShieldOff, FileUp
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -77,6 +77,8 @@ export const TOOLS = [
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
   { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
   { id: 'redact', icon: ShieldOff, nameKey: 'redact', shortcut: null },
+  { id: 'highlighter', icon: Highlighter, nameKey: 'highlighter', shortcut: null },
+  { id: 'importpdf', icon: FileUp, nameKey: 'importPdf', shortcut: null },
   { id: 'translate', icon: Languages, nameKey: 'translate', shortcut: 'L' },
   { id: 'graphic', icon: BarChart3, nameKey: 'graphic', shortcut: 'G' },
   { id: 'table', icon: Table, nameKey: 'table', shortcut: null },

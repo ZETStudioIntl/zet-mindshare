@@ -100,6 +100,11 @@ const translations = {
     findReplace: 'Find & Replace',
     words: 'words',
     ring: 'Ring',
+    indent: 'Indent',
+    margins: 'Margins',
+    redact: 'Redact',
+    highlighter: 'Highlighter',
+    importPdf: 'Import PDF',
     connected: 'Connected',
     connectDrive: 'Connect Drive',
     
@@ -217,6 +222,11 @@ const translations = {
     findReplace: 'Bul ve Değiştir',
     words: 'kelime',
     ring: 'Halka',
+    indent: 'Girinti',
+    margins: 'Kenar Boşlukları',
+    redact: 'Sansür',
+    highlighter: 'İşaretleyici',
+    importPdf: 'PDF İçe Aktar',
     connected: 'Bağlı',
     connectDrive: 'Drive Bağla',
     

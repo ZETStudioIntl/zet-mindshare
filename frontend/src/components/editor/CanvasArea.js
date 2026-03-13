@@ -192,7 +192,7 @@ export const CanvasArea = ({
   currentTextAlign, drawSize, drawOpacity, eraserSize, markingColor, markingOpacity, markingSize,
   selectedElement, setSelectedElement, selectedElements, setSelectedElements,
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
-  onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd,
+  onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd, useGradient,
   zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage, onCopyElement, onMirrorElement,
   rulerVisible, gridVisible, gridSize,
 }) => {
@@ -333,7 +333,9 @@ export const CanvasArea = ({
       };
       const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
     } else if (['triangle', 'square', 'circle', 'star', 'ring'].includes(activeTool)) {
-      const u = [...canvasElements, { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null }];
+      const shapeEl = { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null };
+      if (useGradient && gradientStart && gradientEnd) { shapeEl.gradientStart = gradientStart; shapeEl.gradientEnd = gradientEnd; }
+      const u = [...canvasElements, shapeEl];
       setCanvasElements(u); onSaveHistory(u);
     } else if (activeTool === 'hand') {
       // First check if clicking on a vector path (pen drawings)
@@ -376,7 +378,7 @@ export const CanvasArea = ({
       // Zoom tool - just set active, mouse move handles position
       setMagnifierActive(true);
     }
-  }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, draggingVector, drawPaths, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements]);
+  }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, draggingVector, drawPaths, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements, useGradient]);
 
   const handleCanvasDoubleClick = useCallback((e, pageIdx) => {
     if (activeTool === 'pen' && penPoints.length > 1 && pageIdx === currentPage) {
@@ -392,6 +394,14 @@ export const CanvasArea = ({
     
     // Right-click rectangle selection (button === 2 is right click)
     if (e.button === 2) {
+      // Check if right-clicking on a text element - allow native text selection
+      const clickedText = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
+      if (clickedText) {
+        // Allow native context menu on text elements for copy/paste
+        setSelectedElement(clickedText.id);
+        setEditingId(clickedText.id);
+        return; // Don't prevent default - allow native text selection
+      }
       e.preventDefault();
       setIsRectSelecting(true);
       setRectSelectStart({ x, y });
@@ -646,7 +656,14 @@ export const CanvasArea = ({
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
             onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
-            onContextMenu={(e) => e.preventDefault()}
+            onContextMenu={(e) => {
+              // Allow context menu on text elements for copy/paste
+              const rect = e.currentTarget.getBoundingClientRect();
+              const cx = (e.clientX - rect.left) / zoom;
+              const cy = (e.clientY - rect.top) / zoom;
+              const isOnText = canvasElements.some(el => el.type === 'text' && isPointInElement(cx, cy, el));
+              if (!isOnText) e.preventDefault();
+            }}
             onTouchStart={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseDown(e, idx); } }}
             onTouchMove={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseMove(e, idx); } }}
             onTouchEnd={(e) => { if (activeTool !== 'hand') { handleMouseUp(e); } }}>
