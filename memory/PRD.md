@@ -3,6 +3,29 @@
 ## Overview
 ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtınası aracı.
 
+## SESSION - 2026-03-13 Iterations 30
+
+### Iteration 30 (Completed) - Görev Haritası (Quest Map)
+**500 görevlik tam quest map sistemi oluşturuldu:**
+
+**Özellikler:**
+- 500 görev, 21 kategori (Belge Ustasi, AI Kesficisi, Tasarim Sihirbazi, Sablon Uzmani, vb.)
+- Zorluk seviyelerine göre farklı şekiller: circle=Kolay, square=Orta, triangle=Zor, star=Efsanevi
+- HTML5 Canvas tabanlı yüksek performanslı render (60fps)
+- Zoom/Pan (mouse wheel + drag, touch pinch gestures)
+- Görev arama ve kategori filtreleme
+- Minimap (sağ alt köşe)
+- Görev detay paneli (tıklama ile)
+- Görev tamamlama ve XP kazanma
+- Kilitli/açık görev mantığı (sıralı ilerleme)
+- Dashboard'dan erişim: Ayarlar > Görev Haritası
+
+**Backend Endpoints:**
+- GET /api/quests/progress - Kullanıcının tamamladığı görevler ve XP
+- POST /api/quests/{quest_id}/complete - Görev tamamlama
+
+**Test:** Backend 100% (7/7), Frontend 100%
+
 ## SESSION - 2026-03-13 Iterations 26-29
 
 ### Iteration 29 (Completed) - Kredi Sistemi
@@ -22,19 +45,12 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - **Pro:** 250 kredi/gün, Tüm araçlar, Nano Pro, ZETA sınırsız, Judge 600 harf, 7 boyut (16:9, 9:16, 1:1, 2.55:1, 2.39:1, 1.85:1, 2.00:1)
 - **Ultra:** 1000 kredi/gün, Herşey sınırsız
 
-**Frontend:**
-- Header'da kredi göstergesi (⚡ kalan kredi)
-- Kilitli araçlarda kilit ikonu
-- AI Image panelinde Pro toggle + boyut seçimi + kredi bilgisi
-- Yetersiz kredi uyarısı + yükseltme popup
-- Paket bazlı araç kilitleme
-
 ### Iteration 27-28 (Completed)
 - Chart Tool güvenilirliği (SVG axis, grid, labels)
 - Şekillere gradient (CSS backgroundImage fix)
 - DraggablePanel performansı (ref-based DOM)
 - PDF içe aktarma (pdfjs-dist)
-- Highlighter aracı (sansür gibi çalışıyor)
+- Highlighter aracı
 - Sağ tık metin seçimi
 
 ### Iteration 26 (Completed)
@@ -43,18 +59,27 @@ ZET Mindshare - Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırt�
 - Rütbe & Görevler ayrımı
 - Profil fotoğrafı yükleme
 
-### Test Results
-- iteration_29: Backend 100% (10/10), Frontend 100%
-- iteration_28: Frontend 100% (12/12)
-- iteration_26: Backend 100% (11/11), Frontend 100%
-
 ## Known Issues
-- Lasso Vector Selection (P1)
-- Google Drive (MOCKED)
-- ElevenLabs TTS (Blocked)
+- ElevenLabs TTS (Blocked - API key invalid)
+- Google Drive (MOCKED - requires OAuth credentials)
+- Browser notifications (partial - works when granted)
+- Made by Emergent watermark info not provided
+
+## Pending Tasks (Priority Order)
+1. **P1:** Abonelik planı detaylarının doğrulanması (PLAN_LIMITS)
+2. **P3:** Tarayıcı bildirimleri
+3. **P3:** ElevenLabs TTS
+4. **P3:** Emergent watermark bilgisi
+
+## Future Tasks
+- Gerçek zamanlı ortak çalışma
+- Dikey çoklu sayfa kaydırma
+- iCloud entegrasyonu
+- Dashboard'da belge içeriği önizlemeleri
+- server.py ve Editor.js refactoring
 
 ## Tech Stack
-- Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react, pdfjs-dist
+- Frontend: React, Tailwind CSS, Shadcn/UI, lucide-react, pdfjs-dist, HTML5 Canvas
 - Backend: FastAPI, MongoDB, Pydantic
 - Integrations: Gemini 3 Flash, Nano Banana, Resend
 
