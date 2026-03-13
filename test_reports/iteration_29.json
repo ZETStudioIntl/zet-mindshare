@@ -1,0 +1,68 @@
+{
+  "summary": "Iteration 29 - Credit System testing complete. All 10 backend tests passed. Frontend testing verified credit indicator, locked tools, AI Image panel with Pro/aspect ratio options, and credit cost display. The credit system is fully functional.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_credit_system.py",
+    "/app/test_reports/pytest/pytest_results_iter29.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "PLAN_LIMITS correctly defined for all 4 plans (free, plus, pro, ultra) with correct daily_credits: 20/100/250/1000",
+    "CREDIT_COSTS verified: nano_banana=20, nano_banana_pro=50, photo_edit=15, photo_edit_pro=40, judge_basic=25, judge_deep=70",
+    "GET /api/usage returns complete credit info: daily_credits, credits_used, credits_remaining, limits, credit_costs",
+    "Judge correctly locked for free plan users with informative message",
+    "ZETA chat enforces 250 char limit for free plan",
+    "AI Image endpoint accepts 'pro' and 'aspect_ratio' parameters",
+    "Photo edit endpoint accepts 'pro' parameter",
+    "Frontend credit indicator shows remaining credits with Zap icon",
+    "Locked tools (layers, signature, watermark, pagecolor, graphic) show Lock icon for free plan",
+    "AI Image panel shows Pro toggle, 16:9 aspect ratio, and credit cost (20 kredi)"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_credit_system.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 tests passed)",
+    "frontend": "100% (All credit UI elements verified)"
+  },
+  "test_credentials": {
+    "email": "demo@demo.com",
+    "password": "demo123",
+    "plan": "FREE"
+  },
+  "seed_data_creation": "None - used existing demo@demo.com user",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Credit system fully tested and working. Login: demo@demo.com/demo123. To open editor: Login -> Dashboard -> Click on document card OR New Document -> Create Document. Credit indicator is data-testid='credit-indicator' in editor header showing remaining credits. AI Image tool: data-testid='tool-createimage'. Locked tools for free plan: layers, signature, watermark, pagecolor, graphic - all show Lock icon.",
+  "features_tested": {
+    "backend_api": {
+      "GET /api/usage": "PASSED - Returns daily_credits, credits_used, credits_remaining, limits, credit_costs",
+      "free_plan_limits": "PASSED - daily_credits=20, judge_enabled=false, zeta_chars=250, nano_pro=false, only 16:9",
+      "credit_costs": "PASSED - All 6 costs correct: nano_banana=20, nano_banana_pro=50, photo_edit=15, photo_edit_pro=40, judge_basic=25, judge_deep=70",
+      "judge_locked": "PASSED - Returns locked=true with upgrade message for free plan",
+      "zeta_char_limit": "PASSED - Returns char_limit_exceeded for messages >250 chars",
+      "generate_image_params": "PASSED - Accepts pro and aspect_ratio parameters",
+      "photo_edit_params": "PASSED - Accepts pro parameter"
+    },
+    "frontend_ui": {
+      "credit_indicator": "PASSED - Shows '0' (remaining credits) with Zap icon in header",
+      "toolbox_panel": "PASSED - data-testid='toolbox-panel' found",
+      "ai_image_tool": "PASSED - data-testid='tool-createimage' found and clickable",
+      "locked_tools": "PASSED - All 5 tools (layers, signature, watermark, pagecolor, graphic) show Lock icon",
+      "ai_panel_pro_toggle": "PASSED - 'Nano Banana Pro 20 kredi' toggle visible",
+      "ai_panel_aspect_ratio": "PASSED - '16:9' button visible",
+      "ai_panel_credit_info": "PASSED - 'Kalan Kredi: 0/20' and 'Yetersiz kredi! Bu işlem 20 kredi gerektirir.' visible"
+    }
+  },
+  "mocked_apis": {
+    "google_drive": "MOCKED"
+  }
+}

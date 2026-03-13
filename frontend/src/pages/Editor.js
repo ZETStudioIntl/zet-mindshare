@@ -214,6 +214,12 @@ const Editor = () => {
   const [userPlan, setUserPlan] = useState('free');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState('');
+  const [creditsRemaining, setCreditsRemaining] = useState(0);
+  const [dailyCredits, setDailyCredits] = useState(20);
+  const [planLimits, setPlanLimits] = useState({});
+  const [creditCosts, setCreditCosts] = useState({});
+  const [aiImagePro, setAiImagePro] = useState(false);
+  const [aiAspectRatio, setAiAspectRatio] = useState('16:9');
 
   // Export state
   const [exporting, setExporting] = useState(false);
@@ -370,6 +376,10 @@ const Editor = () => {
         const res = await axios.get(`${API}/usage`, { withCredentials: true });
         setUserUsage(res.data);
         setUserPlan(res.data.plan || 'free');
+        setCreditsRemaining(res.data.credits_remaining || 0);
+        setDailyCredits(res.data.daily_credits || 20);
+        setPlanLimits(res.data.limits || {});
+        setCreditCosts(res.data.credit_costs || {});
       } catch (err) {
         console.log('Failed to fetch usage');
       }
@@ -476,6 +486,22 @@ const Editor = () => {
     setShowCreateImage(true);
   }, []);
 
+  // === LOCKED TOOLS (based on plan) ===
+  const getLockedTools = () => {
+    const locked = [];
+    if (!planLimits.layers) locked.push('layers');
+    if (!planLimits.signature) locked.push('signature');
+    if (!planLimits.watermark) locked.push('watermark');
+    if (!planLimits.page_color) locked.push('pagecolor');
+    if (!planLimits.charts) locked.push('graphic');
+    return locked;
+  };
+  
+  const getToolLockReason = (toolId) => {
+    const names = { layers: 'Katmanlar', signature: 'Dijital İmza', watermark: 'Filigran', pagecolor: 'Sayfa Rengi', graphic: 'Grafikler' };
+    return `${names[toolId] || toolId} aracı mevcut planınızda kullanılamaz. Lütfen planınızı yükseltin.`;
+  };
+
   // === TOOL SELECT ===
   const handleToolSelect = (toolId) => {
     setActiveTool(toolId);
@@ -572,18 +598,33 @@ const Editor = () => {
 
   const executePhotoEdit = async () => {
     if (!photoEditImage || !photoEditPrompt.trim()) return;
+    const cost = 15; // Standard photo edit cost
+    if (creditsRemaining < cost) {
+      setUpgradeReason(`Fotoğraf düzenleme ${cost} kredi gerektirir. Kalan: ${creditsRemaining} kredi.`);
+      setShowUpgradeModal(true);
+      return;
+    }
     setPhotoEditLoading(true);
     try {
       const res = await axios.post(`${API}/zeta/photo-edit`, {
         image_data: photoEditImage,
-        edit_prompt: photoEditPrompt
-      });
+        edit_prompt: photoEditPrompt,
+        pro: false
+      }, { withCredentials: true });
       if (res.data.images && res.data.images.length > 0) {
         setPhotoEditResult(`data:${res.data.images[0].mime_type};base64,${res.data.images[0].data}`);
       }
+      if (res.data.credits_remaining !== undefined) {
+        setCreditsRemaining(res.data.credits_remaining);
+      }
     } catch (err) {
       console.error('Photo edit failed:', err);
-      alert('Photo edit failed. Please try again.');
+      if (err.response?.status === 429) {
+        setUpgradeReason(err.response.data?.detail || 'Yetersiz kredi!');
+        setShowUpgradeModal(true);
+      } else {
+        alert('Fotoğraf düzenleme başarısız. Tekrar deneyin.');
+      }
     }
     setPhotoEditLoading(false);
   };
@@ -1565,29 +1606,33 @@ const Editor = () => {
   const generateAIImage = async () => {
     if (!aiPrompt.trim()) return;
     
-    // Check usage limit before making request
-    if (userUsage && userUsage.remaining?.ai_images <= 0) {
-      setUpgradeReason('ai_image');
+    // Check credits
+    const cost = aiImagePro ? 50 : 20;
+    if (creditsRemaining < cost) {
+      setUpgradeReason(`Bu işlem ${cost} kredi gerektirir. Kalan: ${creditsRemaining} kredi.`);
       setShowUpgradeModal(true);
       return;
     }
     
     setAiGenerating(true); setAiPreview(null);
     try {
-      const res = await axios.post(`${API}/zeta/generate-image`, { prompt: aiPrompt, reference_image: aiReference }, { withCredentials: true });
+      const res = await axios.post(`${API}/zeta/generate-image`, { 
+        prompt: aiPrompt, 
+        reference_image: aiReference,
+        pro: aiImagePro,
+        aspect_ratio: aiAspectRatio
+      }, { withCredentials: true });
       if (res.data.images?.length > 0) { 
         setAiMimeType(res.data.images[0].mime_type || 'image/png'); 
         setAiPreview(res.data.images[0].data);
-        // Update local usage count
-        setUserUsage(prev => prev ? {
-          ...prev,
-          usage: { ...prev.usage, ai_images: (prev.usage?.ai_images || 0) + 1 },
-          remaining: { ...prev.remaining, ai_images: Math.max(0, (prev.remaining?.ai_images || 0) - 1) }
-        } : prev);
+        // Update credits
+        if (res.data.credits_remaining !== undefined) {
+          setCreditsRemaining(res.data.credits_remaining);
+        }
       }
     } catch (err) {
       if (err.response?.status === 429) {
-        setUpgradeReason('ai_image');
+        setUpgradeReason(err.response.data?.detail || 'Yetersiz kredi!');
         setShowUpgradeModal(true);
       }
     }
@@ -1925,20 +1970,37 @@ const Editor = () => {
     </DraggablePanel>}
     {showCreateImage && <DraggablePanel title={aiTargetShape ? "AI Image (Shape)" : "AI Image"} onClose={() => { setShowCreateImage(false); setAiPreview(null); setAiTargetShape(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-72 space-y-3">
-        {/* Usage limit info */}
-        {userUsage && (
-          <div className="text-xs px-2 py-1.5 rounded flex items-center justify-between" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
-            <span style={{ color: 'var(--zet-text-muted)' }}>Kalan AI Görsel:</span>
-            <span style={{ color: userUsage.remaining?.ai_images > 0 ? '#22c55e' : '#ef4444' }}>
-              {userUsage.remaining?.ai_images || 0} / {userUsage.limits?.ai_images || 0}
-            </span>
+        {/* Credits info */}
+        <div className="text-xs px-2 py-1.5 rounded flex items-center justify-between" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
+          <span style={{ color: 'var(--zet-text-muted)' }}>Kalan Kredi:</span>
+          <span style={{ color: creditsRemaining > 0 ? '#22c55e' : '#ef4444' }}>{creditsRemaining} / {dailyCredits}</span>
+        </div>
+        {/* Pro toggle */}
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>Nano Banana Pro</span>
+            <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: aiImagePro ? '#f59e0b' : 'var(--zet-border)', color: aiImagePro ? '#fff' : 'var(--zet-text-muted)' }}>{aiImagePro ? '50 kredi' : '20 kredi'}</span>
           </div>
-        )}
+          <button data-testid="ai-pro-toggle" onClick={() => { if (!planLimits.nano_pro) { setUpgradeReason('Nano Banana Pro, Pro veya Ultra planda kullanılabilir.'); setShowUpgradeModal(true); } else { setAiImagePro(!aiImagePro); } }} className={`w-10 h-5 rounded-full transition-colors ${aiImagePro ? '' : ''}`} style={{ background: aiImagePro ? '#f59e0b' : 'var(--zet-border)' }}>
+            <div className={`w-4 h-4 rounded-full bg-white transition-transform ${aiImagePro ? 'translate-x-5' : 'translate-x-0.5'}`} />
+          </button>
+        </div>
+        {/* Aspect ratio */}
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Boyut</label>
+          <div className="flex flex-wrap gap-1">
+            {(planLimits.custom_image_sizes || ['16:9']).map(ratio => (
+              <button key={ratio} onClick={() => setAiAspectRatio(ratio)} className={`text-xs px-2 py-1 rounded transition-colors ${aiAspectRatio === ratio ? 'font-semibold' : ''}`} style={{ background: aiAspectRatio === ratio ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)', border: `1px solid ${aiAspectRatio === ratio ? 'var(--zet-primary)' : 'var(--zet-border)'}` }} data-testid={`ai-ratio-${ratio.replace(/[:.]/g, '-')}`}>
+                {ratio}
+              </button>
+            ))}
+          </div>
+        </div>
         {aiTargetShape && <div className="text-xs px-2 py-1.5 rounded" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>Adding to: {aiTargetShape.startsWith('vector_') ? 'Vector Shape' : 'Shape'}</div>}
         <div><label className="text-xs mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Reference</label><label className="zet-btn text-xs w-full flex items-center justify-center gap-1 cursor-pointer py-2"><Upload className="h-3 w-3" />{aiReference ? 'Loaded' : 'Upload'}<input type="file" accept="image/*" onChange={e => { const f = e.target.files[0]; if (f) { const r = new FileReader(); r.onload = ev => setAiReference(ev.target.result.split(',')[1]); r.readAsDataURL(f); } }} className="hidden" /></label></div>
         {aiPreview && <div className="space-y-2"><img data-testid="ai-image-preview" src={`data:${aiMimeType};base64,${aiPreview}`} alt="AI" className="w-full rounded border" style={{ borderColor: 'var(--zet-border)', maxHeight: 200, objectFit: 'contain' }} /><button data-testid="ai-image-add-btn" onClick={addAiImageToCanvas} className="zet-btn w-full flex items-center justify-center gap-1.5 text-sm py-2"><Plus className="h-4 w-4" /> {aiTargetShape ? 'Add to Shape' : 'Add to Document'}</button></div>}
-        <div className="flex gap-1"><input data-testid="ai-image-prompt" placeholder="Describe image..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateAIImage()} className="zet-input flex-1 text-xs" /><button data-testid="ai-image-generate-btn" onClick={generateAIImage} disabled={aiGenerating || (userUsage?.remaining?.ai_images === 0)} className="zet-btn px-2">{aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}</button></div>
-        
+        <div className="flex gap-1"><input data-testid="ai-image-prompt" placeholder="Görseli tanımlayın..." value={aiPrompt} onChange={e => setAiPrompt(e.target.value)} onKeyDown={e => e.key === 'Enter' && generateAIImage()} className="zet-input flex-1 text-xs" /><button data-testid="ai-image-generate-btn" onClick={generateAIImage} disabled={aiGenerating || creditsRemaining < (aiImagePro ? 50 : 20)} className="zet-btn px-2">{aiGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}</button></div>
+        {creditsRemaining < (aiImagePro ? 50 : 20) && <p className="text-xs text-center" style={{ color: '#ef4444' }}>Yetersiz kredi! Bu işlem {aiImagePro ? 50 : 20} kredi gerektirir.</p>}
         {/* Photo Edit Shortcut */}
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
           <button 
@@ -1999,6 +2061,11 @@ const Editor = () => {
     {/* Photo Edit Panel */}
     {showPhotoEdit && <DraggablePanel title="AI Photo Edit" onClose={() => { setShowPhotoEdit(false); setPhotoEditImage(null); setPhotoEditResult(null); setPhotoEditDrawings([]); setPhotoEditDrawMode(false); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="space-y-3 w-72">
+        {/* Credits info */}
+        <div className="text-xs px-2 py-1.5 rounded flex items-center justify-between" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
+          <span style={{ color: 'var(--zet-text-muted)' }}>Maliyet: {planLimits.nano_pro ? 'Standart 15 / Pro 40' : '15'} kredi</span>
+          <span style={{ color: creditsRemaining > 0 ? '#22c55e' : '#ef4444' }}>{creditsRemaining} kalan</span>
+        </div>
         {!photoEditImage ? (
           <button onClick={handlePhotoEditUpload} className="zet-btn w-full py-6 flex flex-col items-center gap-2">
             <ImagePlus className="h-6 w-6" />
@@ -3018,6 +3085,11 @@ const Editor = () => {
           
           {!isMobile && <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>}
           <button data-testid="export-btn" onClick={() => setShowExport(true)} className="tool-btn w-8 h-8" title="Export"><Download className="h-4 w-4" /></button>
+          {/* Credit indicator */}
+          <div data-testid="credit-indicator" className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
+            <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
+            <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
+          </div>
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
@@ -3026,7 +3098,8 @@ const Editor = () => {
       <div className="flex-1 flex overflow-hidden">
         <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
           onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
-          zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)} />
+          zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)} 
+          lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }} />
 
         <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
           canvasElements={canvasElements} setCanvasElements={setCanvasElements}
@@ -3104,45 +3177,41 @@ const Editor = () => {
                 <Crown className="h-8 w-8 text-white" />
               </div>
               <h2 className="text-xl font-bold mb-2" style={{ color: 'var(--zet-text)' }}>
-                {upgradeReason === 'ai_image' ? 'AI Görsel Limitine Ulaştınız!' : 
-                 upgradeReason === 'judge' ? 'ZET Judge Mini Premium Özellik' : 
-                 'Planınızı Yükseltin'}
+                Planınızı Yükseltin
               </h2>
               <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-                {upgradeReason === 'ai_image' ? `Günlük ${userUsage?.limits?.ai_images || 1} görsel limitinize ulaştınız.` : 
-                 upgradeReason === 'judge' ? 'ZET Judge Mini analiz özelliği premium planlarda kullanılabilir.' : 
-                 'Daha fazla özellik için planınızı yükseltin.'}
+                {upgradeReason || 'Daha fazla kredi ve özellik için planınızı yükseltin.'}
               </p>
             </div>
             
-            {/* Plans */}
+            {/* Plans with credits */}
             <div className="space-y-3 mb-6">
               {/* Ultra */}
               <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(245, 158, 11, 0.1)', borderColor: '#f59e0b' }}>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <span className="font-bold" style={{ color: '#f59e0b' }}>Ultra</span>
                   <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$39.99/ay</span>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>50 AI Görsel/gün • Judge Pro (12+5) • Sınırsız</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>1000 kredi/gün | Judge sınırsız | Tüm boyutlar</p>
               </div>
               
               {/* Pro - Recommended */}
               <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] relative" style={{ background: 'rgba(139, 92, 246, 0.1)', borderColor: '#8b5cf6' }}>
                 <div className="absolute -top-2 left-4 px-2 py-0.5 rounded text-xs font-bold" style={{ background: '#8b5cf6', color: 'white' }}>Önerilen</div>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <span className="font-bold" style={{ color: '#8b5cf6' }}>Pro</span>
                   <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$19.99/ay</span>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>30 AI Görsel/gün • Judge Mini (7+1) • 25GB</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>250 kredi/gün | Nano Pro | Tüm araçlar | 7 boyut</p>
               </div>
               
               {/* Plus */}
               <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: '#3b82f6' }}>
-                <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center justify-between mb-1">
                   <span className="font-bold" style={{ color: '#3b82f6' }}>Plus</span>
                   <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$9.99/ay</span>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>5 AI Görsel/gün • Judge Mini (3) • 5GB</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>100 kredi/gün | Judge Mini | 3 boyut | Layers</p>
               </div>
             </div>
             

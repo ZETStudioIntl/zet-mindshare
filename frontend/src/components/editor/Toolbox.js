@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Search, PanelLeftClose, PanelLeftOpen } from 'lucide-react';
+import { Search, PanelLeftClose, PanelLeftOpen, Lock } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 export const Toolbox = ({
@@ -11,6 +11,8 @@ export const Toolbox = ({
   zoom,
   isOpen,
   onToggle,
+  lockedTools = [],
+  onLockedClick,
 }) => {
   const { t } = useLanguage();
   const [toolSearch, setToolSearch] = useState('');
@@ -68,18 +70,22 @@ export const Toolbox = ({
       {isOpen && (
         <div className="p-1 flex-1 overflow-y-auto">
           <div className="grid grid-cols-3 gap-1">
-            {filtered.map(tool => (
-              <button
-                key={tool.id}
-                data-testid={`tool-${tool.id}`}
-                onClick={() => onToolSelect(tool.id)}
-                onMouseMove={(e) => handleMouseMove(e, tool.id)}
-                onMouseLeave={() => setHoveredTool(null)}
-                className={`tool-btn h-10 w-full ${activeTool === tool.id ? 'active' : ''}`}
-              >
-                <tool.icon className="h-4 w-4" />
-              </button>
-            ))}
+            {filtered.map(tool => {
+              const isLocked = lockedTools.includes(tool.id);
+              return (
+                <button
+                  key={tool.id}
+                  data-testid={`tool-${tool.id}`}
+                  onClick={() => isLocked ? onLockedClick?.(tool.id) : onToolSelect(tool.id)}
+                  onMouseMove={(e) => handleMouseMove(e, tool.id)}
+                  onMouseLeave={() => setHoveredTool(null)}
+                  className={`tool-btn h-10 w-full relative ${activeTool === tool.id ? 'active' : ''} ${isLocked ? 'opacity-40' : ''}`}
+                >
+                  <tool.icon className="h-4 w-4" />
+                  {isLocked && <Lock className="h-2.5 w-2.5 absolute top-0.5 right-0.5" style={{ color: '#f59e0b' }} />}
+                </button>
+              );
+            })}
           </div>
 
           {/* Zoom info */}
@@ -114,6 +120,7 @@ export const Toolbox = ({
           }}
         >
           {t(tools.find(t => t.id === hoveredTool)?.nameKey || '')}
+          {lockedTools.includes(hoveredTool) && <span className="ml-1" style={{ color: '#f59e0b' }}>(Kilitli)</span>}
           {tools.find(t => t.id === hoveredTool)?.shortcut && (
             <span className="ml-2 opacity-60">({tools.find(t => t.id === hoveredTool)?.shortcut})</span>
           )}

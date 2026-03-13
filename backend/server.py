@@ -97,6 +97,8 @@ class ZetaChatRequest(BaseModel):
 class ZetaImageRequest(BaseModel):
     prompt: str
     reference_image: Optional[str] = None
+    pro: Optional[bool] = False
+    aspect_ratio: Optional[str] = "16:9"
 
 class TranslateRequest(BaseModel):
     text: str
@@ -557,44 +559,101 @@ async def confirm_cancellation(token: str):
 
 # Plan limits
 PLAN_LIMITS = {
-    'free': {'ai_images': 1, 'judge_basic': 0, 'judge_deep': 0, 'judge_chars': 0},
-    'plus': {'ai_images': 5, 'judge_basic': 3, 'judge_deep': 0, 'judge_chars': 400},
-    'pro': {'ai_images': 30, 'judge_basic': 7, 'judge_deep': 1, 'judge_chars': 900},
-    'ultra': {'ai_images': 50, 'judge_basic': 12, 'judge_deep': 5, 'judge_chars': 2000}
+    'free': {
+        'daily_credits': 20,
+        'judge_enabled': False,
+        'judge_deep': False,
+        'zeta_chars': 250,
+        'judge_chars': 0,
+        'fastselect_limit': 3,
+        'nano_pro': False,
+        'custom_image_sizes': ['16:9'],
+        'layers': False,
+        'signature': False,
+        'watermark': False,
+        'page_color': False,
+        'charts': False,
+    },
+    'plus': {
+        'daily_credits': 100,
+        'judge_enabled': True,
+        'judge_deep': False,
+        'zeta_chars': 500,
+        'judge_chars': 150,
+        'fastselect_limit': 999,
+        'nano_pro': False,
+        'custom_image_sizes': ['16:9', '9:16', '1:1'],
+        'layers': True,
+        'signature': False,
+        'watermark': False,
+        'page_color': False,
+        'charts': False,
+    },
+    'pro': {
+        'daily_credits': 250,
+        'judge_enabled': True,
+        'judge_deep': True,
+        'zeta_chars': 99999,
+        'judge_chars': 600,
+        'fastselect_limit': 999,
+        'nano_pro': True,
+        'custom_image_sizes': ['16:9', '9:16', '1:1', '2.55:1', '2.39:1', '1.85:1', '2.00:1'],
+        'layers': True,
+        'signature': True,
+        'watermark': True,
+        'page_color': True,
+        'charts': True,
+    },
+    'ultra': {
+        'daily_credits': 1000,
+        'judge_enabled': True,
+        'judge_deep': True,
+        'zeta_chars': 99999,
+        'judge_chars': 99999,
+        'fastselect_limit': 999,
+        'nano_pro': True,
+        'custom_image_sizes': ['16:9', '9:16', '1:1', '2.55:1', '2.39:1', '1.85:1', '2.00:1'],
+        'layers': True,
+        'signature': True,
+        'watermark': True,
+        'page_color': True,
+        'charts': True,
+    }
 }
 
-@api_router.get("/usage")
-async def get_usage(user: User = Depends(get_current_user)):
-    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
-    plan = user_data.get("subscription", "free")
-    
-    # Get today's usage
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    usage = await db.usage.find_one({"user_id": user.user_id, "date": today}, {"_id": 0})
-    
-    if not usage:
-        usage = {"ai_images": 0, "judge_basic": 0, "judge_deep": 0}
-    
+# Credit costs for each action
+CREDIT_COSTS = {
+    'nano_banana': 20,
+    'nano_banana_pro': 50,
+    'photo_edit': 15,
+    'photo_edit_pro': 40,
+    'judge_basic': 25,
+    'judge_deep': 70,
+    'zeta_chat': 0,  # Free, limited by char count
+}
+
+async def get_user_credits(user_id: str):
+    """Get user's current credits for today"""
+    user_data = await db.users.find_one({"user_id": user_id})
+    plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage = await db.usage.find_one({"user_id": user_id, "date": today})
+    credits_used = usage.get("credits_used", 0) if usage else 0
     return {
         "plan": plan,
-        "limits": limits,
-        "usage": {
-            "ai_images": usage.get("ai_images", 0),
-            "judge_basic": usage.get("judge_basic", 0),
-            "judge_deep": usage.get("judge_deep", 0)
-        },
-        "remaining": {
-            "ai_images": max(0, limits['ai_images'] - usage.get("ai_images", 0)),
-            "judge_basic": max(0, limits['judge_basic'] - usage.get("judge_basic", 0)),
-            "judge_deep": max(0, limits['judge_deep'] - usage.get("judge_deep", 0)),
-            "judge_chars": limits['judge_chars']
-        }
+        "daily_credits": limits['daily_credits'],
+        "credits_used": credits_used,
+        "credits_remaining": max(0, limits['daily_credits'] - credits_used),
+        "limits": limits
     }
 
-async def check_and_increment_usage(user_id: str, usage_type: str) -> bool:
-    """Check if user has remaining usage and increment if allowed"""
+async def spend_credits(user_id: str, action: str) -> dict:
+    """Attempt to spend credits for an action. Returns success status."""
+    cost = CREDIT_COSTS.get(action, 0)
+    if cost == 0:
+        return {"success": True, "cost": 0}
+    
     user_data = await db.users.find_one({"user_id": user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
@@ -603,20 +662,43 @@ async def check_and_increment_usage(user_id: str, usage_type: str) -> bool:
     usage = await db.usage.find_one({"user_id": user_id, "date": today})
     
     if not usage:
-        usage = {"user_id": user_id, "date": today, "ai_images": 0, "judge_basic": 0, "judge_deep": 0}
+        usage = {"user_id": user_id, "date": today, "credits_used": 0}
         await db.usage.insert_one(usage)
     
-    current = usage.get(usage_type, 0)
-    limit = limits.get(usage_type, 0)
+    credits_used = usage.get("credits_used", 0)
+    credits_remaining = limits['daily_credits'] - credits_used
     
-    if current >= limit:
-        return False
+    if credits_remaining < cost:
+        return {
+            "success": False,
+            "cost": cost,
+            "credits_remaining": max(0, credits_remaining),
+            "message": f"Yetersiz kredi! Bu işlem {cost} kredi gerektirir, kalan: {max(0, credits_remaining)} kredi."
+        }
     
     await db.usage.update_one(
         {"user_id": user_id, "date": today},
-        {"$inc": {usage_type: 1}}
+        {"$inc": {"credits_used": cost}},
+        upsert=True
     )
-    return True
+    
+    return {
+        "success": True,
+        "cost": cost,
+        "credits_remaining": max(0, credits_remaining - cost)
+    }
+
+@api_router.get("/usage")
+async def get_usage(user: User = Depends(get_current_user)):
+    credits_info = await get_user_credits(user.user_id)
+    return {
+        "plan": credits_info['plan'],
+        "daily_credits": credits_info['daily_credits'],
+        "credits_used": credits_info['credits_used'],
+        "credits_remaining": credits_info['credits_remaining'],
+        "limits": credits_info['limits'],
+        "credit_costs": CREDIT_COSTS
+    }
 
 # ============ CHAT HISTORY ROUTES ============
 
@@ -648,23 +730,25 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
     
     # Check if Judge is available for this plan
-    if plan == "free":
-        return {"response": "⚠️ ZET Judge Mini, Free planda kullanılamaz. Lütfen Plus veya üzeri bir plana yükseltin.", "session_id": None, "locked": True}
+    if not limits.get('judge_enabled', False):
+        return {"response": "ZET Judge Mini, Free planda kullanılamaz. Lütfen Plus veya üzeri bir plana yükseltin.", "session_id": None, "locked": True}
     
     # Check character limit
     if len(req.message) > limits['judge_chars']:
-        return {"response": f"⚠️ Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
+        return {"response": f"Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
     
     # Determine usage type based on mode
     mode = req.mode or "fast"
-    usage_type = "judge_deep" if mode == "deep" else "judge_basic"
     
-    # Check usage limit
-    allowed = await check_and_increment_usage(user.user_id, usage_type)
-    if not allowed:
-        limit = limits[usage_type]
-        mode_name = "derin analiz" if mode == "deep" else "temel analiz"
-        return {"response": f"⚠️ Günlük {mode_name} limitinize ulaştınız ({limit}/{limit}). Yarın tekrar deneyin veya planınızı yükseltin.", "session_id": None, "limit_exceeded": True}
+    # Check deep analysis availability
+    if mode == "deep" and not limits.get('judge_deep', False):
+        return {"response": f"Derin analiz, {plan.upper()} planında kullanılamaz. Pro veya Ultra plana yükseltin.", "session_id": None, "locked": True}
+    
+    # Spend credits
+    credit_action = "judge_deep" if mode == "deep" else "judge_basic"
+    credit_result = await spend_credits(user.user_id, credit_action)
+    if not credit_result['success']:
+        return {"response": f"Yetersiz kredi! Bu analiz {credit_result['cost']} kredi gerektirir. Kalan: {credit_result['credits_remaining']} kredi.", "session_id": None, "insufficient_credits": True, "credits_remaining": credit_result['credits_remaining']}
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
@@ -792,6 +876,12 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     # Get user's subscription info
     user_data = await db.users.find_one({"user_id": user.user_id})
     user_plan = user_data.get("subscription", "free") if user_data else "free"
+    limits = PLAN_LIMITS.get(user_plan, PLAN_LIMITS['free'])
+    
+    # Check ZETA character limit
+    zeta_char_limit = limits.get('zeta_chars', 250)
+    if zeta_char_limit < 99999 and len(req.message) > zeta_char_limit:
+        return {"response": f"Mesaj çok uzun! {user_plan.upper()} planında ZETA'ya maksimum {zeta_char_limit} karakter gönderebilirsiniz. Daha uzun mesajlar için planınızı yükseltin.", "session_id": None, "char_limit_exceeded": True}
     
     # Build personality based on mood setting
     mood_instructions = {
@@ -839,18 +929,32 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
 - Sen uygulama kullanımı, araçlar ve genel sorularda yardımcı olursun
 - Free kullanıcılar için Judge kilitli - Plus veya üzeri plan gerekli
 
-💎 ABONELİK PAKETLERİ:
-| Plan  | AI Görsel | Judge Temel | Judge Derin | Fast Select | Fiyat (Aylık) |
-|-------|-----------|-------------|-------------|-------------|---------------|
-| Free  | 1/gün     | ❌ Kilitli  | ❌ Kilitli  | 3 araç      | Ücretsiz      |
-| Plus  | 5/gün     | 3/gün       | ❌          | 5 araç      | $9.99         |
-| Pro   | 30/gün    | 7/gün       | 1/gün       | 8 araç      | $19.99        |
-| Ultra | 50/gün    | 12/gün      | 5/gün       | 8 araç      | $39.99        |
+💎 ABONELİK PAKETLERİ (KREDİ SİSTEMİ):
+| Plan  | Günlük Kredi | ZETA Harf | Judge | Judge Harf | Nano Pro |
+|-------|-------------|-----------|-------|------------|----------|
+| Free  | 20          | 250       | Kapalı| -          | Yok      |
+| Plus  | 100         | 500       | Mini  | 150        | Yok      |
+| Pro   | 250         | Sınırsız  | Tam   | 600        | Var      |
+| Ultra | 1000        | Sınırsız  | Tam   | Sınırsız   | Var      |
 
-- Fast Select: Sol üstteki arama çubuğunun yanındaki hızlı araç seçimi butonu
-- AI Görsel: AI Image aracı ile oluşturulabilecek görsel sayısı
-- Judge Temel: Hızlı analiz modu
-- Judge Derin: Kapsamlı ve detaylı analiz modu
+KREDİ MALİYETLERİ:
+- Nano Banana görsel: 20 kredi
+- Nano Banana Pro görsel: 50 kredi
+- Fotoğraf düzeltme: 15 kredi
+- Fotoğraf düzeltme Pro: 40 kredi
+- Judge temel analiz: 25 kredi
+- Judge derin analiz: 70 kredi
+
+PAKET ÖZELLİKLERİ:
+- Free: Layers/Signature/Watermark/Page Color/Grafikler kapalı, 3 fast select
+- Plus: Layers açık, Signature/Watermark/Page Color/Grafikler kapalı, Derin analiz yok
+- Pro: Tüm araçlar açık
+- Ultra: Pro + sınırsız Judge ve 1000 kredi
+
+GÖRÜNTÜ BOYUTLARI:
+- Free: 16:9
+- Plus: 16:9, 9:16, 1:1
+- Pro/Ultra: 16:9, 9:16, 1:1, 2.55:1, 2.39:1, 1.85:1, 2.00:1
 
 📝 METİN ARAÇLARI:
 - TEXT (T): Canvas'a tıklayarak yazı yaz. Enter = yeni satır
@@ -991,16 +1095,33 @@ The user may ask questions about this document. Use this content to provide rele
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
     
-    # Check AI image usage limit
-    allowed = await check_and_increment_usage(user.user_id, "ai_images")
-    if not allowed:
-        user_data = await db.users.find_one({"user_id": user.user_id})
-        plan = user_data.get("subscription", "free") if user_data else "free"
-        limit = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])['ai_images']
-        raise HTTPException(status_code=429, detail=f"Günlük AI görsel limitinize ulaştınız ({limit}/{limit}). Yarın tekrar deneyin veya planınızı yükseltin.")
+    # Determine credit action
+    credit_action = "nano_banana_pro" if req.pro else "nano_banana"
+    
+    # Check plan allows pro
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    
+    if req.pro and not limits.get('nano_pro', False):
+        raise HTTPException(status_code=403, detail="Nano Banana Pro, Pro veya Ultra planda kullanılabilir.")
+    
+    # Check aspect ratio allowed
+    if req.aspect_ratio and req.aspect_ratio not in limits.get('custom_image_sizes', ['16:9']):
+        raise HTTPException(status_code=403, detail=f"Bu görüntü boyutu ({req.aspect_ratio}) planınızda kullanılamaz.")
+    
+    # Spend credits
+    credit_result = await spend_credits(user.user_id, credit_action)
+    if not credit_result['success']:
+        raise HTTPException(status_code=429, detail=credit_result['message'])
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = f"zeta_img_{uuid.uuid4().hex[:8]}"
+    
+    # Build prompt with aspect ratio hint
+    aspect_prompt = f"({req.aspect_ratio} aspect ratio) " if req.aspect_ratio else ""
+    quality_prompt = "high quality, professional, detailed" if req.pro else ""
+    full_prompt = f"{aspect_prompt}{quality_prompt} {req.prompt}".strip()
     
     chat = LlmChat(
         api_key=api_key,
@@ -1011,15 +1132,15 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
     
     if req.reference_image:
         msg = UserMessage(
-            text=req.prompt,
+            text=full_prompt,
             file_contents=[ImageContent(req.reference_image)]
         )
     else:
-        msg = UserMessage(text=req.prompt)
+        msg = UserMessage(text=full_prompt)
     
     text, images = await chat.send_message_multimodal_response(msg)
     
-    result = {"text": text, "images": []}
+    result = {"text": text, "images": [], "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
     if images:
         for img in images:
             result["images"].append({
@@ -1033,10 +1154,17 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
 class PhotoEditRequest(BaseModel):
     image_data: str  # Base64 encoded image
     edit_prompt: str  # What to change
+    pro: Optional[bool] = False
 
 @api_router.post("/zeta/photo-edit")
 async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_current_user)):
     from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+    
+    # Spend credits
+    credit_action = "photo_edit_pro" if req.pro else "photo_edit"
+    credit_result = await spend_credits(user.user_id, credit_action)
+    if not credit_result['success']:
+        raise HTTPException(status_code=429, detail=credit_result['message'])
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = f"zeta_edit_{uuid.uuid4().hex[:8]}"
@@ -1060,7 +1188,7 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
     
     text, images = await chat.send_message_multimodal_response(msg)
     
-    result = {"text": text or "Image edited successfully", "images": []}
+    result = {"text": text or "Image edited successfully", "images": [], "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
     if images:
         for img in images:
             result["images"].append({
