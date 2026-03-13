@@ -1,4 +1,4 @@
-// Quest Map Data Generator - 500 quests in a single massive web/labyrinth
+// Quest Map Data Generator - 500 quests in a massive spider-web / labyrinth
 // Shapes: circle=20SP, square=45SP, triangle=100SP, star=200SP
 
 const SP_VALUES = { circle: 20, square: 45, triangle: 100, star: 200 };
@@ -175,7 +175,7 @@ const QUEST_CHAINS = {
     { name: 'FS Ozellestir', desc: 'Fast Select araclarini degistirin', shape: 'square' },
     { name: 'FS Ustasi', desc: '100 kez Fast Select kullanin', shape: 'triangle' },
   ],
-  export: [
+  export_chain: [
     { name: 'Ilk Export', desc: 'Bir belgeyi disa aktarin', shape: 'circle' },
     { name: 'PNG Export', desc: 'PNG olarak kaydedin', shape: 'circle' },
     { name: 'PDF Export', desc: 'PDF olarak kaydedin', shape: 'circle' },
@@ -309,9 +309,9 @@ const QUEST_CHAINS = {
     { name: 'Haftalik', desc: '30 gun giris yapin', shape: 'square' },
     { name: 'Aylik', desc: '90 gun giris yapin', shape: 'triangle' },
     { name: 'Yillik', desc: '365 gun giris yapin', shape: 'star' },
-    { name: 'Cok Kategorili', desc: '5 kategoriden gorev tamamla', shape: 'square' },
-    { name: 'Her Kategoriden', desc: 'Her kategoriden 1 gorev', shape: 'triangle' },
-    { name: 'Evrensel Usta', desc: 'Her kategoride 10 gorev', shape: 'star' },
+    { name: 'Cok Kategorili', desc: '5 farkli alanda gorev tamamla', shape: 'square' },
+    { name: 'Her Alandan', desc: 'Her alandan 1 gorev', shape: 'triangle' },
+    { name: 'Evrensel Usta', desc: 'Her alanda 10 gorev', shape: 'star' },
     { name: 'Hizli Tamamlayici', desc: '1 gunde 10 gorev tamamla', shape: 'square' },
     { name: 'Super Tamamlayici', desc: '1 gunde 20 gorev', shape: 'triangle' },
     { name: 'Ultra Tamamlayici', desc: '1 gunde 30 gorev', shape: 'triangle' },
@@ -327,8 +327,8 @@ const QUEST_CHAINS = {
     { name: 'Sabahci', desc: 'Sabah 6 da belge olustur', shape: 'square' },
     { name: 'Hiz Seytani', desc: '1 dakikada 10 eleman ekle', shape: 'triangle' },
     { name: 'Perfectionist', desc: 'Bir belgeyi 50 kez duzenle', shape: 'triangle' },
-    { name: 'Cok Yonlu', desc: 'Tum kategorilerden gorev tamamla', shape: 'triangle' },
-    { name: 'ZET Krali', desc: 'Tum kategorilerde usta ol', shape: 'star' },
+    { name: 'Cok Yonlu', desc: 'Her alandan gorev tamamla', shape: 'triangle' },
+    { name: 'ZET Krali', desc: 'Her alanda usta ol', shape: 'star' },
     { name: 'Imkansiz', desc: 'Tum gorevleri tamamla', shape: 'star' },
     { name: 'Ctrl+Z Ustasi', desc: '100 geri alma yapin', shape: 'circle' },
     { name: 'Sansur Uzmani', desc: '20 metin sansurleyin', shape: 'square' },
@@ -351,7 +351,7 @@ const QUEST_CHAINS = {
     { name: 'Hacker', desc: 'Tum gizli ozellikleri kesfedin', shape: 'star' },
     { name: 'Sag Tik Ustasi', desc: 'Sag tik menusunu kullanin', shape: 'circle' },
     { name: 'Zoom Ustasi', desc: 'Tum zoom seviyelerini deneyin', shape: 'circle' },
-    { name: 'Katman Ustasi', desc: 'Katmanlarla calisin', shape: 'square' },
+    { name: 'Katman Gizlisi', desc: 'Katmanlarla calisin', shape: 'square' },
     { name: 'Filigran Ekle', desc: 'Filigran aracini kullanin', shape: 'square' },
     { name: 'Ayna Kullan', desc: 'Ayna aracini kullanin', shape: 'circle' },
     { name: 'Sesle Yaz', desc: 'Sesle yazma aracini kullanin', shape: 'square' },
@@ -359,8 +359,8 @@ const QUEST_CHAINS = {
     { name: 'Kenar Bosluklari', desc: 'Kenar bosluklari ayarlayin', shape: 'circle' },
     { name: 'Sayfa Rengi', desc: 'Sayfa rengini degistirin', shape: 'circle' },
     { name: 'Coklu Sayfa', desc: '5 sayfalik belge olusturun', shape: 'square' },
-    { name: 'On Sayfa', desc: '10 sayfalik belge', shape: 'triangle' },
-    { name: 'Yirmi Sayfa', desc: '20 sayfalik belge', shape: 'triangle' },
+    { name: 'On Sayfa Gizli', desc: '10 sayfalik belge', shape: 'triangle' },
+    { name: 'Yirmi Sayfa Gizli', desc: '20 sayfalik belge', shape: 'triangle' },
     { name: 'Kitap Yaz', desc: '50 sayfalik belge', shape: 'star' },
     { name: 'Gizli Kombo', desc: 'Ctrl+Shift+Z deneyin', shape: 'circle' },
     { name: 'Cift Tik', desc: 'Cift tik ile duzenleme', shape: 'circle' },
@@ -452,27 +452,19 @@ const QUEST_CHAINS = {
     { name: 'Super Koleksiyoncu', desc: 'Her seyden 50 adet', shape: 'star' },
     { name: 'Yuzde Elli', desc: 'Gorevlerin yarisi tamamla', shape: 'triangle' },
     { name: 'Tam Tamamlayici', desc: 'Tum gorevleri tamamla', shape: 'star' },
+    { name: 'Belge Sihirbazi', desc: '10 sablon kullan', shape: 'square' },
+    { name: 'Otomasyon Ustasi', desc: '50 kisayol kullan', shape: 'triangle' },
+    { name: 'ZET Efsanesi', desc: '300 gorev tamamla', shape: 'star' },
   ],
 };
 
-// Deterministic hash for position jitter
-function hash(a, b) {
-  let h = ((a * 2654435761) ^ (b * 2246822519)) >>> 0;
-  h = ((h ^ (h >>> 16)) * 0x45d9f3b) >>> 0;
-  return (h & 0x7fffffff) / 0x7fffffff;
-}
-
-function getHexNeighbors(row, col, rows, cols) {
-  const n = [];
-  const even = row % 2 === 0;
-  const offsets = even
-    ? [[-1, -1], [-1, 0], [0, -1], [0, 1], [1, -1], [1, 0]]
-    : [[-1, 0], [-1, 1], [0, -1], [0, 1], [1, 0], [1, 1]];
-  for (const [dr, dc] of offsets) {
-    const nr = row + dr, nc = col + dc;
-    if (nr >= 0 && nr < rows && nc >= 0 && nc < cols) n.push([nr, nc]);
-  }
-  return n;
+// Deterministic seeded random
+function seededRandom(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
 }
 
 export function generateQuestMap() {
@@ -482,87 +474,181 @@ export function generateQuestMap() {
     chain.forEach(q => all.push({ ...q, sp: SP_VALUES[q.shape] || 20 }));
   });
 
-  // Sort by difficulty: circles first, stars last
+  // Sort: circles first (center), stars last (edge)
   const ord = { circle: 0, square: 1, triangle: 2, star: 3 };
   all.sort((a, b) => ord[a.shape] - ord[b.shape]);
 
-  // Trim to 500
   while (all.length > 500) all.pop();
-  const count = all.length;
-
-  // Grid dimensions
-  const cols = 25, rows = 20;
-  const spacingX = 150, spacingY = 120;
-
-  // Generate all grid positions with distance from center
-  const centerC = (cols - 1) / 2, centerR = (rows - 1) / 2;
-  const positions = [];
-  for (let r = 0; r < rows; r++) {
-    for (let c = 0; c < cols; c++) {
-      const hexOff = (r % 2) * spacingX * 0.5;
-      const jx = (hash(r, c) - 0.5) * 20;
-      const jy = (hash(c, r) - 0.5) * 20;
-      const x = c * spacingX + hexOff + 200 + jx;
-      const y = r * spacingY + 200 + jy;
-      const dist = Math.sqrt(((c - centerC) * 1.0) ** 2 + ((r - centerR) * 1.2) ** 2);
-      positions.push({ row: r, col: c, x, y, dist });
-    }
+  // Pad to 500 if needed
+  const padQuests = [
+    { name: 'Gizemli Gorev', desc: 'Bu gorevi kesfet', shape: 'circle' },
+    { name: 'Gizli Yol', desc: 'Gizli bir yol bul', shape: 'square' },
+    { name: 'Karanlik Orman', desc: 'Karanlik ormandan gec', shape: 'triangle' },
+    { name: 'Altin Kapi', desc: 'Altin kapiyi ac', shape: 'star' },
+  ];
+  let padIdx = 0;
+  while (all.length < 500) {
+    const p = padQuests[padIdx % padQuests.length];
+    all.push({ ...p, name: `${p.name} ${Math.floor(padIdx / 4) + 1}`, sp: SP_VALUES[p.shape] });
+    padIdx++;
   }
 
-  // Sort by distance (center first)
-  positions.sort((a, b) => a.dist - b.dist);
+  const count = 500;
+  const rng = seededRandom(42);
+  const CX = 2800, CY = 2800; // center of the web
 
-  // Assign quests to positions (easy=center, hard=edge)
+  // Place quests in concentric spiral rings
   const quests = [];
-  const posMap = {};
-  for (let i = 0; i < count && i < positions.length; i++) {
-    const q = all[i], p = positions[i];
+
+  // Quest 0 at dead center
+  quests.push({ id: 0, name: all[0].name, desc: all[0].desc, sp: all[0].sp, shape: all[0].shape, x: CX, y: CY });
+
+  // Spiral placement: golden-angle based
+  const goldenAngle = 137.508 * (Math.PI / 180);
+  for (let i = 1; i < count; i++) {
+    const angle = i * goldenAngle;
+    // Radius grows with sqrt for even distribution, with perturbation
+    const baseR = 38 * Math.sqrt(i);
+    const jitter = (rng() - 0.5) * 22;
+    const r = baseR + jitter;
+    const x = CX + r * Math.cos(angle);
+    const y = CY + r * Math.sin(angle);
     quests.push({
-      id: i, name: q.name, desc: q.desc, sp: q.sp, shape: q.shape,
-      x: p.x, y: p.y, completed: false,
+      id: i, name: all[i].name, desc: all[i].desc,
+      sp: all[i].sp, shape: all[i].shape, x, y,
     });
-    posMap[`${p.row},${p.col}`] = i;
   }
 
-  // Generate web connections (hex neighbors)
+  // Build spatial index for neighbor finding
+  const cellSize = 120;
+  const grid = {};
+  quests.forEach(q => {
+    const cx = Math.floor(q.x / cellSize);
+    const cy = Math.floor(q.y / cellSize);
+    const key = `${cx},${cy}`;
+    if (!grid[key]) grid[key] = [];
+    grid[key].push(q.id);
+  });
+
+  const getNearbyCells = (x, y) => {
+    const cx = Math.floor(x / cellSize);
+    const cy = Math.floor(y / cellSize);
+    const ids = [];
+    for (let dx = -1; dx <= 1; dx++) {
+      for (let dy = -1; dy <= 1; dy++) {
+        const k = `${cx + dx},${cy + dy}`;
+        if (grid[k]) ids.push(...grid[k]);
+      }
+    }
+    return ids;
+  };
+
+  // Generate connections - multiple layers for complexity
   const connections = [];
   const connSet = new Set();
-  positions.forEach((p, i) => {
-    if (i >= count) return;
-    const neighbors = getHexNeighbors(p.row, p.col, rows, cols);
-    for (const [nr, nc] of neighbors) {
-      const j = posMap[`${nr},${nc}`];
-      if (j !== undefined) {
-        const key = Math.min(i, j) + '-' + Math.max(i, j);
-        if (!connSet.has(key)) {
-          connSet.add(key);
-          connections.push({ from: Math.min(i, j), to: Math.max(i, j) });
-        }
-      }
+  const addConn = (a, b) => {
+    if (a === b) return;
+    const mn = Math.min(a, b), mx = Math.max(a, b);
+    const key = `${mn}-${mx}`;
+    if (!connSet.has(key)) {
+      connSet.add(key);
+      connections.push({ from: mn, to: mx });
     }
-    // Extra diagonal spider-web connections (every 3rd node)
-    if (i % 3 === 0) {
-      const diags = [
-        [p.row - 2, p.col], [p.row + 2, p.col],
-        [p.row, p.col - 2], [p.row, p.col + 2],
-      ];
-      for (const [dr, dc] of diags) {
-        const j = posMap[`${dr},${dc}`];
-        if (j !== undefined) {
-          const key = Math.min(i, j) + '-' + Math.max(i, j);
-          if (!connSet.has(key)) {
-            connSet.add(key);
-            connections.push({ from: Math.min(i, j), to: Math.max(i, j) });
-          }
-        }
-      }
+  };
+
+  // Layer 1: Nearest neighbors (spatial proximity) - creates the dense web
+  quests.forEach(q => {
+    const nearby = getNearbyCells(q.x, q.y);
+    const dists = nearby
+      .filter(id => id !== q.id)
+      .map(id => ({ id, d: Math.hypot(quests[id].x - q.x, quests[id].y - q.y) }))
+      .sort((a, b) => a.d - b.d);
+    // Connect to 3-5 nearest
+    const maxN = 3 + Math.floor(rng() * 3);
+    for (let j = 0; j < Math.min(maxN, dists.length); j++) {
+      if (dists[j].d < 200) addConn(q.id, dists[j].id);
     }
+  });
+
+  // Layer 2: Spiral sequence connections (creates spiral threads)
+  for (let i = 0; i < count - 1; i++) {
+    addConn(i, i + 1);
+  }
+  // Close spiral loops every N
+  for (let i = 0; i < count; i += 13) {
+    if (i + 13 < count) addConn(i, i + 13);
+  }
+
+  // Layer 3: Radial spokes from center
+  for (let i = 1; i < count; i++) {
+    const dx = quests[i].x - CX, dy = quests[i].y - CY;
+    const dist = Math.hypot(dx, dy);
+    // Connect nodes at similar angles but different distances
+    if (i % 7 === 0) {
+      const targetDist = dist * 0.55;
+      let best = -1, bestDiff = Infinity;
+      for (let j = 0; j < count; j++) {
+        if (j === i) continue;
+        const d2 = Math.hypot(quests[j].x - CX, quests[j].y - CY);
+        const angle1 = Math.atan2(dy, dx);
+        const angle2 = Math.atan2(quests[j].y - CY, quests[j].x - CX);
+        let angleDiff = Math.abs(angle1 - angle2);
+        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
+        const diff = Math.abs(d2 - targetDist) + angleDiff * 200;
+        if (diff < bestDiff) { bestDiff = diff; best = j; }
+      }
+      if (best >= 0) addConn(i, best);
+    }
+  }
+
+  // Layer 4: Concentric ring connections
+  const ringQuests = quests.slice(1).map(q => ({
+    ...q,
+    dist: Math.hypot(q.x - CX, q.y - CY),
+    angle: Math.atan2(q.y - CY, q.x - CX),
+  }));
+  ringQuests.sort((a, b) => a.dist - b.dist);
+
+  const ringSize = 20;
+  for (let start = 0; start < ringQuests.length; start += ringSize) {
+    const ring = ringQuests.slice(start, Math.min(start + ringSize, ringQuests.length));
+    ring.sort((a, b) => a.angle - b.angle);
+    for (let j = 0; j < ring.length; j++) {
+      const next = (j + 1) % ring.length;
+      addConn(ring[j].id, ring[next].id);
+    }
+  }
+
+  // Layer 5: Long-range cross connections (creates the labyrinth feel)
+  for (let i = 0; i < count; i += 11) {
+    const target = (i + 37 + Math.floor(rng() * 50)) % count;
+    addConn(i, target);
+  }
+  for (let i = 0; i < count; i += 23) {
+    const target = (i + 97 + Math.floor(rng() * 80)) % count;
+    addConn(i, target);
+  }
+
+  // Layer 6: Hub connections from quest 0
+  for (let i = 1; i <= 20; i++) {
+    addConn(0, i);
+  }
+
+  // Calculate bounds
+  let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+  quests.forEach(q => {
+    if (q.x < minX) minX = q.x;
+    if (q.x > maxX) maxX = q.x;
+    if (q.y < minY) minY = q.y;
+    if (q.y > maxY) maxY = q.y;
   });
 
   return {
     quests, connections,
-    totalWidth: cols * spacingX + spacingX + 400,
-    totalHeight: rows * spacingY + 400,
+    totalWidth: maxX - minX + 400,
+    totalHeight: maxY - minY + 400,
+    centerX: CX,
+    centerY: CY,
   };
 }
 
