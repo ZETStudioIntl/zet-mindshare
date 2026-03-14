@@ -555,6 +555,35 @@ async def confirm_cancellation(token: str):
         "message": "Aboneliğiniz başarıyla iptal edildi. FREE plana düştünüz."
     })
 
+SP_PLAN_COSTS = {
+    'plus': 10000,
+    'pro': 30000,
+    'ultra': 50000,
+}
+
+class SPPurchaseRequest(BaseModel):
+    plan: str
+
+@api_router.post("/subscription/buy-with-sp")
+async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(get_current_user)):
+    if req.plan not in SP_PLAN_COSTS:
+        raise HTTPException(status_code=400, detail="Gecersiz plan")
+    cost = SP_PLAN_COSTS[req.plan]
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "quest_xp": 1, "subscription": 1})
+    current_sp = user_data.get("quest_xp", 0) if user_data else 0
+    current_plan = user_data.get("subscription", "free") if user_data else "free"
+    plan_rank = {"free": 0, "plus": 1, "pro": 2, "ultra": 3}
+    if plan_rank.get(req.plan, 0) <= plan_rank.get(current_plan, 0):
+        raise HTTPException(status_code=400, detail="Zaten bu plan veya daha ust bir plana sahipsiniz")
+    if current_sp < cost:
+        raise HTTPException(status_code=400, detail=f"Yetersiz SP. Gerekli: {cost} SP, Mevcut: {current_sp} SP")
+    new_sp = current_sp - cost
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"quest_xp": new_sp, "subscription": req.plan, "subscription_date": datetime.now(timezone.utc).isoformat(), "cancel_pending": False}}
+    )
+    return {"message": f"{req.plan.upper()} planina SP ile yukseltildi", "plan": req.plan, "remaining_sp": new_sp}
+
 # ============ USAGE LIMITS ============
 
 # Plan limits

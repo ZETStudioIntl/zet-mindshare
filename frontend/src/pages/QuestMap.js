@@ -58,7 +58,6 @@ function drawCheck(ctx, x, y) {
 
 const QuestMap = () => {
   const canvasRef = useRef(null);
-  const minimapRef = useRef(null);
   const navigate = useNavigate();
   const animRef = useRef(0);
 
@@ -257,42 +256,6 @@ const QuestMap = () => {
 
     ctx.restore();
 
-    // Minimap
-    const mini = minimapRef.current;
-    if (mini) {
-      const mc = mini.getContext('2d');
-      const mw = 180, mh = 120;
-      mini.width = mw; mini.height = mh;
-      mc.fillStyle = 'rgba(5,8,16,0.94)'; mc.fillRect(0, 0, mw, mh);
-      mc.strokeStyle = 'rgba(40,50,120,0.4)'; mc.lineWidth = 1; mc.strokeRect(0, 0, mw, mh);
-      const s = Math.min(mw / md.totalWidth, mh / md.totalHeight) * 0.88;
-      const ox = (mw - md.totalWidth * s) / 2;
-      const oy = (mh - md.totalHeight * s) / 2;
-      const offX = md.quests.reduce((m, q) => Math.min(m, q.x), Infinity);
-      const offY = md.quests.reduce((m, q) => Math.min(m, q.y), Infinity);
-
-      // Web on minimap
-      mc.strokeStyle = 'rgba(40,50,120,0.12)'; mc.lineWidth = 0.3;
-      md.connections.forEach(cn => {
-        const ff = md.quests[cn.from], ttt = md.quests[cn.to];
-        if (!ff || !ttt) return;
-        mc.beginPath();
-        mc.moveTo((ff.x - offX) * s + ox, (ff.y - offY) * s + oy);
-        mc.lineTo((ttt.x - offX) * s + ox, (ttt.y - offY) * s + oy);
-        mc.stroke();
-      });
-
-      md.quests.forEach(q => {
-        mc.fillStyle = comp.has(q.id) ? '#4ade80' : (SHAPE_COLORS[q.shape]?.stroke || '#282f91');
-        mc.globalAlpha = comp.has(q.id) ? 1 : 0.5;
-        mc.beginPath(); mc.arc((q.x - offX) * s + ox, (q.y - offY) * s + oy, 1.2, 0, Math.PI * 2); mc.fill();
-        mc.globalAlpha = 1;
-      });
-
-      mc.strokeStyle = '#38bdf8'; mc.lineWidth = 1;
-      mc.strokeRect((-v.x / v.z - offX) * s + ox, (-v.y / v.z - offY) * s + oy, (w / v.z) * s, (h / v.z) * s);
-    }
-
     animRef.current++;
   }, [isUnlocked]);
 
@@ -447,9 +410,6 @@ const QuestMap = () => {
           onMouseLeave={() => { setDrag(false); setHovered(null); }}
           onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
           data-testid="quest-map-canvas" />
-
-        {/* Minimap */}
-        <canvas ref={minimapRef} className="absolute bottom-3 right-3 rounded-lg pointer-events-none" style={{ width: 180, height: 120, border: '1px solid rgba(40,50,120,0.3)' }} data-testid="quest-minimap" />
 
         {/* Quest Detail Panel */}
         {selected && (

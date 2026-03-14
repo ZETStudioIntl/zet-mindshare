@@ -6,7 +6,7 @@ import axios from 'axios';
 import { 
   Search, Settings, Plus, FileText, StickyNote, LogOut, 
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
-  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target, Map
+  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target, Map, Star
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -72,6 +72,7 @@ const Dashboard = () => {
   const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
   const [userSubscription, setUserSubscription] = useState('free');
   const [subscribing, setSubscribing] = useState(false);
+  const [userSP, setUserSP] = useState(0);
   
   // New Settings states
   const [showProfileEdit, setShowProfileEdit] = useState(false);
@@ -95,13 +96,15 @@ const Dashboard = () => {
   const fastSelectLimit = FAST_SELECT_LIMITS[userSubscription] || 3;
 
   // Subscription plans data - ordered from biggest to smallest
+  const SP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
   const SUBSCRIPTION_PLANS = [
     {
       id: 'ultra',
       name: 'Ultra',
       monthlyPrice: 39.99,
       yearlyPrice: 399.99,
-      features: ['Sınırsız Depolama', '50 AI Görsel/gün', 'Tüm Şablonlar', '7/24 Destek', 'API Erişimi', 'Takım İşbirliği', 'White Label', 'ZET Judge Pro (12 temel + 5 derin/gün)', 'Fast Select: 8 araç'],
+      spCost: 50000,
+      features: ['Sinirsiz Depolama', '50 AI Gorsel/gun', 'Tum Sablonlar', '7/24 Destek', 'API Erisimi', 'Takim Isbirligi', 'White Label', 'ZET Judge Pro (12 temel + 5 derin/gun)', 'Fast Select: 8 arac'],
       color: '#f59e0b',
       recommended: false
     },
@@ -110,7 +113,8 @@ const Dashboard = () => {
       name: 'Pro',
       monthlyPrice: 19.99,
       yearlyPrice: 199.99,
-      features: ['25GB Depolama', '30 AI Görsel/gün', 'Tüm Şablonlar', 'Öncelikli Destek', 'Özel Fontlar', 'Filigransız', 'ZET Judge Mini (7 temel + 1 derin/gün)', 'Fast Select: 8 araç'],
+      spCost: 30000,
+      features: ['25GB Depolama', '30 AI Gorsel/gun', 'Tum Sablonlar', 'Oncelikli Destek', 'Ozel Fontlar', 'Filigransiz', 'ZET Judge Mini (7 temel + 1 derin/gun)', 'Fast Select: 8 arac'],
       color: '#8b5cf6',
       recommended: true
     },
@@ -119,7 +123,8 @@ const Dashboard = () => {
       name: 'Plus',
       monthlyPrice: 9.99,
       yearlyPrice: 99.99,
-      features: ['5GB Depolama', '5 AI Görsel/gün', 'Temel Şablonlar', 'E-posta Desteği', 'ZET Judge Mini (3 temel/gün)', 'Fast Select: 5 araç'],
+      spCost: 10000,
+      features: ['5GB Depolama', '5 AI Gorsel/gun', 'Temel Sablonlar', 'E-posta Destegi', 'ZET Judge Mini (3 temel/gun)', 'Fast Select: 5 arac'],
       color: '#3b82f6',
       recommended: false
     }
@@ -193,6 +198,10 @@ const Dashboard = () => {
       const res = await axios.get(`${API}/subscription`, { withCredentials: true });
       setUserSubscription(res.data.plan || 'free');
     } catch { setUserSubscription('free'); }
+    try {
+      const spRes = await axios.get(`${API}/quests/progress`, { withCredentials: true });
+      setUserSP(spRes.data.quest_xp || 0);
+    } catch { /* ignore */ }
   };
 
   const handleSubscribe = async (planId) => {
@@ -201,9 +210,30 @@ const Dashboard = () => {
       const res = await axios.post(`${API}/subscription`, { plan: planId, action: 'subscribe' }, { withCredentials: true });
       setUserSubscription(res.data.plan);
       setShowSubscription(false);
-      alert(`${planId.toUpperCase()} planına başarıyla abone oldunuz! (Demo)`);
+      alert(`${planId.toUpperCase()} planina basariyla abone oldunuz!`);
     } catch (err) {
-      alert('Subscription failed');
+      alert('Abonelik basarisiz');
+    }
+    setSubscribing(false);
+  };
+
+  const handleBuyWithSP = async (planId) => {
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
+    if (!plan) return;
+    if (userSP < plan.spCost) {
+      alert(`Yetersiz SP! Gerekli: ${plan.spCost.toLocaleString()} SP, Mevcut: ${userSP.toLocaleString()} SP`);
+      return;
+    }
+    if (!window.confirm(`${plan.spCost.toLocaleString()} SP harcayarak ${plan.name} planina yukselmek istiyor musunuz?\n\nMevcut SP: ${userSP.toLocaleString()}\nKalan SP: ${(userSP - plan.spCost).toLocaleString()}`)) return;
+    setSubscribing(true);
+    try {
+      const res = await axios.post(`${API}/subscription/buy-with-sp`, { plan: planId }, { withCredentials: true });
+      setUserSubscription(res.data.plan);
+      setUserSP(res.data.remaining_sp);
+      setShowSubscription(false);
+      alert(`${planId.toUpperCase()} planina ${plan.spCost.toLocaleString()} SP ile yukseltildiniz!`);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'SP ile satin alma basarisiz');
     }
     setSubscribing(false);
   };
@@ -1024,11 +1054,18 @@ Devam etmek istiyor musunuz?`;
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>
-                {t('choosePlan') || 'Choose Your Plan'}
+                {t('choosePlan') || 'Planini Sec'}
               </h2>
               <button onClick={() => setShowSubscription(false)} className="p-2 rounded-lg hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
               </button>
+            </div>
+
+            {/* SP Balance */}
+            <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }} data-testid="sp-balance-banner">
+              <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
+              <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userSP.toLocaleString()} SP</span>
+              <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- SP ile de plan alabilirsiniz</span>
             </div>
             
             {/* Billing Cycle Toggle */}
@@ -1132,19 +1169,37 @@ Devam etmek istiyor musunuz?`;
                             ))}
                           </ul>
                           
-                          <button 
-                            onClick={() => handleSubscribe(plan.id)}
-                            disabled={subscribing || userSubscription === plan.id}
-                            className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50"
-                            style={{ 
-                              background: userSubscription === plan.id ? 'var(--zet-bg)' : plan.color,
-                              color: userSubscription === plan.id ? plan.color : 'white',
-                              border: userSubscription === plan.id ? `2px solid ${plan.color}` : 'none'
-                            }}
-                            data-testid={`select-plan-${plan.id}`}
-                          >
-                            {userSubscription === plan.id ? (t('currentPlan') || 'Current Plan') : (t('selectPlan') || 'Select Plan')}
-                          </button>
+                          <div className="space-y-2">
+                            <button 
+                              onClick={() => handleSubscribe(plan.id)}
+                              disabled={subscribing || userSubscription === plan.id}
+                              className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50"
+                              style={{ 
+                                background: userSubscription === plan.id ? 'var(--zet-bg)' : plan.color,
+                                color: userSubscription === plan.id ? plan.color : 'white',
+                                border: userSubscription === plan.id ? `2px solid ${plan.color}` : 'none'
+                              }}
+                              data-testid={`select-plan-${plan.id}`}
+                            >
+                              {userSubscription === plan.id ? (t('currentPlan') || 'Mevcut Plan') : `$${price}${period} ile Al`}
+                            </button>
+                            {userSubscription !== plan.id && (
+                              <button
+                                onClick={() => handleBuyWithSP(plan.id)}
+                                disabled={subscribing || userSP < plan.spCost}
+                                className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-40 flex items-center justify-center gap-2"
+                                style={{
+                                  background: userSP >= plan.spCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)',
+                                  color: userSP >= plan.spCost ? '#fbbf24' : 'var(--zet-text-muted)',
+                                  border: `1px solid ${userSP >= plan.spCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}`
+                                }}
+                                data-testid={`buy-sp-${plan.id}`}
+                              >
+                                <Star className="h-4 w-4" />
+                                {plan.spCost.toLocaleString()} SP ile Al
+                              </button>
+                            )}
+                          </div>
                         </div>
                       </div>
                     );

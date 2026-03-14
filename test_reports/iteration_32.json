@@ -1,0 +1,81 @@
+{
+  "summary": "Testing iteration 32 complete: 3 new features verified - (1) Minimap removed from Quest Map, (2) SP-based subscription purchase working, (3) PLAN_LIMITS verified. All 13 backend tests passed. All frontend UI tests passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sp_purchase.py",
+    "/app/test_reports/pytest/pytest_results_iter32.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "SP purchase endpoint POST /api/subscription/buy-with-sp correctly implemented",
+    "SP_PLAN_COSTS defined in backend: plus=10000, pro=30000, ultra=50000",
+    "SP_PLAN_COSTS also defined in Dashboard.js frontend matching backend values",
+    "Error messages in Turkish for insufficient SP and same/lower plan",
+    "Minimap completely removed from QuestMap.js - only 1 canvas element remains",
+    "SP balance banner in subscription modal shows user's current SP",
+    "SP purchase buttons show correct costs with thousands separator",
+    "SP buttons disabled (opacity=0.4) when user has insufficient SP",
+    "Cannot buy same or lower plan - returns 'Zaten bu plan' error",
+    "PLAN_LIMITS verified: free=20 credits, plus=100 credits, pro=250 credits, ultra=1000 credits"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sp_purchase.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100% (All new features verified)"
+  },
+  "test_credentials": {
+    "email": "test2@test.com",
+    "password": "password123",
+    "current_plan": "plus",
+    "current_sp": 405
+  },
+  "seed_data_creation": "Used existing test user test2@test.com",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 32 tested SP-based subscription purchase. User test2@test.com is on Plus plan with 405 SP. SP purchase costs: plus=10000SP, pro=30000SP, ultra=50000SP. Quest Map minimap was removed - only 1 canvas remains. Key test IDs: sp-balance-banner, buy-sp-plus, buy-sp-pro, buy-sp-ultra, select-plan-plus/pro/ultra. Backend APIs: GET /api/subscription, POST /api/subscription (money), POST /api/subscription/buy-with-sp (SP purchase), GET /api/usage (returns limits). SP stored in users.quest_xp field.",
+  "features_tested": {
+    "minimap_removal": {
+      "quest_map_minimap_removed": "PASSED - No quest-minimap element found",
+      "single_canvas": "PASSED - Only 1 canvas element (main map)",
+      "quest_map_functions": "PASSED - Zoom, search, SP badge all working"
+    },
+    "sp_purchase_backend": {
+      "POST /api/subscription/buy-with-sp": "PASSED - Endpoint works correctly",
+      "invalid_plan_error": "PASSED - Returns 400 for invalid plan names",
+      "insufficient_sp_error": "PASSED - Returns 400 with 'Yetersiz SP' message",
+      "same_plan_error": "PASSED - Returns 400 'Zaten bu plan veya daha ust'",
+      "sp_costs_correct": "PASSED - plus=10000, pro=30000, ultra=50000",
+      "auth_required": "PASSED - Returns 401 without authentication"
+    },
+    "sp_purchase_frontend": {
+      "sp_balance_banner": "PASSED - Shows 'X SP - SP ile de plan alabilirsiniz'",
+      "sp_buttons_visible": "PASSED - Each plan card shows SP purchase button",
+      "sp_button_disabled": "PASSED - Opacity=0.4 when insufficient SP",
+      "sp_cost_display": "PASSED - Shows '50,000 SP ile Al' format",
+      "current_plan_no_sp_button": "PASSED - No SP button for current plan"
+    },
+    "plan_limits": {
+      "GET /api/usage": "PASSED - Returns plan and limits",
+      "free_limits": "VERIFIED - daily_credits=20, judge_enabled=false",
+      "plus_limits": "VERIFIED - daily_credits=100, judge_enabled=true",
+      "pro_limits": "VERIFIED - daily_credits=250, judge_deep=true",
+      "ultra_limits": "VERIFIED - daily_credits=1000"
+    },
+    "money_subscription": {
+      "POST /api/subscription": "PASSED - Money purchase still works"
+    }
+  },
+  "mocked_apis": {
+    "Google Drive": "MOCKED - Google Drive integration is mocked"
+  }
+}
