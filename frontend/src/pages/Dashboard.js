@@ -104,7 +104,16 @@ const Dashboard = () => {
       monthlyPrice: 39.99,
       yearlyPrice: 399.99,
       spCost: 50000,
-      features: ['Sinirsiz Depolama', '50 AI Gorsel/gun', 'Tum Sablonlar', '7/24 Destek', 'API Erisimi', 'Takim Isbirligi', 'White Label', 'ZET Judge Pro (12 temel + 5 derin/gun)', 'Fast Select: 8 arac'],
+      features: [
+        '1000 Kredi/gun',
+        'ZETA Sinirsiz',
+        'ZET Judge Sinirsiz (Derin Analiz dahil)',
+        'Nano Banana Pro',
+        'Tum Gorsel Boyutlari (7 boyut)',
+        'Katmanlar, Imza, Filigran, Sayfa Rengi, Grafikler',
+        'Sinirsiz Fast Select',
+        '7/24 Destek + API Erisimi',
+      ],
       color: '#f59e0b',
       recommended: false
     },
@@ -114,7 +123,16 @@ const Dashboard = () => {
       monthlyPrice: 19.99,
       yearlyPrice: 199.99,
       spCost: 30000,
-      features: ['25GB Depolama', '30 AI Gorsel/gun', 'Tum Sablonlar', 'Oncelikli Destek', 'Ozel Fontlar', 'Filigransiz', 'ZET Judge Mini (7 temel + 1 derin/gun)', 'Fast Select: 8 arac'],
+      features: [
+        '250 Kredi/gun',
+        'ZETA Sinirsiz',
+        'ZET Judge 600 harf (Derin Analiz dahil)',
+        'Nano Banana Pro',
+        '7 Gorsel Boyutu',
+        'Katmanlar, Imza, Filigran, Sayfa Rengi, Grafikler',
+        'Sinirsiz Fast Select',
+        'Oncelikli Destek',
+      ],
       color: '#8b5cf6',
       recommended: true
     },
@@ -124,7 +142,15 @@ const Dashboard = () => {
       monthlyPrice: 9.99,
       yearlyPrice: 99.99,
       spCost: 10000,
-      features: ['5GB Depolama', '5 AI Gorsel/gun', 'Temel Sablonlar', 'E-posta Destegi', 'ZET Judge Mini (3 temel/gun)', 'Fast Select: 5 arac'],
+      features: [
+        '100 Kredi/gun',
+        'ZETA 500 harf',
+        'ZET Judge Mini 150 harf (Derin Analiz yok)',
+        '3 Gorsel Boyutu (16:9, 9:16, 1:1)',
+        'Katmanlar acik',
+        'Sinirsiz Fast Select',
+        'E-posta Destegi',
+      ],
       color: '#3b82f6',
       recommended: false
     }

@@ -342,6 +342,94 @@ async def login_with_email(req: EmailAuthRequest, response: Response):
     
     return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}}
 
+# ============ APPLE AUTH ROUTES ============
+
+@api_router.get("/auth/apple/init")
+async def apple_auth_init():
+    """Return Apple OAuth URL if configured, otherwise indicate not configured."""
+    client_id = os.environ.get("APPLE_CLIENT_ID")
+    if not client_id:
+        return {"auth_url": None, "message": "Apple Sign-In henuz yapilandirilmadi"}
+    redirect_uri = os.environ.get("APPLE_REDIRECT_URI", os.environ.get("REACT_APP_BACKEND_URL", "") + "/api/auth/apple/callback")
+    auth_url = (
+        f"https://appleid.apple.com/auth/authorize?"
+        f"client_id={client_id}&redirect_uri={redirect_uri}"
+        f"&response_type=code%20id_token&scope=name%20email"
+        f"&response_mode=form_post"
+    )
+    return {"auth_url": auth_url}
+
+@api_router.post("/auth/apple/callback")
+async def apple_auth_callback(request: Request, response: Response):
+    """Handle Apple Sign-In callback with id_token."""
+    try:
+        body = await request.json()
+    except:
+        form = await request.form()
+        body = dict(form)
+    
+    id_token = body.get("id_token")
+    apple_user = body.get("user")
+    
+    if not id_token:
+        raise HTTPException(status_code=400, detail="id_token eksik")
+    
+    import jwt as pyjwt
+    try:
+        claims = pyjwt.decode(id_token, options={"verify_signature": False})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Gecersiz id_token")
+    
+    apple_sub = claims.get("sub")
+    email = claims.get("email")
+    
+    if not apple_sub:
+        raise HTTPException(status_code=400, detail="Apple ID bulunamadi")
+    
+    existing = await db.users.find_one({"apple_id": apple_sub})
+    if existing:
+        user_id = existing["user_id"]
+        user_name = existing.get("name", "Apple User")
+    else:
+        if not email:
+            email = f"{apple_sub[:8]}@privaterelay.appleid.com"
+        
+        email_user = await db.users.find_one({"email": email})
+        if email_user:
+            await db.users.update_one({"email": email}, {"$set": {"apple_id": apple_sub}})
+            user_id = email_user["user_id"]
+            user_name = email_user.get("name", "Apple User")
+        else:
+            user_name = "Apple User"
+            if apple_user and isinstance(apple_user, dict):
+                fn = apple_user.get("name", {}).get("firstName", "")
+                ln = apple_user.get("name", {}).get("lastName", "")
+                if fn or ln:
+                    user_name = f"{fn} {ln}".strip()
+            
+            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            await db.users.insert_one({
+                "user_id": user_id,
+                "email": email,
+                "name": user_name,
+                "apple_id": apple_sub,
+                "picture": None,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    
+    session_token = f"sess_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": expires_at.isoformat()
+    })
+    response.set_cookie(
+        key="session_token", value=session_token,
+        httponly=True, secure=True, samesite="none", path="/", max_age=7*24*60*60
+    )
+    return {"user": {"user_id": user_id, "email": email, "name": user_name}}
+
 # ============ DOCUMENTS ROUTES ============
 
 @api_router.get("/documents", response_model=List[dict])

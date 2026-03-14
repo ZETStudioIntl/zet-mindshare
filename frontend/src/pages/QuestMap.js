@@ -340,11 +340,45 @@ const QuestMap = () => {
     setVp({ z: 0.35, x: cw / 2 - mapData.centerX * 0.35, y: ch / 2 - mapData.centerY * 0.35 });
   };
 
+  // Completion sound effect using Web Audio API
+  const playCompleteSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      notes.forEach((freq, i) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.1);
+        gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + i * 0.1 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.5);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.1);
+        osc.stop(ctx.currentTime + i * 0.1 + 0.5);
+      });
+      // Shimmer
+      const shimmer = ctx.createOscillator();
+      const sGain = ctx.createGain();
+      shimmer.type = 'triangle';
+      shimmer.frequency.value = 1568;
+      sGain.gain.setValueAtTime(0, ctx.currentTime + 0.35);
+      sGain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.4);
+      sGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
+      shimmer.connect(sGain);
+      sGain.connect(ctx.destination);
+      shimmer.start(ctx.currentTime + 0.35);
+      shimmer.stop(ctx.currentTime + 0.9);
+    } catch (e) { /* audio not available */ }
+  }, []);
+
   const doComplete = async (q) => {
     if (completed.has(q.id) || !isUnlocked(q.id)) return;
     try {
       const r = await axios.post(`${API}/quests/${q.id}/complete`, { xp: q.sp }, { withCredentials: true });
       setCompleted(new Set(r.data.completed_quests)); setSp(r.data.quest_xp);
+      playCompleteSound();
     } catch (e) { console.error(e); }
   };
 

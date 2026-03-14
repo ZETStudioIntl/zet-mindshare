@@ -1,0 +1,85 @@
+{
+  "summary": "Iteration 33 testing complete: All 3 new login page features verified - (1) Apple Sign-In button with black style added, (2) Terms checkbox with 3 links in register mode, (3) Terms must be accepted before registration. Backend 8/8 tests passed. Frontend all UI tests passed.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_apple_auth_iteration33.py",
+    "/app/test_reports/pytest/pytest_results_iter33.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "Apple Sign-In button correctly shows black background (#000) with white text",
+    "Apple init endpoint returns auth_url=null when APPLE_CLIENT_ID not configured",
+    "Apple callback endpoint creates users with apple_id field in MongoDB",
+    "Terms checkbox (data-testid=terms-checkbox) visible only in register mode",
+    "3 terms links with correct URLs: zet-kullanim-kosullari, odeme-ve-iade-sozlesmesi, zet-gizlilik-sozlesmesi",
+    "Hesap Olustur button disabled (disabled:opacity-40) when terms not accepted",
+    "Hesap Olustur button becomes enabled after clicking terms checkbox",
+    "Login mode shows footer with Kullanim Kosullari and Gizlilik Politikasi links",
+    "Email login and register still work correctly",
+    "Error message shown correctly when Apple Sign-In clicked: 'Apple ile giris henuz yapilandirilmadi'"
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_apple_auth_iteration33.py"
+  ],
+  "success_rate": {
+    "backend": "100% (8/8 tests passed)",
+    "frontend": "100% (All new login features verified)"
+  },
+  "test_credentials": {
+    "email": "test2@test.com",
+    "password": "password123"
+  },
+  "seed_data_creation": "Used existing test user test2@test.com",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 33 tested new login page features. Apple Sign-In MOCKED (APPLE_CLIENT_ID not set in backend/.env). Key test IDs: google-login-btn, apple-login-btn, terms-checkbox, terms-link, payment-terms-link, privacy-policy-link, email-auth-btn, toggle-auth-mode. Terms URLs: zetstudiointernational.com/zet-kullanim-kosullari/, zetstudiointernational.com/odeme-ve-iade-sozlesmesi/, zetstudiointernational.com/zet-gizlilik-sozlesmesi/. Backend APIs: GET /api/auth/apple/init (returns null when not configured), POST /api/auth/apple/callback (creates user with apple_id).",
+  "features_tested": {
+    "apple_signin_button": {
+      "button_exists": "PASSED - Apple ile Devam Et button with data-testid=apple-login-btn",
+      "black_style": "PASSED - background: rgb(0, 0, 0); color: rgb(255, 255, 255)",
+      "apple_icon": "PASSED - SVG Apple icon renders correctly",
+      "click_shows_error": "PASSED - Shows 'Apple ile giris henuz yapilandirilmadi' when clicked"
+    },
+    "terms_checkbox_register": {
+      "checkbox_exists": "PASSED - data-testid=terms-checkbox in register mode",
+      "checkbox_hidden_login": "PASSED - Checkbox only visible in register mode",
+      "terms_link": "PASSED - href=zetstudiointernational.com/zet-kullanim-kosullari/",
+      "payment_link": "PASSED - href=zetstudiointernational.com/odeme-ve-iade-sozlesmesi/",
+      "privacy_link": "PASSED - href=zetstudiointernational.com/zet-gizlilik-sozlesmesi/",
+      "terms_text": "PASSED - Shows 'ZET Studio International Kullanim Kosullari, Odeme ve Iade Sozlesmesi ve Gizlilik Politikasi'ni okudum ve kabul ediyorum.'"
+    },
+    "terms_blocking_registration": {
+      "button_disabled_unchecked": "PASSED - Hesap Olustur button disabled when terms not checked",
+      "button_enabled_checked": "PASSED - Hesap Olustur button enabled after checking terms",
+      "disabled_opacity": "PASSED - disabled:opacity-40 class applied"
+    },
+    "login_footer": {
+      "footer_text": "PASSED - 'Giris yaparak Kullanim Kosullari ve Gizlilik Politikasi'ni kabul etmis olursunuz'",
+      "footer_links": "PASSED - Links to kullanim-kosullari and gizlilik-sozlesmesi"
+    },
+    "backend_apple_auth": {
+      "GET /api/auth/apple/init": "PASSED - Returns auth_url=null when not configured",
+      "POST /api/auth/apple/callback": "PASSED - Creates user with apple_id from JWT",
+      "callback_requires_token": "PASSED - Returns 400 without id_token",
+      "callback_existing_user": "PASSED - Handles existing user login correctly"
+    },
+    "backend_email_auth": {
+      "POST /api/auth/login": "PASSED - Works with test2@test.com",
+      "login_wrong_password": "PASSED - Returns 401 for wrong password",
+      "POST /api/auth/register": "PASSED - Creates new user",
+      "register_duplicate": "PASSED - Returns 400 for duplicate email"
+    }
+  },
+  "mocked_apis": {
+    "Apple Sign-In": "MOCKED - Apple Sign-In not configured (no APPLE_CLIENT_ID in backend/.env)",
+    "Google Drive": "MOCKED - Google Drive integration is mocked"
+  }
+}
