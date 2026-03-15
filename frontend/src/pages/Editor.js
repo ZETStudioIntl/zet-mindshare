@@ -447,31 +447,38 @@ const Editor = () => {
 
   const handleAutoWriteContent = (pages, pageCount) => {
     if (!pages || pages.length === 0) return;
-    const pw = pageSize.width || 595;
-    pages.forEach((pageContent, idx) => {
-      const cleanText = pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim();
-      const textEl = {
-        id: `auto_${Date.now()}_${idx}`,
-        type: 'text',
-        x: 50,
-        y: 50,
-        content: cleanText,
-        fontFamily: 'Open Sans',
-        fontSize: 11,
-        color: '#222222',
-        lineHeight: 1.6,
-      };
-      if (idx === 0) {
-        // Add to current page
-        setCanvasElements(prev => [...prev, textEl]);
-      } else {
-        // Create new page with this element
-        const newPageId = `page_auto_${Date.now()}_${idx}`;
-        setDocument(prev => ({
-          ...prev,
-          pages: [...(prev.pages || []), { page_id: newPageId, elements: [textEl], drawPaths: [], pageSize }]
-        }));
-      }
+    setDocument(prev => {
+      const updatedPages = [...(prev.pages || [])];
+      pages.forEach((pageContent, idx) => {
+        const cleanText = pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+        const textEl = {
+          id: `auto_${Date.now()}_${idx}`,
+          type: 'text',
+          x: 50,
+          y: 50,
+          content: cleanText,
+          fontFamily: 'Open Sans',
+          fontSize: 11,
+          color: '#222222',
+          lineHeight: 1.6,
+        };
+        if (idx === 0 && updatedPages[currentPage]) {
+          // Add to current page's elements
+          updatedPages[currentPage] = {
+            ...updatedPages[currentPage],
+            elements: [...(updatedPages[currentPage].elements || []), textEl],
+          };
+        } else {
+          // Create new page
+          updatedPages.push({
+            page_id: `page_auto_${Date.now()}_${idx}`,
+            elements: [textEl],
+            drawPaths: [],
+            pageSize,
+          });
+        }
+      });
+      return { ...prev, pages: updatedPages };
     });
   };
 

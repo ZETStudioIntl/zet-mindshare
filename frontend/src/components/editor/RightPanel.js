@@ -526,10 +526,10 @@ export const RightPanel = ({
                       <span className="text-[10px] font-semibold" style={{ color: '#10b981' }}>Tahmini Maliyet</span>
                     </div>
                     <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
-                      ~{autoPages * 30} satir = ~{Math.max(10, Math.floor((autoPages * 30) / 3) * 10)} kredi
+                      {autoPages} sayfa x ~500 kelime = ~{Math.max(10, Math.floor((autoPages * 43) / 3) * 10)} kredi
                     </p>
                     <p className="text-[10px] mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>
-                      (3 satir = 10 kredi)
+                      (3 sayfa satiri = 10 kredi)
                     </p>
                   </div>
 

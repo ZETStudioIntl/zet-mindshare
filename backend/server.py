@@ -997,8 +997,8 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
-    # Estimate page lines needed: ~30 page lines per page, ~75 chars per line
-    estimated_lines = req.page_count * 30
+    # Estimate: ~43 page lines per page (3200 chars / 75 chars per line)
+    estimated_lines = req.page_count * 43
     estimated_credits = max(10, (estimated_lines // 3) * 10)
 
     # Check credits
@@ -1024,18 +1024,34 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
     }
     style_text = style_prompts.get(req.writing_style, style_prompts["profesyonel"])
 
-    system_message = f"""Sen ZET Mindshare'in otomatik belge yazma asistanisin. 
-Kullanicinin verdigi konuya gore {req.page_count} sayfalik bir belge icerigi olusturacaksin.
+    # A4 page at font 11 ≈ 3200 characters, ~500 words, ~45 visual lines
+    chars_per_page = 3200
+    words_per_page = 500
+    total_words = req.page_count * words_per_page
+    total_chars_target = req.page_count * chars_per_page
 
-YAZIM KURALLARI:
+    system_message = f"""Sen ZET Mindshare'in otomatik belge yazma asistanisin.
+Kullanicinin verdigi konuya gore {req.page_count} SAYFALIK bir belge icerigi olusturacaksin.
+
+KRITIK - UZUNLUK GEREKSINIMLERI:
+- TOPLAM EN AZ {total_words} kelime yazMALISIN. Bu zorunludur.
+- Her sayfa en az {words_per_page} kelime icermeli.
+- Her sayfa en az {chars_per_page} karakter olmali.
+- BU BIR MINIMUM, daha fazla yazabilirsin ama daha az YAZMA.
+- Kisa yazma. Detayli, aciklayici ve zengin paragraflar yaz.
+- Her paragraf en az 4-5 cumle olmali.
+- Konuyu farkli alt basliklar altinda derinlemesine isle.
+
+YAZIM STILI:
 - {style_text}
-- Her sayfa yaklasik 30 satir olmali.
-- Toplam yaklasik {estimated_lines} satir yaz.
+
+FORMAT KURALLARI:
 - Basliklari ** ile isaretle (ornegin: **Giris**)
 - Paragraflari bos satirla ayir.
 - Turkce yaz.
 - Sadece belge icerigini yaz, aciklama veya giris cumlesi EKLEME.
-- Sayfa sonlarini ---SAYFA SONU--- ile isaretle."""
+- {req.page_count} sayfanin HER BIRINI ---SAYFA SONU--- ile ayir (son sayfadan sonra koyma).
+- Her sayfada en az 3-4 paragraf ve 2-3 alt baslik olmali."""
 
     chat = LlmChat(
         api_key=api_key,
@@ -1044,7 +1060,7 @@ YAZIM KURALLARI:
     )
     chat.with_model("gemini", "gemini-3-flash-preview")
 
-    user_message = UserMessage(text=f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}")
+    user_message = UserMessage(text=f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}\n\nONEMLI: EN AZ {total_words} kelime yaz. Kisa yazma, her sayfayi tamamen doldur.")
     response = await chat.send_message(user_message)
 
     # Count page lines: ~75 characters per visual line on A4 at font 11
