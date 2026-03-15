@@ -677,6 +677,69 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
     )
     return {"message": f"{req.plan.upper()} planina SP ile yukseltildi", "plan": req.plan, "remaining_sp": new_sp}
 
+# ============ CREDIT PACKAGES ============
+
+CREDIT_PACKAGES = [
+    {"id": "pack_100", "credits": 100, "price": 2.99},
+    {"id": "pack_350", "credits": 350, "price": 8.99},
+    {"id": "pack_700", "credits": 700, "price": 14.99},
+    {"id": "pack_1300", "credits": 1300, "price": 24.99},
+]
+SUBSCRIBER_DISCOUNT = 0.15  # 15% discount for paid plans
+
+class CreditPurchaseRequest(BaseModel):
+    package_id: str
+
+@api_router.get("/credits/packages")
+async def get_credit_packages(user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subscription": 1, "bonus_credits": 1})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+    has_discount = plan != "free"
+    packages = []
+    for p in CREDIT_PACKAGES:
+        pkg = {**p}
+        if has_discount:
+            pkg["discounted_price"] = round(p["price"] * (1 - SUBSCRIBER_DISCOUNT), 2)
+        else:
+            pkg["discounted_price"] = p["price"]
+        packages.append(pkg)
+    return {
+        "packages": packages,
+        "has_discount": has_discount,
+        "discount_percent": int(SUBSCRIBER_DISCOUNT * 100) if has_discount else 0,
+        "bonus_credits": user_data.get("bonus_credits", 0) if user_data else 0,
+    }
+
+@api_router.post("/credits/buy")
+async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_current_user)):
+    pkg = next((p for p in CREDIT_PACKAGES if p["id"] == req.package_id), None)
+    if not pkg:
+        raise HTTPException(status_code=400, detail="Gecersiz paket")
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subscription": 1, "bonus_credits": 1})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+    has_discount = plan != "free"
+    final_price = round(pkg["price"] * (1 - SUBSCRIBER_DISCOUNT), 2) if has_discount else pkg["price"]
+    current_bonus = user_data.get("bonus_credits", 0) if user_data else 0
+    new_bonus = current_bonus + pkg["credits"]
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"bonus_credits": new_bonus}}
+    )
+    await db.credit_purchases.insert_one({
+        "user_id": user.user_id,
+        "package_id": pkg["id"],
+        "credits": pkg["credits"],
+        "price": final_price,
+        "discounted": has_discount,
+        "date": datetime.now(timezone.utc).isoformat()
+    })
+    return {
+        "message": f"{pkg['credits']} kredi basariyla eklendi!",
+        "credits_added": pkg["credits"],
+        "price_paid": final_price,
+        "bonus_credits": new_bonus
+    }
+
 # ============ USAGE LIMITS ============
 
 # Plan limits
@@ -755,23 +818,26 @@ CREDIT_COSTS = {
 }
 
 async def get_user_credits(user_id: str):
-    """Get user's current credits for today"""
+    """Get user's current credits for today (daily + bonus)"""
     user_data = await db.users.find_one({"user_id": user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    bonus = user_data.get("bonus_credits", 0) if user_data else 0
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     usage = await db.usage.find_one({"user_id": user_id, "date": today})
     credits_used = usage.get("credits_used", 0) if usage else 0
+    total_available = limits['daily_credits'] + bonus
     return {
         "plan": plan,
         "daily_credits": limits['daily_credits'],
+        "bonus_credits": bonus,
         "credits_used": credits_used,
-        "credits_remaining": max(0, limits['daily_credits'] - credits_used),
+        "credits_remaining": max(0, total_available - credits_used),
         "limits": limits
     }
 
 async def spend_credits(user_id: str, action: str) -> dict:
-    """Attempt to spend credits for an action. Returns success status."""
+    """Attempt to spend credits for an action. Daily credits used first, then bonus."""
     cost = CREDIT_COSTS.get(action, 0)
     if cost == 0:
         return {"success": True, "cost": 0}
@@ -779,6 +845,7 @@ async def spend_credits(user_id: str, action: str) -> dict:
     user_data = await db.users.find_one({"user_id": user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    bonus = user_data.get("bonus_credits", 0) if user_data else 0
     
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     usage = await db.usage.find_one({"user_id": user_id, "date": today})
@@ -788,14 +855,15 @@ async def spend_credits(user_id: str, action: str) -> dict:
         await db.usage.insert_one(usage)
     
     credits_used = usage.get("credits_used", 0)
-    credits_remaining = limits['daily_credits'] - credits_used
+    total_available = limits['daily_credits'] + bonus
+    credits_remaining = total_available - credits_used
     
     if credits_remaining < cost:
         return {
             "success": False,
             "cost": cost,
             "credits_remaining": max(0, credits_remaining),
-            "message": f"Yetersiz kredi! Bu işlem {cost} kredi gerektirir, kalan: {max(0, credits_remaining)} kredi."
+            "message": f"Yetersiz kredi! Bu islem {cost} kredi gerektirir, kalan: {max(0, credits_remaining)} kredi."
         }
     
     await db.usage.update_one(
@@ -803,6 +871,16 @@ async def spend_credits(user_id: str, action: str) -> dict:
         {"$inc": {"credits_used": cost}},
         upsert=True
     )
+    
+    # If daily credits exceeded, deduct overflow from bonus
+    new_used = credits_used + cost
+    daily_overspend = new_used - limits['daily_credits']
+    if daily_overspend > 0 and bonus > 0:
+        bonus_deduct = min(daily_overspend, bonus)
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$inc": {"bonus_credits": -bonus_deduct}}
+        )
     
     return {
         "success": True,
@@ -816,6 +894,7 @@ async def get_usage(user: User = Depends(get_current_user)):
     return {
         "plan": credits_info['plan'],
         "daily_credits": credits_info['daily_credits'],
+        "bonus_credits": credits_info.get('bonus_credits', 0),
         "credits_used": credits_info['credits_used'],
         "credits_remaining": credits_info['credits_remaining'],
         "limits": credits_info['limits'],
