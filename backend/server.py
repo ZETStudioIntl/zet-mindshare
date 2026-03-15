@@ -94,6 +94,11 @@ class ZetaChatRequest(BaseModel):
     custom_prompt: Optional[str] = ""  # Custom prompt for ZETA
     personality: Optional[str] = "normal"  # normal, harsh for Judge
 
+class ZetaAutoWriteRequest(BaseModel):
+    prompt: str
+    page_count: int = 1
+    writing_style: str = "profesyonel"  # akademik, yaratici, resmi, gunluk, hikaye, profesyonel
+
 class ZetaImageRequest(BaseModel):
     prompt: str
     reference_image: Optional[str] = None
@@ -982,6 +987,91 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
     })
     
     return {"response": response, "session_id": session_id}
+
+@api_router.post("/zeta/auto-write")
+async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_current_user)):
+    """ZETA Otomatik Yazma: Prompt'a göre belge içeriği üretir. 10 kredi / 3 satır."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+
+    # Estimate lines needed: ~30 lines per page
+    estimated_lines = req.page_count * 30
+    estimated_credits = max(10, (estimated_lines // 3) * 10)
+
+    # Check credits
+    credit_info = await get_user_credits(user.user_id)
+    if credit_info['credits_remaining'] < estimated_credits:
+        return {
+            "success": False,
+            "error": f"Yetersiz kredi! Tahmini maliyet: {estimated_credits} kredi. Kalan: {credit_info['credits_remaining']} kredi.",
+            "estimated_credits": estimated_credits,
+            "credits_remaining": credit_info['credits_remaining']
+        }
+
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    session_id = f"autowrite_{user.user_id}_{uuid.uuid4().hex[:8]}"
+
+    style_prompts = {
+        "akademik": "Akademik ve bilimsel bir dil kullan. Kaynaklara atif yap, resmi terimler kullan, nesnel bir ton benimse.",
+        "yaratici": "Yaratici ve ozgun bir dil kullan. Mecazlar, benzetmeler ve edebi sanatlarla zenginlestir.",
+        "resmi": "Resmi ve kurumsal bir dil kullan. Kisa, net ve profesyonel cumleler kur.",
+        "gunluk": "Gunluk ve samimi bir dil kullan. Okuyucuyla sohbet eder gibi yaz.",
+        "hikaye": "Hikaye anlatim teknigi kullan. Karakterler, diyaloglar ve sahne tasvirleriyle zenginlestir.",
+        "profesyonel": "Profesyonel ve is odakli bir dil kullan. Net, anlasilir ve aksiyona yonelik yaz.",
+    }
+    style_text = style_prompts.get(req.writing_style, style_prompts["profesyonel"])
+
+    system_message = f"""Sen ZET Mindshare'in otomatik belge yazma asistanisin. 
+Kullanicinin verdigi konuya gore {req.page_count} sayfalik bir belge icerigi olusturacaksin.
+
+YAZIM KURALLARI:
+- {style_text}
+- Her sayfa yaklasik 30 satir olmali.
+- Toplam yaklasik {estimated_lines} satir yaz.
+- Basliklari ** ile isaretle (ornegin: **Giris**)
+- Paragraflari bos satirla ayir.
+- Turkce yaz.
+- Sadece belge icerigini yaz, aciklama veya giris cumlesi EKLEME.
+- Sayfa sonlarini ---SAYFA SONU--- ile isaretle."""
+
+    chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=system_message
+    )
+    chat.with_model("gemini", "gemini-3-flash-preview")
+
+    user_message = UserMessage(text=f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}")
+    response = await chat.send_message(user_message)
+
+    # Count actual lines and calculate real cost
+    lines = [l for l in response.split('\n') if l.strip()]
+    actual_lines = len(lines)
+    actual_credits = max(10, (actual_lines // 3) * 10)
+
+    # Spend actual credits
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.usage.update_one(
+        {"user_id": user.user_id, "date": today},
+        {"$inc": {"credits_used": actual_credits}},
+        upsert=True
+    )
+
+    # Split by pages
+    pages = response.split('---SAYFA SONU---')
+    pages = [p.strip() for p in pages if p.strip()]
+
+    return {
+        "success": True,
+        "content": response,
+        "pages": pages,
+        "lines": actual_lines,
+        "credits_spent": actual_credits,
+        "credits_remaining": max(0, credit_info['credits_remaining'] - actual_credits)
+    }
 
 @api_router.post("/zeta/chat")
 async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):

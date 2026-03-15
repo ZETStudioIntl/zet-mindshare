@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2, Scale, Settings } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2, Scale, Settings, PenTool, FileText, CreditCard } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -28,6 +28,7 @@ export const RightPanel = ({
   zetaEmoji,
   zetaCustomPrompt,
   judgeMood,
+  onAutoWriteContent,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -45,14 +46,22 @@ export const RightPanel = ({
   const chatEndRef = useRef(null);
 
   // ZET Judge Mini state
-  const [activeAI, setActiveAI] = useState('zeta'); // 'zeta' or 'judge'
+  const [activeAI, setActiveAI] = useState('zeta'); // 'zeta' or 'judge' or 'auto'
   const [judgeMessages, setJudgeMessages] = useState([]);
   const [judgeInput, setJudgeInput] = useState('');
   const [judgeLoading, setJudgeLoading] = useState(false);
   const [judgeSessionId, setJudgeSessionId] = useState(null);
   const [judgeImage, setJudgeImage] = useState(null);
-  const [judgeMode, setJudgeMode] = useState('fast'); // 'fast' or 'deep'
+  const [judgeMode, setJudgeMode] = useState('fast');
   const judgeChatEndRef = useRef(null);
+
+  // Auto-write state
+  const [autoPrompt, setAutoPrompt] = useState('');
+  const [autoPages, setAutoPages] = useState(1);
+  const [autoStyle, setAutoStyle] = useState('profesyonel');
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoResult, setAutoResult] = useState(null);
+  const [autoError, setAutoError] = useState('');
 
   // Load chat history on mount
   useEffect(() => {
@@ -202,6 +211,31 @@ export const RightPanel = ({
     setTtsLoading(false);
   };
 
+  const handleAutoWrite = async () => {
+    if (!autoPrompt.trim() || autoLoading) return;
+    setAutoLoading(true);
+    setAutoError('');
+    setAutoResult(null);
+    try {
+      const res = await axios.post(`${API}/zeta/auto-write`, {
+        prompt: autoPrompt,
+        page_count: autoPages,
+        writing_style: autoStyle,
+      }, { withCredentials: true });
+      if (res.data.success) {
+        setAutoResult(res.data);
+        if (onAutoWriteContent) {
+          onAutoWriteContent(res.data.pages || [res.data.content], autoPages);
+        }
+      } else {
+        setAutoError(res.data.error || 'Yazma basarisiz');
+      }
+    } catch (err) {
+      setAutoError(err.response?.data?.detail || 'Otomatik yazma basarisiz');
+    }
+    setAutoLoading(false);
+  };
+
   const sendZetaMessage = async () => {
     if (!zetaInput.trim() || zetaLoading) return;
     const msg = zetaInput;
@@ -318,29 +352,38 @@ export const RightPanel = ({
           <button 
             onClick={() => setActiveAI('zeta')}
             data-testid="ai-tab-zeta"
-            className={`flex-1 p-2 flex items-center justify-center gap-1.5 transition-all ${activeAI === 'zeta' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
+            className={`flex-1 p-2 flex items-center justify-center gap-1 transition-all ${activeAI === 'zeta' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
             style={{ borderColor: activeAI === 'zeta' ? 'var(--zet-primary-light)' : 'transparent' }}
           >
-            <Sparkles className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
-            <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>ZETA</span>
+            <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--zet-primary-light)' }} />
+            <span className="font-medium text-[10px]" style={{ color: 'var(--zet-text)' }}>ZETA</span>
+          </button>
+          <button 
+            onClick={() => setActiveAI('auto')}
+            data-testid="ai-tab-auto"
+            className={`flex-1 p-2 flex items-center justify-center gap-1 transition-all ${activeAI === 'auto' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
+            style={{ borderColor: activeAI === 'auto' ? '#10b981' : 'transparent' }}
+          >
+            <PenTool className="h-3.5 w-3.5" style={{ color: '#10b981' }} />
+            <span className="font-medium text-[10px]" style={{ color: 'var(--zet-text)' }}>Oto Yaz</span>
           </button>
           <button 
             onClick={() => setActiveAI('judge')}
             data-testid="ai-tab-judge"
-            className={`flex-1 p-2 flex items-center justify-center gap-1.5 transition-all ${activeAI === 'judge' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
+            className={`flex-1 p-2 flex items-center justify-center gap-1 transition-all ${activeAI === 'judge' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
             style={{ borderColor: activeAI === 'judge' ? '#c8005a' : 'transparent' }}
           >
-            <Scale className="h-4 w-4" style={{ color: '#c8005a' }} />
-            <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>Judge</span>
+            <Scale className="h-3.5 w-3.5" style={{ color: '#c8005a' }} />
+            <span className="font-medium text-[10px]" style={{ color: 'var(--zet-text)' }}>Judge</span>
           </button>
           {onShowChatSettings && (
             <button 
               onClick={onShowChatSettings}
               data-testid="chat-settings-btn"
               className="p-2 hover:bg-white/10 rounded transition-all"
-              title="Chat Ayarları"
+              title="Chat Ayarlari"
             >
-              <Settings className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              <Settings className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
             </button>
           )}
         </div>
@@ -364,7 +407,7 @@ export const RightPanel = ({
                   )}
                   <div className="inline-flex items-start gap-1 max-w-[90%]">
                     <div
-                      className="px-2.5 py-1.5 rounded-lg"
+                      className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap"
                       style={{
                         background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)',
                         color: 'var(--zet-text)',
@@ -398,7 +441,7 @@ export const RightPanel = ({
               {zetaImage && (
                 <div className="mb-2 relative inline-block">
                   <img src={zetaImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
-                  <button onClick={() => setZetaImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">×</button>
+                  <button onClick={() => setZetaImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
                 </div>
               )}
               <div className="flex gap-1">
@@ -419,6 +462,143 @@ export const RightPanel = ({
               </div>
             </div>
           </>
+        )}
+
+        {/* ZETA Otomatik Yazma */}
+        {activeAI === 'auto' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 p-3 overflow-y-auto" style={{ background: 'linear-gradient(180deg, rgba(16,185,129,0.05) 0%, var(--zet-bg) 100%)' }}>
+              {!autoResult ? (
+                <div className="space-y-3">
+                  <div className="text-center mb-3">
+                    <PenTool className="h-6 w-6 mx-auto mb-2" style={{ color: '#10b981' }} />
+                    <p className="text-xs font-semibold" style={{ color: '#10b981' }}>Otomatik Yazma</p>
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--zet-text-muted)' }}>ZETA belgenizi sizin icin yazar</p>
+                  </div>
+
+                  <div>
+                    <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Konu / Prompt</label>
+                    <textarea
+                      data-testid="auto-write-prompt"
+                      value={autoPrompt}
+                      onChange={e => setAutoPrompt(e.target.value)}
+                      placeholder="Ornegin: Yapay zekanin gelecegi hakkinda detayli bir makale yaz..."
+                      className="zet-input w-full text-xs resize-none"
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Sayfa Sayisi</label>
+                      <select
+                        data-testid="auto-write-pages"
+                        value={autoPages}
+                        onChange={e => setAutoPages(Number(e.target.value))}
+                        className="zet-input w-full text-xs py-1.5"
+                      >
+                        {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                          <option key={n} value={n}>{n} sayfa</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex-1">
+                      <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Yazim Stili</label>
+                      <select
+                        data-testid="auto-write-style"
+                        value={autoStyle}
+                        onChange={e => setAutoStyle(e.target.value)}
+                        className="zet-input w-full text-xs py-1.5"
+                      >
+                        <option value="profesyonel">Profesyonel</option>
+                        <option value="akademik">Akademik</option>
+                        <option value="yaratici">Yaratici</option>
+                        <option value="resmi">Resmi</option>
+                        <option value="gunluk">Gunluk</option>
+                        <option value="hikaye">Hikaye</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg p-2" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                    <div className="flex items-center gap-1.5 mb-1">
+                      <CreditCard className="h-3 w-3" style={{ color: '#10b981' }} />
+                      <span className="text-[10px] font-semibold" style={{ color: '#10b981' }}>Tahmini Maliyet</span>
+                    </div>
+                    <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
+                      ~{autoPages * 30} satir = ~{Math.max(10, Math.floor((autoPages * 30) / 3) * 10)} kredi
+                    </p>
+                    <p className="text-[10px] mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>
+                      (3 satir = 10 kredi)
+                    </p>
+                  </div>
+
+                  {autoError && (
+                    <div className="rounded-lg p-2 text-xs" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                      {autoError}
+                    </div>
+                  )}
+
+                  <button
+                    data-testid="auto-write-start-btn"
+                    onClick={handleAutoWrite}
+                    disabled={!autoPrompt.trim() || autoLoading}
+                    className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
+                    style={{ background: '#10b981', color: 'white' }}
+                  >
+                    {autoLoading ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ZETA yaziyor...
+                      </>
+                    ) : (
+                      <>
+                        <PenTool className="h-3.5 w-3.5" />
+                        Yazmaya Basla
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="h-4 w-4" style={{ color: '#10b981' }} />
+                      <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Yazma Tamamlandi!</span>
+                    </div>
+                    <button
+                      onClick={() => { setAutoResult(null); setAutoPrompt(''); }}
+                      className="text-[10px] px-2 py-1 rounded hover:bg-white/10"
+                      style={{ color: 'var(--zet-text-muted)' }}
+                      data-testid="auto-write-new-btn"
+                    >
+                      Yeni Yaz
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
+                      <p className="text-sm font-bold" style={{ color: '#10b981' }}>{autoResult.pages?.length || 1}</p>
+                      <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Sayfa</p>
+                    </div>
+                    <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
+                      <p className="text-sm font-bold" style={{ color: '#10b981' }}>{autoResult.lines || 0}</p>
+                      <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Satir</p>
+                    </div>
+                    <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
+                      <p className="text-sm font-bold" style={{ color: '#10b981' }}>{autoResult.credits_spent || 0}</p>
+                      <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Kredi</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg p-2 text-xs max-h-48 overflow-y-auto whitespace-pre-wrap" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
+                    {autoResult.content?.substring(0, 600)}...
+                  </div>
+                  <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
+                    Icerik belgenize eklendi. Kalan kredi: {autoResult.credits_remaining}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
 
         {/* ZET Judge Mini Chat */}

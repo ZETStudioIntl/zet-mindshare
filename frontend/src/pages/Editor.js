@@ -445,6 +445,44 @@ const Editor = () => {
     setTimeout(() => changePage(document.pages.length), 100);
   };
 
+  const handleAutoWriteContent = (pages, pageCount) => {
+    if (!pages || pages.length === 0) return;
+    // For each page of content, create a text element and add it to a page
+    pages.forEach((pageContent, idx) => {
+      if (idx === 0) {
+        // Add to current page as a text element
+        const textEl = {
+          id: `auto_${Date.now()}_${idx}`,
+          type: 'text',
+          x: 60,
+          y: 80,
+          width: pageSize.width - 120,
+          height: pageSize.height - 160,
+          text: pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
+          style: { font: 'Open Sans', fontSize: 11, color: '#222222', bold: false },
+        };
+        setCanvasElements(prev => [...prev, textEl]);
+      } else {
+        // Add new pages for remaining content
+        const newPageId = `page_${Date.now()}_${idx}`;
+        const textEl = {
+          id: `auto_${Date.now()}_${idx}`,
+          type: 'text',
+          x: 60,
+          y: 80,
+          width: pageSize.width - 120,
+          height: pageSize.height - 160,
+          text: pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
+          style: { font: 'Open Sans', fontSize: 11, color: '#222222', bold: false },
+        };
+        setDocument(prev => ({
+          ...prev,
+          pages: [...(prev.pages || []), { page_id: newPageId, elements: [textEl], drawPaths: [], pageSize }]
+        }));
+      }
+    });
+  };
+
   const deletePage = (index) => {
     if (document.pages.length <= 1) return;
     setDocument(prev => ({ ...prev, pages: prev.pages.filter((_, i) => i !== index) }));
@@ -2986,7 +3024,8 @@ const Editor = () => {
                 documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan} 
                 onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
                 onShowChatSettings={() => setShowChatSettings(true)}
-                zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood} />
+                zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
+                onAutoWriteContent={handleAutoWriteContent} />
             </div>
           </div>
         )}
@@ -3126,7 +3165,8 @@ const Editor = () => {
           onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan}
           onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
           onShowChatSettings={() => setShowChatSettings(true)}
-          zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood} />
+          zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
+          onAutoWriteContent={handleAutoWriteContent} />
       </div>
 
       {showVoice && (

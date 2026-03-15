@@ -95,6 +95,16 @@ const Dashboard = () => {
   const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, ultra: 8 };
   const fastSelectLimit = FAST_SELECT_LIMITS[userSubscription] || 3;
 
+  // Enforce FastSelect limit when plan changes (downgrade)
+  useEffect(() => {
+    const limit = FAST_SELECT_LIMITS[userSubscription] || 3;
+    if (fastSelectTools.length > limit) {
+      const trimmed = fastSelectTools.slice(0, limit);
+      setFastSelectTools(trimmed);
+      localStorage.setItem('zet_fast_select', JSON.stringify(trimmed));
+    }
+  }, [userSubscription]);
+
   // Subscription plans data - ordered from biggest to smallest
   const SP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
   const SUBSCRIPTION_PLANS = [
