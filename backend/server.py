@@ -997,7 +997,7 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
-    # Estimate lines needed: ~30 lines per page
+    # Estimate page lines needed: ~30 page lines per page, ~75 chars per line
     estimated_lines = req.page_count * 30
     estimated_credits = max(10, (estimated_lines // 3) * 10)
 
@@ -1047,10 +1047,10 @@ YAZIM KURALLARI:
     user_message = UserMessage(text=f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}")
     response = await chat.send_message(user_message)
 
-    # Count actual lines and calculate real cost
-    lines = [l for l in response.split('\n') if l.strip()]
-    actual_lines = len(lines)
-    actual_credits = max(10, (actual_lines // 3) * 10)
+    # Count page lines: ~75 characters per visual line on A4 at font 11
+    total_chars = len(response)
+    page_lines = max(1, total_chars // 75)
+    actual_credits = max(10, (page_lines // 3) * 10)
 
     # Spend actual credits
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -1068,7 +1068,7 @@ YAZIM KURALLARI:
         "success": True,
         "content": response,
         "pages": pages,
-        "lines": actual_lines,
+        "lines": page_lines,
         "credits_spent": actual_credits,
         "credits_remaining": max(0, credit_info['credits_remaining'] - actual_credits)
     }

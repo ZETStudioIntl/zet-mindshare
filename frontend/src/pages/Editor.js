@@ -447,34 +447,26 @@ const Editor = () => {
 
   const handleAutoWriteContent = (pages, pageCount) => {
     if (!pages || pages.length === 0) return;
-    // For each page of content, create a text element and add it to a page
+    const pw = pageSize.width || 595;
     pages.forEach((pageContent, idx) => {
+      const cleanText = pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+      const textEl = {
+        id: `auto_${Date.now()}_${idx}`,
+        type: 'text',
+        x: 50,
+        y: 50,
+        content: cleanText,
+        fontFamily: 'Open Sans',
+        fontSize: 11,
+        color: '#222222',
+        lineHeight: 1.6,
+      };
       if (idx === 0) {
-        // Add to current page as a text element
-        const textEl = {
-          id: `auto_${Date.now()}_${idx}`,
-          type: 'text',
-          x: 60,
-          y: 80,
-          width: pageSize.width - 120,
-          height: pageSize.height - 160,
-          text: pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
-          style: { font: 'Open Sans', fontSize: 11, color: '#222222', bold: false },
-        };
+        // Add to current page
         setCanvasElements(prev => [...prev, textEl]);
       } else {
-        // Add new pages for remaining content
-        const newPageId = `page_${Date.now()}_${idx}`;
-        const textEl = {
-          id: `auto_${Date.now()}_${idx}`,
-          type: 'text',
-          x: 60,
-          y: 80,
-          width: pageSize.width - 120,
-          height: pageSize.height - 160,
-          text: pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
-          style: { font: 'Open Sans', fontSize: 11, color: '#222222', bold: false },
-        };
+        // Create new page with this element
+        const newPageId = `page_auto_${Date.now()}_${idx}`;
         setDocument(prev => ({
           ...prev,
           pages: [...(prev.pages || []), { page_id: newPageId, elements: [textEl], drawPaths: [], pageSize }]
