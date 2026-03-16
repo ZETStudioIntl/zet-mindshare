@@ -1,38 +1,41 @@
-import { useState, useCallback } from 'react';
+import { useCallback, useRef, useState } from 'react';
 
 const MAX_HISTORY = 50;
 
-export const useCanvasHistory = (initialElements = []) => {
-  const [history, setHistory] = useState([initialElements]);
-  const [index, setIndex] = useState(0);
+export const useCanvasHistory = () => {
+  const historyRef = useRef([]);
+  const indexRef = useRef(-1);
+  const [, tick] = useState(0);
 
   const push = useCallback((elements) => {
-    setHistory(prev => {
-      const trimmed = prev.slice(0, index + 1);
-      const next = [...trimmed, [...elements]];
-      if (next.length > MAX_HISTORY) next.shift();
-      return next;
-    });
-    setIndex(prev => Math.min(prev + 1, MAX_HISTORY - 1));
-  }, [index]);
+    const snapshot = JSON.parse(JSON.stringify(elements));
+    // Trim future states if we're in the middle of history
+    const trimmed = historyRef.current.slice(0, indexRef.current + 1);
+    trimmed.push(snapshot);
+    if (trimmed.length > MAX_HISTORY) trimmed.shift();
+    historyRef.current = trimmed;
+    indexRef.current = trimmed.length - 1;
+    tick(n => n + 1);
+  }, []);
 
   const undo = useCallback(() => {
-    if (index <= 0) return null;
-    const newIndex = index - 1;
-    setIndex(newIndex);
-    return [...history[newIndex]];
-  }, [history, index]);
+    if (indexRef.current <= 0) return null;
+    indexRef.current -= 1;
+    tick(n => n + 1);
+    return JSON.parse(JSON.stringify(historyRef.current[indexRef.current]));
+  }, []);
 
   const redo = useCallback(() => {
-    if (index >= history.length - 1) return null;
-    const newIndex = index + 1;
-    setIndex(newIndex);
-    return [...history[newIndex]];
-  }, [history, index]);
+    if (indexRef.current >= historyRef.current.length - 1) return null;
+    indexRef.current += 1;
+    tick(n => n + 1);
+    return JSON.parse(JSON.stringify(historyRef.current[indexRef.current]));
+  }, []);
 
   const reset = useCallback((elements) => {
-    setHistory([elements]);
-    setIndex(0);
+    historyRef.current = [JSON.parse(JSON.stringify(elements))];
+    indexRef.current = 0;
+    tick(n => n + 1);
   }, []);
 
   return {
@@ -40,7 +43,7 @@ export const useCanvasHistory = (initialElements = []) => {
     undo,
     redo,
     reset,
-    canUndo: index > 0,
-    canRedo: index < history.length - 1,
+    canUndo: indexRef.current > 0,
+    canRedo: indexRef.current < historyRef.current.length - 1,
   };
 };

@@ -339,7 +339,7 @@ const Editor = () => {
   const [findResults, setFindResults] = useState([]);
 
   // History
-  const history = useCanvasHistory(canvasElements);
+  const history = useCanvasHistory();
   const autoSaveTimerRef = useRef(null);
   const canvasContainerRef = useRef(null);
 
@@ -349,9 +349,15 @@ const Editor = () => {
       const tag = (e.target.tagName || '').toLowerCase();
       const isEditing = tag === 'input' || tag === 'textarea' || e.target.contentEditable === 'true';
       
-      // Always handle Ctrl+Z/Y
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) { e.preventDefault(); handleUndo(); return; }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) { e.preventDefault(); handleRedo(); return; }
+      // Ctrl+Z/Y: Let browser handle native undo/redo inside contentEditable/inputs
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        if (isEditing) return; // browser native undo in text fields
+        e.preventDefault(); handleUndo(); return;
+      }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        if (isEditing) return; // browser native redo in text fields
+        e.preventDefault(); handleRedo(); return;
+      }
       
       // Ctrl+C - Copy
       if ((e.ctrlKey || e.metaKey) && e.key === 'c' && !isEditing) {
@@ -420,15 +426,22 @@ const Editor = () => {
   }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
+  const lastLoadedPageRef = useRef(null);
   useEffect(() => {
     if (document?.pages?.[currentPage]) {
-      const page = document.pages[currentPage];
-      setCanvasElements(page.elements || []);
-      setDrawPaths(page.drawPaths || []);
-      history.reset(page.elements || []);
-      if (page.pageSize) setPageSize(page.pageSize);
-    } else { setCanvasElements([]); setDrawPaths([]); }
-    setSelectedElement(null); setSelectedElements([]);
+      const pageKey = `${currentPage}`;
+      // Only reload elements and reset history when switching to a DIFFERENT page
+      // Skip when document changes from save (same page, just updated data)
+      if (lastLoadedPageRef.current !== pageKey) {
+        const page = document.pages[currentPage];
+        setCanvasElements(page.elements || []);
+        setDrawPaths(page.drawPaths || []);
+        history.reset(page.elements || []);
+        if (page.pageSize) setPageSize(page.pageSize);
+        setSelectedElement(null); setSelectedElements([]);
+        lastLoadedPageRef.current = pageKey;
+      }
+    } else { setCanvasElements([]); setDrawPaths([]); lastLoadedPageRef.current = null; }
   }, [document, currentPage]);
 
   // === AUTO-SAVE (elements + drawPaths) ===
