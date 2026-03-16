@@ -9,9 +9,10 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 
 ## Key Files
 - `/app/frontend/src/pages/Editor.js` - Ana editör
-- `/app/frontend/src/components/editor/CanvasArea.js` - Canvas ve element render
+- `/app/frontend/src/components/editor/CanvasArea.js` - Canvas ve element render (EditableText popover dahil)
 - `/app/frontend/src/hooks/useCanvasHistory.js` - Undo/Redo history yönetimi
 - `/app/frontend/src/lib/editorConstants.js` - Araç tanımları
+- `/app/frontend/src/lib/msFormat.js` - .ms format engine (export/import/convert)
 - `/app/frontend/src/components/editor/RightPanel.js` - AI panel
 - `/app/backend/server.py` - Backend API
 
@@ -39,7 +40,15 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 - useCanvasHistory: useRef tabanlı yeniden yazıldı (stale closure sorunu giderildi)
 - JSON.parse/stringify ile deep copy, MAX_HISTORY = 50
 - Ctrl+Z/Y: contentEditable içinde tarayıcı native undo, dışında canvas-level undo
-- lastLoadedPageRef: auto-save sırasında history.reset engellendi, sadece sayfa değişiminde reset
+
+### Phase 6 - Popover Düzeltmesi & .ms Format (16 Mart 2026)
+- **Popover Düzeltmesi:** EditableText useEffect'teki `setRemoveTarget(null)` yalnızca yeni editing başlangıcında çağrılacak şekilde düzeltildi. Artık highlight/redact kaldırma butonu kararlı çalışıyor.
+- **.ms Format Desteği:** `msFormat.js` kütüphanesi oluşturuldu. Dışa aktarma paneline `.ms` butonu eklendi. İçe aktarma (import) desteği eklendi.
+  - `convertToMSFormat`: Editor belgesini .ms formatına dönüştürür
+  - `convertFromMSFormat`: .ms formatını editor belgesine dönüştürür
+  - `exportToMSFile`: .ms dosyasını indirir
+  - `importFromMSFile`: .ms dosyasını okur ve parse eder
+  - Black Band (şifreli sansür), AES-GCM encryption altyapısı hazır
 
 ## Pending Issues
 - P3: Tarayıcı bildirimleri çalışmıyor
@@ -49,6 +58,7 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 - P1: Stripe ödeme entegrasyonu
 - P1: Google Drive entegrasyonu
 - P2: Gerçek zamanlı ortak çalışma
+- P2: Dikey çoklu sayfa kaydırma
 - P3: iCloud, Dashboard önizlemeleri
 
 ## 3rd Party Integrations
