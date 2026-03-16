@@ -1,5 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState } from 'react';
-import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2 } from 'lucide-react';
+import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff } from 'lucide-react';
 
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
@@ -106,8 +106,9 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage }) => {
+const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onRemoveRedact }) => {
   const ref = useRef(null);
+  const [showRedactMenu, setShowRedactMenu] = useState(false);
   useEffect(() => {
     if (isEditing && ref.current) {
       ref.current.focus();
@@ -126,20 +127,36 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
     }
   }, [el.y, pageHeight, zoom, onAutoAddPage]);
   
-  // Redacted text - show as black bar
+  // Redacted text - show as black bar with remove button
   if (el.isRedacted) {
     return (
       <div 
         data-testid={`text-element-${el.id}`}
-        style={{
-          width: (el.content?.length || 10) * (el.fontSize || 16) * 0.6 * zoom,
+        style={{ position: 'relative', display: 'inline-block' }}
+        onClick={(e) => { e.stopPropagation(); setShowRedactMenu(prev => !prev); }}
+      >
+        <div style={{
+          width: Math.max(80, (el.content?.length || 10) * (el.fontSize || 16) * 0.6) * zoom,
           height: (el.fontSize || 16) * 1.4 * zoom,
           background: '#000000',
           borderRadius: 2,
           cursor: 'pointer',
-        }}
-        title="Sansürlenmiş İçerik"
-      />
+        }} title="Sansürlenmiş İçerik" />
+        {showRedactMenu && (
+          <div data-testid={`redact-menu-${el.id}`} className="absolute top-full left-0 mt-1 z-50 animate-fadeIn"
+            style={{ minWidth: '140px' }} onClick={e => e.stopPropagation()}>
+            <button
+              data-testid={`remove-redact-${el.id}`}
+              onClick={() => { if (onRemoveRedact) onRemoveRedact(el.id); setShowRedactMenu(false); }}
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-105"
+              style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
+            >
+              <EyeOff className="h-3.5 w-3.5" style={{ color: '#f59e0b' }} />
+              Siyah Bandı Kaldır
+            </button>
+          </div>
+        )}
+      </div>
     );
   }
   
@@ -217,9 +234,10 @@ export const CanvasArea = ({
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd, useGradient,
   zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage, onCopyElement, onMirrorElement,
-  rulerVisible, gridVisible, gridSize,
+  rulerVisible, gridVisible, gridSize, pageMargins: pageMarginsProp,
 }) => {
   const canvasRef = useRef(null);
+  const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
   const [editingId, setEditingId] = useState(null);
   const pendingEditRef = useRef(null);
   const [dragging, setDragging] = useState(null);
@@ -307,11 +325,11 @@ export const CanvasArea = ({
         setEditingId(elementId);
         setSelectedElement(elementId);
       } else {
-        const ml = 60;
+        const ml = margins.left;
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: ml, y: Math.max(40, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+          x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -340,7 +358,7 @@ export const CanvasArea = ({
         const lineHeight = el.lineHeight || 1.5;
         const textHeight = lineCount * fontSize * lineHeight;
         const bottomY = el.y + textHeight;
-        const pageBottom = pageSize.height - 40; // 40px bottom margin
+        const pageBottom = pageSize.height - margins.bottom; // bottom margin
         if (bottomY > pageBottom) {
           onAddPage();
         }
@@ -348,6 +366,13 @@ export const CanvasArea = ({
     }
     setEditingId(null);
   }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage]);
+
+  // Remove redaction from element
+  const handleRemoveRedact = useCallback((id) => {
+    const u = canvasElements.map(el => el.id === id ? { ...el, isRedacted: false } : el);
+    setCanvasElements(u);
+    onSaveHistory(u);
+  }, [canvasElements, setCanvasElements, onSaveHistory]);
 
   const applyCrop = useCallback(() => {
     if (!cropTarget || !cropRect) return;
@@ -393,11 +418,11 @@ export const CanvasArea = ({
     if (activeTool === 'text') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
-      const ml = 60; // left margin
+      const ml = margins.left; // left margin
       const ne = {
         id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-        x: ml, y: Math.max(10, y), content: '', fontSize: currentFontSize,
-        fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+        x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+        fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
         lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
         bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -426,11 +451,11 @@ export const CanvasArea = ({
       else {
         // Empty area clicked - create new text at cursor Y, margin-aligned X (Word-like)
         setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null);
-        const ml = 60;
+        const ml = margins.left;
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: ml, y: Math.max(40, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+          x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -460,11 +485,11 @@ export const CanvasArea = ({
       else {
         setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]);
         // Empty area: create new text element at cursor Y, margin-aligned (Word-like)
-        const ml = 60;
+        const ml = margins.left;
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: ml, y: Math.max(40, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+          x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -801,6 +826,16 @@ export const CanvasArea = ({
               </svg>
             )}
             
+            {/* Margin guides */}
+            {idx === currentPage && (
+              <div className="absolute inset-0 pointer-events-none" style={{ zIndex: 1 }}>
+                <div style={{ position: 'absolute', left: margins.left * zoom, top: 0, width: 0, height: '100%', borderLeft: '1px dashed rgba(100,180,200,0.25)' }} />
+                <div style={{ position: 'absolute', right: margins.right * zoom, top: 0, width: 0, height: '100%', borderRight: '1px dashed rgba(100,180,200,0.25)' }} />
+                <div style={{ position: 'absolute', left: 0, top: margins.top * zoom, width: '100%', height: 0, borderTop: '1px dashed rgba(100,180,200,0.25)' }} />
+                <div style={{ position: 'absolute', left: 0, bottom: margins.bottom * zoom, width: '100%', height: 0, borderBottom: '1px dashed rgba(100,180,200,0.25)' }} />
+              </div>
+            )}
+            
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
               {/* Highlight paths */}
               {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => (
@@ -944,7 +979,7 @@ export const CanvasArea = ({
                     transformOrigin: 'center center'
                   }}
                   onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); if (idx !== currentPage) changePage(idx); if (onElementSelect) onElementSelect(el); }}>
-                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={{ left: 60, right: 60 }} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} />}
+                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onRemoveRedact={handleRemoveRedact} />}
                   {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />

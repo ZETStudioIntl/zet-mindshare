@@ -251,6 +251,16 @@ const Editor = () => {
   const [marginLeft, setMarginLeft] = useState(40);
   const [marginRight, setMarginRight] = useState(40);
 
+  // Update text elements when margins change
+  useEffect(() => {
+    setCanvasElements(prev => prev.map(el => {
+      if (el.type === 'text') {
+        return { ...el, x: marginLeft, width: pageSize.width - marginLeft - marginRight };
+      }
+      return el;
+    }));
+  }, [marginLeft, marginRight, pageSize.width]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Chat AI Settings state
   const [zetaMood, setZetaMood] = useState(() => localStorage.getItem('zet_zeta_mood') || 'professional');
   const [zetaEmoji, setZetaEmoji] = useState(() => localStorage.getItem('zet_zeta_emoji') || 'medium');
@@ -3032,7 +3042,8 @@ const Editor = () => {
             pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
-            rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
+            rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
+            pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
         </div>
 
         {/* Mobile Bottom Navigation Bar */}
