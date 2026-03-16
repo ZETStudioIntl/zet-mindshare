@@ -1028,7 +1028,49 @@ export const CanvasArea = ({
                       <div data-testid={`text-resize-${el.id}`} className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm opacity-70 hover:opacity-100" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} />
                     )}
                   </>}
-                  {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
+                  {(el.type === 'image' || el.type === 'chart') && (
+                    <div className="relative w-full h-full group">
+                      <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
+                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                        <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+                        {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
+                      </>)}
+                    </div>
+                  )}
+                  {el.type === 'table' && el.tableData && (
+                    <div className="relative w-full h-full group" data-testid={`editable-table-${el.id}`}>
+                      <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: Math.max(9, 12 * zoom) + 'px', tableLayout: 'fixed' }}>
+                        <tbody>
+                          {el.tableData.map((row, ri) => (
+                            <tr key={ri}>
+                              {row.map((cell, ci) => (
+                                <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
+                                  contentEditable suppressContentEditableWarning
+                                  style={{ border: '1px solid #555', padding: '2px 4px', background: 'rgba(255,255,255,0.05)', color: 'var(--zet-text)', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text' }}
+                                  onFocus={(e) => { e.stopPropagation(); }}
+                                  onBlur={(e) => {
+                                    const val = e.target.innerText;
+                                    setCanvasElements(prev => prev.map(x => {
+                                      if (x.id !== el.id) return x;
+                                      const newData = x.tableData.map((r, rri) => r.map((c, cci) => (rri === ri && cci === ci) ? val : c));
+                                      return { ...x, tableData: newData };
+                                    }));
+                                  }}
+                                  onMouseDown={(e) => { e.stopPropagation(); }}
+                                  dangerouslySetInnerHTML={{ __html: cell }}
+                                />
+                              ))}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                        <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+                        {elementMenu === el.id && <ElementMenu el={{...el, type: 'table'}} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
+                      </>)}
+                    </div>
+                  )}
+                  {el.type === 'table' && !el.tableData && el.src && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
                       {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />

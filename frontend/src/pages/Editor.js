@@ -1261,17 +1261,17 @@ const Editor = () => {
     const tableWidth = tableCols * cellWidth;
     const tableHeight = tableRows * cellHeight;
     
-    // Create table as SVG
-    let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${tableWidth}" height="${tableHeight}">`;
-    for (let r = 0; r < tableRows; r++) {
-      for (let c = 0; c < tableCols; c++) {
-        svg += `<rect x="${c * cellWidth}" y="${r * cellHeight}" width="${cellWidth}" height="${cellHeight}" fill="white" stroke="#333" stroke-width="1"/>`;
-      }
-    }
-    svg += '</svg>';
+    // Create editable table data
+    const tableData = Array.from({ length: tableRows }, () => 
+      Array.from({ length: tableCols }, () => '')
+    );
     
-    const imgSrc = 'data:image/svg+xml;base64,' + btoa(svg);
-    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'table', x: 50, y: 50, width: tableWidth, height: tableHeight, src: imgSrc, rows: tableRows, cols: tableCols }];
+    const updated = [...canvasElements, { 
+      id: `el_${Date.now()}`, type: 'table', x: 50, y: 50, 
+      width: tableWidth, height: tableHeight, 
+      rows: tableRows, cols: tableCols, tableData,
+      cellWidth, cellHeight
+    }];
     setCanvasElements(updated); history.push(updated);
     setShowTable(false);
   };
@@ -1595,8 +1595,21 @@ const Editor = () => {
     if (!findText.trim()) return;
     const results = [];
     canvasElements.forEach(el => {
-      if (el.type === 'text' && el.content?.toLowerCase().includes(findText.toLowerCase())) {
-        results.push({ id: el.id, content: el.content });
+      if (el.type === 'text') {
+        const searchIn = el.content || (el.htmlContent ? el.htmlContent.replace(/<[^>]*>/g, '') : '');
+        if (searchIn.toLowerCase().includes(findText.toLowerCase())) {
+          results.push({ id: el.id, content: searchIn });
+        }
+      }
+    });
+    // Also search in table cells
+    canvasElements.forEach(el => {
+      if (el.type === 'table' && el.tableData) {
+        el.tableData.forEach((row, ri) => row.forEach((cell, ci) => {
+          if (cell.toLowerCase().includes(findText.toLowerCase())) {
+            results.push({ id: el.id, content: `Table [${ri+1},${ci+1}]: ${cell}` });
+          }
+        }));
       }
     });
     setFindResults(results);
@@ -1604,9 +1617,16 @@ const Editor = () => {
 
   const replaceInDocument = () => {
     if (!findText.trim()) return;
+    const regex = new RegExp(findText, 'gi');
     const updated = canvasElements.map(el => {
-      if (el.type === 'text' && el.content) {
-        return { ...el, content: el.content.replace(new RegExp(findText, 'gi'), replaceText) };
+      if (el.type === 'text') {
+        const newContent = el.content ? el.content.replace(regex, replaceText) : el.content;
+        const newHtml = el.htmlContent ? el.htmlContent.replace(regex, replaceText) : el.htmlContent;
+        return { ...el, content: newContent, htmlContent: newHtml };
+      }
+      if (el.type === 'table' && el.tableData) {
+        const newData = el.tableData.map(row => row.map(cell => cell.replace(regex, replaceText)));
+        return { ...el, tableData: newData };
       }
       return el;
     });
@@ -2870,14 +2890,32 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
-    {/* Layers Panel */}
+    {/* Layers Panel - with drag-to-reorder */}
     {showLayers && <DraggablePanel title="Layers" onClose={() => setShowLayers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
       <div className="w-64 space-y-1 max-h-80 overflow-y-auto">
         {[...canvasElements].reverse().map((el, i) => (
-          <div key={el.id} className={`flex items-center justify-between p-2 rounded text-xs ${selectedElement === el.id ? 'ring-1 ring-blue-500' : ''}`} style={{ background: 'var(--zet-bg)' }} onClick={() => setSelectedElement(el.id)}>
+          <div key={el.id} data-testid={`layer-item-${el.id}`}
+            draggable
+            onDragStart={(e) => { e.dataTransfer.setData('text/plain', el.id); e.currentTarget.style.opacity = '0.4'; }}
+            onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
+            onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderTop = '2px solid #4ca8ad'; }}
+            onDragLeave={(e) => { e.currentTarget.style.borderTop = 'none'; }}
+            onDrop={(e) => {
+              e.preventDefault(); e.currentTarget.style.borderTop = 'none';
+              const dragId = e.dataTransfer.getData('text/plain');
+              if (dragId === el.id) return;
+              const updated = [...canvasElements];
+              const fromIdx = updated.findIndex(x => x.id === dragId);
+              const toIdx = updated.findIndex(x => x.id === el.id);
+              if (fromIdx === -1 || toIdx === -1) return;
+              const [moved] = updated.splice(fromIdx, 1);
+              updated.splice(toIdx, 0, moved);
+              setCanvasElements(updated); history.push(updated);
+            }}
+            className={`flex items-center justify-between p-2 rounded text-xs cursor-grab active:cursor-grabbing ${selectedElement === el.id ? 'ring-1 ring-blue-500' : ''}`} style={{ background: 'var(--zet-bg)' }} onClick={() => setSelectedElement(el.id)}>
             <div className="flex items-center gap-2 truncate flex-1">
               <span className="w-4 text-center" style={{ color: 'var(--zet-text-muted)' }}>{canvasElements.length - i}</span>
-              <span className="truncate" style={{ color: el.hidden ? 'var(--zet-text-muted)' : 'var(--zet-text)' }}>{el.type === 'text' ? (el.content?.slice(0, 20) || 'Text') : el.type}</span>
+              <span className="truncate" style={{ color: el.hidden ? 'var(--zet-text-muted)' : 'var(--zet-text)' }}>{el.type === 'text' ? (el.content?.slice(0, 20) || 'Text') : el.type === 'table' ? 'Table' : el.type}</span>
             </div>
             <div className="flex items-center gap-1">
               <button onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(el.id); }} className="p-1 rounded hover:bg-white/10" title={el.hidden ? 'Show' : 'Hide'}>{el.hidden ? <EyeOff className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /> : <Eye className="h-3 w-3" style={{ color: 'var(--zet-text)' }} />}</button>
@@ -2987,16 +3025,6 @@ const Editor = () => {
             </div>
           </button>
           
-          <button onClick={() => handleExport('json')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
-            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#f39c12' }}>
-              <span className="text-white text-xs font-bold">ZET</span>
-            </div>
-            <div>
-              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>Project File (.zet.json)</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Re-open and edit later</div>
-            </div>
-          </button>
-          
           <button data-testid="export-ms-btn" onClick={() => handleExport('ms')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
             <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
               <span className="text-white text-xs font-bold">.ms</span>
@@ -3022,16 +3050,6 @@ const Editor = () => {
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
           <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Import Project</label>
           <input 
-            type="file" 
-            accept=".json,.zet.json" 
-            onChange={(e) => { if (e.target.files[0]) importFromJSON(e.target.files[0]); }}
-            className="hidden"
-            id="import-json"
-          />
-          <label htmlFor="import-json" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer">
-            <Upload className="h-4 w-4" /> Open .zet.json File
-          </label>
-          <input 
             data-testid="import-ms-input"
             type="file" 
             accept=".ms" 
@@ -3039,7 +3057,7 @@ const Editor = () => {
             className="hidden"
             id="import-ms"
           />
-          <label htmlFor="import-ms" data-testid="import-ms-btn" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer mt-2" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
+          <label htmlFor="import-ms" data-testid="import-ms-btn" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
             <Upload className="h-4 w-4" /> Open .ms File
           </label>
         </div>
@@ -3094,13 +3112,25 @@ const Editor = () => {
     {showFindReplace && <DraggablePanel title="Find & Replace" onClose={() => setShowFindReplace(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-64 space-y-3">
         <div className="flex gap-2">
-          <input type="text" value={findText} onChange={e => setFindText(e.target.value)} placeholder="Find" className="zet-input text-xs flex-1" />
-          <button onClick={findInDocument} className="zet-btn px-2"><Search className="h-3 w-3" /></button>
+          <input data-testid="find-input" type="text" value={findText} onChange={e => setFindText(e.target.value)} onKeyDown={e => e.key === 'Enter' && findInDocument()} placeholder="Find" className="zet-input text-xs flex-1" />
+          <button data-testid="find-btn" onClick={findInDocument} className="zet-btn px-2"><Search className="h-3 w-3" /></button>
         </div>
-        <input type="text" value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace with" className="zet-input text-xs w-full" />
-        <button onClick={replaceInDocument} disabled={!findText.trim()} className="zet-btn w-full text-xs">Replace All</button>
+        <input data-testid="replace-input" type="text" value={replaceText} onChange={e => setReplaceText(e.target.value)} placeholder="Replace with" className="zet-input text-xs w-full" />
+        <button data-testid="replace-all-btn" onClick={replaceInDocument} disabled={!findText.trim()} className="zet-btn w-full text-xs">Replace All</button>
         {findResults.length > 0 && (
-          <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Found {findResults.length} matches</div>
+          <div className="space-y-1">
+            <div data-testid="find-results-count" className="text-xs font-medium" style={{ color: '#22c55e' }}>Found {findResults.length} match{findResults.length > 1 ? 'es' : ''}</div>
+            <div className="max-h-32 overflow-y-auto space-y-0.5">
+              {findResults.map((r, i) => (
+                <div key={i} data-testid={`find-result-${i}`} onClick={() => setSelectedElement(r.id)} className="text-xs p-1.5 rounded cursor-pointer truncate hover:bg-white/10" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
+                  {r.content.slice(0, 40)}{r.content.length > 40 ? '...' : ''}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        {findResults.length === 0 && findText.trim() && (
+          <div className="text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>No matches found</div>
         )}
       </div>
     </DraggablePanel>}
