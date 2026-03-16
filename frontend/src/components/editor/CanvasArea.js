@@ -134,36 +134,42 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
     }
   }, [el.y, pageHeight, zoom, onAutoAddPage]);
 
-  // Handle click on redacted span to show remove button
+  // Handle click on redacted/highlighted span to show remove button
   const handleClick = useCallback((e) => {
     e.stopPropagation();
     const target = e.target;
-    // Check if clicked on a redacted span
-    if (target.dataset?.redacted === 'true') {
-      // Toggle remove button
-      const existing = target.querySelector('.redact-remove-btn');
+    const btnStyle = 'position:absolute;top:100%;left:0;z-index:50;padding:4px 8px;font-size:11px;border-radius:6px;background:var(--zet-bg-card,#1e1e2e);border:1px solid var(--zet-border,#333);color:var(--zet-text,#eee);cursor:pointer;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.4);margin-top:2px;';
+    
+    // Helper to create remove button
+    const createRemoveBtn = (label, className) => {
+      const existing = target.querySelector(`.${className}`);
       if (existing) { existing.remove(); return; }
-      // Remove any other redact buttons
-      ref.current?.querySelectorAll('.redact-remove-btn').forEach(b => b.remove());
+      ref.current?.querySelectorAll(`.${className}`).forEach(b => b.remove());
+      ref.current?.querySelectorAll('.redact-remove-btn,.highlight-remove-btn').forEach(b => b.remove());
       const btn = window.document.createElement('button');
-      btn.className = 'redact-remove-btn';
-      btn.textContent = 'Bandı Kaldır';
-      btn.style.cssText = 'position:absolute;top:100%;left:0;z-index:50;padding:4px 8px;font-size:11px;border-radius:6px;background:var(--zet-bg-card,#1e1e2e);border:1px solid var(--zet-border,#333);color:var(--zet-text,#eee);cursor:pointer;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.4);margin-top:2px;';
+      btn.className = className;
+      btn.textContent = label;
+      btn.style.cssText = btnStyle;
       target.style.position = 'relative';
-      // Store original text before adding button
       const originalText = target.childNodes[0]?.textContent || target.textContent;
       btn.addEventListener('mousedown', (ev) => {
         ev.preventDefault(); ev.stopPropagation();
-        // Unwrap: replace span with its original text content (not including button text)
         target.replaceWith(originalText);
-        // Trigger save
         if (ref.current) onCommit(el.id, ref.current.innerHTML, true);
       });
       target.appendChild(btn);
+    };
+    
+    if (target.dataset?.redacted === 'true') {
+      createRemoveBtn('Bandı Kaldır', 'redact-remove-btn');
       return;
     }
-    // Remove any lingering redact buttons
-    ref.current?.querySelectorAll('.redact-remove-btn').forEach(b => b.remove());
+    if (target.dataset?.highlight === 'true') {
+      createRemoveBtn('İşareti Kaldır', 'highlight-remove-btn');
+      return;
+    }
+    // Remove any lingering buttons
+    ref.current?.querySelectorAll('.redact-remove-btn,.highlight-remove-btn').forEach(b => b.remove());
     onStartEdit(el.id);
   }, [el.id, onStartEdit, onCommit]);
   

@@ -273,16 +273,6 @@ const Editor = () => {
   const [marginLeft, setMarginLeft] = useState(40);
   const [marginRight, setMarginRight] = useState(40);
 
-  // Update text elements when margins change
-  useEffect(() => {
-    setCanvasElements(prev => prev.map(el => {
-      if (el.type === 'text') {
-        return { ...el, x: marginLeft, width: pageSize.width - marginLeft - marginRight };
-      }
-      return el;
-    }));
-  }, [marginLeft, marginRight, pageSize.width]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Chat AI Settings state
   const [zetaMood, setZetaMood] = useState(() => localStorage.getItem('zet_zeta_mood') || 'professional');
   const [zetaEmoji, setZetaEmoji] = useState(() => localStorage.getItem('zet_zeta_emoji') || 'medium');
@@ -2440,72 +2430,64 @@ const Editor = () => {
     {/* Indent Panel */}
     {showIndent && <DraggablePanel title="Girinti" onClose={() => setShowIndent(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-64 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Seçili elementin girintisini ayarlayın</p>
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Metin girintisini ayarlayın</p>
         <div className="grid grid-cols-2 gap-3">
           <div>
             <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sol</label>
             <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentLeft} onChange={e => {
-                const val = parseInt(e.target.value);
-                setIndentLeft(val);
-                if (selectedElement) {
-                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingLeft: val } : el));
-                }
-              }} className="flex-1" />
+              <input type="range" min="0" max="100" value={indentLeft} onChange={e => setIndentLeft(parseInt(e.target.value))} className="flex-1" />
               <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentLeft}px</span>
             </div>
           </div>
           <div>
             <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sağ</label>
             <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentRight} onChange={e => {
-                const val = parseInt(e.target.value);
-                setIndentRight(val);
-                if (selectedElement) {
-                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingRight: val } : el));
-                }
-              }} className="flex-1" />
+              <input type="range" min="0" max="100" value={indentRight} onChange={e => setIndentRight(parseInt(e.target.value))} className="flex-1" />
               <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentRight}px</span>
             </div>
           </div>
           <div>
             <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Üst</label>
             <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentTop} onChange={e => {
-                const val = parseInt(e.target.value);
-                setIndentTop(val);
-                if (selectedElement) {
-                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingTop: val } : el));
-                }
-              }} className="flex-1" />
+              <input type="range" min="0" max="100" value={indentTop} onChange={e => setIndentTop(parseInt(e.target.value))} className="flex-1" />
               <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentTop}px</span>
             </div>
           </div>
           <div>
             <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Alt</label>
             <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentBottom} onChange={e => {
-                const val = parseInt(e.target.value);
-                setIndentBottom(val);
-                if (selectedElement) {
-                  setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingBottom: val } : el));
-                }
-              }} className="flex-1" />
+              <input type="range" min="0" max="100" value={indentBottom} onChange={e => setIndentBottom(parseInt(e.target.value))} className="flex-1" />
               <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentBottom}px</span>
             </div>
           </div>
         </div>
         <button 
-          onClick={() => {
-            setIndentLeft(0); setIndentRight(0); setIndentTop(0); setIndentBottom(0);
-            if (selectedElement) {
-              setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } : el));
-            }
-          }}
-          className="zet-btn w-full py-2 text-xs"
+          onClick={() => { setIndentLeft(0); setIndentRight(0); setIndentTop(0); setIndentBottom(0); }}
+          className="zet-btn w-full py-1.5 text-xs"
         >
           Sıfırla
         </button>
+        <div className="pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--zet-border)' }}>
+          <button data-testid="indent-apply-all" onClick={() => {
+            setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el));
+            setDocument(prev => {
+              if (!prev?.pages) return prev;
+              return { ...prev, pages: prev.pages.map((page, idx) => {
+                if (idx === currentPage) return page;
+                return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el) };
+              })};
+            });
+          }} className="zet-btn w-full py-2 text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+            Tümüne Uygula
+          </button>
+          <button data-testid="indent-apply-selected" onClick={() => {
+            const target = selectedElement || lastSelectedRef.current;
+            if (!target) { alert('Lütfen önce bir metin seçin!'); return; }
+            setCanvasElements(prev => prev.map(el => el.id === target && el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el));
+          }} className="zet-btn w-full py-2 text-xs" style={{ border: '1px solid var(--zet-primary)', color: 'var(--zet-primary)' }}>
+            Seçili Metne Uygula
+          </button>
+        </div>
       </div>
     </DraggablePanel>}
 
@@ -2538,6 +2520,29 @@ const Editor = () => {
             <button onClick={() => { setMarginTop(20); setMarginBottom(20); setMarginLeft(20); setMarginRight(20); }} className="zet-btn text-xs py-1.5">Dar</button>
             <button onClick={() => { setMarginTop(60); setMarginBottom(60); setMarginLeft(60); setMarginRight(60); }} className="zet-btn text-xs py-1.5">Geniş</button>
           </div>
+        </div>
+        <div className="pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--zet-border)' }}>
+          <button data-testid="margins-apply-all" onClick={() => {
+            const w = pageSize.width - marginLeft - marginRight;
+            setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el));
+            setDocument(prev => {
+              if (!prev?.pages) return prev;
+              return { ...prev, pages: prev.pages.map((page, idx) => {
+                if (idx === currentPage) return page;
+                return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el) };
+              })};
+            });
+          }} className="zet-btn w-full py-2 text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+            Tümüne Uygula
+          </button>
+          <button data-testid="margins-apply-selected" onClick={() => {
+            const target = selectedElement || lastSelectedRef.current;
+            if (!target) { alert('Lütfen önce bir metin seçin!'); return; }
+            const w = pageSize.width - marginLeft - marginRight;
+            setCanvasElements(prev => prev.map(el => el.id === target && el.type === 'text' ? { ...el, x: marginLeft, width: w } : el));
+          }} className="zet-btn w-full py-2 text-xs" style={{ border: '1px solid var(--zet-primary)', color: 'var(--zet-primary)' }}>
+            Seçili Metne Uygula
+          </button>
         </div>
       </div>
     </DraggablePanel>}
