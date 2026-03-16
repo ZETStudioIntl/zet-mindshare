@@ -40,7 +40,14 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 - Otomatik sayfa ekleme (metin taşması kontrolü)
 - Tüm sayfaları export (PDF, PNG, JPEG, SVG, JSON)
 - addpage aracı düzeltmesi (artık diğer panelleri açmıyor)
-- pdfjs-dist import düzeltmesi (Türkçe karakter bozulması)
+
+### Phase 3.5 - Siyah Bant ve Girintiler (16 Mart 2026 - Tamamlandı)
+- Siyah bantlı (redacted) metne tıklayınca "Siyah Bandı Kaldır" butonu
+- lastSelectedRef ile redact/highlight araçlarının blur sonrası çalışması
+- Kenar boşlukları (margins) gerçekten çalışıyor - metin konumu ve genişliği güncelleniyor
+- Girintiler (indent/padding) çalışıyor - Sol/Sağ/Üst/Alt padding uygulanıyor
+- Margin kılavuz çizgileri aktif sayfada görünüyor
+- Margin hazır ayarlar: Normal (40px), Dar (20px), Geniş (60px)
 
 ## Pending Issues
 - P3: Tarayıcı bildirimleri çalışmıyor

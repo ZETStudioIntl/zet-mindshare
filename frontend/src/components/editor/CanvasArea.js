@@ -186,7 +186,7 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
         width: fixedWidth,
         wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
         cursor: 'text', caretColor: 'var(--zet-primary)',
-        padding: isEditing ? '2px 0' : 0,
+        padding: isEditing ? '2px 0 0 0' : undefined,
         paddingLeft: (el.paddingLeft || 0) * zoom,
         paddingRight: (el.paddingRight || 0) * zoom,
         paddingTop: (el.paddingTop || 0) * zoom,
