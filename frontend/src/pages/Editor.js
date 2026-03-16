@@ -366,7 +366,7 @@ const Editor = () => {
   });
 
   // === DATA LOADING ===
-  // eslint-dışable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDocument(); }, [docId]);
 
   // Fetch user usage and plan
@@ -387,7 +387,7 @@ const Editor = () => {
     fetchUsage();
   }, []);
 
-  // eslint-dışable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (document?.pages?.[currentPage]) {
       const page = document.pages[currentPage];
@@ -400,7 +400,7 @@ const Editor = () => {
   }, [document, currentPage]);
 
   // === AUTO-SAVE (elements + drawPaths) ===
-  // eslint-dışable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (document) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);

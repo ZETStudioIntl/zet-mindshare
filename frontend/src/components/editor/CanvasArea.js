@@ -210,6 +210,7 @@ export const CanvasArea = ({
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
+  const pendingClickRef = useRef(null);
   const [dragging, setDragging] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizing, setResizing] = useState(null);
@@ -283,6 +284,35 @@ export const CanvasArea = ({
     else { setMagnifierActive(false); }
   }, [activeTool, canvasElements, selectedElement]);
 
+  // Process pending click after page switch - only run when canvasElements are updated for the target page
+  useEffect(() => {
+    if (pendingClickRef.current && pendingClickRef.current.pageIdx === currentPage) {
+      const { x, y } = pendingClickRef.current;
+      pendingClickRef.current = null;
+      // Small delay to ensure render is complete
+      const timer = setTimeout(() => {
+        setElementMenu(null);
+        setVectorMenu(null);
+        // Find text element at click position
+        const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
+        if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
+        // Create new text if no element found
+        const ml = 60;
+        const ne = {
+          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
+          x: ml, y: Math.max(40, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+          lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
+          bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
+          gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+        };
+        setCanvasElements(prev => [...prev, ne]); setEditingId(ne.id); setSelectedElement(ne.id);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [currentPage, canvasElements, currentColor, currentFont, currentFontSize, currentLineHeight, currentTextAlign, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, pageSize.width, setCanvasElements, setSelectedElement]);
+
+
   const getCoords = useCallback((e, el) => { const r = el.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }, [zoom]);
 
   const handleTextCommit = useCallback((id, text) => {
@@ -325,10 +355,23 @@ export const CanvasArea = ({
 
   const handleCanvasClick = useCallback((e, pageIdx) => {
     if (dragging || resizing || draggingVector) return;
-    if (pageIdx !== currentPage) { changePage(pageIdx); return; }
+    
+    // If clicking a different page, switch to it first then process the click
+    if (pageIdx !== currentPage) {
+      // Store coordinates BEFORE changing page, so useEffect can use them
+      const coords = getCoords(e, e.currentTarget);
+      pendingClickRef.current = { x: coords.x, y: coords.y, pageIdx };
+      changePage(pageIdx);
+      return;
+    }
+    
     if (justSelectedRef.current) { justSelectedRef.current = false; return; }
     const { x, y } = getCoords(e, e.currentTarget);
     if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
+    processCanvasClick(x, y, e);
+  }, [activeTool, canvasElements, changePage, currentPage, dragging, draggingVector, getCoords, pageSize, resizing, justSelectedRef]);
+
+  const processCanvasClick = (x, y, e) => {
     setElementMenu(null);
     setVectorMenu(null);
 
@@ -417,7 +460,7 @@ export const CanvasArea = ({
       // Zoom tool - just set active, mouse move handles position
       setMagnifierActive(true);
     }
-  }, [activeTool, canvasElements, changePage, cropTarget, currentColor, currentFont, currentFontSize, currentLineHeight, currentPage, currentTextAlign, dragging, draggingVector, drawPaths, getCoords, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, onElementSelect, onSaveHistory, pageSize, penPoints, resizing, setCanvasElements, setDrawPaths, setSelectedElement, setSelectedElements, useGradient]);
+  };
 
   const handleCanvasDoubleClick = useCallback((e, pageIdx) => {
     if (activeTool === 'pen' && penPoints.length > 1 && pageIdx === currentPage) {
@@ -886,7 +929,7 @@ export const CanvasArea = ({
                     transformOrigin: 'center center'
                   }}
                   onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
-                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={{ left: 60, right: 60 }} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => setEditingId(id)} onCommit={handleTextCommit} />}
+                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={{ left: 60, right: 60 }} isEditing={editingId === el.id} onStartEdit={id => { if (idx !== currentPage) changePage(idx); setEditingId(id); }} onCommit={handleTextCommit} />}
                   {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
