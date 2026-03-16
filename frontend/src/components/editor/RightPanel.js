@@ -365,7 +365,8 @@ export const RightPanel = ({
                   {zetaMessages.length === 0 && (
                     <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
                       <Sparkles className="h-5 w-5 mx-auto mb-2 opacity-50" />
-                      <p>{t('askZetaAnything')}</p>
+                      <p className="text-xs font-medium">{t('askZetaAnything')}</p>
+                      <p className="text-[10px] mt-2 opacity-70">Belgenizi otomatik olarak görüyorum. Siyah bantla gizlenen alanları göremem.</p>
                     </div>
                   )}
                   {zetaMessages.map((msg, i) => (
@@ -661,6 +662,20 @@ export const RightPanel = ({
                       <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
                         Arama sorguları: {deepResult.search_queries?.join(', ')}
                       </p>
+                      {/* Belgeye Ekle Butonu */}
+                      <button
+                        data-testid="deep-add-to-doc-btn"
+                        onClick={() => {
+                          if (onAutoWriteContent) {
+                            onAutoWriteContent([deepResult.analysis], 1);
+                          }
+                        }}
+                        className="w-full py-2 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
+                        style={{ background: '#f59e0b', color: 'white' }}
+                      >
+                        <FileText className="h-3.5 w-3.5" />
+                        Belgeye Ekle
+                      </button>
                     </div>
                   )}
                 </div>
@@ -692,7 +707,8 @@ export const RightPanel = ({
                 <div className="text-center py-6" style={{ color: '#c8005a' }}>
                   <Scale className="h-6 w-6 mx-auto mb-2 opacity-70" />
                   <p className="font-semibold">ZET Judge Mini</p>
-                  <p className="text-xs mt-1 opacity-70">Is analizi - Vizyon - Strateji</p>
+                  <p className="text-xs mt-1 opacity-70">İş analizi - Vizyon - Strateji</p>
+                  <p className="text-[10px] mt-2 opacity-50">Belgenizi otomatik olarak görüyorum.</p>
                   {userUsage && (
                     <p className="text-xs mt-2 opacity-50">
                       Kalan: {userUsage.remaining?.judge_basic || 0} temel, {userUsage.remaining?.judge_deep || 0} derin
@@ -739,9 +755,6 @@ export const RightPanel = ({
                 </button>
               </div>
               <div className="flex gap-1">
-                <button onClick={handleJudgeImageUpload} className="w-8 h-8 flex-shrink-0 rounded flex items-center justify-center" style={{ background: 'rgba(200, 0, 90, 0.3)' }} title="Görsel ekle">
-                  <FileText className="h-3 w-3" style={{ color: '#c8005a' }} />
-                </button>
                 <input
                   data-testid="judge-input"
                   placeholder={judgeMode === 'deep' ? 'Detaylı analiz için...' : 'Hızlı analiz için...'}

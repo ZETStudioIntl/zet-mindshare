@@ -49,7 +49,7 @@ const Editor = () => {
   const [saving, setSaving] = useState(false);
 
   // Tool state
-  const [activeTool, setActiveTool] = useState('text');
+  const [activeTool, setActiveTool] = useState('select');
   const [toolboxOpen, setToolboxOpen] = useState(true);
 
   // Canvas element state
@@ -206,7 +206,7 @@ const Editor = () => {
   // Fast Select state
   const [fastSelectTools] = useState(() => {
     const saved = localStorage.getItem('zet_fast_select');
-    return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
+    return saved ? JSON.parse(saved) : ['select', 'hand', 'draw', 'image'];
   });
 
   // Usage & Subscription state
@@ -1747,22 +1747,50 @@ const Editor = () => {
   };
 
   // === VOICE ===
-  const getDocText = () => canvasElements.filter(el => el.type === 'text' && !el.isRedacted).sort((a, b) => a.y - b.y).map(el => el.content).join('. ');
+  const getDocText = () => {
+    // Get text from ALL pages, exclude redacted
+    let allText = [];
+    if (document?.pages) {
+      document.pages.forEach((page, idx) => {
+        const elements = idx === currentPage ? canvasElements : (page.elements || []);
+        elements.forEach(el => {
+          if (el.type === 'text' && !el.isRedacted && el.content) {
+            allText.push(el.content);
+          }
+        });
+      });
+    } else {
+      canvasElements.filter(el => el.type === 'text' && !el.isRedacted).sort((a, b) => a.y - b.y).forEach(el => allText.push(el.content));
+    }
+    return allText.join('. ');
+  };
   
-  // Get full document content for ZETA (includes all element types, EXCLUDES redacted content)
+  // Get full document content for AI (includes all element types from ALL pages, EXCLUDES redacted content)
   const getFullDocContent = () => {
-    const elements = canvasElements.map(el => {
-      if (el.isRedacted) return `[REDACTED]`;
-      if (el.type === 'text') return `[TEXT]: ${el.content}`;
-      if (el.type === 'shape') return `[SHAPE]: ${el.shapeType} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
-      if (el.type === 'image') return `[IMAGE]: at (${Math.round(el.x)}, ${Math.round(el.y)}), size: ${el.width}x${el.height}`;
-      if (el.type === 'chart') return `[CHART]: ${el.chartType || 'chart'} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
-      if (el.type === 'table') return `[TABLE]: ${el.rows}x${el.cols} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
-      if (el.type === 'qrcode') return `[QR CODE]: ${el.content} at (${Math.round(el.x)}, ${Math.round(el.y)})`;
-      return `[${el.type?.toUpperCase() || 'ELEMENT'}]`;
-    });
-    const vectors = drawPaths.map((p, i) => `[VECTOR ${i + 1}]: ${p.points?.length || 0} points, color: ${p.color}`);
-    return [...elements, ...vectors].join('\n');
+    let allElements = [];
+    if (document?.pages) {
+      document.pages.forEach((page, idx) => {
+        const elements = idx === currentPage ? canvasElements : (page.elements || []);
+        allElements.push(`--- Sayfa ${idx + 1} ---`);
+        elements.forEach(el => {
+          if (el.isRedacted) return; // Siyah bantlı içerikler kesinlikle gizlenir
+          if (el.type === 'text' && el.content) allElements.push(`[METİN]: ${el.content}`);
+          else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType} (${Math.round(el.x)}, ${Math.round(el.y)})`);
+          else if (el.type === 'image') allElements.push(`[GÖRSEL]: (${Math.round(el.x)}, ${Math.round(el.y)}), ${el.width}x${el.height}`);
+          else if (el.type === 'chart') allElements.push(`[GRAFİK]: ${el.chartType || 'grafik'}`);
+          else if (el.type === 'table') allElements.push(`[TABLO]: ${el.rows}x${el.cols}`);
+          else if (el.type === 'qrcode') allElements.push(`[QR KOD]: ${el.content}`);
+        });
+      });
+    } else {
+      canvasElements.forEach(el => {
+        if (el.isRedacted) return;
+        if (el.type === 'text') allElements.push(`[METİN]: ${el.content}`);
+        else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType}`);
+        else if (el.type === 'image') allElements.push(`[GÖRSEL]`);
+      });
+    }
+    return allElements.join('\n');
   };
   
   // Fetch available ElevenLabs voices

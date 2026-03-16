@@ -6,7 +6,7 @@ import {
   AlignLeft, BarChart3, Contrast, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
-  IndentIncrease, Maximize, ShieldOff, FileUp
+  IndentIncrease, Maximize, ShieldOff, FileUp, Underline
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -54,7 +54,6 @@ export const PRESET_COLORS = [
 ];
 
 export const TOOLS = [
-  { id: 'text', icon: Type, nameKey: 'text', shortcut: 'T' },
   { id: 'wordtype', icon: Bold, nameKey: 'wordType', shortcut: 'B' },
   { id: 'textsize', icon: Baseline, nameKey: 'textSize', shortcut: null },
   { id: 'font', icon: ALargeSmall, nameKey: 'font', shortcut: 'F' },
@@ -71,7 +70,7 @@ export const TOOLS = [
   { id: 'draw', icon: Pencil, nameKey: 'pencil', shortcut: 'D' },
   { id: 'pen', icon: PenTool, nameKey: 'penTool', shortcut: 'P' },
   { id: 'eraser', icon: Eraser, nameKey: 'eraser', shortcut: 'E' },
-  { id: 'marking', icon: Highlighter, nameKey: 'marking', shortcut: 'M' },
+  { id: 'marking', icon: Underline, nameKey: 'marking', shortcut: 'M' },
   { id: 'select', icon: MousePointer2, nameKey: 'select', shortcut: 'S' },
   { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
