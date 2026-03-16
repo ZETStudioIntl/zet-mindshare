@@ -421,7 +421,7 @@ export const useLanguage = () => useContext(LanguageContext);
 
 export const LanguageProvider = ({ children }) => {
   const [language, setLanguage] = useState(() => {
-    return localStorage.getItem('zet-language') || 'en';
+    return localStorage.getItem('zet-language') || 'tr';
   });
 
   useEffect(() => {

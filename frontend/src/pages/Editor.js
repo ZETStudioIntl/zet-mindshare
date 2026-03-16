@@ -1423,15 +1423,28 @@ const Editor = () => {
     setFindResults([]);
   };
 
-  // === WORD COUNT ===
+  // === WORD COUNT (all pages) ===
   const getWordCount = () => {
     let total = 0;
+    // Count from current page's live elements
     canvasElements.forEach(el => {
       if (el.type === 'text' && el.content) {
         const words = el.content.trim().split(/\s+/).filter(w => w.length > 0);
         total += words.length;
       }
     });
+    // Count from other pages stored in document
+    if (document?.pages) {
+      document.pages.forEach((page, idx) => {
+        if (idx === currentPage) return; // already counted above
+        (page.elements || []).forEach(el => {
+          if (el.type === 'text' && el.content) {
+            const words = el.content.trim().split(/\s+/).filter(w => w.length > 0);
+            total += words.length;
+          }
+        });
+      });
+    }
     return total;
   };
 
@@ -3123,8 +3136,8 @@ const Editor = () => {
           
           {!isMobile && <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>}
           <button data-testid="export-btn" onClick={() => setShowExport(true)} className="tool-btn w-8 h-8" title="Export"><Download className="h-4 w-4" /></button>
-          {/* Credit indicator */}
-          <div data-testid="credit-indicator" className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
+          {/* Credit indicator - clickable */}
+          <div data-testid="credit-indicator" onClick={() => navigate('/dashboard?showCredits=true')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer hover:scale-105 transition-transform" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
             <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
             <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
           </div>
@@ -3263,11 +3276,18 @@ const Editor = () => {
                 Daha Sonra
               </button>
               <button 
-                onClick={() => window.location.href = '/dashboard?upgrade=true'}
+                onClick={() => navigate('/dashboard?showCredits=true')}
+                className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
+                style={{ background: '#fbbf24', color: '#000' }}
+              >
+                Kredi Al
+              </button>
+              <button 
+                onClick={() => navigate('/dashboard?upgrade=true')}
                 className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
                 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #f59e0b 100%)' }}
               >
-                Planları Gör
+                Planlari Gor
               </button>
             </div>
           </div>
@@ -3278,7 +3298,7 @@ const Editor = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}>
           <div className="zet-card p-5 w-72 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Change Image' : uploadForShape ? 'Add to Shape' : t('image')}</h3>
+              <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Gorsel Degistir' : uploadForShape ? 'Sekle Ekle' : t('image')}</h3>
               <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
             </div>
             <label data-testid="image-upload-btn" className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer py-3"><Upload className="h-4 w-4" /><span>Choose File</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>

@@ -210,6 +210,11 @@ const Dashboard = () => {
       setDriveConnected(true);
       window.history.replaceState({}, '', '/dashboard');
     }
+    if (params.get('showCredits') === 'true') {
+      fetchCreditPackages();
+      setShowCredits(true);
+      window.history.replaceState({}, '', '/dashboard');
+    }
   }, []);
 
   // Check for due reminders every 30 seconds
@@ -270,7 +275,14 @@ const Dashboard = () => {
     setBuyingCredits(true);
     try {
       const res = await axios.post(`${API}/credits/buy`, { package_id: packageId }, { withCredentials: true });
-      alert(res.data.message);
+      if (res.data.needs_confirmation) {
+        if (window.confirm(`${res.data.message}\n\nDevam etmek istiyor musunuz?`)) {
+          const res2 = await axios.post(`${API}/credits/buy`, { package_id: packageId, confirm_overflow: true }, { withCredentials: true });
+          alert(res2.data.message);
+        }
+      } else {
+        alert(res.data.message);
+      }
       setShowCredits(false);
       fetchSubscription();
     } catch (err) {
@@ -376,7 +388,7 @@ Devam etmek istiyor musunuz?`;
   };
 
   const createDocument = async () => {
-    const title = newDocTitle.trim() || 'Untitled Document';
+    const title = newDocTitle.trim() || 'Isimsiz Belge';
     try {
       const payload = {
         title: title,
@@ -526,7 +538,7 @@ Devam etmek istiyor musunuz?`;
               className="flex items-center justify-between w-full p-2 rounded hover:bg-white/5"
             >
               <span className="flex items-center gap-2" style={{ color: 'var(--zet-text-muted)' }}>
-                <Globe className="h-4 w-4" /> {t('language') || 'Language'}
+                <Globe className="h-4 w-4" /> {t('language') || 'Dil'}
               </span>
               <span className="text-sm" style={{ color: 'var(--zet-text)' }}>
                 {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
@@ -554,7 +566,7 @@ Devam etmek istiyor musunuz?`;
             <div className="flex items-center justify-between p-2 rounded" style={{ background: userSubscription !== 'free' ? 'linear-gradient(135deg, #8b5cf620, #f59e0b20)' : 'var(--zet-bg)' }}>
               <div className="flex items-center gap-2">
                 {userSubscription !== 'free' && <Crown className="h-4 w-4 text-yellow-500" />}
-                <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan') || 'Current Plan'}</span>
+                <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan') || 'Mevcut Plan'}</span>
               </div>
               <span className="font-bold" style={{ 
                 color: userSubscription === 'ultra' ? '#f59e0b' : 
@@ -570,7 +582,7 @@ Devam etmek istiyor musunuz?`;
                 disabled={subscribing}
                 className="text-xs text-red-400 hover:text-red-300 mt-2 w-full text-center"
               >
-                {t('cancelSubscription') || 'Cancel Subscription'}
+                {t('cancelSubscription') || 'Aboneligi Iptal Et'}
               </button>
             )}
           </div>
@@ -583,7 +595,7 @@ Devam etmek istiyor musunuz?`;
             {driveConnected ? (
               <div className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm text-green-500">{t('connected') || 'Connected'}</span>
+                <span className="text-sm text-green-500">{t('connected') || 'Baglandi'}</span>
               </div>
             ) : (
               <button 
@@ -592,7 +604,7 @@ Devam etmek istiyor musunuz?`;
                 className="zet-btn w-full flex items-center justify-center gap-2 py-2"
               >
                 <Link2 className="h-4 w-4" />
-                {connectingDrive ? 'Connecting...' : (t('connectDrive') || 'Connect Drive')}
+                {connectingDrive ? 'Baglaniyor...' : (t('connectDrive') || 'Drive Bagla')}
               </button>
             )}
           </div>
@@ -603,7 +615,7 @@ Devam etmek istiyor musunuz?`;
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: 'var(--zet-text-muted)' }}
           >
-            <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Shortcuts'}
+            <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Kisayollar'}
           </button>
 
           {/* Fast Select */}
@@ -612,7 +624,7 @@ Devam etmek istiyor musunuz?`;
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: 'var(--zet-text-muted)' }}
           >
-            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Fast Select'} ({fastSelectTools.length}/{fastSelectLimit})
+            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Hizli Secim'} ({fastSelectTools.length}/{fastSelectLimit})
           </button>
 
           {/* AI Settings */}
@@ -652,7 +664,7 @@ Devam etmek istiyor musunuz?`;
             style={{ color: 'var(--zet-primary-light)' }}
             data-testid="subscription-btn"
           >
-            <CreditCard className="h-4 w-4" /> {t('subscription') || 'Subscription'}
+            <CreditCard className="h-4 w-4" /> {t('subscription') || 'Abonelik'}
           </button>
 
           {/* Buy Credits */}
@@ -822,7 +834,7 @@ Devam etmek istiyor musunuz?`;
             )}
           </div>
           <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
-            {t('setReminder') || 'Set a reminder to get notified'}
+            {t('setReminder') || 'Hatirlatici ayarlayarak bildirim alin'}
           </p>
         </div>
       </main>
@@ -874,7 +886,7 @@ Devam etmek istiyor musunuz?`;
                 style={{ background: newDocType === 'new' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
               >
                 <Plus className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--zet-text)' }} />
-                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('newDocument') || 'New Document'}</span>
+                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('newDocument') || 'Yeni Belge'}</span>
               </button>
               <button
                 onClick={() => setNewDocType('pdf')}
@@ -882,7 +894,7 @@ Devam etmek istiyor musunuz?`;
                 style={{ background: newDocType === 'pdf' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
               >
                 <FileEdit className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--zet-text)' }} />
-                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF') || 'Edit PDF'}</span>
+                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF') || 'PDF Duzenle'}</span>
               </button>
             </div>
 
@@ -910,7 +922,7 @@ Devam etmek istiyor musunuz?`;
                   ) : (
                     <div style={{ color: 'var(--zet-text-muted)' }}>
                       <Upload className="h-8 w-8 mx-auto mb-2" />
-                      <span className="text-sm">{t('clickToUpload') || 'Click to upload PDF'}</span>
+                      <span className="text-sm">{t('clickToUpload') || 'PDF yuklemek icin tiklayin'}</span>
                     </div>
                   )}
                 </div>
@@ -960,7 +972,7 @@ Devam etmek istiyor musunuz?`;
               disabled={newDocType === 'pdf' && !pdfFile}
               className="zet-btn w-full disabled:opacity-50"
             >
-              {newDocType === 'pdf' ? (t('openPDF') || 'Open & Edit PDF') : 'Create Document'}
+              {newDocType === 'pdf' ? (t('openPDF') || 'PDF Ac ve Duzenle') : 'Belge Olustur'}
             </button>
           </div>
         </div>
@@ -972,7 +984,7 @@ Devam etmek istiyor musunuz?`;
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
-                <Keyboard className="h-5 w-5" /> {t('shortcuts') || 'Keyboard Shortcuts'}
+                <Keyboard className="h-5 w-5" /> {t('shortcuts') || 'Klavye Kisayollari'}
               </h3>
               <button onClick={() => { setShowShortcuts(false); setShortcutSearch(''); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
@@ -1050,7 +1062,7 @@ Devam etmek istiyor musunuz?`;
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
-                <Zap className="h-5 w-5" /> {t('fastSelect') || 'Fast Select'}
+                <Zap className="h-5 w-5" /> {t('fastSelect') || 'Hizli Secim'}
               </h3>
               <button onClick={() => { setShowFastSelect(false); setFastSelectSearch(''); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
@@ -1058,7 +1070,7 @@ Devam etmek istiyor musunuz?`;
             </div>
             
             <p className="text-sm mb-3" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('fastSelectDesc') || 'Select 4 favorite tools for quick access in the editor.'}
+              {t('fastSelectDesc') || 'Editorde hizli erisim icin 4 favori aracinizi secin.'}
             </p>
 
             {/* Selected Tools */}
@@ -1114,8 +1126,8 @@ Devam etmek istiyor musunuz?`;
             </div>
 
             <p className="text-xs mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-              {fastSelectTools.length}/{fastSelectLimit} {t('selected') || 'selected'}
-              {userSubscription === 'free' && <span className="ml-1 text-blue-400">({t('upgradePlan') || 'Upgrade for more'})</span>}
+              {fastSelectTools.length}/{fastSelectLimit} {t('selected') || 'secili'}
+              {userSubscription === 'free' && <span className="ml-1 text-blue-400">({t('upgradePlan') || 'Daha fazlasi icin yukselt'})</span>}
             </p>
           </div>
         </div>
@@ -1149,14 +1161,14 @@ Devam etmek istiyor musunuz?`;
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all ${billingCycle === 'monthly' ? 'text-white' : ''}`}
                   style={{ background: billingCycle === 'monthly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'monthly' ? 'white' : 'var(--zet-text-muted)' }}
                 >
-                  {t('monthly') || 'Monthly'}
+                  {t('monthly') || 'Aylik'}
                 </button>
                 <button
                   onClick={() => setBillingCycle('yearly')}
                   className={`px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1 ${billingCycle === 'yearly' ? 'text-white' : ''}`}
                   style={{ background: billingCycle === 'yearly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'yearly' ? 'white' : 'var(--zet-text-muted)' }}
                 >
-                  {t('yearly') || 'Yearly'}
+                  {t('yearly') || 'Yillik'}
                   <span className="text-xs px-1.5 py-0.5 rounded bg-green-500 text-white">-17%</span>
                 </button>
               </div>
@@ -1210,7 +1222,7 @@ Devam etmek istiyor musunuz?`;
                               className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white"
                               style={{ background: plan.color }}
                             >
-                              {t('recommended') || 'RECOMMENDED'}
+                              {t('recommended') || 'ONERILEN'}
                             </div>
                           )}
                           
@@ -1294,7 +1306,7 @@ Devam etmek istiyor musunuz?`;
             </div>
             
             <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('subscriptionNote') || 'All plans include 7-day free trial. Cancel anytime.'}
+              {t('subscriptionNote') || 'Tum planlar 7 gunluk ucretsiz deneme icerir. Istediginiz zaman iptal edebilirsiniz.'}
             </p>
           </div>
         </div>
@@ -1521,16 +1533,16 @@ Devam etmek istiyor musunuz?`;
                   >
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
-                        background: pkg.credits >= 1300 ? 'rgba(251,191,36,0.15)' : pkg.credits >= 700 ? 'rgba(139,92,246,0.15)' : pkg.credits >= 350 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'
+                        background: pkg.credits >= 1000 ? 'rgba(251,191,36,0.15)' : pkg.credits >= 700 ? 'rgba(139,92,246,0.15)' : pkg.credits >= 350 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'
                       }}>
                         <Zap className="h-5 w-5" style={{
-                          color: pkg.credits >= 1300 ? '#fbbf24' : pkg.credits >= 700 ? '#8b5cf6' : pkg.credits >= 350 ? '#3b82f6' : '#10b981'
+                          color: pkg.credits >= 1000 ? '#fbbf24' : pkg.credits >= 700 ? '#8b5cf6' : pkg.credits >= 350 ? '#3b82f6' : '#10b981'
                         }} />
                       </div>
                       <div>
                         <p className="text-sm font-bold" style={{ color: 'var(--zet-text)' }}>{pkg.credits} Kredi</p>
                         <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
-                          {pkg.credits >= 1300 ? 'En Avantajli' : pkg.credits >= 700 ? 'Populer' : pkg.credits >= 350 ? 'Standart' : 'Baslangic'}
+                          {pkg.credits >= 1000 ? 'En Avantajli' : pkg.credits >= 700 ? 'Populer' : pkg.credits >= 350 ? 'Standart' : 'Baslangic'}
                         </p>
                       </div>
                     </div>
@@ -1560,6 +1572,7 @@ Devam etmek istiyor musunuz?`;
 
             <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
               Kredi paketleri aninda hesabiniza eklenir. Free disindaki planlara %15 indirim uygulanir.
+              <br />Maksimum kredi bakiyesi: 1000. Limit asildiginda fazla krediler silinir.
             </p>
           </div>
         </div>

@@ -99,6 +99,10 @@ class ZetaAutoWriteRequest(BaseModel):
     page_count: int = 1
     writing_style: str = "profesyonel"  # akademik, yaratici, resmi, gunluk, hikaye, profesyonel
 
+class ZetaDeepAnalysisRequest(BaseModel):
+    topic: str
+    document_content: Optional[str] = None
+
 class ZetaImageRequest(BaseModel):
     prompt: str
     reference_image: Optional[str] = None
@@ -601,7 +605,7 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
             {"$set": {"cancel_token": cancel_token, "cancel_pending": True, "cancel_requested_at": datetime.now(timezone.utc).isoformat()}}
         )
         # Send cancellation confirmation email
-        cancel_link = f"https://spider-mind.preview.emergentagent.com/api/subscription/confirm-cancel?token={cancel_token}"
+        cancel_link = f"https://brainstorm-ai-dev.preview.emergentagent.com/api/subscription/confirm-cancel?token={cancel_token}"
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
             <h2 style="color: #f59e0b; margin-bottom: 20px;">⚠️ Abonelik İptal Onayı</h2>
@@ -683,12 +687,14 @@ CREDIT_PACKAGES = [
     {"id": "pack_100", "credits": 100, "price": 2.99},
     {"id": "pack_350", "credits": 350, "price": 8.99},
     {"id": "pack_700", "credits": 700, "price": 14.99},
-    {"id": "pack_1300", "credits": 1300, "price": 24.99},
+    {"id": "pack_1000", "credits": 1000, "price": 24.99},
 ]
+MAX_CREDIT_BALANCE = 1000
 SUBSCRIBER_DISCOUNT = 0.15  # 15% discount for paid plans
 
 class CreditPurchaseRequest(BaseModel):
     package_id: str
+    confirm_overflow: bool = False
 
 @api_router.get("/credits/packages")
 async def get_credit_packages(user: User = Depends(get_current_user)):
@@ -720,7 +726,25 @@ async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_curre
     has_discount = plan != "free"
     final_price = round(pkg["price"] * (1 - SUBSCRIBER_DISCOUNT), 2) if has_discount else pkg["price"]
     current_bonus = user_data.get("bonus_credits", 0) if user_data else 0
-    new_bonus = current_bonus + pkg["credits"]
+
+    # Get total available credits (daily + bonus)
+    credit_info = await get_user_credits(user.user_id)
+    total_after_purchase = credit_info['credits_remaining'] + pkg["credits"]
+
+    if total_after_purchase > MAX_CREDIT_BALANCE:
+        if not req.confirm_overflow:
+            overflow = total_after_purchase - MAX_CREDIT_BALANCE
+            return JSONResponse(status_code=200, content={
+                "needs_confirmation": True,
+                "message": f"Bu alim sonrasi kredi bakiyeniz {total_after_purchase} olacak. Maksimum limit {MAX_CREDIT_BALANCE} kredidir. Fazla {overflow} kredi silinecektir.",
+                "overflow": overflow,
+                "total_after": total_after_purchase
+            })
+        # User confirmed: cap the bonus credits
+        new_bonus = min(current_bonus + pkg["credits"], MAX_CREDIT_BALANCE)
+    else:
+        new_bonus = current_bonus + pkg["credits"]
+
     await db.users.update_one(
         {"user_id": user.user_id},
         {"$set": {"bonus_credits": new_bonus}}
@@ -814,6 +838,7 @@ CREDIT_COSTS = {
     'photo_edit_pro': 40,
     'judge_basic': 25,
     'judge_deep': 70,
+    'deep_analysis': 100,
     'zeta_chat': 0,  # Free, limited by char count
 }
 
@@ -1167,6 +1192,100 @@ FORMAT KURALLARI:
         "credits_spent": actual_credits,
         "credits_remaining": max(0, credit_info['credits_remaining'] - actual_credits)
     }
+
+@api_router.post("/zeta/deep-analysis")
+async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(get_current_user)):
+    """Derin Analiz: ZETA internette arastirma yaparak derinlemesine analiz yazar. 100 kredi. Sadece Pro/Ultra."""
+    from emergentintegrations.llm.chat import LlmChat, UserMessage
+
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    plan = user_data.get("subscription", "free") if user_data else "free"
+
+    if plan not in ("pro", "ultra"):
+        raise HTTPException(status_code=403, detail="Derin Analiz sadece Pro ve Ultra aboneler icin kullanilabilir.")
+
+    credit_result = await spend_credits(user.user_id, "deep_analysis")
+    if not credit_result['success']:
+        raise HTTPException(status_code=402, detail=credit_result.get('message', 'Yetersiz kredi'))
+
+    api_key = os.getenv("EMERGENT_LLM_KEY")
+    session_id = f"deep_{user.user_id}_{uuid.uuid4().hex[:8]}"
+
+    # Step 1: Generate search queries from the topic
+    query_chat = LlmChat(
+        api_key=api_key,
+        session_id=f"q_{session_id}",
+        system_message="Sen bir arastirma asistanisin. Verilen konu hakkinda internette aranacak 3 farkli arama sorgusu olustur. Her sorguyu yeni satirda yaz. Sadece sorgu metinlerini yaz, baska bir sey ekleme."
+    )
+    query_chat.with_model("gemini", "gemini-3-flash-preview")
+    queries_raw = await query_chat.send_message(UserMessage(text=f"Konu: {req.topic}"))
+    search_queries = [q.strip() for q in queries_raw.strip().split('\n') if q.strip()][:3]
+
+    # Step 2: Use web search for each query
+    research_results = []
+    async with httpx.AsyncClient(timeout=15.0) as http_client:
+        for sq in search_queries:
+            try:
+                search_url = f"https://api.duckduckgo.com/?q={sq}&format=json&no_html=1&no_redirect=1"
+                resp = await http_client.get(search_url)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    abstract = data.get("AbstractText", "")
+                    related = data.get("RelatedTopics", [])
+                    snippets = []
+                    if abstract:
+                        snippets.append(abstract)
+                    for rt in related[:5]:
+                        if isinstance(rt, dict) and rt.get("Text"):
+                            snippets.append(rt["Text"])
+                    if snippets:
+                        research_results.append({"query": sq, "findings": "\n".join(snippets)})
+            except Exception as e:
+                logging.warning(f"Deep analysis search failed for '{sq}': {e}")
+
+    research_text = ""
+    for r in research_results:
+        research_text += f"\nArama: {r['query']}\nBulgular:\n{r['findings']}\n---\n"
+
+    if not research_text:
+        research_text = "(Internet arastirmasi sonuc donduremedi. Mevcut bilgilerinle analiz yap.)"
+
+    doc_context = ""
+    if req.document_content:
+        doc_context = f"\n\nKULLANICININ BELGESI:\n{req.document_content[:5000]}\n"
+
+    # Step 3: Send research to LLM for deep analysis
+    analysis_chat = LlmChat(
+        api_key=api_key,
+        session_id=session_id,
+        system_message=f"""Sen ZETA Derin Analiz sistemisin. Internet arastirmasi sonuclarini kullanarak kapsamli ve derinlemesine bir analiz raporu yazacaksin.
+
+KURALLAR:
+- Turkce yaz
+- Detayli, kaynak gosterimli ve profesyonel bir analiz yap
+- Alt basliklar kullan
+- Verileri ve bulgulari sentezle
+- Kendi bilginle arastirma sonuclarini birlestir
+- En az 800 kelime yaz
+- Analiz sonunda ozet ve oneriler sun
+
+INTERNET ARASTIRMA SONUCLARI:
+{research_text}
+{doc_context}"""
+    )
+    analysis_chat.with_model("gemini", "gemini-3-flash-preview")
+
+    analysis = await analysis_chat.send_message(UserMessage(text=f"Konu: {req.topic}\n\nYukaridaki internet arastirmasi sonuclarini ve kendi bilgini kullanarak kapsamli bir derin analiz raporu yaz."))
+
+    return {
+        "success": True,
+        "analysis": analysis,
+        "search_queries": search_queries,
+        "sources_found": len(research_results),
+        "credits_spent": credit_result['cost'],
+        "credits_remaining": credit_result['credits_remaining']
+    }
+
 
 @api_router.post("/zeta/chat")
 async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
@@ -1671,14 +1790,14 @@ async def connect_google_drive(request: Request, user: User = Depends(get_curren
     
     # If no credentials configured, return mock
     if not client_id or not client_secret:
-        frontend_url = os.getenv("FRONTEND_URL", "https://spider-mind.preview.emergentagent.com")
+        frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-ai-dev.preview.emergentagent.com")
         await users_collection.update_one(
             {"user_id": user.user_id},
             {"$set": {"drive_token": "mock_token", "drive_connected_at": datetime.now(timezone.utc).isoformat()}}
         )
         return {"authorization_url": f"{frontend_url}/dashboard?drive_connected=true", "message": "Drive connected (mock - no credentials configured)"}
     
-    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://spider-mind.preview.emergentagent.com/api/drive/callback")
+    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://brainstorm-ai-dev.preview.emergentagent.com/api/drive/callback")
     
     try:
         flow = Flow.from_client_config(
@@ -1714,8 +1833,8 @@ async def drive_callback(code: str = Query(...), state: str = Query(...)):
     """Handle Google Drive OAuth callback"""
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://spider-mind.preview.emergentagent.com/api/drive/callback")
-    frontend_url = os.getenv("FRONTEND_URL", "https://spider-mind.preview.emergentagent.com")
+    redirect_uri = os.getenv("GOOGLE_DRIVE_REDIRECT_URI", "https://brainstorm-ai-dev.preview.emergentagent.com/api/drive/callback")
+    frontend_url = os.getenv("FRONTEND_URL", "https://brainstorm-ai-dev.preview.emergentagent.com")
     
     try:
         flow = Flow.from_client_config(

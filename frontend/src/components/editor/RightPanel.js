@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
-import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2, Scale, Settings, PenTool, FileText, CreditCard } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Image, Volume2, Scale, Settings, PenTool, FileText, CreditCard, Search } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -62,6 +62,12 @@ export const RightPanel = ({
   const [autoLoading, setAutoLoading] = useState(false);
   const [autoResult, setAutoResult] = useState(null);
   const [autoError, setAutoError] = useState('');
+
+  // Deep Analysis state
+  const [deepTopic, setDeepTopic] = useState('');
+  const [deepLoading, setDeepLoading] = useState(false);
+  const [deepResult, setDeepResult] = useState(null);
+  const [deepError, setDeepError] = useState('');
 
   // Load chat history on mount
   useEffect(() => {
@@ -236,6 +242,35 @@ export const RightPanel = ({
     setAutoLoading(false);
   };
 
+  const handleDeepAnalysis = async () => {
+    if (!deepTopic.trim() || deepLoading) return;
+    setDeepLoading(true);
+    setDeepError('');
+    setDeepResult(null);
+    try {
+      const res = await axios.post(`${API}/zeta/deep-analysis`, {
+        topic: deepTopic,
+        document_content: documentContent || '',
+      }, { withCredentials: true });
+      if (res.data.success) {
+        setDeepResult(res.data);
+      } else {
+        setDeepError(res.data.error || 'Analiz basarisiz');
+      }
+    } catch (err) {
+      const status = err.response?.status;
+      const detail = err.response?.data?.detail;
+      if (status === 403) {
+        setDeepError(detail || 'Derin Analiz sadece Pro ve Ultra aboneler icin kullanilabilir.');
+      } else if (status === 402) {
+        setDeepError(detail || 'Yetersiz kredi! Derin Analiz 100 kredi gerektirir.');
+      } else {
+        setDeepError(detail || 'Derin analiz basarisiz');
+      }
+    }
+    setDeepLoading(false);
+  };
+
   const sendZetaMessage = async () => {
     if (!zetaInput.trim() || zetaLoading) return;
     const msg = zetaInput;
@@ -376,6 +411,15 @@ export const RightPanel = ({
             <Scale className="h-3.5 w-3.5" style={{ color: '#c8005a' }} />
             <span className="font-medium text-[10px]" style={{ color: 'var(--zet-text)' }}>Judge</span>
           </button>
+          <button 
+            onClick={() => setActiveAI('deep')}
+            data-testid="ai-tab-deep"
+            className={`flex-1 p-2 flex items-center justify-center gap-1 transition-all ${activeAI === 'deep' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
+            style={{ borderColor: activeAI === 'deep' ? '#f59e0b' : 'transparent' }}
+          >
+            <Search className="h-3.5 w-3.5" style={{ color: '#f59e0b' }} />
+            <span className="font-medium text-[10px]" style={{ color: 'var(--zet-text)' }}>Derin</span>
+          </button>
           {onShowChatSettings && (
             <button 
               onClick={onShowChatSettings}
@@ -497,7 +541,7 @@ export const RightPanel = ({
                         onChange={e => setAutoPages(Number(e.target.value))}
                         className="zet-input w-full text-xs py-1.5"
                       >
-                        {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                        {[1,2,3,4,5,6,7].map(n => (
                           <option key={n} value={n}>{n} sayfa</option>
                         ))}
                       </select>
@@ -714,6 +758,119 @@ export const RightPanel = ({
               </div>
             </div>
           </>
+        )}
+
+        {/* Deep Analysis Panel */}
+        {activeAI === 'deep' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 p-3 overflow-y-auto" style={{ background: 'linear-gradient(180deg, rgba(245,158,11,0.05) 0%, var(--zet-bg) 100%)' }}>
+              {!deepResult ? (
+                <div className="space-y-3">
+                  <div className="text-center mb-3">
+                    <Search className="h-6 w-6 mx-auto mb-2" style={{ color: '#f59e0b' }} />
+                    <p className="text-xs font-semibold" style={{ color: '#f59e0b' }}>Derin Analiz</p>
+                    <p className="text-[10px] mt-1" style={{ color: 'var(--zet-text-muted)' }}>ZETA internette arastirma yaparak derinlemesine analiz yazar</p>
+                  </div>
+
+                  {(userPlan !== 'pro' && userPlan !== 'ultra') ? (
+                    <div className="rounded-xl p-4 text-center" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                      <Search className="h-8 w-8 mx-auto mb-2" style={{ color: '#f59e0b', opacity: 0.5 }} />
+                      <p className="text-xs font-semibold mb-1" style={{ color: '#f59e0b' }}>Pro veya Ultra Plan Gerekli</p>
+                      <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Derin Analiz ozelligi sadece Pro ve Ultra aboneler icin kullanilabilir.</p>
+                      {onShowUpgrade && (
+                        <button onClick={() => onShowUpgrade('Derin Analiz icin Pro veya Ultra plana yukseltmeniz gerekiyor.')} className="mt-2 px-3 py-1.5 rounded-lg text-xs font-semibold" style={{ background: '#f59e0b', color: 'white' }}>
+                          Plani Yukselt
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Arastirma Konusu</label>
+                        <textarea
+                          data-testid="deep-analysis-topic"
+                          value={deepTopic}
+                          onChange={e => setDeepTopic(e.target.value)}
+                          placeholder="Ornegin: Turkiye'de yapay zeka sektoru ve gelecek projeksiyonlari..."
+                          className="zet-input w-full text-xs resize-none"
+                          rows={3}
+                        />
+                      </div>
+
+                      <div className="rounded-lg p-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
+                        <div className="flex items-center gap-1.5 mb-1">
+                          <CreditCard className="h-3 w-3" style={{ color: '#f59e0b' }} />
+                          <span className="text-[10px] font-semibold" style={{ color: '#f59e0b' }}>Maliyet: 100 Kredi</span>
+                        </div>
+                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
+                          ZETA internette arastirma yapip detayli bir analiz raporu olusturacak
+                        </p>
+                      </div>
+
+                      {deepError && (
+                        <div className="rounded-lg p-2 text-xs" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                          {deepError}
+                        </div>
+                      )}
+
+                      <button
+                        data-testid="deep-analysis-start-btn"
+                        onClick={handleDeepAnalysis}
+                        disabled={!deepTopic.trim() || deepLoading}
+                        className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
+                        style={{ background: '#f59e0b', color: 'white' }}
+                      >
+                        {deepLoading ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            Arastiriliyor...
+                          </>
+                        ) : (
+                          <>
+                            <Search className="h-3.5 w-3.5" />
+                            Derin Analiz Baslat
+                          </>
+                        )}
+                      </button>
+                    </>
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <Search className="h-4 w-4" style={{ color: '#f59e0b' }} />
+                      <span className="text-xs font-semibold" style={{ color: '#f59e0b' }}>Analiz Tamamlandi!</span>
+                    </div>
+                    <button
+                      onClick={() => { setDeepResult(null); setDeepTopic(''); }}
+                      className="text-[10px] px-2 py-1 rounded hover:bg-white/10"
+                      style={{ color: 'var(--zet-text-muted)' }}
+                      data-testid="deep-analysis-new-btn"
+                    >
+                      Yeni Analiz
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(245,158,11,0.08)' }}>
+                      <p className="text-sm font-bold" style={{ color: '#f59e0b' }}>{deepResult.sources_found || 0}</p>
+                      <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Kaynak</p>
+                    </div>
+                    <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(245,158,11,0.08)' }}>
+                      <p className="text-sm font-bold" style={{ color: '#f59e0b' }}>{deepResult.credits_spent || 100}</p>
+                      <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Kredi</p>
+                    </div>
+                  </div>
+                  <div className="rounded-lg p-2 text-xs max-h-96 overflow-y-auto whitespace-pre-wrap" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
+                    {deepResult.analysis}
+                  </div>
+                  <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
+                    Arama sorgusu: {deepResult.search_queries?.join(', ')}
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         )}
       </div>
       )}
