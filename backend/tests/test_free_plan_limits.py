@@ -11,7 +11,7 @@ import requests
 import os
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://brainstorm-ai-dev.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zeta-ai-write.preview.emergentagent.com')
 
 # Test credentials for demo user (FREE plan)
 DEMO_USER = {

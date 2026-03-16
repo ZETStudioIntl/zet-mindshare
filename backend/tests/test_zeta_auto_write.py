@@ -6,7 +6,7 @@ import pytest
 import requests
 import os
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://brainstorm-ai-dev.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zeta-ai-write.preview.emergentagent.com')
 
 # Test user credentials
 TEST_USER = {"email": "test2@test.com", "password": "password123"}

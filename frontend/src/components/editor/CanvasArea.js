@@ -106,7 +106,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit }) => {
+const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage }) => {
   const ref = useRef(null);
   useEffect(() => {
     if (isEditing && ref.current) {
@@ -115,6 +115,16 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
       r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
     }
   }, [isEditing]);
+  
+  // Check overflow while typing
+  const checkOverflow = useCallback(() => {
+    if (!ref.current || !pageHeight || !onAutoAddPage) return;
+    const rect = ref.current.getBoundingClientRect();
+    const elBottom = el.y + (rect.height / zoom);
+    if (elBottom > pageHeight - 40) {
+      onAutoAddPage();
+    }
+  }, [el.y, pageHeight, zoom, onAutoAddPage]);
   
   // Redacted text - show as black bar
   if (el.isRedacted) {
@@ -147,6 +157,7 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
       onClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
       onBlur={() => { if (ref.current) onCommit(el.id, ref.current.innerText); }}
+      onInput={checkOverflow}
       onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
       className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
       style={{
@@ -210,7 +221,7 @@ export const CanvasArea = ({
 }) => {
   const canvasRef = useRef(null);
   const [editingId, setEditingId] = useState(null);
-  const pendingClickRef = useRef(null);
+  const pendingEditRef = useRef(null);
   const [dragging, setDragging] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizing, setResizing] = useState(null);
@@ -284,19 +295,18 @@ export const CanvasArea = ({
     else { setMagnifierActive(false); }
   }, [activeTool, canvasElements, selectedElement]);
 
-  // Process pending click after page switch - only run when canvasElements are updated for the target page
+  // Process pending edit after page switch - uses element ID, not coordinates
   useEffect(() => {
-    if (pendingClickRef.current && pendingClickRef.current.pageIdx === currentPage) {
-      const { x, y } = pendingClickRef.current;
-      pendingClickRef.current = null;
-      // Small delay to ensure render is complete
-      const timer = setTimeout(() => {
-        setElementMenu(null);
-        setVectorMenu(null);
-        // Find text element at click position
-        const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
-        if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
-        // Create new text if no element found
+    if (!pendingEditRef.current || pendingEditRef.current.pageIdx !== currentPage) return;
+    const { elementId, x, y } = pendingEditRef.current;
+    pendingEditRef.current = null;
+    const timer = setTimeout(() => {
+      setElementMenu(null);
+      setVectorMenu(null);
+      if (elementId) {
+        setEditingId(elementId);
+        setSelectedElement(elementId);
+      } else {
         const ml = 60;
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
@@ -307,10 +317,10 @@ export const CanvasArea = ({
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
         };
         setCanvasElements(prev => [...prev, ne]); setEditingId(ne.id); setSelectedElement(ne.id);
-      }, 50);
-      return () => clearTimeout(timer);
-    }
-  }, [currentPage, canvasElements, currentColor, currentFont, currentFontSize, currentLineHeight, currentTextAlign, gradientEnd, gradientStart, isBold, isItalic, isStrikethrough, isUnderline, pageSize.width, setCanvasElements, setSelectedElement]);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [currentPage, canvasElements]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
   const getCoords = useCallback((e, el) => { const r = el.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }, [zoom]);
@@ -323,12 +333,15 @@ export const CanvasArea = ({
       setCanvasElements(u); 
       onSaveHistory(u);
       
-      // Check if element exceeds page height - auto add new page
-      if (el) {
-        const lines = (text || '').split('\n').length;
-        const textHeight = lines * (el.fontSize || 16) * (el.lineHeight || 1.5);
+      // Check if text overflows the page and auto-add new page
+      if (el && onAddPage) {
+        const lineCount = (text || '').split('\n').length;
+        const fontSize = el.fontSize || 16;
+        const lineHeight = el.lineHeight || 1.5;
+        const textHeight = lineCount * fontSize * lineHeight;
         const bottomY = el.y + textHeight;
-        if (bottomY > pageSize.height - 20 && onAddPage) {
+        const pageBottom = pageSize.height - 40; // 40px bottom margin
+        if (bottomY > pageBottom) {
           onAddPage();
         }
       }
@@ -358,9 +371,11 @@ export const CanvasArea = ({
     
     // If clicking a different page, switch to it first then process the click
     if (pageIdx !== currentPage) {
-      // Store coordinates BEFORE changing page, so useEffect can use them
       const coords = getCoords(e, e.currentTarget);
-      pendingClickRef.current = { x: coords.x, y: coords.y, pageIdx };
+      // Look up elements from the target page's saved data (not canvasElements which is current page)
+      const pageElements = doc?.pages?.[pageIdx]?.elements || [];
+      const clickedEl = [...pageElements].reverse().find(el => el.type === 'text' && isPointInElement(coords.x, coords.y, el));
+      pendingEditRef.current = { elementId: clickedEl?.id || null, x: coords.x, y: coords.y, pageIdx };
       changePage(pageIdx);
       return;
     }
@@ -369,7 +384,7 @@ export const CanvasArea = ({
     const { x, y } = getCoords(e, e.currentTarget);
     if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
     processCanvasClick(x, y, e);
-  }, [activeTool, canvasElements, changePage, currentPage, dragging, draggingVector, getCoords, pageSize, resizing, justSelectedRef]);
+  }, [activeTool, canvasElements, changePage, currentPage, doc, dragging, draggingVector, getCoords, pageSize, resizing, justSelectedRef]);
 
   const processCanvasClick = (x, y, e) => {
     setElementMenu(null);
@@ -928,8 +943,8 @@ export const CanvasArea = ({
                     transform: transformStyle,
                     transformOrigin: 'center center'
                   }}
-                  onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
-                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={{ left: 60, right: 60 }} isEditing={editingId === el.id} onStartEdit={id => { if (idx !== currentPage) changePage(idx); setEditingId(id); }} onCommit={handleTextCommit} />}
+                  onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); if (idx !== currentPage) changePage(idx); if (onElementSelect) onElementSelect(el); }}>
+                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={{ left: 60, right: 60 }} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} />}
                   {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />

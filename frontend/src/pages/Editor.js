@@ -441,8 +441,12 @@ const Editor = () => {
 
   const addPage = () => {
     const newPage = { page_id: `page_${Date.now()}`, elements: [], drawPaths: [], pageSize };
-    setDocument(prev => ({ ...prev, pages: [...(prev.pages || []), newPage] }));
-    setTimeout(() => changePage(document.pages.length), 100);
+    setDocument(prev => {
+      const updatedPages = [...(prev.pages || []), newPage];
+      // Schedule page change after state update
+      setTimeout(() => setCurrentPage(updatedPages.length - 1), 50);
+      return { ...prev, pages: updatedPages };
+    });
   };
 
   const handleAutoWriteContent = (pages, pageCount) => {
@@ -696,29 +700,47 @@ const Editor = () => {
     }
   };
 
-  // === EXPORT PDF ===
+  // === EXPORT PDF (all pages) ===
   const exportToPDF = async () => {
     if (!canvasContainerRef.current) return;
     setExporting(true);
     try {
-      const canvas = await html2canvas(canvasContainerRef.current.querySelector('[data-testid="canvas-page-0"]') || canvasContainerRef.current, { scale: 2, useCORS: true, backgroundColor: pageBackground });
-      const imgData = canvas.toDataURL('image/png');
       const pdf = new jsPDF({ orientation: pageSize.width > pageSize.height ? 'l' : 'p', unit: 'px', format: [pageSize.width, pageSize.height] });
-      pdf.addImage(imgData, 'PNG', 0, 0, pageSize.width, pageSize.height);
+      const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
+      for (let i = 0; i < pageElements.length; i++) {
+        if (i > 0) pdf.addPage([pageSize.width, pageSize.height], pageSize.width > pageSize.height ? 'l' : 'p');
+        const canvas = await html2canvas(pageElements[i], { scale: 2, useCORS: true, backgroundColor: pageBackground });
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, pageSize.width, pageSize.height);
+      }
       pdf.save(`${document.title || 'document'}.pdf`);
     } catch (err) { console.error('Export failed:', err); }
     setExporting(false);
     setShowExport(false);
   };
 
-  // Export to PNG/JPEG
+  // Export to PNG/JPEG (all pages combined vertically)
   const exportToImage = async (format = 'png') => {
     if (!canvasContainerRef.current) return;
     setExporting(true);
     try {
       const scale = exportQuality === 'high' ? 3 : exportQuality === 'medium' ? 2 : 1;
-      const canvas = await html2canvas(canvasContainerRef.current.querySelector('[data-testid="canvas-page-0"]') || canvasContainerRef.current, { scale, useCORS: true, backgroundColor: pageBackground });
-      const imgData = canvas.toDataURL(`image/${format}`, format === 'jpeg' ? 0.92 : undefined);
+      const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
+      const canvases = [];
+      for (let i = 0; i < pageElements.length; i++) {
+        const c = await html2canvas(pageElements[i], { scale, useCORS: true, backgroundColor: pageBackground });
+        canvases.push(c);
+      }
+      if (canvases.length === 0) { setExporting(false); return; }
+      // Combine all pages vertically
+      const totalWidth = Math.max(...canvases.map(c => c.width));
+      const totalHeight = canvases.reduce((sum, c) => sum + c.height, 0);
+      const combined = window.document.createElement('canvas');
+      combined.width = totalWidth; combined.height = totalHeight;
+      const ctx = combined.getContext('2d');
+      let yOffset = 0;
+      for (const c of canvases) { ctx.drawImage(c, 0, yOffset); yOffset += c.height; }
+      const imgData = combined.toDataURL(`image/${format}`, format === 'jpeg' ? 0.92 : undefined);
       const link = window.document.createElement('a');
       link.download = `${document.title || 'document'}.${format}`;
       link.href = imgData;
@@ -728,29 +750,36 @@ const Editor = () => {
     setShowExport(false);
   };
 
-  // Export to SVG
+  // Export to SVG (all pages)
   const exportToSVG = () => {
-    const svgContent = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${pageSize.height}" viewBox="0 0 ${pageSize.width} ${pageSize.height}">
-  <rect width="100%" height="100%" fill="${pageBackground}"/>
-  ${canvasElements.map(el => {
-    if (el.type === 'text') {
-      return `<text x="${el.x}" y="${el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italic ? 'font-style="italic"' : ''}>${el.content || ''}</text>`;
-    } else if (el.type === 'shape') {
-      if (el.shapeType === 'circle') return `<circle cx="${el.x + el.width/2}" cy="${el.y + el.height/2}" r="${Math.min(el.width, el.height)/2}" fill="${el.fill || '#000'}"/>`;
-      if (el.shapeType === 'square') return `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${el.fill || '#000'}"/>`;
-      if (el.shapeType === 'triangle') return `<polygon points="${el.x + el.width/2},${el.y} ${el.x},${el.y + el.height} ${el.x + el.width},${el.y + el.height}" fill="${el.fill || '#000'}"/>`;
-    } else if (el.type === 'image' && el.src) {
-      return `<image href="${el.src}" x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}"/>`;
-    }
-    return '';
-  }).join('\n  ')}
-  ${drawPaths.map(p => {
-    if (!p.points || p.points.length < 2) return '';
-    const d = p.points.map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x},${pt.y}`).join(' ');
-    return `<path d="${d}" stroke="${p.color || '#000'}" stroke-width="${p.size || 2}" fill="none" opacity="${(p.opacity || 100) / 100}"/>`;
-  }).join('\n  ')}
-</svg>`;
+    const allPages = document.pages || [{ elements: canvasElements, drawPaths }];
+    const pageH = pageSize.height;
+    const totalH = allPages.length * pageH;
+    let svgContent = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${pageSize.width}" height="${totalH}" viewBox="0 0 ${pageSize.width} ${totalH}">`;
+    allPages.forEach((page, pIdx) => {
+      const yOff = pIdx * pageH;
+      const els = pIdx === currentPage ? canvasElements : (page.elements || []);
+      const paths = pIdx === currentPage ? drawPaths : (page.drawPaths || []);
+      svgContent += `\n  <rect x="0" y="${yOff}" width="${pageSize.width}" height="${pageH}" fill="${pageBackground}"/>`;
+      els.forEach(el => {
+        if (el.type === 'text') {
+          svgContent += `\n  <text x="${el.x}" y="${yOff + el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italic ? 'font-style="italic"' : ''}>${(el.content || '').replace(/</g, '&lt;')}</text>`;
+        } else if (el.type === 'shape') {
+          if (el.shapeType === 'circle') svgContent += `\n  <circle cx="${el.x + el.width/2}" cy="${yOff + el.y + el.height/2}" r="${Math.min(el.width, el.height)/2}" fill="${el.fill || '#000'}"/>`;
+          else if (el.shapeType === 'square') svgContent += `\n  <rect x="${el.x}" y="${yOff + el.y}" width="${el.width}" height="${el.height}" fill="${el.fill || '#000'}"/>`;
+          else if (el.shapeType === 'triangle') svgContent += `\n  <polygon points="${el.x + el.width/2},${yOff + el.y} ${el.x},${yOff + el.y + el.height} ${el.x + el.width},${yOff + el.y + el.height}" fill="${el.fill || '#000'}"/>`;
+        } else if (el.type === 'image' && el.src) {
+          svgContent += `\n  <image href="${el.src}" x="${el.x}" y="${yOff + el.y}" width="${el.width}" height="${el.height}"/>`;
+        }
+      });
+      paths.forEach(p => {
+        if (!p.points || p.points.length < 2) return;
+        const d = p.points.map((pt, i) => `${i === 0 ? 'M' : 'L'}${pt.x},${yOff + pt.y}`).join(' ');
+        svgContent += `\n  <path d="${d}" stroke="${p.color || '#000'}" stroke-width="${p.size || 2}" fill="none" opacity="${(p.opacity || 100) / 100}"/>`;
+      });
+    });
+    svgContent += '\n</svg>';
     const blob = new Blob([svgContent], { type: 'image/svg+xml' });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement('a');
@@ -761,15 +790,19 @@ const Editor = () => {
     setShowExport(false);
   };
 
-  // Export to JSON (project file)
+  // Export to JSON (project file - all pages)
   const exportToJSON = () => {
+    // Save current page state first
+    const updatedPages = [...(document.pages || [])];
+    if (updatedPages[currentPage]) {
+      updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
+    }
     const projectData = {
       version: '1.0',
       title: document.title,
       pageSize,
       pageBackground,
-      canvasElements,
-      drawPaths,
+      pages: updatedPages,
       createdAt: new Date().toISOString(),
       app: 'ZET Mindshare'
     };
