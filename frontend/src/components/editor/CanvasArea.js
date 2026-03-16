@@ -108,14 +108,21 @@ const ShapeRenderer = ({ el }) => {
 
 const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onRemoveRedact }) => {
   const ref = useRef(null);
-  const [showRedactMenu, setShowRedactMenu] = useState(false);
+  const prevEditingRef = useRef(false);
+  
   useEffect(() => {
     if (isEditing && ref.current) {
+      // Load HTML content when entering edit mode
+      if (!prevEditingRef.current) {
+        const html = el.htmlContent || (el.content ? el.content.replace(/\n/g, '<br>') : '');
+        ref.current.innerHTML = html;
+      }
       ref.current.focus();
       const r = window.document.createRange(); const s = window.getSelection();
       r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
     }
-  }, [isEditing]);
+    prevEditingRef.current = isEditing;
+  }, [isEditing, el.htmlContent, el.content]);
   
   // Check overflow while typing
   const checkOverflow = useCallback(() => {
@@ -126,54 +133,62 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
       onAutoAddPage();
     }
   }, [el.y, pageHeight, zoom, onAutoAddPage]);
-  
-  // Redacted text - show as black bar with remove button
-  if (el.isRedacted) {
-    return (
-      <div 
-        data-testid={`text-element-${el.id}`}
-        style={{ position: 'relative', display: 'inline-block' }}
-        onClick={(e) => { e.stopPropagation(); setShowRedactMenu(prev => !prev); }}
-      >
-        <div style={{
-          width: Math.max(80, (el.content?.length || 10) * (el.fontSize || 16) * 0.6) * zoom,
-          height: (el.fontSize || 16) * 1.4 * zoom,
-          background: '#000000',
-          borderRadius: 2,
-          cursor: 'pointer',
-        }} title="Sansürlenmiş İçerik" />
-        {showRedactMenu && (
-          <div data-testid={`redact-menu-${el.id}`} className="absolute top-full left-0 mt-1 z-50 animate-fadeIn"
-            style={{ minWidth: '140px' }} onClick={e => e.stopPropagation()}>
-            <button
-              data-testid={`remove-redact-${el.id}`}
-              onClick={() => { if (onRemoveRedact) onRemoveRedact(el.id); setShowRedactMenu(false); }}
-              className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium transition-all hover:scale-105"
-              style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)' }}
-            >
-              <EyeOff className="h-3.5 w-3.5" style={{ color: '#f59e0b' }} />
-              Siyah Bandı Kaldır
-            </button>
-          </div>
-        )}
-      </div>
-    );
-  }
+
+  // Handle click on redacted span to show remove button
+  const handleClick = useCallback((e) => {
+    e.stopPropagation();
+    const target = e.target;
+    // Check if clicked on a redacted span
+    if (target.dataset?.redacted === 'true') {
+      // Toggle remove button
+      const existing = target.querySelector('.redact-remove-btn');
+      if (existing) { existing.remove(); return; }
+      // Remove any other redact buttons
+      ref.current?.querySelectorAll('.redact-remove-btn').forEach(b => b.remove());
+      const btn = window.document.createElement('button');
+      btn.className = 'redact-remove-btn';
+      btn.textContent = 'Bandı Kaldır';
+      btn.style.cssText = 'position:absolute;top:100%;left:0;z-index:50;padding:4px 8px;font-size:11px;border-radius:6px;background:var(--zet-bg-card,#1e1e2e);border:1px solid var(--zet-border,#333);color:var(--zet-text,#eee);cursor:pointer;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.4);margin-top:2px;';
+      target.style.position = 'relative';
+      // Store original text before adding button
+      const originalText = target.childNodes[0]?.textContent || target.textContent;
+      btn.addEventListener('mousedown', (ev) => {
+        ev.preventDefault(); ev.stopPropagation();
+        // Unwrap: replace span with its original text content (not including button text)
+        target.replaceWith(originalText);
+        // Trigger save
+        if (ref.current) onCommit(el.id, ref.current.innerHTML, true);
+      });
+      target.appendChild(btn);
+      return;
+    }
+    // Remove any lingering redact buttons
+    ref.current?.querySelectorAll('.redact-remove-btn').forEach(b => b.remove());
+    onStartEdit(el.id);
+  }, [el.id, onStartEdit, onCommit]);
   
   const ml = pageMargins?.left || 60;
   const mr = pageMargins?.right || 60;
-  // Fixed width: entire text area between margins
   const fixedWidth = (pageWidth - ml - mr) * zoom;
   
   const gradientStyle = el.gradientStart && el.gradientEnd ? {
     background: `linear-gradient(90deg, ${el.gradientStart}, ${el.gradientEnd})`,
     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
   } : {};
+
+  // Render HTML content (supports redacted/highlighted spans)
+  const htmlContent = el.htmlContent || (el.content ? el.content.replace(/\n/g, '<br>') : (isEditing ? '' : '\u00A0'));
+
   return (
     <div ref={ref} data-testid={`text-element-${el.id}`} contentEditable={isEditing} suppressContentEditableWarning
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
-      onClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
-      onBlur={() => { if (ref.current) onCommit(el.id, ref.current.innerText); }}
+      onClick={handleClick}
+      onBlur={() => { 
+        if (ref.current) {
+          ref.current.querySelectorAll('.redact-remove-btn').forEach(b => b.remove());
+          onCommit(el.id, ref.current.innerHTML, true);
+        }
+      }}
       onInput={checkOverflow}
       onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
       className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
@@ -186,16 +201,15 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
         width: fixedWidth,
         wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
         cursor: 'text', caretColor: 'var(--zet-primary)',
-        padding: isEditing ? '2px 0 0 0' : undefined,
         paddingLeft: (el.paddingLeft || 0) * zoom,
         paddingRight: (el.paddingRight || 0) * zoom,
         paddingTop: (el.paddingTop || 0) * zoom,
         paddingBottom: (el.paddingBottom || 0) * zoom,
         backgroundColor: el.highlightColor || undefined,
         ...gradientStyle,
-      }}>
-      {el.content || (isEditing ? '' : '\u00A0')}
-    </div>
+      }}
+      dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
+    />
   );
 };
 
@@ -343,29 +357,34 @@ export const CanvasArea = ({
 
   const getCoords = useCallback((e, el) => { const r = el.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }, [zoom]);
 
-  const handleTextCommit = useCallback((id, text) => {
-    if (!text.trim()) { const f = canvasElements.filter(el => el.id !== id); setCanvasElements(f); onSaveHistory(f); }
+  const handleTextCommit = useCallback((id, text, isHtml = false) => {
+    // Extract plain text for empty check
+    const plainText = isHtml ? text.replace(/<[^>]*>/g, '').trim() : text.trim();
+    if (!plainText) { const f = canvasElements.filter(el => el.id !== id); setCanvasElements(f); onSaveHistory(f); }
     else { 
       const el = canvasElements.find(e => e.id === id);
-      const u = canvasElements.map(el => el.id === id ? { ...el, content: text } : el); 
+      const update = isHtml 
+        ? { htmlContent: text, content: plainText }
+        : { content: text, htmlContent: text.replace(/\n/g, '<br>') };
+      const u = canvasElements.map(el => el.id === id ? { ...el, ...update } : el); 
       setCanvasElements(u); 
       onSaveHistory(u);
       
       // Check if text overflows the page and auto-add new page
       if (el && onAddPage) {
-        const lineCount = (text || '').split('\n').length;
+        const lineCount = (plainText || '').split('\n').length;
         const fontSize = el.fontSize || 16;
         const lineHeight = el.lineHeight || 1.5;
         const textHeight = lineCount * fontSize * lineHeight;
         const bottomY = el.y + textHeight;
-        const pageBottom = pageSize.height - margins.bottom; // bottom margin
+        const pageBottom = pageSize.height - margins.bottom;
         if (bottomY > pageBottom) {
           onAddPage();
         }
       }
     }
     setEditingId(null);
-  }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage]);
+  }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage, margins.bottom]);
 
   // Remove redaction from element
   const handleRemoveRedact = useCallback((id) => {

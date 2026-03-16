@@ -64,6 +64,29 @@ const Editor = () => {
     if (selectedElement) lastSelectedRef.current = selectedElement;
   }, [selectedElement]);
 
+  // Save text selection range before it's lost on blur
+  const savedSelectionRef = useRef(null);
+  useEffect(() => {
+    const saveSelection = () => {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        const range = sel.getRangeAt(0);
+        const container = range.commonAncestorContainer;
+        const textEl = (container.nodeType === 3 ? container.parentElement : container);
+        const editableDiv = textEl?.closest?.('[data-testid^="text-element-"]');
+        if (editableDiv) {
+          savedSelectionRef.current = {
+            elementId: editableDiv.dataset.testid?.replace('text-element-', ''),
+            text: sel.toString(),
+            html: editableDiv.innerHTML,
+          };
+        }
+      }
+    };
+    window.document.addEventListener('selectionchange', saveSelection);
+    return () => window.document.removeEventListener('selectionchange', saveSelection);
+  }, []);
+
   // View state
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -88,13 +111,7 @@ const Editor = () => {
   const [eraserSize, setEraserSize] = useState(15);
   const [eraserDragMode, setEraserDragMode] = useState(true);
 
-  // Marking state
-  const [markingColor, setMarkingColor] = useState('#FFFF00');
-  const [markingOpacity, setMarkingOpacity] = useState(40);
-  const [markingSize, setMarkingSize] = useState(20);
-
   // Highlighter auto mode
-  const [highlighterAuto, setHighlighterAuto] = useState(false);
   const [highlighterColor, setHighlighterColor] = useState('#FFFF00');
 
   // AI Image state
@@ -136,7 +153,6 @@ const Editor = () => {
   const [showTranslate, setShowTranslate] = useState(false);
   const [showLineSpacing, setShowLineSpacing] = useState(false);
   const [showWordType, setShowWordType] = useState(false);
-  const [showMarking, setShowMarking] = useState(false);
   const [showParagraph, setShowParagraph] = useState(false);
   const [showGraphic, setShowGraphic] = useState(false);
   const [showPageColor, setShowPageColor] = useState(false);
@@ -578,7 +594,7 @@ const Editor = () => {
       draw: () => setShowDraw(true), createimage: () => setShowCreateImage(true),
       eraser: () => setShowEraser(true), translate: () => setShowTranslate(true),
       linespacing: () => setShowLineSpacing(true), wordtype: () => setShowWordType(true),
-      marking: () => setShowMarking(true), addpage: () => addPage(),
+      marking: () => {}, addpage: () => addPage(),
       paragraph: () => setShowParagraph(true), graphic: () => setShowGraphic(true),
       pagecolor: () => setShowPageColor(true),
       table: () => setShowTable(true), layers: () => setShowLayers(true),
@@ -603,39 +619,53 @@ const Editor = () => {
   };
 
   // === HIGHLIGHTER Tool (like Redact - applies to selected text) ===
-  const applyHighlight = useCallback(() => {
-    const target = selectedElement || lastSelectedRef.current;
-    if (!target) {
-      alert('Lütfen önce işaretlemek istediğiniz metni seçin!');
-      return;
-    }
-    const el = canvasElements.find(e => e.id === target);
-    if (!el || el.type !== 'text') {
-      alert('Sadece metin elementleri işaretlenebilir!');
-      return;
-    }
-    const updated = canvasElements.map(e => 
-      e.id === target 
-        ? { ...e, highlightColor: highlighterColor }
+  // Helper: wrap selected text with styled span using saved selection info
+  const wrapSelection = useCallback((styleStr, attributes = {}) => {
+    if (!savedSelectionRef.current) return false;
+    const { elementId, text, html } = savedSelectionRef.current;
+    if (!text || !elementId || !html) return false;
+    
+    // Build span attributes string
+    const attrStr = Object.entries(attributes).map(([k, v]) => `${k}="${v}"`).join(' ');
+    const wrappedText = `<span style="${styleStr}" ${attrStr}>${text}</span>`;
+    
+    // Replace first occurrence of selected text in the HTML
+    // Use a safe replacement that doesn't touch existing HTML tags
+    const idx = html.indexOf(text);
+    if (idx === -1) return false;
+    const newHtml = html.substring(0, idx) + wrappedText + html.substring(idx + text.length);
+    
+    savedSelectionRef.current = null;
+    setCanvasElements(prev => prev.map(e => 
+      e.id === elementId 
+        ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') }
         : e
-    );
+    ));
+    return true;
+  }, [setCanvasElements]);
+
+  const applyHighlight = useCallback(() => {
+    // Try text selection first
+    if (wrapSelection(`background:${highlighterColor};border-radius:2px;`, { 'data-highlight': 'true' })) return;
+    // Fallback: highlight entire element
+    const target = selectedElement || lastSelectedRef.current;
+    if (!target) { alert('Lütfen önce işaretlemek istediğiniz metni seçin!'); return; }
+    const el = canvasElements.find(e => e.id === target);
+    if (!el || el.type !== 'text') { alert('Sadece metin elementleri işaretlenebilir!'); return; }
+    const updated = canvasElements.map(e => e.id === target ? { ...e, highlightColor: highlighterColor } : e);
     setCanvasElements(updated);
     history.push(updated);
-  }, [selectedElement, canvasElements, highlighterColor]);
+  }, [selectedElement, canvasElements, highlighterColor, wrapSelection]);
 
-  // === REDACT (Seçurity) Tool ===
+  // === REDACT (Security) Tool ===
   const applyRedaction = useCallback(() => {
+    // Try text selection first
+    if (wrapSelection('background:#000;color:#000;border-radius:2px;user-select:none;cursor:pointer;', { 'data-redacted': 'true' })) return;
+    // Fallback: redact entire element  
     const target = selectedElement || lastSelectedRef.current;
-    if (!target) {
-      alert('Lütfen önce sansürlemek istediğiniz metni seçin!');
-      return;
-    }
+    if (!target) { alert('Lütfen önce sansürlemek istediğiniz metni seçin!'); return; }
     const el = canvasElements.find(e => e.id === target);
-    if (!el || el.type !== 'text') {
-      alert('Sadece metin elementleri sansürlenebilir!');
-      return;
-    }
-    // Apply redaction - replace with black bar
+    if (!el || el.type !== 'text') { alert('Sadece metin elementleri sansürlenebilir!'); return; }
     const updated = canvasElements.map(e => 
       e.id === target 
         ? { ...e, isRedacted: true, originalContent: e.content, color: '#000000', background: '#000000' }
@@ -643,7 +673,7 @@ const Editor = () => {
     );
     setCanvasElements(updated);
     history.push(updated);
-  }, [canvasElements, selectedElement, history]);
+  }, [canvasElements, selectedElement, wrapSelection]);
 
   // === PHOTO EDIT ===
   const handlePhotoEditUpload = () => {
@@ -1808,19 +1838,29 @@ const Editor = () => {
 
   // === VOICE ===
   const getDocText = () => {
-    // Get text from ALL pages, exclude redacted
+    // Get text from ALL pages, exclude redacted content (both full-element and inline spans)
     let allText = [];
+    const cleanRedacted = (text) => {
+      if (!text) return '';
+      // Remove inline redacted spans content
+      return text.replace(/<span[^>]*data-redacted="true"[^>]*>.*?<\/span>/gi, '[SANSÜRLÜ]')
+                 .replace(/<[^>]*>/g, '').trim();
+    };
     if (document?.pages) {
       document.pages.forEach((page, idx) => {
         const elements = idx === currentPage ? canvasElements : (page.elements || []);
         elements.forEach(el => {
-          if (el.type === 'text' && !el.isRedacted && el.content) {
-            allText.push(el.content);
+          if (el.type === 'text' && !el.isRedacted) {
+            const clean = el.htmlContent ? cleanRedacted(el.htmlContent) : (el.content || '');
+            if (clean) allText.push(clean);
           }
         });
       });
     } else {
-      canvasElements.filter(el => el.type === 'text' && !el.isRedacted).sort((a, b) => a.y - b.y).forEach(el => allText.push(el.content));
+      canvasElements.filter(el => el.type === 'text' && !el.isRedacted).sort((a, b) => a.y - b.y).forEach(el => {
+        const clean = el.htmlContent ? cleanRedacted(el.htmlContent) : (el.content || '');
+        if (clean) allText.push(clean);
+      });
     }
     return allText.join('. ');
   };
@@ -1976,15 +2016,6 @@ const Editor = () => {
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Size: {eraserSize}px</label><input type="range" min="5" max="50" value={eraserSize} onChange={e => setEraserSize(Number(e.target.value))} className="w-full accent-blue-500" /></div>
         <div className="flex items-center justify-center p-3 rounded" style={{ background: 'var(--zet-bg)' }}><div className="rounded-full border-2 border-dashed" style={{ width: eraserSize * 2, height: eraserSize * 2, borderColor: 'var(--zet-primary-light)' }} /></div>
         <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{eraserDragMode ? 'Çizerek sil' : 'Tıklayarak sil'}</p>
-      </div>
-    </DraggablePanel>}
-    {showMarking && <DraggablePanel title={t('marking')} onClose={() => setShowMarking(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="space-y-3 w-48">
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Size: {markingSize}px</label><input type="range" min="8" max="40" value={markingSize} onChange={e => setMarkingSize(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Opacity: {markingOpacity}%</label><input type="range" min="10" max="80" value={markingOpacity} onChange={e => setMarkingOpacity(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div className="flex gap-1.5 flex-wrap">
-          {['#FFFF00', '#FF6600', '#00FF66', '#FF00FF', '#00FFFF', '#FF0066'].map(c => <button key={c} onClick={() => setMarkingColor(c)} className={`w-6 h-6 rounded-md border ${markingColor === c ? 'ring-2 ring-white scale-110' : 'border-white/10'} transition-transform`} style={{ background: c }} />)}
-        </div>
       </div>
     </DraggablePanel>}
     {showColor && <DraggablePanel title={t('colorPicker')} onClose={() => setShowColor(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 150 }}>
@@ -3039,7 +3070,7 @@ const Editor = () => {
             activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
             currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
             drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
-            markingColor={markingColor} markingOpacity={markingOpacity} markingSize={markingSize}
+            markingColor={'#FFFF00'} markingOpacity={40} markingSize={20}
             selectedElement={selectedElement} setSelectedElement={setSelectedElement}
             selectedElements={selectedElements} setSelectedElements={setSelectedElements}
             onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
@@ -3247,7 +3278,7 @@ const Editor = () => {
           activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
           currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
           drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
-          markingColor={markingColor} markingOpacity={markingOpacity} markingSize={markingSize}
+          markingColor={'#FFFF00'} markingOpacity={40} markingSize={20}
           selectedElement={selectedElement} setSelectedElement={setSelectedElement}
           selectedElements={selectedElements} setSelectedElements={setSelectedElements}
           onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}

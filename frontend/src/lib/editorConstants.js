@@ -70,7 +70,6 @@ export const TOOLS = [
   { id: 'draw', icon: Pencil, nameKey: 'pencil', shortcut: 'D' },
   { id: 'pen', icon: PenTool, nameKey: 'penTool', shortcut: 'P' },
   { id: 'eraser', icon: Eraser, nameKey: 'eraser', shortcut: 'E' },
-  { id: 'marking', icon: Underline, nameKey: 'marking', shortcut: 'M' },
   { id: 'select', icon: MousePointer2, nameKey: 'select', shortcut: 'S' },
   { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
