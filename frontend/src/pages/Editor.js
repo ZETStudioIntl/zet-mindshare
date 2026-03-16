@@ -454,13 +454,14 @@ const Editor = () => {
         const textEl = {
           id: `auto_${Date.now()}_${idx}`,
           type: 'text',
-          x: 50,
+          x: 60,
           y: 50,
           content: cleanText,
           fontFamily: 'Open Sans',
           fontSize: 11,
           color: '#222222',
           lineHeight: 1.6,
+          width: pageSize.width - 120,
         };
         if (idx === 0 && updatedPages[currentPage]) {
           // Add to current page's elements
@@ -734,7 +735,7 @@ const Editor = () => {
   <rect width="100%" height="100%" fill="${pageBackground}"/>
   ${canvasElements.map(el => {
     if (el.type === 'text') {
-      return `<text x="${el.x}" y="${el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italiç ? 'font-style="italic"' : ''}>${el.content || ''}</text>`;
+      return `<text x="${el.x}" y="${el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italic ? 'font-style="italic"' : ''}>${el.content || ''}</text>`;
     } else if (el.type === 'shape') {
       if (el.shapeType === 'circle') return `<circle cx="${el.x + el.width/2}" cy="${el.y + el.height/2}" r="${Math.min(el.width, el.height)/2}" fill="${el.fill || '#000'}"/>`;
       if (el.shapeType === 'square') return `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${el.fill || '#000'}"/>`;
@@ -2017,7 +2018,7 @@ const Editor = () => {
       <div className="space-y-2 w-52">
         <div className="grid grid-cols-2 gap-2">
           <button data-testid="toggle-bold" onClick={() => { setIsBold(!isBold); applyTextStyle('bold', !isBold); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isBold ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isBold ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Bold className="h-4 w-4" /> Bold</button>
-          <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyTextStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItaliç ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItaliç ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italiç className="h-4 w-4" /> Italic</button>
+          <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyTextStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItalic ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItalic ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italic className="h-4 w-4" /> Italic</button>
           <button data-testid="toggle-underline" onClick={() => { setIsUnderline(!isUnderline); applyTextStyle('underline', !isUnderline); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isUnderline ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isUnderline ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Underline className="h-4 w-4" /> Underline</button>
           <button data-testid="toggle-strikethrough" onClick={() => { setIsStrikethrough(!isStrikethrough); applyTextStyle('strikethrough', !isStrikethrough); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isStrikethrough ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isStrikethrough ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Strikethrough className="h-4 w-4" /> Strike</button>
         </div>

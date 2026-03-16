@@ -219,7 +219,7 @@ const QUEST_CHAINS = {
   text: [
     { name: 'İlk Metin', desc: "Canvas'a metin ekleyin", shape: 'circle' },
     { name: 'Kalın Yazi', desc: 'Bold formatlama', shape: 'circle' },
-    { name: 'Italik Yazi', desc: 'Italiç formatlama', shape: 'circle' },
+    { name: 'Italik Yazı', desc: 'Italic formatlama', shape: 'circle' },
     { name: 'Alti Çizili', desc: 'Underline formatlama', shape: 'circle' },
     { name: 'Ustu Çizili', desc: 'Strikethrough formatlama', shape: 'circle' },
     { name: 'Font Değiştir', desc: 'Farkli font kullanin', shape: 'circle' },

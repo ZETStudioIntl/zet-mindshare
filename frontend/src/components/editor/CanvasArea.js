@@ -106,7 +106,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit }) => {
+const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit }) => {
   const ref = useRef(null);
   useEffect(() => {
     if (isEditing && ref.current) {
@@ -128,10 +128,15 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
           borderRadius: 2,
           cursor: 'pointer',
         }}
-        title="🔒 Sansürlenmiş İçerik"
+        title="Sansürlenmiş İçerik"
       />
     );
   }
+  
+  const ml = pageMargins?.left || 60;
+  const mr = pageMargins?.right || 60;
+  // Fixed width: entire text area between margins
+  const fixedWidth = (pageWidth - ml - mr) * zoom;
   
   const gradientStyle = el.gradientStart && el.gradientEnd ? {
     background: `linear-gradient(90deg, ${el.gradientStart}, ${el.gradientEnd})`,
@@ -140,19 +145,20 @@ const EditableText = ({ el, zoom, pageWidth, isEditing, onStartEdit, onCommit })
   return (
     <div ref={ref} data-testid={`text-element-${el.id}`} contentEditable={isEditing} suppressContentEditableWarning
       onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
+      onClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
       onBlur={() => { if (ref.current) onCommit(el.id, ref.current.innerText); }}
       onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
-      className={`outline-none ${isEditing ? 'ring-1 ring-blue-400/50 rounded-sm min-h-[1em]' : ''}`}
+      className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
       style={{
         fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial',
         color: (el.gradientStart && el.gradientEnd) ? undefined : (el.color || '#000'),
         fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal',
         textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none',
         textAlign: el.textAlign || 'left',
-        maxWidth: (pageWidth - el.x - 20) * zoom, minWidth: isEditing ? 60 * zoom : undefined,
+        width: fixedWidth,
         wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
-        cursor: isEditing ? 'text' : 'default', caretColor: 'var(--zet-primary)',
-        padding: isEditing ? '2px 4px' : 0,
+        cursor: 'text', caretColor: 'var(--zet-primary)',
+        padding: isEditing ? '2px 0' : 0,
         paddingLeft: (el.paddingLeft || 0) * zoom,
         paddingRight: (el.paddingRight || 0) * zoom,
         paddingTop: (el.paddingTop || 0) * zoom,
@@ -267,7 +273,7 @@ export const CanvasArea = ({
       if (el?.type === 'image') { setCropTarget(el.id); setCropRect({ x: el.x + 10, y: el.y + 10, w: el.width - 20, h: el.height - 20 }); return; }
     }
     if (activeTool !== 'cut') { setCropTarget(null); setCropRect(null); }
-    if (activeTool !== 'text' && activeTool !== 'hand') setEditingId(null);
+    if (activeTool !== 'hand' && activeTool !== 'select') setEditingId(null);
     if (activeTool !== 'pen') setPenPoints([]);
     setElementMenu(null);
     setVectorMenu(null);
@@ -329,10 +335,11 @@ export const CanvasArea = ({
     if (activeTool === 'text') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
+      const ml = 60; // left margin
       const ne = {
         id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-        x: Math.max(10, x), y: Math.max(10, y), content: '', fontSize: currentFontSize,
-        fontFamily: currentFont, color: currentColor, width: pageSize.width - x - 20,
+        x: ml, y: Math.max(10, y), content: '', fontSize: currentFontSize,
+        fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
         lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
         bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -358,7 +365,20 @@ export const CanvasArea = ({
       // Then check canvas elements
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
       if (cl) { setSelectedElement(cl.id); setSelectedVector(null); if (cl.type === 'text') setEditingId(cl.id); if (onElementSelect) onElementSelect(cl); }
-      else { setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null); }
+      else {
+        // Empty area clicked - create new text at cursor Y, margin-aligned X (Word-like)
+        setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null);
+        const ml = 60;
+        const ne = {
+          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
+          x: ml, y: Math.max(40, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+          lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
+          bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
+          gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+        };
+        const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
+      }
     } else if (activeTool === 'cut') {
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
       if (cl?.type === 'image' && !cropTarget) { setCropTarget(cl.id); setSelectedElement(cl.id); setCropRect({ x: cl.x + 10, y: cl.y + 10, w: cl.width - 20, h: cl.height - 20 }); }
@@ -374,12 +394,25 @@ export const CanvasArea = ({
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setSelectedElement(cl.id); if (onElementSelect) onElementSelect(cl); }
     } else if (activeTool === 'select') {
-      // Single click to select
+      // Single click to select or create text
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
       const vIdx = drawPaths.findIndex(path => path.isPen && isPointNearPath(x, y, path, 20));
-      if (cl) { setSelectedElement(cl.id); setSelectedElements([cl.id]); }
+      if (cl) { setSelectedElement(cl.id); setSelectedElements([cl.id]); if (cl.type === 'text') setEditingId(cl.id); }
       else if (vIdx !== -1) { setSelectedVector(vIdx); setSelectedVectors([vIdx]); }
-      else { setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]); }
+      else {
+        setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]);
+        // Empty area: create new text element at cursor Y, margin-aligned (Word-like)
+        const ml = 60;
+        const ne = {
+          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
+          x: ml, y: Math.max(40, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: pageSize.width - 120,
+          lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
+          bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
+          gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+        };
+        const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
+      }
     } else if (activeTool === 'zoom') {
       // Zoom tool - just set active, mouse move handles position
       setMagnifierActive(true);
@@ -853,7 +886,7 @@ export const CanvasArea = ({
                     transformOrigin: 'center center'
                   }}
                   onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); changePage(idx); if (onElementSelect) onElementSelect(el); }}>
-                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => setEditingId(id)} onCommit={handleTextCommit} />}
+                  {el.type === 'text' && <EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={{ left: 60, right: 60 }} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => setEditingId(id)} onCommit={handleTextCommit} />}
                   {(el.type === 'image' || el.type === 'chart' || el.type === 'table') && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
