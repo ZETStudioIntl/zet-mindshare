@@ -122,10 +122,10 @@ const Dashboard = () => {
         'ZETA Sinirsiz',
         'ZET Judge Sinirsiz (Derin Analiz dahil)',
         'Nano Banana Pro',
-        'Tum Gorsel Boyutlari (7 boyut)',
+        'Tüm Görsel Boyutlari (7 boyut)',
         'Katmanlar, Imza, Filigran, Sayfa Rengi, Grafikler',
         'Sinirsiz Fast Select',
-        '7/24 Destek + API Erisimi',
+        '7/24 Destek + API Erişimi',
       ],
       color: '#f59e0b',
       recommended: false
@@ -141,7 +141,7 @@ const Dashboard = () => {
         'ZETA Sinirsiz',
         'ZET Judge 600 harf (Derin Analiz dahil)',
         'Nano Banana Pro',
-        '7 Gorsel Boyutu',
+        '7 Görsel Boyutu',
         'Katmanlar, Imza, Filigran, Sayfa Rengi, Grafikler',
         'Sinirsiz Fast Select',
         'Oncelikli Destek',
@@ -159,7 +159,7 @@ const Dashboard = () => {
         '100 Kredi/gun',
         'ZETA 500 harf',
         'ZET Judge Mini 150 harf (Derin Analiz yok)',
-        '3 Gorsel Boyutu (16:9, 9:16, 1:1)',
+        '3 Görsel Boyutu (16:9, 9:16, 1:1)',
         'Katmanlar acik',
         'Sinirsiz Fast Select',
         'E-posta Destegi',
@@ -254,9 +254,9 @@ const Dashboard = () => {
       const res = await axios.post(`${API}/subscription`, { plan: planId, action: 'subscribe' }, { withCredentials: true });
       setUserSubscription(res.data.plan);
       setShowSubscription(false);
-      alert(`${planId.toUpperCase()} planina basariyla abone oldunuz!`);
+      alert(`${planId.toUpperCase()} planina başarıyla abone oldunuz!`);
     } catch (err) {
-      alert('Abonelik basarisiz');
+      alert('Abonelik başarısız');
     }
     setSubscribing(false);
   };
@@ -286,7 +286,7 @@ const Dashboard = () => {
       setShowCredits(false);
       fetchSubscription();
     } catch (err) {
-      alert(err.response?.data?.detail || 'Satin alma basarisiz');
+      alert(err.response?.data?.detail || 'Satin alma başarısız');
     }
     setBuyingCredits(false);
   };
@@ -299,16 +299,16 @@ const Dashboard = () => {
       alert(`Yetersiz SP! Gerekli: ${plan.spCost.toLocaleString()} SP, Mevcut: ${userSP.toLocaleString()} SP`);
       return;
     }
-    if (!window.confirm(`${plan.spCost.toLocaleString()} SP harcayarak ${plan.name} planina yukselmek istiyor musunuz?\n\nMevcut SP: ${userSP.toLocaleString()}\nKalan SP: ${(userSP - plan.spCost).toLocaleString()}`)) return;
+    if (!window.confirm(`${plan.spCost.toLocaleString()} SP harcayarak ${plan.name} planina yükselmek istiyor musunuz?\n\nMevcut SP: ${userSP.toLocaleString()}\nKalan SP: ${(userSP - plan.spCost).toLocaleString()}`)) return;
     setSubscribing(true);
     try {
       const res = await axios.post(`${API}/subscription/buy-with-sp`, { plan: planId }, { withCredentials: true });
       setUserSubscription(res.data.plan);
       setUserSP(res.data.remaining_sp);
       setShowSubscription(false);
-      alert(`${planId.toUpperCase()} planina ${plan.spCost.toLocaleString()} SP ile yukseltildiniz!`);
+      alert(`${planId.toUpperCase()} planina ${plan.spCost.toLocaleString()} SP ile yükseltildiniz!`);
     } catch (err) {
-      alert(err.response?.data?.detail || 'SP ile satin alma basarisiz');
+      alert(err.response?.data?.detail || 'SP ile satin alma başarısız');
     }
     setSubscribing(false);
   };
@@ -330,7 +330,7 @@ Devam etmek istiyor musunuz?`;
     
     if (!window.confirm(confirmMsg)) return;
     
-    // Second confirmation
+    // Seçond confirmation
     const secondConfirm = window.confirm('Son kez onaylıyor musunuz?\n\nOnayladığınızda e-posta adresinize bir iptal onay linki gönderilecektir.');
     if (!secondConfirm) return;
     
@@ -388,7 +388,7 @@ Devam etmek istiyor musunuz?`;
   };
 
   const createDocument = async () => {
-    const title = newDocTitle.trim() || 'Isimsiz Belge';
+    const title = newDocTitle.trim() || 'İsimsiz Belge';
     try {
       const payload = {
         title: title,
@@ -582,7 +582,7 @@ Devam etmek istiyor musunuz?`;
                 disabled={subscribing}
                 className="text-xs text-red-400 hover:text-red-300 mt-2 w-full text-center"
               >
-                {t('cancelSubscription') || 'Aboneligi Iptal Et'}
+                {t('cancelSubscription') || 'Aboneliği İptal Et'}
               </button>
             )}
           </div>
@@ -595,7 +595,7 @@ Devam etmek istiyor musunuz?`;
             {driveConnected ? (
               <div className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
                 <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm text-green-500">{t('connected') || 'Baglandi'}</span>
+                <span className="text-sm text-green-500">{t('connected') || 'Bağlandı'}</span>
               </div>
             ) : (
               <button 
@@ -604,7 +604,7 @@ Devam etmek istiyor musunuz?`;
                 className="zet-btn w-full flex items-center justify-center gap-2 py-2"
               >
                 <Link2 className="h-4 w-4" />
-                {connectingDrive ? 'Baglaniyor...' : (t('connectDrive') || 'Drive Bagla')}
+                {connectingDrive ? 'Bağlanıyor...' : (t('connectDrive') || 'Drive Bağla')}
               </button>
             )}
           </div>
@@ -615,7 +615,7 @@ Devam etmek istiyor musunuz?`;
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: 'var(--zet-text-muted)' }}
           >
-            <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Kisayollar'}
+            <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Kısayollar'}
           </button>
 
           {/* Fast Select */}
@@ -624,7 +624,7 @@ Devam etmek istiyor musunuz?`;
             className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
             style={{ color: 'var(--zet-text-muted)' }}
           >
-            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Hizli Secim'} ({fastSelectTools.length}/{fastSelectLimit})
+            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Hızlı Seçim'} ({fastSelectTools.length}/{fastSelectLimit})
           </button>
 
           {/* AI Settings */}
@@ -834,7 +834,7 @@ Devam etmek istiyor musunuz?`;
             )}
           </div>
           <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
-            {t('setReminder') || 'Hatirlatici ayarlayarak bildirim alin'}
+            {t('setReminder') || 'Hatırlatıcı ayarlayarak bildirim alın'}
           </p>
         </div>
       </main>
@@ -894,7 +894,7 @@ Devam etmek istiyor musunuz?`;
                 style={{ background: newDocType === 'pdf' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
               >
                 <FileEdit className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--zet-text)' }} />
-                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF') || 'PDF Duzenle'}</span>
+                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF') || 'PDF Düzenle'}</span>
               </button>
             </div>
 
@@ -922,7 +922,7 @@ Devam etmek istiyor musunuz?`;
                   ) : (
                     <div style={{ color: 'var(--zet-text-muted)' }}>
                       <Upload className="h-8 w-8 mx-auto mb-2" />
-                      <span className="text-sm">{t('clickToUpload') || 'PDF yuklemek icin tiklayin'}</span>
+                      <span className="text-sm">{t('clickToUpload') || 'PDF yüklemek için tıklayin'}</span>
                     </div>
                   )}
                 </div>
@@ -972,7 +972,7 @@ Devam etmek istiyor musunuz?`;
               disabled={newDocType === 'pdf' && !pdfFile}
               className="zet-btn w-full disabled:opacity-50"
             >
-              {newDocType === 'pdf' ? (t('openPDF') || 'PDF Ac ve Duzenle') : 'Belge Olustur'}
+              {newDocType === 'pdf' ? (t('openPDF') || 'PDF Ac ve Düzenle') : 'Belge Oluştur'}
             </button>
           </div>
         </div>
@@ -984,7 +984,7 @@ Devam etmek istiyor musunuz?`;
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn max-h-[80vh] overflow-hidden" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
-                <Keyboard className="h-5 w-5" /> {t('shortcuts') || 'Klavye Kisayollari'}
+                <Keyboard className="h-5 w-5" /> {t('shortcuts') || 'Klavye Kısayollari'}
               </h3>
               <button onClick={() => { setShowShortcuts(false); setShortcutSearch(''); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
@@ -1062,7 +1062,7 @@ Devam etmek istiyor musunuz?`;
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-medium flex items-center gap-2" style={{ color: 'var(--zet-text)' }}>
-                <Zap className="h-5 w-5" /> {t('fastSelect') || 'Hizli Secim'}
+                <Zap className="h-5 w-5" /> {t('fastSelect') || 'Hızlı Seçim'}
               </h3>
               <button onClick={() => { setShowFastSelect(false); setFastSelectSearch(''); }} className="p-1 rounded hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
@@ -1070,7 +1070,7 @@ Devam etmek istiyor musunuz?`;
             </div>
             
             <p className="text-sm mb-3" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('fastSelectDesc') || 'Editorde hizli erisim icin 4 favori aracinizi secin.'}
+              {t('fastSelectDesc') || 'Editorde hızlı erişim için 4 favori araçınizi seçin.'}
             </p>
 
             {/* Selected Tools */}
@@ -1126,8 +1126,8 @@ Devam etmek istiyor musunuz?`;
             </div>
 
             <p className="text-xs mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-              {fastSelectTools.length}/{fastSelectLimit} {t('selected') || 'secili'}
-              {userSubscription === 'free' && <span className="ml-1 text-blue-400">({t('upgradePlan') || 'Daha fazlasi icin yukselt'})</span>}
+              {fastSelectTools.length}/{fastSelectLimit} {t('selected') || 'seçili'}
+              {userSubscription === 'free' && <span className="ml-1 text-blue-400">({t('upgradePlan') || 'Daha fazlasi için yükselt'})</span>}
             </p>
           </div>
         </div>
@@ -1139,7 +1139,7 @@ Devam etmek istiyor musunuz?`;
           <div className="zet-card p-6 max-w-md w-full mx-4 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>
-                {t('choosePlan') || 'Planini Sec'}
+                {t('choosePlan') || 'Planını Seç'}
               </h2>
               <button onClick={() => setShowSubscription(false)} className="p-2 rounded-lg hover:bg-white/10">
                 <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
@@ -1306,7 +1306,7 @@ Devam etmek istiyor musunuz?`;
             </div>
             
             <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('subscriptionNote') || 'Tum planlar 7 gunluk ucretsiz deneme icerir. Istediginiz zaman iptal edebilirsiniz.'}
+              {t('subscriptionNote') || 'Tüm planlar 7 gunluk ücretsiz deneme içerir. Istediginiz zaman iptal edebilirsiniz.'}
             </p>
           </div>
         </div>
@@ -1542,7 +1542,7 @@ Devam etmek istiyor musunuz?`;
                       <div>
                         <p className="text-sm font-bold" style={{ color: 'var(--zet-text)' }}>{pkg.credits} Kredi</p>
                         <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
-                          {pkg.credits >= 1000 ? 'En Avantajli' : pkg.credits >= 700 ? 'Populer' : pkg.credits >= 350 ? 'Standart' : 'Baslangic'}
+                          {pkg.credits >= 1000 ? 'En Avantajlı' : pkg.credits >= 700 ? 'Popüler' : pkg.credits >= 350 ? 'Standart' : 'Başlangıç'}
                         </p>
                       </div>
                     </div>
@@ -1571,7 +1571,7 @@ Devam etmek istiyor musunuz?`;
             </div>
 
             <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-              Kredi paketleri aninda hesabiniza eklenir. Free disindaki planlara %15 indirim uygulanir.
+              Kredi paketleri aninda hesabiniza eklenir. Free dışındaki planlara %15 indirim uygulanir.
               <br />Maksimum kredi bakiyesi: 1000. Limit asildiginda fazla krediler silinir.
             </p>
           </div>

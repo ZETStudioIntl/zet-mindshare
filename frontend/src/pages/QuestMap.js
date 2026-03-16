@@ -396,8 +396,8 @@ const QuestMap = () => {
             <ArrowLeft className="h-5 w-5" style={{ color: '#38bdf8' }} />
           </button>
           <div>
-            <h1 className="text-sm font-bold tracking-wide" style={{ color: '#e2e8f0' }}>Gorev Haritasi</h1>
-            <p className="text-[10px]" style={{ color: '#64748b' }}>{done}/{total} Tamamlandi</p>
+            <h1 className="text-sm font-bold tracking-wide" style={{ color: '#e2e8f0' }}>Görev Haritası</h1>
+            <p className="text-[10px]" style={{ color: '#64748b' }}>{done}/{total} Tamamlandı</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -416,7 +416,7 @@ const QuestMap = () => {
       <div className="flex items-center gap-2 px-3 py-1.5 border-b" style={{ borderColor: 'rgba(40,50,120,0.15)', background: 'rgba(5,8,16,0.95)', zIndex: 20 }}>
         <div className="flex items-center gap-2 flex-1 max-w-[200px] px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
           <Search className="h-3.5 w-3.5" style={{ color: '#64748b' }} />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Gorev ara..." className="bg-transparent outline-none text-xs flex-1" style={{ color: '#e2e8f0' }} data-testid="quest-search-input" />
+          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Görev ara..." className="bg-transparent outline-none text-xs flex-1" style={{ color: '#e2e8f0' }} data-testid="quest-search-input" />
           {search && <button onClick={() => setSearch('')}><X className="h-3 w-3" style={{ color: '#64748b' }} /></button>}
         </div>
         <div className="flex-1" />
@@ -466,7 +466,7 @@ const QuestMap = () => {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1"><Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} /><span className="text-xs font-bold" style={{ color: '#fbbf24' }}>+{selected.sp} SP</span></div>
               {completed.has(selected.id) ? (
-                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>Tamamlandi</span>
+                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>Tamamlandı</span>
               ) : isUnlocked(selected.id) ? (
                 <button onClick={() => doComplete(selected)} className="text-xs px-3 py-1.5 rounded-full font-medium hover:opacity-80 transition-opacity" style={{ background: 'linear-gradient(135deg, #1e3a8a, #38bdf8)', color: 'white' }} data-testid="quest-complete-btn">Tamamla</button>
               ) : (

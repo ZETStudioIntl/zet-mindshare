@@ -387,7 +387,7 @@ async def apple_auth_callback(request: Request, response: Response):
     try:
         claims = pyjwt.decode(id_token, options={"verify_signature": False})
     except Exception:
-        raise HTTPException(status_code=400, detail="Gecersiz id_token")
+        raise HTTPException(status_code=400, detail="Geçersiz id_token")
     
     apple_sub = claims.get("sub")
     email = claims.get("email")
@@ -664,7 +664,7 @@ class SPPurchaseRequest(BaseModel):
 @api_router.post("/subscription/buy-with-sp")
 async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(get_current_user)):
     if req.plan not in SP_PLAN_COSTS:
-        raise HTTPException(status_code=400, detail="Gecersiz plan")
+        raise HTTPException(status_code=400, detail="Geçersiz plan")
     cost = SP_PLAN_COSTS[req.plan]
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "quest_xp": 1, "subscription": 1})
     current_sp = user_data.get("quest_xp", 0) if user_data else 0
@@ -720,7 +720,7 @@ async def get_credit_packages(user: User = Depends(get_current_user)):
 async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_current_user)):
     pkg = next((p for p in CREDIT_PACKAGES if p["id"] == req.package_id), None)
     if not pkg:
-        raise HTTPException(status_code=400, detail="Gecersiz paket")
+        raise HTTPException(status_code=400, detail="Geçersiz paket")
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subscription": 1, "bonus_credits": 1})
     plan = user_data.get("subscription", "free") if user_data else "free"
     has_discount = plan != "free"
@@ -758,7 +758,7 @@ async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_curre
         "date": datetime.now(timezone.utc).isoformat()
     })
     return {
-        "message": f"{pkg['credits']} kredi basariyla eklendi!",
+        "message": f"{pkg['credits']} kredi başarıyla eklendi!",
         "credits_added": pkg["credits"],
         "price_paid": final_price,
         "bonus_credits": new_bonus
@@ -1135,7 +1135,7 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
     total_chars_target = req.page_count * chars_per_page
 
     system_message = f"""Sen ZET Mindshare'in otomatik belge yazma asistanisin.
-Kullanicinin verdigi konuya gore {req.page_count} SAYFALIK bir belge icerigi olusturacaksin.
+Kullaniçinin verdigi konuya gore {req.page_count} SAYFALIK bir belge içeriği oluşturacaksın.
 
 KRITIK - UZUNLUK GEREKSINIMLERI:
 - TOPLAM EN AZ {total_words} kelime yazMALISIN. Bu zorunludur.
@@ -1153,7 +1153,7 @@ FORMAT KURALLARI:
 - Basliklari ** ile isaretle (ornegin: **Giris**)
 - Paragraflari bos satirla ayir.
 - Turkce yaz.
-- Sadece belge icerigini yaz, aciklama veya giris cumlesi EKLEME.
+- Sadece belge içeriğini yaz, aciklama veya giris cumlesi EKLEME.
 - {req.page_count} sayfanin HER BIRINI ---SAYFA SONU--- ile ayir (son sayfadan sonra koyma).
 - Her sayfada en az 3-4 paragraf ve 2-3 alt baslik olmali."""
 
@@ -1202,7 +1202,7 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     plan = user_data.get("subscription", "free") if user_data else "free"
 
     if plan not in ("pro", "ultra"):
-        raise HTTPException(status_code=403, detail="Derin Analiz sadece Pro ve Ultra aboneler icin kullanilabilir.")
+        raise HTTPException(status_code=403, detail="Derin Analiz sadece Pro ve Ultra aboneler için kullanılabilir.")
 
     credit_result = await spend_credits(user.user_id, "deep_analysis")
     if not credit_result['success']:
@@ -1215,73 +1215,120 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     query_chat = LlmChat(
         api_key=api_key,
         session_id=f"q_{session_id}",
-        system_message="Sen bir arastirma asistanisin. Verilen konu hakkinda internette aranacak 3 farkli arama sorgusu olustur. Her sorguyu yeni satirda yaz. Sadece sorgu metinlerini yaz, baska bir sey ekleme."
+        system_message="Sen bir araştırma asistanısın. Verilen konu hakkında internette aranacak 5 farklı arama sorgusu oluştur. Her sorguyu yeni satırda yaz. Sadece sorgu metinlerini yaz, başka bir şey ekleme. Sorguları İngilizce ve Türkçe karışık yaz."
     )
     query_chat.with_model("gemini", "gemini-3-flash-preview")
     queries_raw = await query_chat.send_message(UserMessage(text=f"Konu: {req.topic}"))
-    search_queries = [q.strip() for q in queries_raw.strip().split('\n') if q.strip()][:3]
+    search_queries = [q.strip() for q in queries_raw.strip().split('\n') if q.strip()][:5]
 
-    # Step 2: Use web search for each query
+    # Step 2: Use DuckDuckGo for each query - collect links and snippets
     research_results = []
-    async with httpx.AsyncClient(timeout=15.0) as http_client:
+    all_sources = []  # {title, url, snippet}
+    import urllib.parse
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"}
+    async with httpx.AsyncClient(timeout=20.0) as http_client:
         for sq in search_queries:
             try:
-                search_url = f"https://api.duckduckgo.com/?q={sq}&format=json&no_html=1&no_redirect=1"
-                resp = await http_client.get(search_url)
+                # DuckDuckGo instant answer API - URL encode the query
+                encoded_query = urllib.parse.quote(sq)
+                search_url = f"https://api.duckduckgo.com/?q={encoded_query}&format=json&no_html=1&no_redirect=1"
+                resp = await http_client.get(search_url, headers=headers)
+                logging.info(f"DuckDuckGo API response for '{sq}': status={resp.status_code}")
                 if resp.status_code == 200:
                     data = resp.json()
-                    abstract = data.get("AbstractText", "")
-                    related = data.get("RelatedTopics", [])
                     snippets = []
-                    if abstract:
+                    # Abstract source
+                    abstract = data.get("AbstractText", "")
+                    abstract_url = data.get("AbstractURL", "")
+                    abstract_source = data.get("AbstractSource", "")
+                    logging.info(f"DuckDuckGo for '{sq[:30]}': abstract={bool(abstract)}, url={bool(abstract_url)}, related={len(data.get('RelatedTopics', []))}")
+                    if abstract and abstract_url:
                         snippets.append(abstract)
-                    for rt in related[:5]:
-                        if isinstance(rt, dict) and rt.get("Text"):
-                            snippets.append(rt["Text"])
+                        all_sources.append({"title": abstract_source or sq, "url": abstract_url, "snippet": abstract[:200]})
+                    # Related topics with links
+                    related = data.get("RelatedTopics", [])
+                    for rt in related[:8]:
+                        if isinstance(rt, dict):
+                            text = rt.get("Text", "")
+                            url = rt.get("FirstURL", "")
+                            if text:
+                                snippets.append(text)
+                            if url and text:
+                                all_sources.append({"title": text[:80], "url": url, "snippet": text[:200]})
+                        elif isinstance(rt, dict) and "Topics" in rt:
+                            for sub in rt.get("Topics", [])[:3]:
+                                if sub.get("Text") and sub.get("FirstURL"):
+                                    snippets.append(sub["Text"])
+                                    all_sources.append({"title": sub["Text"][:80], "url": sub["FirstURL"], "snippet": sub["Text"][:200]})
+                    # Results section
+                    results = data.get("Results", [])
+                    for r in results[:3]:
+                        if r.get("Text") and r.get("FirstURL"):
+                            snippets.append(r["Text"])
+                            all_sources.append({"title": r["Text"][:80], "url": r["FirstURL"], "snippet": r["Text"][:200]})
                     if snippets:
                         research_results.append({"query": sq, "findings": "\n".join(snippets)})
             except Exception as e:
                 logging.warning(f"Deep analysis search failed for '{sq}': {e}")
+
+    # Deduplicate sources by URL
+    seen_urls = set()
+    unique_sources = []
+    for s in all_sources:
+        if s["url"] not in seen_urls:
+            seen_urls.add(s["url"])
+            unique_sources.append(s)
 
     research_text = ""
     for r in research_results:
         research_text += f"\nArama: {r['query']}\nBulgular:\n{r['findings']}\n---\n"
 
     if not research_text:
-        research_text = "(Internet arastirmasi sonuc donduremedi. Mevcut bilgilerinle analiz yap.)"
+        research_text = "(İnternet araştırması sonuç döndüremedi. Mevcut bilgilerinle analiz yap.)"
 
     doc_context = ""
     if req.document_content:
-        doc_context = f"\n\nKULLANICININ BELGESI:\n{req.document_content[:5000]}\n"
+        doc_context = f"\n\nKULLANICININ BELGESİ:\n{req.document_content[:5000]}\n"
+
+    # Build sources text for LLM context
+    sources_text = ""
+    if unique_sources:
+        sources_text = "\n\nKAYNAK LİNKLERİ:\n"
+        for i, s in enumerate(unique_sources, 1):
+            sources_text += f"{i}. [{s['title']}]({s['url']})\n"
 
     # Step 3: Send research to LLM for deep analysis
     analysis_chat = LlmChat(
         api_key=api_key,
         session_id=session_id,
-        system_message=f"""Sen ZETA Derin Analiz sistemisin. Internet arastirmasi sonuclarini kullanarak kapsamli ve derinlemesine bir analiz raporu yazacaksin.
+        system_message=f"""Sen ZETA Derin Analiz sistemisin. İnternet araştırması sonuçlarını kullanarak kapsamlı ve derinlemesine bir analiz raporu yazacaksın.
 
 KURALLAR:
-- Turkce yaz
-- Detayli, kaynak gosterimli ve profesyonel bir analiz yap
-- Alt basliklar kullan
-- Verileri ve bulgulari sentezle
-- Kendi bilginle arastirma sonuclarini birlestir
+- Türkçe yaz
+- Detaylı, kaynak gösterimli ve profesyonel bir analiz yap
+- Alt başlıklar kullan
+- Verileri ve bulguları sentezle
+- Kendi bilginle araştırma sonuçlarını birleştir
 - En az 800 kelime yaz
-- Analiz sonunda ozet ve oneriler sun
+- Metin içinde kaynaklara atıfta bulun (örn: [Kaynak 1], [Kaynak 2])
+- Analiz sonunda özet ve öneriler sun
+- Raporun en sonuna "KAYNAKLAR" bölümü ekle ve verilen linkleri listele
 
-INTERNET ARASTIRMA SONUCLARI:
+İNTERNET ARAŞTIRMA SONUÇLARI:
 {research_text}
+{sources_text}
 {doc_context}"""
     )
     analysis_chat.with_model("gemini", "gemini-3-flash-preview")
 
-    analysis = await analysis_chat.send_message(UserMessage(text=f"Konu: {req.topic}\n\nYukaridaki internet arastirmasi sonuclarini ve kendi bilgini kullanarak kapsamli bir derin analiz raporu yaz."))
+    analysis = await analysis_chat.send_message(UserMessage(text=f"Konu: {req.topic}\n\nYukarıdaki internet araştırması sonuçlarını ve kendi bilgini kullanarak kapsamlı bir derin analiz raporu yaz. Raporun sonunda kaynak linklerini listele."))
 
     return {
         "success": True,
         "analysis": analysis,
         "search_queries": search_queries,
-        "sources_found": len(research_results),
+        "sources_found": len(unique_sources),
+        "sources": unique_sources,
         "credits_spent": credit_result['cost'],
         "credits_remaining": credit_result['credits_remaining']
     }

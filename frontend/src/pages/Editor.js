@@ -177,7 +177,7 @@ const Editor = () => {
   const [zoomRadius, setZoomRadius] = useState(50);
   const [magnifierPos, setMagnifierPos] = useState(null);
 
-  // Graphic chart state
+  // Graphiç chart state
   const [chartType, setChartType] = useState('bar');
   const [chartLabels, setChartLabels] = useState('A,B,C,D');
   const [chartData, setChartData] = useState('10,20,30,40');
@@ -366,7 +366,7 @@ const Editor = () => {
   });
 
   // === DATA LOADING ===
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-dışable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDocument(); }, [docId]);
 
   // Fetch user usage and plan
@@ -387,7 +387,7 @@ const Editor = () => {
     fetchUsage();
   }, []);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-dışable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (document?.pages?.[currentPage]) {
       const page = document.pages[currentPage];
@@ -400,7 +400,7 @@ const Editor = () => {
   }, [document, currentPage]);
 
   // === AUTO-SAVE (elements + drawPaths) ===
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-dışable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (document) {
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
@@ -593,7 +593,7 @@ const Editor = () => {
     history.push(updated);
   }, [selectedElement, canvasElements, highlighterColor]);
 
-  // === REDACT (Security) Tool ===
+  // === REDACT (Seçurity) Tool ===
   const applyRedaction = useCallback(() => {
     if (!selectedElement) {
       alert('Lütfen önce sansürlemek istediğiniz metni seçin!');
@@ -734,7 +734,7 @@ const Editor = () => {
   <rect width="100%" height="100%" fill="${pageBackground}"/>
   ${canvasElements.map(el => {
     if (el.type === 'text') {
-      return `<text x="${el.x}" y="${el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italic ? 'font-style="italic"' : ''}>${el.content || ''}</text>`;
+      return `<text x="${el.x}" y="${el.y + (el.fontSize || 16)}" font-family="${el.font || 'Arial'}" font-size="${el.fontSize || 16}" fill="${el.color || '#000'}" ${el.bold ? 'font-weight="bold"' : ''} ${el.italiç ? 'font-style="italic"' : ''}>${el.content || ''}</text>`;
     } else if (el.type === 'shape') {
       if (el.shapeType === 'circle') return `<circle cx="${el.x + el.width/2}" cy="${el.y + el.height/2}" r="${Math.min(el.width, el.height)/2}" fill="${el.fill || '#000'}"/>`;
       if (el.shapeType === 'square') return `<rect x="${el.x}" y="${el.y}" width="${el.width}" height="${el.height}" fill="${el.fill || '#000'}"/>`;
@@ -876,7 +876,7 @@ const Editor = () => {
     if (!file || !file.name.endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
     setPdfImporting(true);
     try {
-      const pdfjsLib = await import('pdfjs-dist/build/pdf');
+      const pdfjsLib = await import('pdfjs-dışt/build/pdf');
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
       const arrayBuf = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
@@ -1140,7 +1140,7 @@ const Editor = () => {
         { id: `el_${now}_3`, type: 'text', x: 180, y: 250, content: 'Company Name', font: 'Montserrat', fontSize: 18, color: '#333333', textAlign: 'center' },
         { id: `el_${now}_4`, type: 'shape', x: 150, y: 200, width: 295, height: 3, shapeType: 'square', fill: '#1a1a2e' },
         { id: `el_${now}_5`, type: 'text', x: 40, y: 350, content: 'Executive Summary', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_6`, type: 'text', x: 40, y: 380, content: 'This report provides a comprehensive overview of our company\'s performance, achievements, and strategic initiatives throughout the fiscal year.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 380, content: 'This report provides a comprehensive overview of our company\'s performance, achievements, and strategiç initiatives throughout the fiscal year.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
         { id: `el_${now}_7`, type: 'text', x: 40, y: 450, content: 'Key Highlights', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
         { id: `el_${now}_8`, type: 'text', x: 40, y: 480, content: '• Revenue growth of 25% year-over-year\n• Expanded to 3 new markets\n• Launched 5 innovative products\n• Employee satisfaction increased to 92%', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
       ];
@@ -1326,7 +1326,7 @@ const Editor = () => {
         { id: `el_${now}_9`, type: 'text', x: 40, y: 410, content: 'Cuma', font: 'Montserrat', fontSize: 14, color: '#38bdf8', bold: true },
         { id: `el_${now}_10`, type: 'text', x: 40, y: 435, content: 'Konu: Kullanıcı Yorumları\nFormat: Story\nSaat: 18:00', font: 'Open Sans', fontSize: 11, color: '#cbd5e1', lineHeight: 1.6 },
         { id: `el_${now}_11`, type: 'text', x: 40, y: 530, content: 'Hashtag Listesi', font: 'Montserrat', fontSize: 14, color: '#e879f9', bold: true },
-        { id: `el_${now}_12`, type: 'text', x: 40, y: 555, content: '#marka #dijitalpazarlama #sosyalmedya\n#icerikuretimi #pazarlama #girisimci', font: 'Open Sans', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 555, content: '#marka #dijitalpazarlama #sosyalmedya\n#içerikuretimi #pazarlama #girişimci', font: 'Open Sans', fontSize: 11, color: '#94a3b8', lineHeight: 1.6 },
       ];
     } else if (templateId === 'weeklyplan') {
       elements = [
@@ -1989,7 +1989,7 @@ const Editor = () => {
       <div className="space-y-2 w-52">
         <div className="grid grid-cols-2 gap-2">
           <button data-testid="toggle-bold" onClick={() => { setIsBold(!isBold); applyTextStyle('bold', !isBold); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isBold ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isBold ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Bold className="h-4 w-4" /> Bold</button>
-          <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyTextStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItalic ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItalic ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italic className="h-4 w-4" /> Italic</button>
+          <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyTextStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItaliç ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItaliç ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italiç className="h-4 w-4" /> Italic</button>
           <button data-testid="toggle-underline" onClick={() => { setIsUnderline(!isUnderline); applyTextStyle('underline', !isUnderline); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isUnderline ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isUnderline ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Underline className="h-4 w-4" /> Underline</button>
           <button data-testid="toggle-strikethrough" onClick={() => { setIsStrikethrough(!isStrikethrough); applyTextStyle('strikethrough', !isStrikethrough); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isStrikethrough ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isStrikethrough ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Strikethrough className="h-4 w-4" /> Strike</button>
         </div>
@@ -2478,7 +2478,7 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
-    {/* Graphic Chart Panel */}
+    {/* Graphiç Chart Panel */}
     {showGraphic && <DraggablePanel title="Chart" onClose={() => setShowGraphic(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-80 space-y-3 max-h-[70vh] overflow-y-auto">
         <div>
@@ -2718,7 +2718,7 @@ const Editor = () => {
             </div>
             <div>
               <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>PDF Document</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Best for printing & sharing</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Beşt for printing & sharing</div>
             </div>
           </button>
           
@@ -2896,7 +2896,7 @@ const Editor = () => {
             onClick={isListening ? stopListening : startListening} 
             className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto transition-all ${isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-500 hover:bg-blue-600'}`}
           >
-            <Mic className="h-8 w-8 text-white" />
+            <Miç className="h-8 w-8 text-white" />
           </button>
           <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
             {isListening ? 'Listening... Click to stop' : 'Click to start speaking'}
@@ -3287,7 +3287,7 @@ const Editor = () => {
                 className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
                 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #f59e0b 100%)' }}
               >
-                Planlari Gor
+                Planları Gor
               </button>
             </div>
           </div>
@@ -3298,7 +3298,7 @@ const Editor = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}>
           <div className="zet-card p-5 w-72 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Gorsel Degistir' : uploadForShape ? 'Sekle Ekle' : t('image')}</h3>
+              <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Görsel Değiştir' : uploadForShape ? 'Şekle Ekle' : t('image')}</h3>
               <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
             </div>
             <label data-testid="image-upload-btn" className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer py-3"><Upload className="h-4 w-4" /><span>Choose File</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>

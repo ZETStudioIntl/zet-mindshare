@@ -26,7 +26,7 @@ const LoginPage = () => {
   const handleEmailAuth = async (e) => {
     e.preventDefault();
     if (authMode === 'register' && !termsAccepted) {
-      setError('Devam etmek icin sozlesmeleri kabul etmelisiniz.');
+      setError('Devam etmek için sozlesmeleri kabul etmelisiniz.');
       return;
     }
     setLoading(true);
@@ -42,7 +42,7 @@ const LoginPage = () => {
         window.location.href = '/dashboard';
       }
     } catch (err) {
-      setError(err.response?.data?.detail || 'Kimlik dogrulama basarisiz');
+      setError(err.response?.data?.detail || 'Kimlik doğrulama başarısız');
     }
     setLoading(false);
   };
@@ -53,10 +53,10 @@ const LoginPage = () => {
       if (res.data.auth_url) {
         window.location.href = res.data.auth_url;
       } else {
-        setError('Apple ile giris henuz yapilandirilmadi.');
+        setError('Apple ile giriş henuz yapilandirilmadi.');
       }
     } catch {
-      setError('Apple ile giris henuz yapilandirilmadi.');
+      setError('Apple ile giriş henuz yapilandirilmadi.');
     }
   };
 
@@ -171,7 +171,7 @@ const LoginPage = () => {
               style={{ background: 'var(--zet-bg-card)' }}
             >
               <Mail className="h-4 w-4" />
-              {loading ? 'Yukleniyor...' : (authMode === 'login' ? 'E-posta ile Giris Yap' : 'Hesap Olustur')}
+              {loading ? 'Yükleniyor...' : (authMode === 'login' ? 'E-posta ile Giriş Yap' : 'Hesap Oluştur')}
             </button>
           </form>
 
@@ -183,14 +183,14 @@ const LoginPage = () => {
               style={{ color: 'var(--zet-primary-light)' }}
               data-testid="toggle-auth-mode"
             >
-              {authMode === 'login' ? 'Kayit Ol' : 'Giris Yap'}
+              {authMode === 'login' ? 'Kayit Ol' : 'Giriş Yap'}
             </button>
           </p>
 
           {/* Footer links for login mode too */}
           {authMode === 'login' && (
             <p className="mt-3 text-[10px] leading-relaxed" style={{ color: 'var(--zet-text-muted)' }}>
-              Giris yaparak{' '}
+              Giriş yaparak{' '}
               <a href="https://zetstudiointernational.com/zet-kullanim-kosullari/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Kullanim Kosullari</a>
               {' '}ve{' '}
               <a href="https://zetstudiointernational.com/zet-gizlilik-sozlesmesi/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Gizlilik Politikasi</a>

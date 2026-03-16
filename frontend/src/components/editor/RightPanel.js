@@ -135,7 +135,7 @@ export const RightPanel = ({
     setJudgeLoading(true);
     try {
       const res = await axios.post(`${API}/judge/chat`, {
-        message: judgeInput + (sentImage ? '\n[Gorsel eklendi]' : ''),
+        message: judgeInput + (sentImage ? '\n[Görsel eklendi]' : ''),
         session_id: judgeSessionId,
         doc_id: docId,
         document_content: documentContent || '',
@@ -196,10 +196,10 @@ export const RightPanel = ({
         setAutoResult(res.data);
         if (onAutoWriteContent) onAutoWriteContent(res.data.pages || [res.data.content], autoPages);
       } else {
-        setAutoError(res.data.error || 'Yazma basarisiz');
+        setAutoError(res.data.error || 'Yazma başarısız');
       }
     } catch (err) {
-      setAutoError(err.response?.data?.detail || 'Otomatik yazma basarisiz');
+      setAutoError(err.response?.data?.detail || 'Otomatik yazma başarısız');
     }
     setAutoLoading(false);
   };
@@ -216,14 +216,14 @@ export const RightPanel = ({
       if (res.data.success) {
         setDeepResult(res.data);
       } else {
-        setDeepError(res.data.error || 'Analiz basarisiz');
+        setDeepError(res.data.error || 'Analiz başarısız');
       }
     } catch (err) {
       const status = err.response?.status;
       const detail = err.response?.data?.detail;
-      if (status === 403) setDeepError(detail || 'Derin Analiz sadece Pro ve Ultra aboneler icin kullanilabilir.');
+      if (status === 403) setDeepError(detail || 'Derin Analiz sadece Pro ve Ultra aboneler için kullanılabilir.');
       else if (status === 402) setDeepError(detail || 'Yetersiz kredi! Derin Analiz 100 kredi gerektirir.');
-      else setDeepError(detail || 'Derin analiz basarisiz');
+      else setDeepError(detail || 'Derin analiz başarısız');
     }
     setDeepLoading(false);
   };
@@ -265,7 +265,7 @@ export const RightPanel = ({
         </div>
       )}
 
-      {/* Pages Section */}
+      {/* Pages Seçtion */}
       {showPages && (
       <div className="border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="p-2 flex items-center justify-between">
@@ -325,7 +325,7 @@ export const RightPanel = ({
       </div>
       )}
 
-      {/* AI Section - 2 Tabs: ZETA & Judge */}
+      {/* AI Seçtion - 2 Tabs: ZETA & Judge */}
       {showZeta && (
       <div className="flex-1 flex flex-col min-h-0">
         {/* Tab Bar */}
@@ -459,7 +459,7 @@ export const RightPanel = ({
                 <div className="flex-1 p-3 overflow-y-auto">
                   {!autoResult ? (
                     <div className="space-y-3">
-                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>ZETA belgenizi sizin icin yazar</p>
+                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>ZETA belgenizi sizin için yazar</p>
 
                       <div>
                         <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Konu / Prompt</label>
@@ -467,7 +467,7 @@ export const RightPanel = ({
                           data-testid="auto-write-prompt"
                           value={autoPrompt}
                           onChange={e => setAutoPrompt(e.target.value)}
-                          placeholder="Ornegin: Yapay zekanin gelecegi hakkinda detayli bir makale yaz..."
+                          placeholder="Ornegin: Yapay zekanin gelecegi hakkında detaylı bir makale yaz..."
                           className="zet-input w-full text-xs resize-none"
                           rows={3}
                         />
@@ -516,7 +516,7 @@ export const RightPanel = ({
                         className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
                         style={{ background: '#10b981', color: 'white' }}
                       >
-                        {autoLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> ZETA yaziyor...</>) : (<><PenTool className="h-3.5 w-3.5" /> Yazmaya Basla</>)}
+                        {autoLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> ZETA yaziyor...</>) : (<><PenTool className="h-3.5 w-3.5" /> Yazmaya Başla</>)}
                       </button>
                     </div>
                   ) : (
@@ -524,7 +524,7 @@ export const RightPanel = ({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <FileText className="h-4 w-4" style={{ color: '#10b981' }} />
-                          <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Yazma Tamamlandi!</span>
+                          <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Yazma Tamamlandı!</span>
                         </div>
                         <button onClick={() => { setAutoResult(null); setAutoPrompt(''); }} className="text-[10px] px-2 py-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }} data-testid="auto-write-new-btn">
                           Yeni Yaz
@@ -548,7 +548,7 @@ export const RightPanel = ({
                         {autoResult.content?.substring(0, 600)}...
                       </div>
                       <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
-                        Icerik belgenize eklendi. Kalan kredi: {autoResult.credits_remaining}
+                        İçerik belgenize eklendi. Kalan kredi: {autoResult.credits_remaining}
                       </p>
                     </div>
                   )}
@@ -573,19 +573,19 @@ export const RightPanel = ({
                     <div className="rounded-xl p-4 text-center mt-4" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
                       <Search className="h-8 w-8 mx-auto mb-2" style={{ color: '#f59e0b', opacity: 0.5 }} />
                       <p className="text-xs font-semibold mb-1" style={{ color: '#f59e0b' }}>Pro veya Ultra Plan Gerekli</p>
-                      <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Derin Analiz sadece Pro ve Ultra aboneler icin kullanilabilir.</p>
+                      <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Derin Analiz sadece Pro ve Ultra aboneler için kullanılabilir.</p>
                       {onShowUpgrade && (
-                        <button onClick={() => onShowUpgrade('Derin Analiz icin Pro veya Ultra plana yukseltmeniz gerekiyor.')} className="mt-3 px-4 py-2 rounded-lg text-xs font-semibold" style={{ background: '#f59e0b', color: 'white' }}>
-                          Plani Yukselt
+                        <button onClick={() => onShowUpgrade('Derin Analiz için Pro veya Ultra plana yükseltmeniz gerekiyor.')} className="mt-3 px-4 py-2 rounded-lg text-xs font-semibold" style={{ background: '#f59e0b', color: 'white' }}>
+                          Plani Yükselt
                         </button>
                       )}
                     </div>
                   ) : !deepResult ? (
                     <div className="space-y-3">
-                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>ZETA internette arastirma yaparak derinlemesine analiz yazar. Bu islem 10 dakikaya kadar surebilir.</p>
+                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>ZETA internette araştırma yaparak derinlemesine analiz yazar. Bu işlem 10 dakikaya kadar sürebilir.</p>
 
                       <div>
-                        <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Arastirma Konusu</label>
+                        <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Araştırma Konusu</label>
                         <textarea
                           data-testid="deep-analysis-topic"
                           value={deepTopic}
@@ -601,7 +601,7 @@ export const RightPanel = ({
                           <CreditCard className="h-3 w-3" style={{ color: '#f59e0b' }} />
                           <span className="text-[10px] font-semibold" style={{ color: '#f59e0b' }}>Maliyet: 100 Kredi</span>
                         </div>
-                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Internette detayli arastirma + AI analiz raporu</p>
+                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Internette detaylı araştırma + AI analiz raporu</p>
                       </div>
 
                       {deepError && (
@@ -617,7 +617,7 @@ export const RightPanel = ({
                         className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
                         style={{ background: '#f59e0b', color: 'white' }}
                       >
-                        {deepLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Arastiriliyor...</>) : (<><Search className="h-3.5 w-3.5" /> Derin Analiz Baslat</>)}
+                        {deepLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Araştırılıyor...</>) : (<><Search className="h-3.5 w-3.5" /> Derin Analiz Başlat</>)}
                       </button>
                     </div>
                   ) : (
@@ -625,7 +625,7 @@ export const RightPanel = ({
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
                           <Search className="h-4 w-4" style={{ color: '#f59e0b' }} />
-                          <span className="text-xs font-semibold" style={{ color: '#f59e0b' }}>Analiz Tamamlandi!</span>
+                          <span className="text-xs font-semibold" style={{ color: '#f59e0b' }}>Analiz Tamamlandı!</span>
                         </div>
                         <button onClick={() => { setDeepResult(null); setDeepTopic(''); }} className="text-[10px] px-2 py-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }} data-testid="deep-analysis-new-btn">
                           Yeni Analiz
@@ -644,8 +644,22 @@ export const RightPanel = ({
                       <div className="rounded-lg p-2 text-xs max-h-96 overflow-y-auto whitespace-pre-wrap" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
                         {deepResult.analysis}
                       </div>
+                      {/* Kaynak Linkleri */}
+                      {deepResult.sources && deepResult.sources.length > 0 && (
+                        <div className="rounded-lg p-2" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
+                          <p className="text-[10px] font-semibold mb-1.5" style={{ color: '#f59e0b' }}>Kaynaklar ({deepResult.sources.length})</p>
+                          <div className="space-y-1">
+                            {deepResult.sources.map((src, idx) => (
+                              <a key={idx} href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1.5 text-[10px] hover:bg-white/5 rounded p-1 transition-colors" style={{ color: 'var(--zet-text-muted)' }}>
+                                <span className="font-mono flex-shrink-0" style={{ color: '#f59e0b' }}>[{idx + 1}]</span>
+                                <span className="underline decoration-dotted hover:text-white truncate">{src.title}</span>
+                              </a>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                       <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
-                        Arama sorgusu: {deepResult.search_queries?.join(', ')}
+                        Arama sorguları: {deepResult.search_queries?.join(', ')}
                       </p>
                     </div>
                   )}
@@ -665,11 +679,11 @@ export const RightPanel = ({
                     <Scale className="h-6 w-6" />
                   </div>
                   <p className="font-semibold text-sm">ZET Judge Mini</p>
-                  <p className="text-xs mt-2 opacity-70">Free planda kullanilamaz</p>
-                  <p className="text-xs mt-1 opacity-50 mb-3">Plus veya uzeri plana yukseltin</p>
+                  <p className="text-xs mt-2 opacity-70">Free planda kullanılamaz</p>
+                  <p className="text-xs mt-1 opacity-50 mb-3">Plus veya üzeri plana yükseltin</p>
                   {onShowUpgrade && (
                     <button onClick={() => onShowUpgrade('judge')} className="px-4 py-2 rounded-lg text-xs font-medium transition-all hover:scale-105" style={{ background: '#c8005a', color: 'white' }}>
-                      Plani Yukselt
+                      Plani Yükselt
                     </button>
                   )}
                 </div>
@@ -718,19 +732,19 @@ export const RightPanel = ({
               )}
               <div className="flex gap-1 mb-2">
                 <button onClick={() => setJudgeMode('fast')} className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${judgeMode === 'fast' ? 'text-white' : 'opacity-60'}`} style={{ background: judgeMode === 'fast' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)' }}>
-                  Hizli
+                  Hızlı
                 </button>
                 <button onClick={() => setJudgeMode('deep')} className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${judgeMode === 'deep' ? 'text-white' : 'opacity-60'}`} style={{ background: judgeMode === 'deep' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)' }}>
                   Derin
                 </button>
               </div>
               <div className="flex gap-1">
-                <button onClick={handleJudgeImageUpload} className="w-8 h-8 flex-shrink-0 rounded flex items-center justify-center" style={{ background: 'rgba(200, 0, 90, 0.3)' }} title="Gorsel ekle">
+                <button onClick={handleJudgeImageUpload} className="w-8 h-8 flex-shrink-0 rounded flex items-center justify-center" style={{ background: 'rgba(200, 0, 90, 0.3)' }} title="Görsel ekle">
                   <FileText className="h-3 w-3" style={{ color: '#c8005a' }} />
                 </button>
                 <input
                   data-testid="judge-input"
-                  placeholder={judgeMode === 'deep' ? 'Detayli analiz icin...' : 'Hizli analiz icin...'}
+                  placeholder={judgeMode === 'deep' ? 'Detaylı analiz için...' : 'Hızlı analiz için...'}
                   value={judgeInput}
                   onChange={e => setJudgeInput(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && sendJudgeMessage()}
