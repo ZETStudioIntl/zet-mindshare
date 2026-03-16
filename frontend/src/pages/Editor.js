@@ -442,10 +442,14 @@ const Editor = () => {
   const addPage = () => {
     const newPage = { page_id: `page_${Date.now()}`, elements: [], drawPaths: [], pageSize };
     setDocument(prev => {
-      const updatedPages = [...(prev.pages || []), newPage];
-      // Schedule page change after state update
-      setTimeout(() => setCurrentPage(updatedPages.length - 1), 50);
-      return { ...prev, pages: updatedPages };
+      const pages = [...(prev.pages || [])];
+      // Save current page elements before adding new page
+      if (pages[currentPage]) {
+        pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths, pageSize };
+      }
+      pages.push(newPage);
+      setTimeout(() => setCurrentPage(pages.length - 1), 50);
+      return { ...prev, pages };
     });
   };
 
@@ -546,7 +550,11 @@ const Editor = () => {
 
   // === TOOL SELECT ===
   const handleToolSelect = (toolId) => {
-    setActiveTool(toolId);
+    // Action-only tools: don't change activeTool state
+    const actionTools = ['addpage', 'copy', 'redact', 'highlighter', 'importpdf'];
+    if (!actionTools.includes(toolId)) {
+      setActiveTool(toolId);
+    }
     const panels = {
       image: () => setShowImageUpload(true), pagesize: () => setShowPageSize(true),
       textsize: () => setShowTextSize(true), font: () => { setFontSearch(''); setShowFont(true); },
@@ -910,7 +918,7 @@ const Editor = () => {
     if (!file || !file.name.endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
     setPdfImporting(true);
     try {
-      const pdfjsLib = await import('pdfjs-dışt/build/pdf');
+      const pdfjsLib = await import('pdfjs-dist/build/pdf');
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
       const arrayBuf = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
