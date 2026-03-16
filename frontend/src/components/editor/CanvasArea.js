@@ -109,13 +109,14 @@ const ShapeRenderer = ({ el }) => {
 const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onRemoveRedact }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
+  const [removeTarget, setRemoveTarget] = useState(null); // 'redact' | 'highlight' | null
   
   useEffect(() => {
     if (isEditing && ref.current) {
-      // Load HTML content when entering edit mode
       if (!prevEditingRef.current) {
         const html = el.htmlContent || (el.content ? el.content.replace(/\n/g, '<br>') : '');
         ref.current.innerHTML = html;
+        setRemoveTarget(null);
       }
       ref.current.focus();
       const r = window.document.createRange(); const s = window.getSelection();
@@ -124,54 +125,39 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
     prevEditingRef.current = isEditing;
   }, [isEditing, el.htmlContent, el.content]);
   
-  // Check overflow while typing
   const checkOverflow = useCallback(() => {
     if (!ref.current || !pageHeight || !onAutoAddPage) return;
     const rect = ref.current.getBoundingClientRect();
     const elBottom = el.y + (rect.height / zoom);
-    if (elBottom > pageHeight - 40) {
-      onAutoAddPage();
-    }
+    if (elBottom > pageHeight - 40) { onAutoAddPage(); }
   }, [el.y, pageHeight, zoom, onAutoAddPage]);
 
-  // Handle click on redacted/highlighted span to show remove button
   const handleClick = useCallback((e) => {
     e.stopPropagation();
-    const target = e.target;
-    const btnStyle = 'position:absolute;top:100%;left:0;z-index:50;padding:4px 8px;font-size:11px;border-radius:6px;background:var(--zet-bg-card,#1e1e2e);border:1px solid var(--zet-border,#333);color:var(--zet-text,#eee);cursor:pointer;white-space:nowrap;box-shadow:0 4px 12px rgba(0,0,0,0.4);margin-top:2px;';
+    const target = e.target.nodeType === 3 ? e.target.parentElement : e.target;
+    if (!target) { onStartEdit(el.id); return; }
     
-    // Helper to create remove button
-    const createRemoveBtn = (label, className) => {
-      const existing = target.querySelector(`.${className}`);
-      if (existing) { existing.remove(); return; }
-      ref.current?.querySelectorAll(`.${className}`).forEach(b => b.remove());
-      ref.current?.querySelectorAll('.redact-remove-btn,.highlight-remove-btn').forEach(b => b.remove());
-      const btn = window.document.createElement('button');
-      btn.className = className;
-      btn.textContent = label;
-      btn.style.cssText = btnStyle;
-      target.style.position = 'relative';
-      const originalText = target.childNodes[0]?.textContent || target.textContent;
-      btn.addEventListener('mousedown', (ev) => {
-        ev.preventDefault(); ev.stopPropagation();
-        target.replaceWith(originalText);
-        if (ref.current) onCommit(el.id, ref.current.innerHTML, true);
-      });
-      target.appendChild(btn);
-    };
+    const redactedSpan = target.closest?.('[data-redacted="true"]');
+    const highlightSpan = target.closest?.('[data-highlight="true"]');
     
-    if (target.dataset?.redacted === 'true') {
-      createRemoveBtn('Bandı Kaldır', 'redact-remove-btn');
-      return;
-    }
-    if (target.dataset?.highlight === 'true') {
-      createRemoveBtn('İşareti Kaldır', 'highlight-remove-btn');
-      return;
-    }
-    // Remove any lingering buttons
-    ref.current?.querySelectorAll('.redact-remove-btn,.highlight-remove-btn').forEach(b => b.remove());
+    if (redactedSpan) { setRemoveTarget('redact'); return; }
+    if (highlightSpan) { setRemoveTarget('highlight'); return; }
+    
+    setRemoveTarget(null);
     onStartEdit(el.id);
-  }, [el.id, onStartEdit, onCommit]);
+  }, [el.id, onStartEdit]);
+
+  const handleRemoveFormatting = useCallback(() => {
+    let html = el.htmlContent || el.content || '';
+    if (removeTarget === 'redact') {
+      html = html.replace(/<span[^>]*data-redacted="true"[^>]*>(.*?)<\/span>/gi, '$1');
+    } else if (removeTarget === 'highlight') {
+      html = html.replace(/<span[^>]*data-highlight="true"[^>]*>(.*?)<\/span>/gi, '$1');
+    }
+    const plain = html.replace(/<[^>]*>/g, '');
+    onCommit(el.id, html, true);
+    setRemoveTarget(null);
+  }, [el.id, el.htmlContent, el.content, removeTarget, onCommit]);
   
   const ml = pageMargins?.left || 60;
   const mr = pageMargins?.right || 60;
@@ -182,40 +168,50 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
     WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
   } : {};
 
-  // Render HTML content (supports redacted/highlighted spans)
   const htmlContent = el.htmlContent || (el.content ? el.content.replace(/\n/g, '<br>') : (isEditing ? '' : '\u00A0'));
 
   return (
-    <div ref={ref} data-testid={`text-element-${el.id}`} contentEditable={isEditing} suppressContentEditableWarning
-      onDoubleClick={(e) => { e.stopPropagation(); onStartEdit(el.id); }}
-      onClick={handleClick}
-      onBlur={() => { 
-        if (ref.current) {
-          ref.current.querySelectorAll('.redact-remove-btn').forEach(b => b.remove());
-          onCommit(el.id, ref.current.innerHTML, true);
-        }
-      }}
-      onInput={checkOverflow}
-      onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
-      className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
-      style={{
-        fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial',
-        color: (el.gradientStart && el.gradientEnd) ? undefined : (el.color || '#000'),
-        fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal',
-        textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none',
-        textAlign: el.textAlign || 'left',
-        width: fixedWidth,
-        wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
-        cursor: 'text', caretColor: 'var(--zet-primary)',
-        paddingLeft: (el.paddingLeft || 0) * zoom,
-        paddingRight: (el.paddingRight || 0) * zoom,
-        paddingTop: (el.paddingTop || 0) * zoom,
-        paddingBottom: (el.paddingBottom || 0) * zoom,
-        backgroundColor: el.highlightColor || undefined,
-        ...gradientStyle,
-      }}
-      dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
-    />
+    <div style={{ position: 'relative' }}>
+      <div ref={ref} data-testid={`text-element-${el.id}`} contentEditable={isEditing} suppressContentEditableWarning
+        onDoubleClick={(e) => { e.stopPropagation(); setRemoveTarget(null); onStartEdit(el.id); }}
+        onClick={handleClick}
+        onBlur={() => { 
+          if (ref.current) {
+            onCommit(el.id, ref.current.innerHTML, true);
+          }
+        }}
+        onInput={checkOverflow}
+        onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
+        className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
+        style={{
+          fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial',
+          color: (el.gradientStart && el.gradientEnd) ? undefined : (el.color || '#000'),
+          fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal',
+          textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none',
+          textAlign: el.textAlign || 'left',
+          width: fixedWidth,
+          wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
+          cursor: 'text', caretColor: 'var(--zet-primary)',
+          paddingLeft: (el.paddingLeft || 0) * zoom,
+          paddingRight: (el.paddingRight || 0) * zoom,
+          paddingTop: (el.paddingTop || 0) * zoom,
+          paddingBottom: (el.paddingBottom || 0) * zoom,
+          backgroundColor: el.highlightColor || undefined,
+          ...gradientStyle,
+        }}
+        dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
+      />
+      {removeTarget && (
+        <button
+          data-testid={`remove-${removeTarget}-btn`}
+          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveFormatting(); }}
+          className="absolute left-0 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105"
+          style={{ top: '100%', marginTop: 4, background: 'var(--zet-bg-card, #1e1e2e)', border: '1px solid var(--zet-border, #333)', color: 'var(--zet-text, #eee)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}
+        >
+          {removeTarget === 'redact' ? 'Bandı Kaldır' : 'İşareti Kaldır'}
+        </button>
+      )}
+    </div>
   );
 };
 

@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
+import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -875,6 +876,36 @@ const Editor = () => {
     setShowExport(false);
   };
 
+  // Export to .ms format
+  const exportToMS = () => {
+    const updatedPages = [...(document.pages || [])];
+    if (updatedPages[currentPage]) {
+      updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
+    }
+    const docWithPages = { ...document, pages: updatedPages };
+    const msDoc = convertToMSFormat(docWithPages, canvasElements, drawPaths, pageSize, pageBackground, userPlan);
+    exportToMSFile(msDoc, document.title);
+    setShowExport(false);
+  };
+
+  // Import .ms file
+  const importFromMS = async (file) => {
+    try {
+      const msDoc = await importFromMSFile(file);
+      const editorDoc = convertFromMSFormat(msDoc);
+      if (editorDoc.title) setDocument(prev => ({ ...prev, title: editorDoc.title }));
+      if (editorDoc.pages && editorDoc.pages.length > 0) {
+        setDocument(prev => ({ ...prev, pages: editorDoc.pages }));
+        setCurrentPage(0);
+      }
+      if (editorDoc.watermark) setDocument(prev => ({ ...prev, watermark: editorDoc.watermark }));
+      setShowExport(false);
+    } catch (err) {
+      console.error('MS import failed:', err);
+      alert(err.message || '.ms dosyasi iceri aktarilamadi');
+    }
+  };
+
   // === SIGNATURE ===
   const clearSignature = () => {
     setSignaturePoints([]);
@@ -1019,6 +1050,7 @@ const Editor = () => {
     else if (format === 'jpeg') exportToImage('jpeg');
     else if (format === 'svg') exportToSVG();
     else if (format === 'json') exportToJSON();
+    else if (format === 'ms') exportToMS();
   };
 
   // === GRAPHIC CHART ===
@@ -2898,6 +2930,16 @@ const Editor = () => {
               <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Re-open and edit later</div>
             </div>
           </button>
+          
+          <button data-testid="export-ms-btn" onClick={() => handleExport('ms')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
+            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
+              <span className="text-white text-xs font-bold">.ms</span>
+            </div>
+            <div>
+              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>Mindshare (.ms)</div>
+              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>ZET Mindshare native format</div>
+            </div>
+          </button>
         </div>
 
         {/* Quality selector for images */}
@@ -2922,6 +2964,17 @@ const Editor = () => {
           />
           <label htmlFor="import-json" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer">
             <Upload className="h-4 w-4" /> Open .zet.json File
+          </label>
+          <input 
+            data-testid="import-ms-input"
+            type="file" 
+            accept=".ms" 
+            onChange={(e) => { if (e.target.files[0]) importFromMS(e.target.files[0]); }}
+            className="hidden"
+            id="import-ms"
+          />
+          <label htmlFor="import-ms" data-testid="import-ms-btn" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer mt-2" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
+            <Upload className="h-4 w-4" /> Open .ms File
           </label>
         </div>
 

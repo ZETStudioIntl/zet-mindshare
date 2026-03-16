@@ -7,7 +7,7 @@ import requests
 import os
 from datetime import datetime, timedelta
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://zeta-ai-write.preview.emergentagent.com')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://brainstorm-editor.preview.emergentagent.com')
 
 class TestHealthAndRoot:
     """API root endpoint tests"""

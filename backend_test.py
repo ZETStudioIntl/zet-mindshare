@@ -6,7 +6,7 @@ import json
 from datetime import datetime
 
 class ZETBackendTester:
-    def __init__(self, base_url="https://zeta-ai-write.preview.emergentagent.com"):
+    def __init__(self, base_url="https://brainstorm-editor.preview.emergentagent.com"):
         self.base_url = base_url
         self.api_url = f"{base_url}/api"
         self.session_token = "test_session_1772804464509"
