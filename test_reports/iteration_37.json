@@ -1,0 +1,54 @@
+{
+  "summary": "Tested UI restructure from 4 AI tabs to 2 tabs (ZETA and Judge Mini). All requested features working correctly: 2-tab structure, Oto Yaz and Derin Analiz buttons inside ZETA chat mode, back navigation, auto-write 1-7 page limit, Judge Mini with fast/deep modes and image upload.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_37.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "2-tab structure correctly implemented - only ZETA and Judge Mini tabs visible",
+    "Old 'Oto Yaz' and 'Derin' separate tabs successfully removed",
+    "Oto Yaz (green) and Derin Analiz (amber with 100kr) buttons placed above chat input in ZETA mode",
+    "Auto-write mode accessible via button with proper back navigation",
+    "Deep analysis mode accessible via button with proper back navigation",
+    "Auto-write page selector correctly limited to 1-7 pages",
+    "ZETA chat input remains functional - messages send and receive correctly",
+    "Judge Mini tab works with Hizli/Derin mode selector and image upload button",
+    "No image/photo upload button in ZETA input area as required",
+    "data-testid attributes properly implemented for all interactive elements"
+  ],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "N/A (frontend only test)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "pro_user": "testcredit@test.com / test1234"
+  },
+  "seed_data_creation": "None",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "UI restructure complete. RightPanel.js has been rewritten with 2-tab structure. ZETA has zetaMode state ('chat', 'autowrite', 'deep') managed by action buttons. Judge Mini tab remains as before with fast/deep modes. Auto-write page limit is 1-7.",
+  "features_tested": {
+    "Only 2 tabs visible (ZETA and Judge Mini)": "PASS - Old Oto Yaz and Derin tabs removed",
+    "ZETA tab with Oto Yaz button": "PASS - Green button above chat input",
+    "ZETA tab with Derin Analiz 100kr button": "PASS - Amber button above chat input",
+    "Oto Yaz button opens auto-write mode": "PASS - Shows prompt input, page selector, style selector",
+    "Auto-write back button returns to chat": "PASS - Back arrow navigates correctly",
+    "Derin Analiz button opens deep analysis mode": "PASS - Shows topic input, 100 credit cost, start button",
+    "Deep analysis back button returns to chat": "PASS - Back arrow navigates correctly",
+    "ZETA chat still works": "PASS - Messages send and receive correctly",
+    "Judge Mini tab works": "PASS - Has fast/deep mode selector and input field",
+    "Judge Mini has image upload": "PASS - Gorsel ekle button present",
+    "Auto-write page limit 1-7": "PASS - Dropdown has exactly 7 options (1-7)",
+    "No image upload in ZETA": "PASS - data-testid='zeta-image-upload' not found"
+  }
+}
