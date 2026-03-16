@@ -56,7 +56,13 @@ const Editor = () => {
   const [canvasElements, setCanvasElements] = useState([]);
   const [selectedElement, setSelectedElement] = useState(null);
   const [selectedElements, setSelectedElements] = useState([]);
+  const lastSelectedRef = useRef(null);
   const [drawPaths, setDrawPaths] = useState([]);
+
+  // Keep ref in sync with selectedElement
+  useEffect(() => {
+    if (selectedElement) lastSelectedRef.current = selectedElement;
+  }, [selectedElement]);
 
   // View state
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
@@ -598,17 +604,18 @@ const Editor = () => {
 
   // === HIGHLIGHTER Tool (like Redact - applies to selected text) ===
   const applyHighlight = useCallback(() => {
-    if (!selectedElement) {
+    const target = selectedElement || lastSelectedRef.current;
+    if (!target) {
       alert('Lütfen önce işaretlemek istediğiniz metni seçin!');
       return;
     }
-    const el = canvasElements.find(e => e.id === selectedElement);
+    const el = canvasElements.find(e => e.id === target);
     if (!el || el.type !== 'text') {
       alert('Sadece metin elementleri işaretlenebilir!');
       return;
     }
     const updated = canvasElements.map(e => 
-      e.id === selectedElement 
+      e.id === target 
         ? { ...e, highlightColor: highlighterColor }
         : e
     );
@@ -618,18 +625,19 @@ const Editor = () => {
 
   // === REDACT (Seçurity) Tool ===
   const applyRedaction = useCallback(() => {
-    if (!selectedElement) {
+    const target = selectedElement || lastSelectedRef.current;
+    if (!target) {
       alert('Lütfen önce sansürlemek istediğiniz metni seçin!');
       return;
     }
-    const el = canvasElements.find(e => e.id === selectedElement);
+    const el = canvasElements.find(e => e.id === target);
     if (!el || el.type !== 'text') {
       alert('Sadece metin elementleri sansürlenebilir!');
       return;
     }
     // Apply redaction - replace with black bar
     const updated = canvasElements.map(e => 
-      e.id === selectedElement 
+      e.id === target 
         ? { ...e, isRedacted: true, originalContent: e.content, color: '#000000', background: '#000000' }
         : e
     );
