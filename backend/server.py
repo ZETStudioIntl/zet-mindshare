@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query, WebSocket, WebSocketDisconnect
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -8,12 +8,13 @@ import logging
 import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional
+from typing import List, Optional, Dict
 import uuid
 from datetime import datetime, timezone, timedelta
 import base64
 import asyncio
 import resend
+import json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -113,10 +114,77 @@ class TranslateRequest(BaseModel):
     text: str
     target_language: str
 
+class ShareLinkCreate(BaseModel):
+    permission: str = "view"  # "view" or "edit"
+    expires_hours: Optional[int] = None
+
+class CommentCreate(BaseModel):
+    content: str
+    element_id: Optional[str] = None
+    x: Optional[float] = None
+    y: Optional[float] = None
+    page_index: Optional[int] = 0
+
+class CommentReply(BaseModel):
+    content: str
+
 class EmailAuthRequest(BaseModel):
     email: str
     password: str
     name: Optional[str] = None
+
+# ============ COLLABORATION WEBSOCKET MANAGER ============
+
+class CollaborationManager:
+    def __init__(self):
+        self.active_rooms: Dict[str, Dict[str, dict]] = {}  # doc_id -> {user_id: {ws, user_info}}
+
+    async def connect(self, doc_id: str, user_id: str, user_name: str, ws: WebSocket):
+        await ws.accept()
+        if doc_id not in self.active_rooms:
+            self.active_rooms[doc_id] = {}
+        color = f"hsl({hash(user_id) % 360}, 70%, 60%)"
+        self.active_rooms[doc_id][user_id] = {
+            "ws": ws, "name": user_name, "color": color,
+            "cursor": None, "connected_at": datetime.now(timezone.utc).isoformat()
+        }
+        # Notify others
+        await self.broadcast(doc_id, user_id, {
+            "type": "user_joined",
+            "user_id": user_id, "name": user_name, "color": color,
+            "users": self._get_users(doc_id)
+        })
+
+    def disconnect(self, doc_id: str, user_id: str):
+        if doc_id in self.active_rooms:
+            self.active_rooms[doc_id].pop(user_id, None)
+            if not self.active_rooms[doc_id]:
+                del self.active_rooms[doc_id]
+
+    async def broadcast(self, doc_id: str, sender_id: str, message: dict):
+        if doc_id not in self.active_rooms:
+            return
+        dead = []
+        for uid, info in self.active_rooms[doc_id].items():
+            if uid == sender_id:
+                continue
+            try:
+                await info["ws"].send_json(message)
+            except Exception:
+                dead.append(uid)
+        for uid in dead:
+            self.active_rooms[doc_id].pop(uid, None)
+
+    def _get_users(self, doc_id: str):
+        if doc_id not in self.active_rooms:
+            return []
+        return [{"user_id": uid, "name": info["name"], "color": info["color"]}
+                for uid, info in self.active_rooms[doc_id].items()]
+
+    def get_online_count(self, doc_id: str):
+        return len(self.active_rooms.get(doc_id, {}))
+
+collab_manager = CollaborationManager()
 
 # ============ EMAIL HELPER ============
 
@@ -2073,6 +2141,208 @@ async def complete_quest(quest_id: int, req: QuestCompleteRequest, user: User = 
         upsert=True
     )
     return {"completed_quests": completed, "quest_xp": new_xp}
+
+# ============ COLLABORATION & SHARING ============
+
+shares_collection = db.shares
+comments_collection = db.comments
+
+@api_router.post("/documents/{doc_id}/share")
+async def create_share_link(doc_id: str, share: ShareLinkCreate, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"doc_id": doc_id, "user_id": user.user_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    share_id = f"share_{uuid.uuid4().hex[:12]}"
+    share_data = {
+        "share_id": share_id, "doc_id": doc_id, "owner_id": user.user_id,
+        "permission": share.permission,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "expires_at": (datetime.now(timezone.utc) + timedelta(hours=share.expires_hours)).isoformat() if share.expires_hours else None,
+        "active": True
+    }
+    await shares_collection.insert_one(share_data)
+    return {"share_id": share_id, "permission": share.permission, "expires_at": share_data["expires_at"]}
+
+@api_router.get("/documents/{doc_id}/shares")
+async def get_share_links(doc_id: str, user: User = Depends(get_current_user)):
+    shares = await shares_collection.find({"doc_id": doc_id, "owner_id": user.user_id, "active": True}, {"_id": 0}).to_list(50)
+    return shares
+
+@api_router.delete("/share/{share_id}")
+async def revoke_share_link(share_id: str, user: User = Depends(get_current_user)):
+    await shares_collection.update_one({"share_id": share_id, "owner_id": user.user_id}, {"$set": {"active": False}})
+    return {"status": "revoked"}
+
+@api_router.get("/shared/{share_id}")
+async def get_shared_document(share_id: str, request: Request):
+    share = await shares_collection.find_one({"share_id": share_id, "active": True}, {"_id": 0})
+    if not share:
+        raise HTTPException(404, "Share link not found or expired")
+    if share.get("expires_at"):
+        exp = datetime.fromisoformat(share["expires_at"])
+        if datetime.now(timezone.utc) > exp:
+            raise HTTPException(410, "Share link expired")
+    doc = await db.documents.find_one({"doc_id": share["doc_id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(404, "Document not found")
+    # Get current user if logged in
+    user_id = None
+    user_name = "Guest"
+    session_id = request.cookies.get("session_id")
+    if session_id:
+        session = await db.sessions.find_one({"session_id": session_id}, {"_id": 0})
+        if session:
+            u = await users_collection.find_one({"user_id": session["user_id"]}, {"_id": 0})
+            if u:
+                user_id = u["user_id"]
+                user_name = u.get("name", "User")
+    return {
+        "document": doc, "permission": share["permission"],
+        "owner_id": share["owner_id"],
+        "viewer": {"user_id": user_id or f"guest_{uuid.uuid4().hex[:8]}", "name": user_name}
+    }
+
+# ============ COMMENTS ============
+
+@api_router.post("/documents/{doc_id}/comments")
+async def add_comment(doc_id: str, comment: CommentCreate, user: User = Depends(get_current_user)):
+    comment_id = f"cmt_{uuid.uuid4().hex[:12]}"
+    comment_data = {
+        "comment_id": comment_id, "doc_id": doc_id,
+        "user_id": user.user_id, "user_name": user.name,
+        "content": comment.content, "element_id": comment.element_id,
+        "x": comment.x, "y": comment.y, "page_index": comment.page_index,
+        "replies": [], "resolved": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await comments_collection.insert_one(comment_data)
+    comment_data.pop("_id", None)
+    return comment_data
+
+@api_router.get("/documents/{doc_id}/comments")
+async def get_comments(doc_id: str, user: User = Depends(get_current_user)):
+    comments = await comments_collection.find({"doc_id": doc_id}, {"_id": 0}).to_list(200)
+    return comments
+
+@api_router.post("/comments/{comment_id}/reply")
+async def reply_to_comment(comment_id: str, reply: CommentReply, user: User = Depends(get_current_user)):
+    reply_data = {
+        "reply_id": f"reply_{uuid.uuid4().hex[:8]}",
+        "user_id": user.user_id, "user_name": user.name,
+        "content": reply.content,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await comments_collection.update_one(
+        {"comment_id": comment_id}, {"$push": {"replies": reply_data}}
+    )
+    return reply_data
+
+@api_router.put("/comments/{comment_id}/resolve")
+async def resolve_comment(comment_id: str, user: User = Depends(get_current_user)):
+    await comments_collection.update_one({"comment_id": comment_id}, {"$set": {"resolved": True}})
+    return {"status": "resolved"}
+
+@api_router.delete("/comments/{comment_id}")
+async def delete_comment(comment_id: str, user: User = Depends(get_current_user)):
+    await comments_collection.delete_one({"comment_id": comment_id, "user_id": user.user_id})
+    return {"status": "deleted"}
+
+# ============ WEBSOCKET COLLABORATION ============
+
+@app.websocket("/api/ws/collab/{doc_id}")
+async def websocket_collab(websocket: WebSocket, doc_id: str):
+    # Accept first, then authenticate
+    user_id = None
+    user_name = "Guest"
+    try:
+        await websocket.accept()
+        # Wait for auth message
+        auth_msg = await asyncio.wait_for(websocket.receive_json(), timeout=10)
+        user_id = auth_msg.get("user_id", f"guest_{uuid.uuid4().hex[:8]}")
+        user_name = auth_msg.get("user_name", "Guest")
+        
+        # Register in room
+        if doc_id not in collab_manager.active_rooms:
+            collab_manager.active_rooms[doc_id] = {}
+        color = f"hsl({hash(user_id) % 360}, 70%, 60%)"
+        collab_manager.active_rooms[doc_id][user_id] = {
+            "ws": websocket, "name": user_name, "color": color,
+            "cursor": None, "connected_at": datetime.now(timezone.utc).isoformat()
+        }
+        
+        # Send current users list
+        await websocket.send_json({
+            "type": "connected",
+            "user_id": user_id, "color": color,
+            "users": collab_manager._get_users(doc_id)
+        })
+        
+        # Notify others
+        await collab_manager.broadcast(doc_id, user_id, {
+            "type": "user_joined",
+            "user_id": user_id, "name": user_name, "color": color,
+            "users": collab_manager._get_users(doc_id)
+        })
+        
+        # Message loop
+        while True:
+            data = await websocket.receive_json()
+            msg_type = data.get("type")
+            
+            if msg_type == "cursor_move":
+                collab_manager.active_rooms[doc_id][user_id]["cursor"] = data.get("position")
+                await collab_manager.broadcast(doc_id, user_id, {
+                    "type": "cursor_move",
+                    "user_id": user_id, "name": user_name, "color": color,
+                    "position": data.get("position")
+                })
+            elif msg_type == "element_update":
+                await collab_manager.broadcast(doc_id, user_id, {
+                    "type": "element_update",
+                    "user_id": user_id, "name": user_name,
+                    "elements": data.get("elements"),
+                    "page_index": data.get("page_index")
+                })
+            elif msg_type == "element_add":
+                await collab_manager.broadcast(doc_id, user_id, {
+                    "type": "element_add",
+                    "user_id": user_id, "element": data.get("element")
+                })
+            elif msg_type == "element_delete":
+                await collab_manager.broadcast(doc_id, user_id, {
+                    "type": "element_delete",
+                    "user_id": user_id, "element_id": data.get("element_id")
+                })
+            elif msg_type == "comment_add":
+                await collab_manager.broadcast(doc_id, user_id, {
+                    "type": "comment_add",
+                    "user_id": user_id, "name": user_name,
+                    "comment": data.get("comment")
+                })
+            elif msg_type == "page_update":
+                await collab_manager.broadcast(doc_id, user_id, {
+                    "type": "page_update",
+                    "user_id": user_id,
+                    "pages": data.get("pages")
+                })
+            elif msg_type == "ping":
+                await websocket.send_json({"type": "pong"})
+    except WebSocketDisconnect:
+        pass
+    except Exception as e:
+        logging.getLogger(__name__).error(f"WebSocket error: {e}")
+    finally:
+        collab_manager.disconnect(doc_id, user_id)
+        await collab_manager.broadcast(doc_id, user_id, {
+            "type": "user_left",
+            "user_id": user_id, "name": user_name,
+            "users": collab_manager._get_users(doc_id)
+        })
+
+@api_router.get("/documents/{doc_id}/online")
+async def get_online_users(doc_id: str):
+    users = collab_manager._get_users(doc_id)
+    return {"users": users, "count": len(users)}
 
 # ============ ROOT ============
 

@@ -9,6 +9,7 @@ import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import QuestMap from "./pages/QuestMap";
+import SharedView from "./pages/SharedView";
 
 const AppRouter = () => {
   const location = useLocation();
@@ -36,6 +37,7 @@ const AppRouter = () => {
           <QuestMap />
         </ProtectedRoute>
       } />
+      <Route path="/shared/:shareId" element={<SharedView />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>

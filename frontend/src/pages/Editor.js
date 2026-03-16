@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAuth } from '../contexts/AuthContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
 import { Toolbox } from '../components/editor/Toolbox';
@@ -19,11 +20,14 @@ import {
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
   ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil, Crown,
-  List, ListOrdered, Group, Ungroup, CircleCheck, Cloud
+  List, ListOrdered, Group, Ungroup, CircleCheck, Cloud, Share2, MessageSquare, Users
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
+import ShareDialog from '../components/editor/ShareDialog';
+import CommentsPanel from '../components/editor/CommentsPanel';
+import { useCollaboration } from '../hooks/useCollaboration';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -33,6 +37,7 @@ const Editor = () => {
   const { docId } = useParams();
   const navigate = useNavigate();
   const { t, language } = useLanguage();
+  const { user: authUser } = useAuth();
 
   // Mobile detection
   const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
@@ -264,6 +269,11 @@ const Editor = () => {
   const [showMargins, setShowMargins] = useState(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
 
+  // Collaboration state
+  const [showShareDialog, setShowShareDialog] = useState(false);
+  const [showComments, setShowComments] = useState(false);
+  const [collabEnabled, setCollabEnabled] = useState(false);
+
   // Indent state
   const [indentLeft, setIndentLeft] = useState(0);
   const [indentRight, setIndentRight] = useState(0);
@@ -333,6 +343,34 @@ const Editor = () => {
 
   // History
   const history = useCanvasHistory();
+  
+  // Collaboration hook
+  const collab = useCollaboration(
+    docId,
+    authUser?.user_id || 'unknown',
+    authUser?.name || 'User',
+    collabEnabled
+  );
+
+  // Enable collab if URL has ?collab=true
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('collab') === 'true') setCollabEnabled(true);
+  }, []);
+
+  // Handle incoming collab messages
+  useEffect(() => {
+    if (!collab.connected) return;
+    collab.onCollabMessage((data) => {
+      if (data.type === 'element_update' && data.elements) {
+        setCanvasElements(data.elements);
+      } else if (data.type === 'element_add' && data.element) {
+        setCanvasElements(prev => [...prev, data.element]);
+      } else if (data.type === 'element_delete' && data.element_id) {
+        setCanvasElements(prev => prev.filter(e => e.id !== data.element_id));
+      }
+    });
+  }, [collab.connected, collab.onCollabMessage]);
   const autoSaveTimerRef = useRef(null);
   const canvasContainerRef = useRef(null);
 
@@ -3429,6 +3467,28 @@ const Editor = () => {
           
           {!isMobile && <button data-testid="shortcuts-btn" onClick={() => setShowShortcuts(true)} className="tool-btn w-8 h-8" title="Keyboard Shortcuts"><Keyboard className="h-4 w-4" /></button>}
           <button data-testid="export-btn" onClick={() => setShowExport(true)} className="tool-btn w-8 h-8" title="Export"><Download className="h-4 w-4" /></button>
+          {/* Collaboration buttons */}
+          <div className="flex items-center gap-1 mr-2">
+            <button data-testid="share-btn" onClick={() => setShowShareDialog(true)} className="tool-btn w-8 h-8 flex items-center justify-center" title="Paylas">
+              <Share2 className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+            </button>
+            <button data-testid="comments-btn" onClick={() => setShowComments(!showComments)} className={`tool-btn w-8 h-8 flex items-center justify-center ${showComments ? 'ring-1 ring-blue-500' : ''}`} title="Yorumlar">
+              <MessageSquare className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+            </button>
+            <button data-testid="collab-toggle" onClick={() => setCollabEnabled(!collabEnabled)} className={`tool-btn w-8 h-8 flex items-center justify-center ${collabEnabled ? 'ring-1 ring-green-500' : ''}`} title={collabEnabled ? 'Isbirligi Acik' : 'Isbirligi Kapat'}>
+              <Users className="h-4 w-4" style={{ color: collabEnabled && collab.connected ? '#22c55e' : 'var(--zet-text)' }} />
+            </button>
+            {collab.onlineUsers.length > 1 && (
+              <div data-testid="online-users" className="flex items-center -space-x-1.5 ml-1">
+                {collab.onlineUsers.slice(0, 5).map(u => (
+                  <div key={u.user_id} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold border-2" style={{ background: u.color, borderColor: 'var(--zet-bg-card)', color: '#fff' }} title={u.name}>
+                    {u.name.charAt(0).toUpperCase()}
+                  </div>
+                ))}
+                {collab.onlineUsers.length > 5 && <span className="text-[10px] ml-1" style={{ color: 'var(--zet-text-muted)' }}>+{collab.onlineUsers.length - 5}</span>}
+              </div>
+            )}
+          </div>
           {/* Credit indicator - clickable */}
           <div data-testid="credit-indicator" onClick={() => navigate('/dashboard?showCredits=true')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer hover:scale-105 transition-transform" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
             <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
@@ -3596,13 +3656,33 @@ const Editor = () => {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}>
           <div className="zet-card p-5 w-72 animate-fadeIn" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Görsel Değiştir' : uploadForShape ? 'Şekle Ekle' : t('image')}</h3>
+              <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Gorsel Degistir' : uploadForShape ? 'Sekle Ekle' : t('image')}</h3>
               <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
             </div>
             <label data-testid="image-upload-btn" className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer py-3"><Upload className="h-4 w-4" /><span>Choose File</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>
           </div>
         </div>
       )}
+
+      {/* Share Dialog */}
+      {showShareDialog && <ShareDialog docId={docId} onClose={() => setShowShareDialog(false)} />}
+
+      {/* Comments Panel - slides in from right */}
+      {showComments && (
+        <div data-testid="comments-sidebar" className="fixed right-0 top-12 bottom-0 w-80 z-50 shadow-2xl" style={{ background: 'var(--zet-bg-card)', borderLeft: '1px solid var(--zet-border)' }}>
+          <CommentsPanel docId={docId} onClose={() => setShowComments(false)} selectedElement={selectedElement} currentPage={currentPage} />
+        </div>
+      )}
+
+      {/* Remote Cursors Overlay */}
+      {collab.connected && Object.entries(collab.remoteCursors).map(([uid, cursor]) => cursor && (
+        <div key={uid} className="fixed pointer-events-none z-[100] transition-all duration-150" style={{ left: cursor.x, top: cursor.y }}>
+          <svg width="16" height="20" viewBox="0 0 16 20" fill={cursor.color}>
+            <path d="M0 0L16 12L8 12L12 20L8 18L4 12L0 12Z" />
+          </svg>
+          <span className="text-[9px] px-1 py-0.5 rounded ml-3 whitespace-nowrap" style={{ background: cursor.color, color: '#fff' }}>{cursor.name}</span>
+        </div>
+      ))}
     </div>
   );
 };
