@@ -14,11 +14,12 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 - `/app/frontend/src/components/editor/CanvasArea.js` - Canvas ve element render
 - `/app/frontend/src/components/editor/RightPanel.js` - AI panel (ZETA, Judge Mini)
 - `/app/frontend/src/components/editor/Toolbox.js` - Araç çubuğu
+- `/app/frontend/src/lib/editorConstants.js` - Araç tanımları
 - `/app/backend/server.py` - Backend API
 
 ## Completed Features
 
-### Phase 1 - Temel Özellikler (Tamamlandı)
+### Phase 1 - Temel Özellikler
 - Dashboard, belge yönetimi, arama
 - Proje editörü (canvas-based)
 - AI entegrasyonu (ZETA - Gemini, Judge Mini)
@@ -26,28 +27,29 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 - Görev Haritası (500 görev, örümcek ağı)
 - Google Auth, Apple Sign-In placeholder
 
-### Phase 2 - AI ve UI Optimizasyonu (Tamamlandı)
+### Phase 2 - AI ve UI Optimizasyonu
 - AI paneli: 4 sekmeden 2'ye (ZETA, Judge Mini)
-- "Oto Yaz" ve "Derin Analiz" butonları
 - Word benzeri editör deneyimi
 - Türkçe karakter düzeltmeleri
 - Derin Analiz kaynak URL'leri
-- AI belge farkındalığı (gizli alanlar hariç)
+- AI belge farkındalığı
 
-### Phase 3 - Çoklu Sayfa ve Export (16 Mart 2026 - Tamamlandı)
-- Kesintisiz çoklu sayfa düzenleme (pendingEditRef ile cross-page click)
-- Sayfa ekleme sırasında mevcut sayfa elementlerinin korunması
-- Otomatik sayfa ekleme (metin taşması kontrolü)
+### Phase 3 - Çoklu Sayfa ve Export (16 Mart 2026)
+- Kesintisiz çoklu sayfa düzenleme
+- Otomatik sayfa ekleme
 - Tüm sayfaları export (PDF, PNG, JPEG, SVG, JSON)
-- addpage aracı düzeltmesi (artık diğer panelleri açmıyor)
 
-### Phase 3.5 - Siyah Bant ve Girintiler (16 Mart 2026 - Tamamlandı)
-- Siyah bantlı (redacted) metne tıklayınca "Siyah Bandı Kaldır" butonu
-- lastSelectedRef ile redact/highlight araçlarının blur sonrası çalışması
-- Kenar boşlukları (margins) gerçekten çalışıyor - metin konumu ve genişliği güncelleniyor
-- Girintiler (indent/padding) çalışıyor - Sol/Sağ/Üst/Alt padding uygulanıyor
-- Margin kılavuz çizgileri aktif sayfada görünüyor
-- Margin hazır ayarlar: Normal (40px), Dar (20px), Geniş (60px)
+### Phase 3.5 - Kenar Boşlukları ve Girintiler (16 Mart 2026)
+- Margin kılavuz çizgileri ve dinamik güncelleme
+- Girinti (padding) slider'ları çalışıyor
+
+### Phase 4 - Metin Seçimi ile Araç Uygulama (16 Mart 2026)
+- Metin seçimi (mavi highlight) ile kısmi redact/highlight
+- selectionchange event ile seçim bilgisi kaydediliyor
+- String-based wrapSelection ile DOM'dan bağımsız sarmalama
+- "Bandı Kaldır" butonu ile siyah bant kaldırma
+- Manuel highlighter (M) aracı kaldırıldı
+- HTML tabanlı içerik desteği (htmlContent alanı)
 
 ## Pending Issues
 - P3: Tarayıcı bildirimleri çalışmıyor
@@ -76,3 +78,10 @@ ZET Mindshare: Mobil ve PC uyumlu, profesyonel belge oluşturma ve beyin fırtı
 
 ## Test Credentials
 - Email: test2@test.com / Password: password123
+
+## Key Technical Concepts
+- **savedSelectionRef**: selectionchange event ile metin seçimi kaydedilir (elementId, text, html)
+- **wrapSelection**: String indexOf ile seçili metni HTML içinde bulur ve span ile sarar
+- **htmlContent**: Element'in HTML içeriği (redacted/highlighted spanlar dahil)
+- **pendingEditRef**: Çoklu sayfa düzenlemede cross-page click yönetimi
+- **margins**: Dinamik kenar boşlukları, metin konumunu ve genişliğini etkiler
