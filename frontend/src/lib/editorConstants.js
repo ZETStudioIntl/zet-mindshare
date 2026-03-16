@@ -6,7 +6,7 @@ import {
   AlignLeft, BarChart3, Contrast, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
-  IndentIncrease, Maximize, ShieldOff, FileUp, Underline
+  IndentIncrease, Maximize, ShieldOff, FileUp, Underline, List, ListOrdered, Group
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -60,6 +60,8 @@ export const TOOLS = [
   { id: 'linespacing', icon: AlignJustify, nameKey: 'lineSpacing', shortcut: null },
   { id: 'paragraph', icon: AlignLeft, nameKey: 'paragraph', shortcut: 'A' },
   { id: 'indent', icon: IndentIncrease, nameKey: 'indent', shortcut: null },
+  { id: 'bulletlist', icon: List, nameKey: 'bulletList', shortcut: null },
+  { id: 'numberedlist', icon: ListOrdered, nameKey: 'numberedList', shortcut: null },
   { id: 'margins', icon: Maximize, nameKey: 'margins', shortcut: null },
   { id: 'color', icon: Palette, nameKey: 'colorPicker', shortcut: 'C' },
   { id: 'hand', icon: Hand, nameKey: 'pan', shortcut: 'H' },

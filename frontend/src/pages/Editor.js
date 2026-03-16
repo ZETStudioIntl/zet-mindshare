@@ -18,7 +18,8 @@ import {
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
-  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil, Crown
+  ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil, Crown,
+  List, ListOrdered, Group, Ungroup, CircleCheck, Cloud
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -48,6 +49,7 @@ const Editor = () => {
   const [document, setDocument] = useState(null);
   const [currentPage, setCurrentPage] = useState(0);
   const [saving, setSaving] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved'
 
   // Tool state
   const [activeTool, setActiveTool] = useState('select');
@@ -439,6 +441,7 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (document) {
+      setSaveStatus('unsaved');
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 2000);
     }
@@ -453,6 +456,7 @@ const Editor = () => {
   const saveDocument = async (silent = false) => {
     if (!document) return;
     if (!silent) setSaving(true);
+    setSaveStatus('saving');
     const updatedPages = [...(document.pages || [])];
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
@@ -460,7 +464,8 @@ const Editor = () => {
     try {
       await axios.put(`${API}/documents/${docId}`, { title: document.title, content: document.content, pages: updatedPages }, { withCredentials: true });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
-    } catch {} finally { if (!silent) setSaving(false); }
+      setSaveStatus('saved');
+    } catch { setSaveStatus('unsaved'); } finally { if (!silent) setSaving(false); }
   };
 
   // === PAGE CHANGE (saves current page first) ===
@@ -618,6 +623,8 @@ const Editor = () => {
       redact: () => applyRedaction(),
       highlighter: () => applyHighlight(),
       importpdf: () => pdfInputRef.current?.click(),
+      bulletlist: () => applyListFormat('ul'),
+      numberedlist: () => applyListFormat('ol'),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -680,6 +687,65 @@ const Editor = () => {
   }, [canvasElements, selectedElement, wrapSelection]);
 
   // === PHOTO EDIT ===
+  // === BULLET/NUMBERED LIST ===
+  const applyListFormat = useCallback((listType) => {
+    const target = selectedElement || lastSelectedRef.current;
+    if (!target) { alert('Lutfen once bir metin elementi secin!'); return; }
+    const el = canvasElements.find(e => e.id === target);
+    if (!el || el.type !== 'text') return;
+    const content = el.htmlContent || el.content || '';
+    // Strip existing list tags if toggling off
+    const hasExistingList = content.includes('<ul') || content.includes('<ol');
+    let newHtml;
+    if (hasExistingList) {
+      // Remove list formatting - convert back to plain lines
+      newHtml = content
+        .replace(/<\/?[uo]l[^>]*>/gi, '')
+        .replace(/<li[^>]*>/gi, '')
+        .replace(/<\/li>/gi, '\n')
+        .replace(/\n+/g, '\n')
+        .trim();
+    } else {
+      // Split content into lines and wrap each in <li>
+      const plainText = content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+      const lines = plainText.split('\n').filter(l => l.trim());
+      if (lines.length === 0) lines.push('');
+      const tag = listType === 'ol' ? 'ol' : 'ul';
+      const listStyle = listType === 'ol' 
+        ? 'style="margin:0;padding-left:24px;list-style-type:decimal;"'
+        : 'style="margin:0;padding-left:24px;list-style-type:disc;"';
+      newHtml = `<${tag} ${listStyle}>${lines.map(l => `<li>${l}</li>`).join('')}</${tag}>`;
+    }
+    const updated = canvasElements.map(e => e.id === target 
+      ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') } 
+      : e
+    );
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+  }, [selectedElement, canvasElements, handleSaveHistory]);
+
+  // === GROUP / UNGROUP ===
+  const groupElements = useCallback(() => {
+    if (selectedElements.length < 2) return;
+    const groupId = `group_${Date.now()}`;
+    const updated = canvasElements.map(el => 
+      selectedElements.includes(el.id) ? { ...el, groupId } : el
+    );
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+  }, [selectedElements, canvasElements, handleSaveHistory]);
+
+  const ungroupElements = useCallback(() => {
+    if (!selectedElement && selectedElements.length === 0) return;
+    const target = selectedElement || selectedElements[0];
+    const el = canvasElements.find(e => e.id === target);
+    if (!el?.groupId) return;
+    const gid = el.groupId;
+    const updated = canvasElements.map(e => e.groupId === gid ? { ...e, groupId: undefined } : e);
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+  }, [selectedElement, selectedElements, canvasElements, handleSaveHistory]);
+
   const handlePhotoEditUpload = () => {
     const input = window.document.createElement('input');
     input.type = 'file';
@@ -3298,6 +3364,12 @@ const Editor = () => {
           <button data-testid="undo-btn" onClick={handleUndo} disabled={!history.canUndo} className={`tool-btn w-8 h-8 ${!history.canUndo ? 'opacity-30' : ''}`}><Undo className="h-4 w-4" /></button>
           <span className="text-xs font-medium px-1" style={{ color: 'var(--zet-text-muted)' }}>{currentPage + 1}/{document.pages?.length || 1}</span>
           <button data-testid="redo-btn" onClick={handleRedo} disabled={!history.canRedo} className={`tool-btn w-8 h-8 ${!history.canRedo ? 'opacity-30' : ''}`}><Redo className="h-4 w-4" /></button>
+          {selectedElements.length >= 2 && (
+            <button data-testid="group-btn" onClick={groupElements} className="tool-btn w-8 h-8 ml-1" title="Grupla"><Group className="h-4 w-4" /></button>
+          )}
+          {(selectedElement || selectedElements.length > 0) && canvasElements.find(e => e.id === (selectedElement || selectedElements[0]))?.groupId && (
+            <button data-testid="ungroup-btn" onClick={ungroupElements} className="tool-btn w-8 h-8" title="Grubu Coz"><Ungroup className="h-4 w-4" /></button>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <button data-testid="prev-page-btn" onClick={() => changePage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={`tool-btn w-8 h-8 ${currentPage === 0 ? 'opacity-30' : ''}`}><ArrowLeft className="h-4 w-4" /></button>
@@ -3333,6 +3405,11 @@ const Editor = () => {
             <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
           </div>
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
+          <div data-testid="save-status" className="flex items-center gap-1 text-xs ml-1" style={{ color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : 'var(--zet-text-muted)' }}>
+            {saveStatus === 'saved' && <><CircleCheck className="h-3 w-3" /><span className="hidden sm:inline">Kaydedildi</span></>}
+            {saveStatus === 'saving' && <><Cloud className="h-3 w-3 animate-pulse" /><span className="hidden sm:inline">Kaydediliyor...</span></>}
+            {saveStatus === 'unsaved' && <><Cloud className="h-3 w-3" /><span className="hidden sm:inline">Kaydedilmedi</span></>}
+          </div>
           <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
       </header>
