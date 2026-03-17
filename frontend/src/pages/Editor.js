@@ -27,6 +27,7 @@ import { Bar, Pie, Line } from 'react-chartjs-2';
 import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
 import ShareDialog from '../components/editor/ShareDialog';
 import CommentsPanel from '../components/editor/CommentsPanel';
+import EmojiPicker from '../components/editor/EmojiPicker';
 import { useCollaboration } from '../hooks/useCollaboration';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
@@ -268,6 +269,7 @@ const Editor = () => {
   const [showIndent, setShowIndent] = useState(false);
   const [showMargins, setShowMargins] = useState(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
+  const [showEmoji, setShowEmoji] = useState(false);
 
   // Collaboration state
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -663,6 +665,7 @@ const Editor = () => {
       importpdf: () => pdfInputRef.current?.click(),
       bulletlist: () => applyListFormat('ul'),
       numberedlist: () => applyListFormat('ol'),
+      emoji: () => setShowEmoji(!showEmoji),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -726,6 +729,34 @@ const Editor = () => {
 
   // === PHOTO EDIT ===
   // === BULLET/NUMBERED LIST ===
+  // === EMOJI INSERT ===
+  const insertEmoji = useCallback((emoji) => {
+    const target = selectedElement || lastSelectedRef.current;
+    if (target) {
+      const el = canvasElements.find(e => e.id === target);
+      if (el && el.type === 'text') {
+        const newContent = (el.htmlContent || el.content || '') + emoji;
+        const updated = canvasElements.map(e => e.id === target
+          ? { ...e, htmlContent: newContent, content: newContent.replace(/<[^>]*>/g, '') }
+          : e
+        );
+        setCanvasElements(updated);
+        handleSaveHistory(updated);
+        return;
+      }
+    }
+    // No text element selected - create a new text element with the emoji
+    const newEl = {
+      id: `el_${Date.now()}`, type: 'text', x: 100, y: 100,
+      content: emoji, htmlContent: emoji,
+      fontSize: 24, fontFamily: 'Georgia', color: '#000000',
+      textAlign: 'left', lineHeight: 1.5
+    };
+    const updated = [...canvasElements, newEl];
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+  }, [selectedElement, canvasElements, handleSaveHistory]);
+
   const applyListFormat = useCallback((listType) => {
     const target = selectedElement || lastSelectedRef.current;
     if (!target) { alert('Lutfen once bir metin elementi secin!'); return; }
@@ -3174,6 +3205,11 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Mirror Panel */}
+    {/* Emoji Picker Panel */}
+    {showEmoji && <DraggablePanel title="Emoji" onClose={() => setShowEmoji(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <EmojiPicker onSelect={(emoji) => { insertEmoji(emoji); }} onClose={() => setShowEmoji(false)} />
+    </DraggablePanel>}
+
     {showMirror && <DraggablePanel title="Mirror / Rotate" onClose={() => setShowMirror(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-56 space-y-3">
         {!selectedElement ? (
