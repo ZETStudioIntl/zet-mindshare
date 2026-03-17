@@ -94,6 +94,26 @@ const Dashboard = () => {
   const [zetaCustomPrompt, setZetaCustomPrompt] = useState(() => localStorage.getItem('zet_zeta_custom') || '');
   const [judgeMood, setJudgeMood] = useState(() => localStorage.getItem('zet_judge_mood') || 'normal');
 
+  // Rank system
+  const RANKS = [
+    { name: 'Çırak',   xp: 0,     color: '#9ca3af', level: 1, next: 100   },
+    { name: 'Kalfa',   xp: 100,   color: '#22c55e', level: 2, next: 500   },
+    { name: 'Usta',    xp: 500,   color: '#3b82f6', level: 3, next: 1500  },
+    { name: 'Uzman',   xp: 1500,  color: '#8b5cf6', level: 4, next: 5000  },
+    { name: 'Maestro', xp: 5000,  color: '#f59e0b', level: 5, next: 15000 },
+    { name: 'Efsane',  xp: 15000, color: '#ef4444', level: 6, next: null  },
+  ];
+  const getCurrentRank = (xp) => {
+    let rank = RANKS[0];
+    for (const r of RANKS) { if (xp >= r.xp) rank = r; }
+    return rank;
+  };
+  const currentRank = getCurrentRank(userSP);
+  const nextRank = RANKS.find(r => r.xp > userSP) || null;
+  const rankProgress = nextRank
+    ? Math.min(100, Math.round(((userSP - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
+    : 100;
+
   // Fast select limits based on subscription
   const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, ultra: 8 };
   const fastSelectLimit = FAST_SELECT_LIMITS[userSubscription] || 3;
@@ -498,8 +518,8 @@ Devam etmek istiyor musunuz?`;
             className="h-10 w-10"
           />
           <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
-          <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', border: '1px solid rgba(245, 158, 11, 0.3)' }} data-testid="header-rank-badge">
-            <Award className="h-3 w-3" /> Çırak
+          <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
+            <Award className="h-3 w-3" /> {currentRank.name}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -1590,12 +1610,14 @@ Devam etmek istiyor musunuz?`;
             </div>
             
             {/* Current Rank */}
-            <div className="p-4 rounded-xl mb-6 text-center" style={{ background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.2) 0%, rgba(139, 92, 246, 0.2) 100%)', border: '1px solid rgba(245, 158, 11, 0.3)' }}>
-              <Award className="h-12 w-12 mx-auto mb-2" style={{ color: '#f59e0b' }} />
-              <h3 className="text-lg font-bold" style={{ color: '#f59e0b' }}>Çırak</h3>
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Seviye 1 • 0/100 XP</p>
+            <div className="p-4 rounded-xl mb-6 text-center" style={{ background: `linear-gradient(135deg, ${currentRank.color}33 0%, rgba(139,92,246,0.2) 100%)`, border: `1px solid ${currentRank.color}50` }}>
+              <Award className="h-12 w-12 mx-auto mb-2" style={{ color: currentRank.color }} />
+              <h3 className="text-lg font-bold" style={{ color: currentRank.color }}>{currentRank.name}</h3>
+              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
+                Seviye {currentRank.level} • {userSP.toLocaleString()} XP {nextRank ? `/ ${nextRank.xp.toLocaleString()} XP` : '(Maksimum)'}
+              </p>
               <div className="w-full h-2 rounded-full mt-2" style={{ background: 'var(--zet-bg)' }}>
-                <div className="h-full rounded-full transition-all" style={{ width: '10%', background: 'linear-gradient(90deg, #f59e0b, #8b5cf6)' }} />
+                <div className="h-full rounded-full transition-all" style={{ width: `${rankProgress}%`, background: `linear-gradient(90deg, ${currentRank.color}, #8b5cf6)` }} />
               </div>
             </div>
 
@@ -1603,22 +1625,19 @@ Devam etmek istiyor musunuz?`;
             <div>
               <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Tüm Rütbeler</h4>
               <div className="space-y-2">
-                {[
-                  { name: 'Çırak', xp: 0, color: '#9ca3af', current: true },
-                  { name: 'Kalfa', xp: 100, color: '#22c55e' },
-                  { name: 'Usta', xp: 500, color: '#3b82f6' },
-                  { name: 'Uzman', xp: 1500, color: '#8b5cf6' },
-                  { name: 'Maestro', xp: 5000, color: '#f59e0b' },
-                  { name: 'Efsane', xp: 15000, color: '#ef4444' },
-                ].map((rank, i) => (
-                  <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${rank.current ? 'ring-2' : ''}`} style={{ background: rank.current ? 'rgba(245, 158, 11, 0.1)' : 'var(--zet-bg)', ringColor: rank.current ? '#f59e0b' : undefined }}>
-                    <div className="flex items-center gap-2">
-                      <Award className="h-4 w-4" style={{ color: rank.color }} />
-                      <span className="text-sm" style={{ color: rank.current ? rank.color : 'var(--zet-text)' }}>{rank.name}</span>
+                {RANKS.map((rank, i) => {
+                  const isCurrent = rank.name === currentRank.name;
+                  return (
+                    <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isCurrent ? 'ring-2' : ''}`} style={{ background: isCurrent ? `${rank.color}1a` : 'var(--zet-bg)', outline: isCurrent ? `2px solid ${rank.color}` : undefined }}>
+                      <div className="flex items-center gap-2">
+                        <Award className="h-4 w-4" style={{ color: rank.color }} />
+                        <span className="text-sm" style={{ color: isCurrent ? rank.color : 'var(--zet-text)' }}>{rank.name}</span>
+                        {isCurrent && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${rank.color}33`, color: rank.color }}>Mevcut</span>}
+                      </div>
+                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{rank.xp.toLocaleString()} XP</span>
                     </div>
-                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{rank.xp} XP</span>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>

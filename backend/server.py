@@ -15,6 +15,8 @@ import base64
 import asyncio
 import resend
 import json
+from google import genai as google_genai
+from google.genai import types as genai_types
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -209,13 +211,18 @@ async def send_email(to_email: str, subject: str, html_content: str) -> dict:
 
 # ============ AUTH HELPERS ============
 
-import hashlib
+import bcrypt as _bcrypt
 
 def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
+    return _bcrypt.hashpw(password.encode(), _bcrypt.gensalt()).decode()
 
 def verify_password(password: str, hashed: str) -> bool:
-    return hash_password(password) == hashed
+    try:
+        return _bcrypt.checkpw(password.encode(), hashed.encode())
+    except Exception:
+        # Backward compat: old SHA-256 hashes
+        import hashlib
+        return hashlib.sha256(password.encode()).hexdigest() == hashed
 
 async def get_current_user(request: Request) -> User:
     session_token = request.cookies.get("session_token")
@@ -984,12 +991,15 @@ async def spend_credits(user_id: str, action: str) -> dict:
 @api_router.get("/usage")
 async def get_usage(user: User = Depends(get_current_user)):
     credits_info = await get_user_credits(user.user_id)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage_doc = await db.usage.find_one({"user_id": user.user_id, "date": today}) or {}
     return {
         "plan": credits_info['plan'],
         "daily_credits": credits_info['daily_credits'],
         "bonus_credits": credits_info.get('bonus_credits', 0),
         "credits_used": credits_info['credits_used'],
         "credits_remaining": credits_info['credits_remaining'],
+        "zeta_chat_count": usage_doc.get("zeta_chat_count", 0),
         "limits": credits_info['limits'],
         "credit_costs": CREDIT_COSTS
     }
@@ -1016,34 +1026,32 @@ async def clear_chat_history(doc_id: str, ai_type: str = "zeta", user: User = De
 # ZET Judge Mini - Business Analysis AI
 @api_router.post("/judge/chat")
 async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
     # Get user's plan and limits
     user_data = await db.users.find_one({"user_id": user.user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
+
     # Check if Judge is available for this plan
     if not limits.get('judge_enabled', False):
         return {"response": "ZET Judge Mini, Free planda kullanılamaz. Lütfen Plus veya üzeri bir plana yükseltin.", "session_id": None, "locked": True}
-    
+
     # Check character limit
     if len(req.message) > limits['judge_chars']:
         return {"response": f"Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
-    
+
     # Determine usage type based on mode
     mode = req.mode or "fast"
-    
+
     # Check deep analysis availability
     if mode == "deep" and not limits.get('judge_deep', False):
         return {"response": f"Derin analiz, {plan.upper()} planında kullanılamaz. Pro veya Ultra plana yükseltin.", "session_id": None, "locked": True}
-    
+
     # Spend credits
     credit_action = "judge_deep" if mode == "deep" else "judge_basic"
     credit_result = await spend_credits(user.user_id, credit_action)
     if not credit_result['success']:
         return {"response": f"Yetersiz kredi! Bu analiz {credit_result['cost']} kredi gerektirir. Kalan: {credit_result['credits_remaining']} kredi.", "session_id": None, "insufficient_credits": True, "credits_remaining": credit_result['credits_remaining']}
-    
+
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
     
@@ -1138,16 +1146,25 @@ ANALİZ EDİLECEK MATERYAL:
 ---
 Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
     
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=system_message
+    # Load chat history for this session
+    history_docs = await db.judge_chats.find(
+        {"session_id": session_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(50)
+    contents = []
+    for h in history_docs:
+        contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=h["user_message"])]))
+        contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text=h["ai_response"])]))
+    contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=req.message)]))
+
+    client = google_genai.Client(api_key=api_key)
+    resp = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.0-flash",
+        contents=contents,
+        config=genai_types.GenerateContentConfig(system_instruction=system_message)
     )
-    chat.with_model("gemini", "gemini-3-flash-preview")
-    
-    user_message = UserMessage(text=req.message)
-    response = await chat.send_message(user_message)
-    
+    response = resp.text
+
     # Save chat history
     await db.judge_chats.insert_one({
         "user_id": user.user_id,
@@ -1157,13 +1174,12 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
         "ai_response": response,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
-    
+
     return {"response": response, "session_id": session_id}
 
 @api_router.post("/zeta/auto-write")
 async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_current_user)):
     """ZETA Otomatik Yazma: Prompt'a göre belge içeriği üretir. 10 kredi / 3 satır."""
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
 
     user_data = await db.users.find_one({"user_id": user.user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
@@ -1184,7 +1200,6 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
         }
 
     api_key = os.getenv("EMERGENT_LLM_KEY")
-    session_id = f"autowrite_{user.user_id}_{uuid.uuid4().hex[:8]}"
 
     style_prompts = {
         "akademik": "Akademik ve bilimsel bir dil kullan. Kaynaklara atif yap, resmi terimler kullan, nesnel bir ton benimse.",
@@ -1225,15 +1240,15 @@ FORMAT KURALLARI:
 - {req.page_count} sayfanin HER BIRINI ---SAYFA SONU--- ile ayir (son sayfadan sonra koyma).
 - Her sayfada en az 3-4 paragraf ve 2-3 alt baslik olmali."""
 
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=system_message
+    client = google_genai.Client(api_key=api_key)
+    user_text = f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}\n\nONEMLI: EN AZ {total_words} kelime yaz. Kisa yazma, her sayfayi tamamen doldur."
+    resp = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.0-flash",
+        contents=user_text,
+        config=genai_types.GenerateContentConfig(system_instruction=system_message)
     )
-    chat.with_model("gemini", "gemini-3-flash-preview")
-
-    user_message = UserMessage(text=f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}\n\nONEMLI: EN AZ {total_words} kelime yaz. Kisa yazma, her sayfayi tamamen doldur.")
-    response = await chat.send_message(user_message)
+    response = resp.text
 
     # Count page lines: ~75 characters per visual line on A4 at font 11
     total_chars = len(response)
@@ -1264,8 +1279,6 @@ FORMAT KURALLARI:
 @api_router.post("/zeta/deep-analysis")
 async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(get_current_user)):
     """Derin Analiz: ZETA internette arastirma yaparak derinlemesine analiz yazar. 100 kredi. Sadece Pro/Ultra."""
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-
     user_data = await db.users.find_one({"user_id": user.user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
 
@@ -1277,16 +1290,18 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
         raise HTTPException(status_code=402, detail=credit_result.get('message', 'Yetersiz kredi'))
 
     api_key = os.getenv("EMERGENT_LLM_KEY")
-    session_id = f"deep_{user.user_id}_{uuid.uuid4().hex[:8]}"
+    genai_client = google_genai.Client(api_key=api_key)
 
     # Step 1: Generate search queries from the topic
-    query_chat = LlmChat(
-        api_key=api_key,
-        session_id=f"q_{session_id}",
-        system_message="Sen bir araştırma asistanısın. Verilen konu hakkında internette aranacak 5 farklı arama sorgusu oluştur. Her sorguyu yeni satırda yaz. Sadece sorgu metinlerini yaz, başka bir şey ekleme. Sorguları İngilizce ve Türkçe karışık yaz."
+    q_resp = await asyncio.to_thread(
+        genai_client.models.generate_content,
+        model="gemini-2.0-flash",
+        contents=f"Konu: {req.topic}",
+        config=genai_types.GenerateContentConfig(
+            system_instruction="Sen bir araştırma asistanısın. Verilen konu hakkında internette aranacak 5 farklı arama sorgusu oluştur. Her sorguyu yeni satırda yaz. Sadece sorgu metinlerini yaz, başka bir şey ekleme. Sorguları İngilizce ve Türkçe karışık yaz."
+        )
     )
-    query_chat.with_model("gemini", "gemini-3-flash-preview")
-    queries_raw = await query_chat.send_message(UserMessage(text=f"Konu: {req.topic}"))
+    queries_raw = q_resp.text
     search_queries = [q.strip() for q in queries_raw.strip().split('\n') if q.strip()][:5]
 
     # Step 2: Use DuckDuckGo for each query - collect links and snippets
@@ -1366,10 +1381,7 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
             sources_text += f"{i}. [{s['title']}]({s['url']})\n"
 
     # Step 3: Send research to LLM for deep analysis
-    analysis_chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=f"""Sen ZETA Derin Analiz sistemisin. İnternet araştırması sonuçlarını kullanarak kapsamlı ve derinlemesine bir analiz raporu yazacaksın.
+    analysis_system = f"""Sen ZETA Derin Analiz sistemisin. İnternet araştırması sonuçlarını kullanarak kapsamlı ve derinlemesine bir analiz raporu yazacaksın.
 
 KURALLAR:
 - Türkçe yaz
@@ -1386,10 +1398,14 @@ KURALLAR:
 {research_text}
 {sources_text}
 {doc_context}"""
-    )
-    analysis_chat.with_model("gemini", "gemini-3-flash-preview")
 
-    analysis = await analysis_chat.send_message(UserMessage(text=f"Konu: {req.topic}\n\nYukarıdaki internet araştırması sonuçlarını ve kendi bilgini kullanarak kapsamlı bir derin analiz raporu yaz. Raporun sonunda kaynak linklerini listele."))
+    analysis_resp = await asyncio.to_thread(
+        genai_client.models.generate_content,
+        model="gemini-2.0-flash",
+        contents=f"Konu: {req.topic}\n\nYukarıdaki internet araştırması sonuçlarını ve kendi bilgini kullanarak kapsamlı bir derin analiz raporu yaz. Raporun sonunda kaynak linklerini listele.",
+        config=genai_types.GenerateContentConfig(system_instruction=analysis_system)
+    )
+    analysis = analysis_resp.text
 
     return {
         "success": True,
@@ -1404,8 +1420,6 @@ KURALLAR:
 
 @api_router.post("/zeta/chat")
 async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
     api_key = os.getenv("EMERGENT_LLM_KEY")
     session_id = req.session_id or f"zeta_{user.user_id}_{uuid.uuid4().hex[:8]}"
     
@@ -1605,16 +1619,33 @@ CURRENT DOCUMENT CONTENT:
 The user may ask questions about this document. Use this content to provide relevant answers.
 """
     
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=system_message
+    # Load chat history for this session
+    history_docs = await db.zeta_chats.find(
+        {"session_id": session_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(50)
+    contents = []
+    for h in history_docs:
+        contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=h["user_message"])]))
+        contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text=h["ai_response"])]))
+    contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=req.message)]))
+
+    client = google_genai.Client(api_key=api_key)
+    resp = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.0-flash",
+        contents=contents,
+        config=genai_types.GenerateContentConfig(system_instruction=system_message)
     )
-    chat.with_model("gemini", "gemini-3-flash-preview")
-    
-    user_message = UserMessage(text=req.message)
-    response = await chat.send_message(user_message)
-    
+    response = resp.text
+
+    # Track chat usage (free but must be counted)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.usage.update_one(
+        {"user_id": user.user_id, "date": today},
+        {"$inc": {"zeta_chat_count": 1}},
+        upsert=True
+    )
+
     # Save chat history
     await db.zeta_chats.insert_one({
         "user_id": user.user_id,
@@ -1624,12 +1655,11 @@ The user may ask questions about this document. Use this content to provide rele
         "ai_response": response,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
-    
+
     return {"response": response, "session_id": session_id}
 
 @api_router.post("/zeta/generate-image")
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
     
     # Determine credit action
     credit_action = "nano_banana_pro" if req.pro else "nano_banana"
@@ -1652,39 +1682,47 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
         raise HTTPException(status_code=429, detail=credit_result['message'])
     
     api_key = os.getenv("EMERGENT_LLM_KEY")
-    session_id = f"zeta_img_{uuid.uuid4().hex[:8]}"
-    
+
     # Build prompt with aspect ratio hint
     aspect_prompt = f"({req.aspect_ratio} aspect ratio) " if req.aspect_ratio else ""
     quality_prompt = "high quality, professional, detailed" if req.pro else ""
     full_prompt = f"{aspect_prompt}{quality_prompt} {req.prompt}".strip()
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message="You are an image generation assistant."
-    )
-    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-    
+
+    parts = []
     if req.reference_image:
-        msg = UserMessage(
-            text=full_prompt,
-            file_contents=[ImageContent(req.reference_image)]
+        img_b64 = req.reference_image
+        mime_type = "image/png"
+        if "," in img_b64:
+            header, img_b64 = img_b64.split(",", 1)
+            if "jpeg" in header or "jpg" in header:
+                mime_type = "image/jpeg"
+        parts.append(genai_types.Part(
+            inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))
+        ))
+    parts.append(genai_types.Part(text=full_prompt))
+
+    client = google_genai.Client(api_key=api_key)
+    resp = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.0-flash-preview-image-generation",
+        contents=[genai_types.Content(role="user", parts=parts)],
+        config=genai_types.GenerateContentConfig(
+            response_modalities=["IMAGE", "TEXT"]
         )
-    else:
-        msg = UserMessage(text=full_prompt)
-    
-    text, images = await chat.send_message_multimodal_response(msg)
-    
-    result = {"text": text, "images": [], "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
-    if images:
-        for img in images:
-            result["images"].append({
-                "mime_type": img.get("mime_type", "image/png"),
-                "data": img["data"]
+    )
+
+    text_out = ""
+    images = []
+    for part in resp.candidates[0].content.parts:
+        if hasattr(part, "text") and part.text:
+            text_out = part.text
+        elif hasattr(part, "inline_data") and part.inline_data:
+            images.append({
+                "mime_type": part.inline_data.mime_type,
+                "data": base64.b64encode(part.inline_data.data).decode()
             })
-    
-    return result
+
+    return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
 
 # AI Photo Edit endpoint
 class PhotoEditRequest(BaseModel):
@@ -1694,64 +1732,63 @@ class PhotoEditRequest(BaseModel):
 
 @api_router.post("/zeta/photo-edit")
 async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
-    
     # Spend credits
     credit_action = "photo_edit_pro" if req.pro else "photo_edit"
     credit_result = await spend_credits(user.user_id, credit_action)
     if not credit_result['success']:
         raise HTTPException(status_code=429, detail=credit_result['message'])
-    
+
     api_key = os.getenv("EMERGENT_LLM_KEY")
-    session_id = f"zeta_edit_{uuid.uuid4().hex[:8]}"
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message="You are an AI image editor. Edit the provided image according to the user's instructions. Apply the requested changes while maintaining the overall composition and quality of the original image."
-    )
-    chat.with_model("gemini", "gemini-3-pro-image-preview").with_params(modalities=["image", "text"])
-    
+
     # Clean base64 data
     image_data = req.image_data
+    mime_type = "image/png"
     if ',' in image_data:
-        image_data = image_data.split(',')[1]
-    
-    msg = UserMessage(
-        text=f"Edit this image: {req.edit_prompt}",
-        file_contents=[ImageContent(image_data)]
+        header, image_data = image_data.split(',', 1)
+        if "jpeg" in header or "jpg" in header:
+            mime_type = "image/jpeg"
+
+    client = google_genai.Client(api_key=api_key)
+    resp = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.0-flash-preview-image-generation",
+        contents=[genai_types.Content(role="user", parts=[
+            genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(image_data))),
+            genai_types.Part(text=f"Edit this image: {req.edit_prompt}")
+        ])],
+        config=genai_types.GenerateContentConfig(
+            response_modalities=["IMAGE", "TEXT"]
+        )
     )
-    
-    text, images = await chat.send_message_multimodal_response(msg)
-    
-    result = {"text": text or "Image edited successfully", "images": [], "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
-    if images:
-        for img in images:
-            result["images"].append({
-                "mime_type": img.get("mime_type", "image/png"),
-                "data": img["data"]
+
+    text_out = ""
+    images = []
+    for part in resp.candidates[0].content.parts:
+        if hasattr(part, "text") and part.text:
+            text_out = part.text
+        elif hasattr(part, "inline_data") and part.inline_data:
+            images.append({
+                "mime_type": part.inline_data.mime_type,
+                "data": base64.b64encode(part.inline_data.data).decode()
             })
+
+    result = {"text": text_out or "Image edited successfully", "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
     
     return result
 
 @api_router.post("/zeta/translate")
 async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current_user)):
-    from emergentintegrations.llm.chat import LlmChat, UserMessage
-    
     api_key = os.getenv("EMERGENT_LLM_KEY")
-    session_id = f"zeta_tr_{uuid.uuid4().hex[:8]}"
-    
-    chat = LlmChat(
-        api_key=api_key,
-        session_id=session_id,
-        system_message=f"You are a translator. Translate the given text to {req.target_language}. Return ONLY the translated text, nothing else. No explanations, no quotes."
+    client = google_genai.Client(api_key=api_key)
+    resp = await asyncio.to_thread(
+        client.models.generate_content,
+        model="gemini-2.0-flash",
+        contents=req.text,
+        config=genai_types.GenerateContentConfig(
+            system_instruction=f"You are a translator. Translate the given text to {req.target_language}. Return ONLY the translated text, nothing else. No explanations, no quotes."
+        )
     )
-    chat.with_model("gemini", "gemini-3-flash-preview")
-    
-    msg = UserMessage(text=req.text)
-    response = await chat.send_message(msg)
-    
-    return {"translated_text": response.strip(), "target_language": req.target_language}
+    return {"translated_text": resp.text.strip(), "target_language": req.target_language}
 
 # ============ ELEVENLABS TTS ROUTES ============
 
