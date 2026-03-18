@@ -73,6 +73,24 @@ const Editor = () => {
     if (selectedElement) lastSelectedRef.current = selectedElement;
   }, [selectedElement]);
 
+  // Sync formatting state when a text element is selected
+  useEffect(() => {
+    if (selectedElement) {
+      const el = canvasElements.find(e => e.id === selectedElement);
+      if (el && el.type === 'text') {
+        if (el.bold !== undefined) setIsBold(el.bold);
+        if (el.italic !== undefined) setIsItalic(el.italic);
+        if (el.underline !== undefined) setIsUnderline(el.underline);
+        if (el.strikethrough !== undefined) setIsStrikethrough(el.strikethrough);
+        if (el.fontSize) setCurrentFontSize(el.fontSize);
+        if (el.fontFamily) setCurrentFont(el.fontFamily);
+        if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
+        if (el.textAlign) setCurrentTextAlign(el.textAlign);
+        if (el.color) setCurrentColor(el.color);
+      }
+    }
+  }, [selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Save text selection range before it's lost on blur
   const savedSelectionRef = useRef(null);
   useEffect(() => {
@@ -890,8 +908,11 @@ const Editor = () => {
   const applyTextAlign = (align) => {
     setCurrentTextAlign(align);
     if (selectedElement) {
-      const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, textAlign: align } : el);
-      setCanvasElements(updated); history.push(updated);
+      setCanvasElements(prev => {
+        const updated = prev.map(el => el.id === selectedElement ? { ...el, textAlign: align } : el);
+        handleSaveHistory(updated);
+        return updated;
+      });
     }
   };
 
@@ -1994,8 +2015,11 @@ const Editor = () => {
   // === WORD TYPE (apply to selected or set default) ===
   const applyTextStyle = (prop, val) => {
     if (selectedElement) {
-      const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, [prop]: val } : el);
-      setCanvasElements(updated); onSaveHistory(updated);
+      setCanvasElements(prev => {
+        const updated = prev.map(el => el.id === selectedElement ? { ...el, [prop]: val } : el);
+        handleSaveHistory(updated);
+        return updated;
+      });
     }
   };
   const onSaveHistory = handleSaveHistory;
@@ -2003,8 +2027,19 @@ const Editor = () => {
   // === COLOR ===
   const applyColor = (color) => {
     setCurrentColor(color);
-    if (selectedElements.length > 0) setCanvasElements(prev => prev.map(el => selectedElements.includes(el.id) ? { ...el, color, fill: color } : el));
-    else if (selectedElement) setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, color, fill: color } : el));
+    if (selectedElements.length > 0) {
+      setCanvasElements(prev => {
+        const updated = prev.map(el => selectedElements.includes(el.id) ? { ...el, color, fill: color } : el);
+        handleSaveHistory(updated);
+        return updated;
+      });
+    } else if (selectedElement) {
+      setCanvasElements(prev => {
+        const updated = prev.map(el => el.id === selectedElement ? { ...el, color, fill: color } : el);
+        handleSaveHistory(updated);
+        return updated;
+      });
+    }
   };
 
   // === TRANSLATE ===
@@ -2277,14 +2312,14 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showTextSize && <DraggablePanel title={t('textSize')} onClose={() => setShowTextSize(false)} initialPosition={{ x: isMobile ? 20 : 370, y: 100 }}>
-      <div className="space-y-3 w-48"><input type="range" min="8" max="72" value={currentFontSize} onChange={e => setCurrentFontSize(Number(e.target.value))} className="w-full accent-blue-500" />
-        <div className="flex items-center gap-2"><input type="number" min="8" max="100" value={currentFontSize} onChange={e => setCurrentFontSize(Number(e.target.value))} className="zet-input w-16 text-center text-sm" /><span className="text-sm" style={{ color: 'var(--zet-text)' }}>pt</span></div>
+      <div className="space-y-3 w-48"><input type="range" min="8" max="72" value={currentFontSize} onChange={e => { const v = Number(e.target.value); setCurrentFontSize(v); applyTextStyle('fontSize', v); }} className="w-full accent-blue-500" />
+        <div className="flex items-center gap-2"><input type="number" min="8" max="100" value={currentFontSize} onChange={e => { const v = Math.max(8, Number(e.target.value) || 16); setCurrentFontSize(v); applyTextStyle('fontSize', v); }} className="zet-input w-16 text-center text-sm" /><span className="text-sm" style={{ color: 'var(--zet-text)' }}>pt</span></div>
         <div className="p-2 rounded text-center" style={{ background: 'var(--zet-bg)' }}><span style={{ fontSize: Math.min(currentFontSize, 36), color: 'var(--zet-text)', fontFamily: currentFont }}>Aa</span></div>
       </div>
     </DraggablePanel>}
     {showFont && <DraggablePanel title={t('font')} onClose={() => setShowFont(false)} initialPosition={{ x: isMobile ? 20 : 420, y: 100 }}>
       <div className="w-56"><div className="relative mb-2"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} /><input placeholder={t('search')} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" /></div>
-        <div className="max-h-48 overflow-y-auto space-y-0.5">{filteredFonts.map(f => <button key={f} onClick={() => { setCurrentFont(f); setShowFont(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f }}>{f}</button>)}</div>
+        <div className="max-h-48 overflow-y-auto space-y-0.5">{filteredFonts.map(f => <button key={f} onClick={() => { setCurrentFont(f); applyTextStyle('fontFamily', f); setShowFont(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f }}>{f}</button>)}</div>
       </div>
     </DraggablePanel>}
     {showLineSpacing && <DraggablePanel title={t('lineSpacing')} onClose={() => setShowLineSpacing(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>

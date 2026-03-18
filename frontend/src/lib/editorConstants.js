@@ -64,6 +64,7 @@ export const TOOLS = [
   { id: 'numberedlist', icon: ListOrdered, nameKey: 'numberedList', shortcut: null },
   { id: 'margins', icon: Maximize, nameKey: 'margins', shortcut: null },
   { id: 'color', icon: Palette, nameKey: 'colorPicker', shortcut: 'C' },
+  { id: 'text', icon: Type, nameKey: 'text', shortcut: 'T' },
   { id: 'hand', icon: Hand, nameKey: 'pan', shortcut: 'H' },
   { id: 'image', icon: Image, nameKey: 'image', shortcut: 'I' },
   { id: 'createimage', icon: Wand2, nameKey: 'aiImage', shortcut: 'W' },
