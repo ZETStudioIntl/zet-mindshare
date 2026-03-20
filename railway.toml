@@ -1,15 +1,8 @@
 [build]
-builder = "dockerfile"
-
-[[services]]
-name = "backend"
-source = "backend"
+builder = "DOCKERFILE"
 dockerfilePath = "backend/Dockerfile"
 
-[services.deploy]
+[deploy]
 startCommand = "uvicorn server:app --host 0.0.0.0 --port $PORT"
-
-[[services]]
-name = "frontend"
-source = "frontend"
-dockerfilePath = "frontend/Dockerfile"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 3
