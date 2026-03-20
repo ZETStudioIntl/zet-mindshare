@@ -12,13 +12,6 @@ import QuestMap from "./pages/QuestMap";
 import SharedView from "./pages/SharedView";
 
 const AppRouter = () => {
-  const location = useLocation();
-  
-  // Check URL fragment for session_id synchronously during render
-  if (location.hash?.includes('session_id=')) {
-    return <AuthCallback />;
-  }
-
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
@@ -37,6 +30,7 @@ const AppRouter = () => {
           <QuestMap />
         </ProtectedRoute>
       } />
+      <Route path="/auth-callback" element={<AuthCallback />} />
       <Route path="/shared/:shareId" element={<SharedView />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />

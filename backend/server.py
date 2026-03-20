@@ -254,63 +254,136 @@ async def get_current_user(request: Request) -> User:
 
 # ============ AUTH ROUTES ============
 
-@api_router.post("/auth/session")
-async def create_session(request: Request, response: Response):
-    body = await request.json()
-    session_id = body.get("session_id")
-    
-    if not session_id:
-        raise HTTPException(status_code=400, detail="session_id required")
-    
-    async with httpx.AsyncClient() as http_client:
-        resp = await http_client.get(
-            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
-            headers={"X-Session-ID": session_id}
+@api_router.get("/auth/google")
+async def google_auth_init():
+    """Redirect user to Google OAuth2 consent screen (PKCE olmadan standart flow)."""
+    from requests_oauthlib import OAuth2Session
+    from fastapi.responses import RedirectResponse
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    if not client_id:
+        raise HTTPException(status_code=500, detail="GOOGLE_CLIENT_ID .env dosyasına eklenmeli")
+    backend_url = os.getenv("REACT_APP_BACKEND_URL", "http://localhost:8001")
+    redirect_uri = f"{backend_url}/api/auth/google/callback"
+    scopes = [
+        "openid",
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile"
+    ]
+    oauth = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri, scope=scopes)
+    auth_url, _ = oauth.authorization_url(
+        "https://accounts.google.com/o/oauth2/auth",
+        access_type="offline",
+        prompt="consent"
+    )
+    return RedirectResponse(auth_url)
+
+
+@api_router.get("/auth/google/callback")
+async def google_auth_callback(request: Request, response: Response, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    """Handle Google OAuth2 callback — token exchange, session oluştur, frontend'e yönlendir."""
+    from requests_oauthlib import OAuth2Session
+    from fastapi.responses import RedirectResponse
+    import requests as pyrequests
+
+    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # lokalde HTTP
+
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+
+    if error or not code:
+        logging.error(f"Google OAuth error param: {error}")
+        return RedirectResponse(f"{frontend_url}/?error=google_auth_failed")
+
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    backend_url = os.getenv("REACT_APP_BACKEND_URL", "http://localhost:8001")
+    redirect_uri = f"{backend_url}/api/auth/google/callback"
+
+    try:
+        oauth = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri, state=state)
+        token = oauth.fetch_token(
+            "https://oauth2.googleapis.com/token",
+            client_secret=client_secret,
+            code=code
         )
-        if resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid session_id")
-        user_data = resp.json()
-    
-    user_id = f"user_{uuid.uuid4().hex[:12]}"
-    existing_user = await db.users.find_one({"email": user_data["email"]}, {"_id": 0})
-    
+        userinfo_resp = pyrequests.get(
+            "https://www.googleapis.com/oauth2/v2/userinfo",
+            headers={"Authorization": f"Bearer {token['access_token']}"}
+        )
+        userinfo = userinfo_resp.json()
+    except Exception as e:
+        logging.error(f"Google OAuth callback error: {e}")
+        return RedirectResponse(f"{frontend_url}/?error=google_auth_failed")
+
+    email = userinfo.get("email")
+    name = userinfo.get("name", email.split("@")[0] if email else "User")
+    picture = userinfo.get("picture")
+
+    if not email:
+        return RedirectResponse(f"{frontend_url}/?error=no_email")
+
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
     if existing_user:
         user_id = existing_user["user_id"]
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$set": {"name": user_data["name"], "picture": user_data.get("picture")}}
-        )
+        await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
     else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
         await db.users.insert_one({
             "user_id": user_id,
-            "email": user_data["email"],
-            "name": user_data["name"],
-            "picture": user_data.get("picture"),
+            "email": email,
+            "name": name,
+            "picture": picture,
             "created_at": datetime.now(timezone.utc).isoformat()
         })
-    
-    session_token = user_data.get("session_token", f"st_{uuid.uuid4().hex}")
+
+    session_token = f"st_{uuid.uuid4().hex}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    
     await db.user_sessions.insert_one({
         "user_id": user_id,
         "session_token": session_token,
         "expires_at": expires_at.isoformat(),
         "created_at": datetime.now(timezone.utc).isoformat()
     })
-    
+
+    # Token'ı URL fragment'a koy — frontend /auth-callback'te okur, /auth/exchange ile cookie alır
+    return RedirectResponse(f"{frontend_url}/auth-callback#token={session_token}")
+
+@api_router.post("/auth/exchange")
+async def exchange_token(request: Request, response: Response):
+    """Frontend'den gelen token'ı session cookie'ye dönüştür."""
+    body = await request.json()
+    token = body.get("token")
+    if not token:
+        raise HTTPException(status_code=400, detail="token required")
+    session = await db.user_sessions.find_one({"session_token": token})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    expires_at = session.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Token expired")
+    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
     response.set_cookie(
         key="session_token",
-        value=session_token,
+        value=token,
         httponly=True,
-        secure=True,
-        samesite="none",
+        secure=False,
+        samesite="lax",
         path="/",
         max_age=7*24*60*60
     )
-    
-    user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    return user
+    return {
+        "user_id": user.get("user_id"),
+        "email": user.get("email"),
+        "name": user.get("name", ""),
+        "picture": user.get("picture"),
+        "subscription": user.get("subscription", "free")
+    }
+
 
 @api_router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
@@ -395,7 +468,7 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
     
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=True, samesite="none", path="/", max_age=7*24*60*60
+        httponly=True, secure=False, samesite="lax", path="/", max_age=7*24*60*60
     )
     
     return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}}
@@ -421,7 +494,7 @@ async def login_with_email(req: EmailAuthRequest, response: Response):
     
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=True, samesite="none", path="/", max_age=7*24*60*60
+        httponly=True, secure=False, samesite="lax", path="/", max_age=7*24*60*60
     )
     
     return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}}
@@ -510,7 +583,7 @@ async def apple_auth_callback(request: Request, response: Response):
     })
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=True, samesite="none", path="/", max_age=7*24*60*60
+        httponly=True, secure=False, samesite="lax", path="/", max_age=7*24*60*60
     )
     return {"user": {"user_id": user_id, "email": email, "name": user_name}}
 
@@ -1052,7 +1125,7 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     if not credit_result['success']:
         return {"response": f"Yetersiz kredi! Bu analiz {credit_result['cost']} kredi gerektirir. Kalan: {credit_result['credits_remaining']} kredi.", "session_id": None, "insufficient_credits": True, "credits_remaining": credit_result['credits_remaining']}
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
     
     # Different system messages for fast vs deep mode
@@ -1199,7 +1272,7 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
             "credits_remaining": credit_info['credits_remaining']
         }
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
 
     style_prompts = {
         "akademik": "Akademik ve bilimsel bir dil kullan. Kaynaklara atif yap, resmi terimler kullan, nesnel bir ton benimse.",
@@ -1289,7 +1362,7 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     if not credit_result['success']:
         raise HTTPException(status_code=402, detail=credit_result.get('message', 'Yetersiz kredi'))
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     genai_client = google_genai.Client(api_key=api_key)
 
     # Step 1: Generate search queries from the topic
@@ -1420,7 +1493,7 @@ KURALLAR:
 
 @api_router.post("/zeta/chat")
 async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     session_id = req.session_id or f"zeta_{user.user_id}_{uuid.uuid4().hex[:8]}"
     
     # Get user's subscription info
@@ -1681,7 +1754,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
     if not credit_result['success']:
         raise HTTPException(status_code=429, detail=credit_result['message'])
     
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
 
     # Build prompt with aspect ratio hint
     aspect_prompt = f"({req.aspect_ratio} aspect ratio) " if req.aspect_ratio else ""
@@ -1738,7 +1811,7 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
     if not credit_result['success']:
         raise HTTPException(status_code=429, detail=credit_result['message'])
 
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
 
     # Clean base64 data
     image_data = req.image_data
@@ -1778,7 +1851,7 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
 
 @api_router.post("/zeta/translate")
 async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current_user)):
-    api_key = os.getenv("EMERGENT_LLM_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
     client = google_genai.Client(api_key=api_key)
     resp = await asyncio.to_thread(
         client.models.generate_content,
@@ -2392,7 +2465,11 @@ app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=["*"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://127.0.0.1:3000",
+    ],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -12,13 +12,6 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = useCallback(async () => {
-    // CRITICAL: If returning from OAuth callback, skip the /me check.
-    // AuthCallback will exchange the session_id and establish the session first.
-    if (window.location.hash?.includes('session_id=')) {
-      setLoading(false);
-      return;
-    }
-    
     try {
       const response = await axios.get(`${API}/auth/me`, { withCredentials: true });
       setUser(response.data);
@@ -34,9 +27,8 @@ export const AuthProvider = ({ children }) => {
   }, [checkAuth]);
 
   const login = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
-    const redirectUrl = window.location.origin + '/dashboard';
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+    // Google OAuth2 — backend'e yönlendir, o Google'a redirect eder
+    window.location.href = `${process.env.REACT_APP_BACKEND_URL}/api/auth/google`;
   };
 
   const logout = async () => {
@@ -48,19 +40,8 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
-  const exchangeSession = async (sessionId) => {
-    try {
-      const response = await axios.post(`${API}/auth/session`, { session_id: sessionId }, { withCredentials: true });
-      setUser(response.data);
-      return response.data;
-    } catch (error) {
-      console.error('Session exchange error:', error);
-      throw error;
-    }
-  };
-
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, login, logout, exchangeSession, checkAuth }}>
+    <AuthContext.Provider value={{ user, setUser, loading, login, logout, checkAuth }}>
       {children}
     </AuthContext.Provider>
   );
