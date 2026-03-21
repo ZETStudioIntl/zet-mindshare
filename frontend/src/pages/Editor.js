@@ -263,6 +263,9 @@ const Editor = () => {
   const [userPlan, setUserPlan] = useState('free');
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState('');
+  const [showCreditModal, setShowCreditModal] = useState(false);
+  const [creditPackages, setCreditPackages] = useState([]);
+  const [buyingCredits, setBuyingCredits] = useState(false);
   const [creditsRemaining, setCreditsRemaining] = useState(0);
   const [dailyCredits, setDailyCredits] = useState(20);
   const [planLimits, setPlanLimits] = useState({});
@@ -510,6 +513,37 @@ const Editor = () => {
   const fetchDocument = async () => {
     try { const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true }); setDocument(res.data); }
     catch { navigate('/dashboard'); }
+  };
+
+  const fetchCreditPackages = async () => {
+    try {
+      const res = await axios.get(`${API}/credits/packages`, { withCredentials: true });
+      setCreditPackages(res.data.packages || []);
+    } catch { /* ignore */ }
+  };
+
+  const handleBuyCredits = async (packageId) => {
+    const pkg = creditPackages.find(p => p.id === packageId);
+    if (!pkg) return;
+    if (!window.confirm(`${pkg.credits} kredi satın almak istiyor musunuz?\nFiyat: $${pkg.discounted_price}`)) return;
+    setBuyingCredits(true);
+    try {
+      const res = await axios.post(`${API}/credits/buy`, { package_id: packageId }, { withCredentials: true });
+      if (res.data.needs_confirmation) {
+        if (window.confirm(`${res.data.message}\n\nDevam etmek istiyor musunuz?`)) {
+          const res2 = await axios.post(`${API}/credits/buy`, { package_id: packageId, confirm_overflow: true }, { withCredentials: true });
+          alert(res2.data.message);
+        }
+      } else {
+        alert(res.data.message);
+      }
+      setShowCreditModal(false);
+      const res3 = await axios.get(`${API}/credits/balance`, { withCredentials: true });
+      if (res3.data.credits_remaining !== undefined) setCreditsRemaining(res3.data.credits_remaining);
+    } catch (err) {
+      alert(err.response?.data?.detail || 'Satın alma başarısız');
+    }
+    setBuyingCredits(false);
   };
 
   const saveDocument = async (silent = false) => {
@@ -3566,7 +3600,7 @@ const Editor = () => {
             )}
           </div>
           {/* Credit indicator - clickable */}
-          <div data-testid="credit-indicator" onClick={() => navigate('/dashboard?showCredits=true')} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer hover:scale-105 transition-transform" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
+          <div data-testid="credit-indicator" onClick={() => { fetchCreditPackages(); setShowCreditModal(true); }} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer hover:scale-105 transition-transform" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
             <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
             <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
           </div>
@@ -3709,21 +3743,100 @@ const Editor = () => {
               >
                 Daha Sonra
               </button>
-              <button 
-                onClick={() => navigate('/dashboard?showCredits=true')}
+              <button
+                onClick={() => { setShowUpgradeModal(false); fetchCreditPackages(); setShowCreditModal(true); }}
                 className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
                 style={{ background: '#fbbf24', color: '#000' }}
               >
                 Kredi Al
               </button>
-              <button 
-                onClick={() => navigate('/dashboard?upgrade=true')}
+              <button
+                onClick={() => setShowUpgradeModal(false)}
                 className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
                 style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #f59e0b 100%)' }}
               >
-                Planları Gor
+                Planları Gör
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showCreditModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowCreditModal(false)}>
+          <div className="zet-card p-5 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Zap className="h-5 w-5" style={{ color: '#fbbf24' }} />
+                <h2 className="text-lg font-bold" style={{ color: 'var(--zet-text)' }}>Kredi Satın Al</h2>
+              </div>
+              <button onClick={() => setShowCreditModal(false)} className="p-1.5 rounded-lg hover:bg-white/10">
+                <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+
+            {creditPackages.length > 0 && creditPackages[0].discounted_price !== creditPackages[0].price && (
+              <div className="mb-3 px-3 py-2 rounded-lg text-center" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                <span className="text-xs font-bold" style={{ color: '#10b981' }}>%15 Abone İndirimi Uygulandı!</span>
+              </div>
+            )}
+
+            {creditPackages.length === 0 && (
+              <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
+                <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
+                <p className="text-sm">Paketler yükleniyor...</p>
+              </div>
+            )}
+
+            <div className="space-y-2.5">
+              {creditPackages.map(pkg => {
+                const hasDiscount = pkg.discounted_price !== pkg.price;
+                return (
+                  <div key={pkg.id} className="flex items-center justify-between p-3 rounded-xl transition-all hover:scale-[1.01]"
+                    style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
+                        background: pkg.credits >= 1000 ? 'rgba(251,191,36,0.15)' : pkg.credits >= 700 ? 'rgba(139,92,246,0.15)' : pkg.credits >= 350 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'
+                      }}>
+                        <Zap className="h-5 w-5" style={{
+                          color: pkg.credits >= 1000 ? '#fbbf24' : pkg.credits >= 700 ? '#8b5cf6' : pkg.credits >= 350 ? '#3b82f6' : '#10b981'
+                        }} />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold" style={{ color: 'var(--zet-text)' }}>{pkg.credits} Kredi</p>
+                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
+                          {pkg.credits >= 1000 ? 'En Avantajlı' : pkg.credits >= 700 ? 'Popüler' : pkg.credits >= 350 ? 'Standart' : 'Başlangıç'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2.5">
+                      <div className="text-right">
+                        {hasDiscount && (
+                          <p className="text-[10px] line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price}</p>
+                        )}
+                        <p className="text-sm font-bold" style={{ color: hasDiscount ? '#10b981' : 'var(--zet-text)' }}>
+                          ${pkg.discounted_price}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => handleBuyCredits(pkg.id)}
+                        disabled={buyingCredits}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 disabled:opacity-40"
+                        style={{ background: 'var(--zet-primary)', color: 'white' }}
+                      >
+                        {buyingCredits ? '...' : 'Satın Al'}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
+              Kredi paketleri anında hesabınıza eklenir. Free dışındaki planlara %15 indirim uygulanır.
+              <br />Maksimum kredi bakiyesi: 1000.
+            </p>
           </div>
         </div>
       )}
