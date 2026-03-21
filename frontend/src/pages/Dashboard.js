@@ -512,7 +512,7 @@ Devam etmek istiyor musunuz?`;
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-3">
           <img 
-            src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" 
+            src="/logo.svg" 
             alt="ZET" 
             className="h-10 w-10"
           />

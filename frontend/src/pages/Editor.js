@@ -3576,7 +3576,7 @@ const Editor = () => {
             {saveStatus === 'saving' && <><Cloud className="h-3 w-3 animate-pulse" /><span className="hidden sm:inline">Kaydediliyor...</span></>}
             {saveStatus === 'unsaved' && <><Cloud className="h-3 w-3" /><span className="hidden sm:inline">Kaydedilmedi</span></>}
           </div>
-          <img src="https://customer-assets.emergentagent.com/job_unified-device-app-1/artifacts/92d5edoi_ZET%20M%C4%B0NDSHARE%20LOGO%20SVG_1.svg" alt="ZET" className="h-7 w-7 ml-1" />
+          <img src="/logo.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
       </header>
 
