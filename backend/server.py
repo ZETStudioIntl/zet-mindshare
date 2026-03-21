@@ -367,12 +367,13 @@ async def exchange_token(request: Request, response: Response):
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token",
         value=token,
         httponly=True,
-        secure=False,
-        samesite="lax",
+        secure=is_production,
+        samesite="none" if is_production else "lax",
         path="/",
         max_age=7*24*60*60
     )
