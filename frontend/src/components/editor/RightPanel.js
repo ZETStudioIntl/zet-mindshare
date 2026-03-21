@@ -60,6 +60,8 @@ export const RightPanel = ({
   const [judgeImage, setJudgeImage] = useState(null);
   const [judgeMode, setJudgeMode] = useState('fast');
   const judgeChatEndRef = useRef(null);
+  const [showJudgeSendMenu, setShowJudgeSendMenu] = useState(false);
+  const [showZetaSendMenu, setShowZetaSendMenu] = useState(false);
 
   // Auto-write state
   const [autoPrompt, setAutoPrompt] = useState('');
@@ -109,6 +111,13 @@ export const RightPanel = ({
   useEffect(() => {
     judgeChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [judgeMessages]);
+
+  useEffect(() => {
+    if (!showJudgeSendMenu && !showZetaSendMenu) return;
+    const close = () => { setShowJudgeSendMenu(false); setShowZetaSendMenu(false); };
+    window.document.addEventListener('click', close);
+    return () => window.document.removeEventListener('click', close);
+  }, [showJudgeSendMenu, showZetaSendMenu]);
 
   const handleJudgeImageUpload = () => {
     const input = window.document.createElement('input');
@@ -399,7 +408,7 @@ export const RightPanel = ({
                   <div ref={chatEndRef} />
                   <audio ref={audioRef} hidden />
                 </div>
-                {/* ZETA Input Bar with Oto Yaz + Derin buttons */}
+                {/* ZETA Input Bar */}
                 <div className="p-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
                   {zetaImage && (
                     <div className="mb-2 relative inline-block">
@@ -407,41 +416,69 @@ export const RightPanel = ({
                       <button onClick={() => setZetaImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
                     </div>
                   )}
-                  {/* Action Buttons Row */}
-                  <div className="flex gap-1.5 mb-2">
-                    <button
-                      data-testid="zeta-autowrite-btn"
-                      onClick={() => setZetaMode('autowrite')}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:scale-[1.02]"
-                      style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)', color: '#10b981' }}
-                    >
-                      <PenTool className="h-3 w-3" />
-                      Oto Yaz
-                    </button>
-                    <button
-                      data-testid="zeta-deep-btn"
-                      onClick={() => setZetaMode('deep')}
-                      className="flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all hover:scale-[1.02]"
-                      style={{ background: 'rgba(245,158,11,0.12)', border: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}
-                    >
-                      <Search className="h-3 w-3" />
-                      Derin Analiz
-                      <span className="text-[8px] opacity-70">100kr</span>
-                    </button>
-                  </div>
-                  {/* Chat Input */}
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 relative">
                     <input
                       data-testid="zeta-input"
                       placeholder={t('askZeta')}
                       value={zetaInput}
                       onChange={e => setZetaInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && sendZetaMessage()}
+                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { setShowZetaSendMenu(false); sendZetaMessage(); } }}
                       className="zet-input flex-1 text-xs py-1.5"
                     />
-                    <button data-testid="zeta-send-btn" onClick={sendZetaMessage} className="zet-btn px-2">
-                      <Send className="h-3 w-3" />
-                    </button>
+                    <div className="relative">
+                      <button
+                        data-testid="zeta-send-btn"
+                        onClick={e => { e.stopPropagation(); setShowZetaSendMenu(v => !v); }}
+                        className="zet-btn px-2 h-full"
+                      >
+                        <Send className="h-3 w-3" />
+                      </button>
+                      {showZetaSendMenu && (
+                        <div
+                          onClick={e => e.stopPropagation()}
+                          className="absolute bottom-full right-0 mb-1 rounded-xl overflow-hidden shadow-xl z-50 min-w-[160px]"
+                          style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}
+                        >
+                          <button
+                            data-testid="zeta-chat-send"
+                            onClick={() => { setShowZetaSendMenu(false); sendZetaMessage(); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium transition-colors hover:bg-white/5 text-left"
+                            style={{ color: 'var(--zet-text)' }}
+                          >
+                            <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(41,47,145,0.2)' }}>
+                              <Send className="h-3 w-3" style={{ color: 'var(--zet-primary-light)' }} />
+                            </span>
+                            <span>Gönder</span>
+                          </button>
+                          <div style={{ height: '1px', background: 'var(--zet-border)' }} />
+                          <button
+                            data-testid="zeta-autowrite-btn"
+                            onClick={() => { setShowZetaSendMenu(false); setZetaMode('autowrite'); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium transition-colors hover:bg-white/5 text-left"
+                            style={{ color: '#10b981' }}
+                          >
+                            <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                              <PenTool className="h-3 w-3" style={{ color: '#10b981' }} />
+                            </span>
+                            <span>Oto Yaz</span>
+                          </button>
+                          <button
+                            data-testid="zeta-deep-btn"
+                            onClick={() => { setShowZetaSendMenu(false); setZetaMode('deep'); }}
+                            className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium transition-colors hover:bg-white/5 text-left"
+                            style={{ color: '#f59e0b' }}
+                          >
+                            <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(245,158,11,0.15)' }}>
+                              <Search className="h-3 w-3" style={{ color: '#f59e0b' }} />
+                            </span>
+                            <div className="flex items-center gap-1">
+                              <span>Derin Analiz</span>
+                              <span className="text-[9px] opacity-60">100kr</span>
+                            </div>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               </>
@@ -747,27 +784,63 @@ export const RightPanel = ({
                   <button onClick={() => setJudgeImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
                 </div>
               )}
-              <div className="flex gap-1 mb-2">
-                <button onClick={() => setJudgeMode('fast')} className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${judgeMode === 'fast' ? 'text-white' : 'opacity-60'}`} style={{ background: judgeMode === 'fast' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)' }}>
-                  Hızlı
-                </button>
-                <button onClick={() => setJudgeMode('deep')} className={`flex-1 py-1.5 rounded text-xs font-medium transition-all ${judgeMode === 'deep' ? 'text-white' : 'opacity-60'}`} style={{ background: judgeMode === 'deep' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)' }}>
-                  Derin
-                </button>
-              </div>
-              <div className="flex gap-1">
+              <div className="flex gap-1 relative">
                 <input
                   data-testid="judge-input"
-                  placeholder={judgeMode === 'deep' ? 'Detaylı analiz için...' : 'Hızlı analiz için...'}
+                  placeholder={judgeMode === 'deep' ? 'Derin analiz için...' : 'Hızlı analiz için...'}
                   value={judgeInput}
                   onChange={e => setJudgeInput(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && sendJudgeMessage()}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { setShowJudgeSendMenu(false); sendJudgeMessage(); } }}
                   className="flex-1 text-xs py-1.5 px-2 rounded"
                   style={{ background: 'rgba(200, 0, 90, 0.15)', border: '1px solid #c8005a33', color: '#fff' }}
                 />
-                <button data-testid="judge-send-btn" onClick={sendJudgeMessage} className="px-2 rounded" style={{ background: '#c8005a' }}>
-                  <Send className="h-3 w-3 text-white" />
-                </button>
+                <div className="relative">
+                  <button
+                    data-testid="judge-send-btn"
+                    onClick={e => { e.stopPropagation(); setShowJudgeSendMenu(v => !v); }}
+                    className="px-2 rounded h-full flex items-center"
+                    style={{ background: '#c8005a' }}
+                  >
+                    <Send className="h-3 w-3 text-white" />
+                  </button>
+                  {showJudgeSendMenu && (
+                    <div
+                      onClick={e => e.stopPropagation()}
+                      className="absolute bottom-full right-0 mb-1 rounded-xl overflow-hidden shadow-xl z-50 min-w-[160px]"
+                      style={{ background: '#2a0420', border: '1px solid #c8005a44' }}
+                    >
+                      <button
+                        data-testid="judge-fast-send"
+                        onClick={() => { setJudgeMode('fast'); setShowJudgeSendMenu(false); sendJudgeMessage(); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium transition-colors hover:bg-white/5 text-left"
+                        style={{ color: '#fff' }}
+                      >
+                        <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(200,0,90,0.25)' }}>
+                          <Sparkles className="h-3 w-3" style={{ color: '#ff4d9e' }} />
+                        </span>
+                        <div>
+                          <div>Hızlı</div>
+                          <div className="text-[9px] opacity-50">Judge Mini</div>
+                        </div>
+                      </button>
+                      <div style={{ height: '1px', background: '#c8005a33' }} />
+                      <button
+                        data-testid="judge-deep-send"
+                        onClick={() => { setJudgeMode('deep'); setShowJudgeSendMenu(false); sendJudgeMessage(); }}
+                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-medium transition-colors hover:bg-white/5 text-left"
+                        style={{ color: '#fff' }}
+                      >
+                        <span className="w-6 h-6 rounded-lg flex items-center justify-center" style={{ background: 'rgba(200,0,90,0.25)' }}>
+                          <Search className="h-3 w-3" style={{ color: '#ff4d9e' }} />
+                        </span>
+                        <div>
+                          <div>Derin</div>
+                          <div className="text-[9px] opacity-50">Detaylı analiz</div>
+                        </div>
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
           </>
