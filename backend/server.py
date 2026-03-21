@@ -310,42 +310,42 @@ async def google_auth_callback(request: Request, response: Response, code: str =
             headers={"Authorization": f"Bearer {token['access_token']}"}
         )
         userinfo = userinfo_resp.json()
-    except Exception as e:
-        logging.error(f"Google OAuth callback error: {e}")
-        return RedirectResponse(f"{frontend_url}/?error=google_auth_failed")
 
-    email = userinfo.get("email")
-    name = userinfo.get("name", email.split("@")[0] if email else "User")
-    picture = userinfo.get("picture")
+        email = userinfo.get("email")
+        name = userinfo.get("name", email.split("@")[0] if email else "User")
+        picture = userinfo.get("picture")
 
-    if not email:
-        return RedirectResponse(f"{frontend_url}/?error=no_email")
+        if not email:
+            return RedirectResponse(f"{frontend_url}/?error=no_email")
 
-    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
-    if existing_user:
-        user_id = existing_user["user_id"]
-        await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
-    else:
-        user_id = f"user_{uuid.uuid4().hex[:12]}"
-        await db.users.insert_one({
+        existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+        if existing_user:
+            user_id = existing_user["user_id"]
+            await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
+        else:
+            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            await db.users.insert_one({
+                "user_id": user_id,
+                "email": email,
+                "name": name,
+                "picture": picture,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+
+        session_token = f"st_{uuid.uuid4().hex}"
+        expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+        await db.user_sessions.insert_one({
             "user_id": user_id,
-            "email": email,
-            "name": name,
-            "picture": picture,
+            "session_token": session_token,
+            "expires_at": expires_at.isoformat(),
             "created_at": datetime.now(timezone.utc).isoformat()
         })
 
-    session_token = f"st_{uuid.uuid4().hex}"
-    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    await db.user_sessions.insert_one({
-        "user_id": user_id,
-        "session_token": session_token,
-        "expires_at": expires_at.isoformat(),
-        "created_at": datetime.now(timezone.utc).isoformat()
-    })
+        return RedirectResponse(f"{frontend_url}/auth-callback#token={session_token}")
 
-    # Token'ı URL fragment'a koy — frontend /auth-callback'te okur, /auth/exchange ile cookie alır
-    return RedirectResponse(f"{frontend_url}/auth-callback#token={session_token}")
+    except Exception as e:
+        logging.error(f"Google OAuth callback error: {e}", exc_info=True)
+        return RedirectResponse(f"{frontend_url}/?error=google_auth_failed")
 
 @api_router.post("/auth/exchange")
 async def exchange_token(request: Request, response: Response):
