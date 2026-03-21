@@ -848,13 +848,14 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
 # ============ CREDIT PACKAGES ============
 
 CREDIT_PACKAGES = [
-    {"id": "pack_100", "credits": 100, "price": 2.99},
-    {"id": "pack_350", "credits": 350, "price": 8.99},
-    {"id": "pack_700", "credits": 700, "price": 14.99},
-    {"id": "pack_1000", "credits": 1000, "price": 24.99},
+    {"id": "pack_50",   "credits": 50,   "price": 0.99},
+    {"id": "pack_150",  "credits": 150,  "price": 2.49},
+    {"id": "pack_400",  "credits": 400,  "price": 5.99},
+    {"id": "pack_900",  "credits": 900,  "price": 11.99},
+    {"id": "pack_2000", "credits": 2000, "price": 22.99},
 ]
-MAX_CREDIT_BALANCE = 1000
-SUBSCRIBER_DISCOUNT = 0.15  # 15% discount for paid plans
+MAX_CREDIT_BALANCE = 3000
+SUBSCRIBER_DISCOUNT = 0.20  # 20% discount for paid plans
 
 class CreditPurchaseRequest(BaseModel):
     package_id: str
@@ -948,22 +949,22 @@ PLAN_LIMITS = {
         'charts': False,
     },
     'plus': {
-        'daily_credits': 100,
+        'daily_credits': 40,
         'judge_enabled': True,
         'judge_deep': False,
         'zeta_chars': 500,
-        'judge_chars': 150,
+        'judge_chars': 200,
         'fastselect_limit': 999,
         'nano_pro': False,
         'custom_image_sizes': ['16:9', '9:16', '1:1'],
         'layers': True,
         'signature': False,
         'watermark': False,
-        'page_color': False,
-        'charts': False,
+        'page_color': True,
+        'charts': True,
     },
     'pro': {
-        'daily_credits': 250,
+        'daily_credits': 130,
         'judge_enabled': True,
         'judge_deep': True,
         'zeta_chars': 99999,
@@ -978,7 +979,7 @@ PLAN_LIMITS = {
         'charts': True,
     },
     'ultra': {
-        'daily_credits': 1000,
+        'daily_credits': 1200,
         'judge_enabled': True,
         'judge_deep': True,
         'zeta_chars': 99999,

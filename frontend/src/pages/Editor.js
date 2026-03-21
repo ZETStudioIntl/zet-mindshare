@@ -3710,9 +3710,9 @@ const Editor = () => {
               <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(245, 158, 11, 0.1)', borderColor: '#f59e0b' }}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold" style={{ color: '#f59e0b' }}>Ultra</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$39.99/ay</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$30/ay</span>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>1000 kredi/gün | Judge sınırsız | Tüm boyutlar</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>1200 kredi/gün | Judge sınırsız | Tüm boyutlar</p>
               </div>
               
               {/* Pro - Recommended */}
@@ -3720,18 +3720,18 @@ const Editor = () => {
                 <div className="absolute -top-2 left-4 px-2 py-0.5 rounded text-xs font-bold" style={{ background: '#8b5cf6', color: 'white' }}>Önerilen</div>
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold" style={{ color: '#8b5cf6' }}>Pro</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$19.99/ay</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$13/ay</span>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>250 kredi/gün | Nano Pro | Tüm araçlar | 7 boyut</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>130 kredi/gün | Nano Pro | Tüm araçlar | 7 boyut</p>
               </div>
               
               {/* Plus */}
               <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: '#3b82f6' }}>
                 <div className="flex items-center justify-between mb-1">
                   <span className="font-bold" style={{ color: '#3b82f6' }}>Plus</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$9.99/ay</span>
+                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$5/ay</span>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>100 kredi/gün | Judge Mini | 3 boyut | Layers</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>40 kredi/gün | Judge Mini | 3 boyut | Layers</p>
               </div>
             </div>
             
