@@ -239,17 +239,19 @@ async def get_current_user(request: Request) -> User:
         raise HTTPException(status_code=401, detail="Invalid session")
     
     expires_at = session.get("expires_at")
+    if not expires_at:
+        raise HTTPException(status_code=401, detail="Invalid session")
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
-    
+
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
-    
+
     return User(**user)
 
 # ============ AUTH ROUTES ============
@@ -285,7 +287,9 @@ async def google_auth_callback(request: Request, response: Response, code: str =
     from fastapi.responses import RedirectResponse
     import requests as pyrequests
 
-    os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"  # lokalde HTTP
+    # Allow insecure transport only in non-production environments
+    if not os.getenv("REACT_APP_BACKEND_URL", "").startswith("https"):
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
 
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
 
@@ -358,6 +362,8 @@ async def exchange_token(request: Request, response: Response):
     if not session:
         raise HTTPException(status_code=401, detail="Invalid token")
     expires_at = session.get("expires_at")
+    if not expires_at:
+        raise HTTPException(status_code=401, detail="Invalid token")
     if isinstance(expires_at, str):
         expires_at = datetime.fromisoformat(expires_at)
     if expires_at.tzinfo is None:
@@ -466,12 +472,15 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
         "user_id": user_id,
         "expires_at": expires_at.isoformat()
     })
-    
+
+    is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=False, samesite="lax", path="/", max_age=7*24*60*60
+        httponly=True, secure=is_production,
+        samesite="none" if is_production else "lax",
+        path="/", max_age=7*24*60*60
     )
-    
+
     return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}}
 
 @api_router.post("/auth/login")
@@ -492,12 +501,15 @@ async def login_with_email(req: EmailAuthRequest, response: Response):
         "user_id": user["user_id"],
         "expires_at": expires_at.isoformat()
     })
-    
+
+    is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=False, samesite="lax", path="/", max_age=7*24*60*60
+        httponly=True, secure=is_production,
+        samesite="none" if is_production else "lax",
+        path="/", max_age=7*24*60*60
     )
-    
+
     return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}}
 
 # ============ APPLE AUTH ROUTES ============
@@ -582,9 +594,12 @@ async def apple_auth_callback(request: Request, response: Response):
         "user_id": user_id,
         "expires_at": expires_at.isoformat()
     })
+    is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=False, samesite="lax", path="/", max_age=7*24*60*60
+        httponly=True, secure=is_production,
+        samesite="none" if is_production else "lax",
+        path="/", max_age=7*24*60*60
     )
     return {"user": {"user_id": user_id, "email": email, "name": user_name}}
 

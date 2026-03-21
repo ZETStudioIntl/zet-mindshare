@@ -82,8 +82,8 @@ export const RightPanel = ({
   const loadChatHistory = async () => {
     try {
       const [zetaRes, judgeRes] = await Promise.all([
-        axios.get(`${API}/chat-history/${docId}?ai_type=zeta`),
-        axios.get(`${API}/chat-history/${docId}?ai_type=judge`)
+        axios.get(`${API}/chat-history/${docId}?ai_type=zeta`, { withCredentials: true }),
+        axios.get(`${API}/chat-history/${docId}?ai_type=judge`, { withCredentials: true })
       ]);
       const zetaMsgs = zetaRes.data.flatMap(h => [
         { role: 'user', content: h.user_message },
@@ -179,8 +179,9 @@ export const RightPanel = ({
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.onend = () => setSpeakingMsg(null);
       window.speechSynthesis.speak(utterance);
+    } finally {
+      setTtsLoading(false);
     }
-    setTtsLoading(false);
   };
 
   const handleAutoWrite = async () => {

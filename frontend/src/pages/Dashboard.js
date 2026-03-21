@@ -126,7 +126,8 @@ const Dashboard = () => {
       setFastSelectTools(trimmed);
       localStorage.setItem('zet_fast_select', JSON.stringify(trimmed));
     }
-  }, [userSubscription]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userSubscription, fastSelectTools.length]);
 
   // Subscription plans data - ordered from biggest to smallest
   const SP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
@@ -210,12 +211,10 @@ const Dashboard = () => {
 
   const requestNotificationPermission = useCallback(async () => {
     if (!('Notification' in window)) {
-      console.log('Notifications not supported');
       return;
     }
     if (Notification.permission === 'default') {
-      const permission = await Notification.requestPermission();
-      console.log('Notification permission:', permission);
+      await Notification.requestPermission();
     }
   }, []);
 
@@ -245,7 +244,7 @@ const Dashboard = () => {
         if (res.data && res.data.length > 0) {
           res.data.forEach(note => {
             showNotification('ZET Mindshare Hatırlatıcı', note.content);
-            axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true });
+            axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
           });
         }
       } catch (err) { 

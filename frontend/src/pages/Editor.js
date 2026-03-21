@@ -452,7 +452,8 @@ const Editor = () => {
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shortcuts, selectedElement, selectedElements]);
 
   // === DATA LOADING ===
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -880,8 +881,9 @@ const Editor = () => {
       } else {
         alert('Fotoğraf düzenleme başarısız. Tekrar deneyin.');
       }
+    } finally {
+      setPhotoEditLoading(false);
     }
-    setPhotoEditLoading(false);
   };
 
   const addEditedPhotoToCanvas = () => {
@@ -930,9 +932,10 @@ const Editor = () => {
         pdf.addImage(imgData, 'PNG', 0, 0, pageSize.width, pageSize.height);
       }
       pdf.save(`${document.title || 'document'}.pdf`);
-    } catch (err) { console.error('Export failed:', err); }
+    } catch (err) { console.error('Export failed:', err); } finally {
     setExporting(false);
     setShowExport(false);
+    }
   };
 
   // Export to PNG/JPEG (all pages combined vertically)
@@ -947,7 +950,7 @@ const Editor = () => {
         const c = await html2canvas(pageElements[i], { scale, useCORS: true, backgroundColor: pageBackground });
         canvases.push(c);
       }
-      if (canvases.length === 0) { setExporting(false); return; }
+      if (canvases.length === 0) { return; }
       // Combine all pages vertically
       const totalWidth = Math.max(...canvases.map(c => c.width));
       const totalHeight = canvases.reduce((sum, c) => sum + c.height, 0);
@@ -961,9 +964,10 @@ const Editor = () => {
       link.download = `${document.title || 'document'}.${format}`;
       link.href = imgData;
       link.click();
-    } catch (err) { console.error('Export failed:', err); }
-    setExporting(false);
-    setShowExport(false);
+    } catch (err) { console.error('Export failed:', err); } finally {
+      setExporting(false);
+      setShowExport(false);
+    }
   };
 
   // Export to SVG (all pages)
@@ -1194,8 +1198,9 @@ const Editor = () => {
     } catch (err) {
       console.error('PDF import failed:', err);
       alert('PDF içe aktarma başarısız: ' + err.message);
+    } finally {
+      setPdfImporting(false);
     }
-    setPdfImporting(false);
   };
 
   // Export handler

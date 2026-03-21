@@ -4,13 +4,16 @@ import axios from 'axios';
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // Her istekte token varsa Authorization header ekle
-axios.interceptors.request.use((config) => {
-  const token = localStorage.getItem('session_token');
-  if (token) {
-    config.headers['Authorization'] = `Bearer ${token}`;
-  }
-  return config;
-});
+axios.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('session_token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
 
 const AuthContext = createContext(null);
 
@@ -55,8 +58,12 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
   };
 
+  const updateUser = useCallback((updates) => {
+    setUser(prev => prev ? { ...prev, ...updates } : prev);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ user, setUser, loading, login, logout, checkAuth }}>
+    <AuthContext.Provider value={{ user, setUser, loading, login, logout, checkAuth, updateUser }}>
       {children}
     </AuthContext.Provider>
   );
