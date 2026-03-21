@@ -24,9 +24,9 @@ const AuthCallback = () => {
         try {
           const res = await axios.post(
             `${API}/auth/exchange`,
-            { token },
-            { withCredentials: true }
+            { token }
           );
+          localStorage.setItem('session_token', token);
           setUser(res.data);
           navigate('/dashboard', { replace: true });
         } catch (error) {
