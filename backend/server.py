@@ -378,8 +378,8 @@ async def exchange_token(request: Request, response: Response):
         key="session_token",
         value=token,
         httponly=True,
-        secure=is_production,
-        samesite="none" if is_production else "lax",
+        secure=True,
+        samesite="none",
         path="/",
         max_age=7*24*60*60
     )
@@ -476,8 +476,8 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
     is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=is_production,
-        samesite="none" if is_production else "lax",
+        httponly=True, secure=True,
+        samesite="none",
         path="/", max_age=7*24*60*60
     )
 
@@ -505,8 +505,8 @@ async def login_with_email(req: EmailAuthRequest, response: Response):
     is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=is_production,
-        samesite="none" if is_production else "lax",
+        httponly=True, secure=True,
+        samesite="none",
         path="/", max_age=7*24*60*60
     )
 
@@ -597,8 +597,8 @@ async def apple_auth_callback(request: Request, response: Response):
     is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
-        httponly=True, secure=is_production,
-        samesite="none" if is_production else "lax",
+        httponly=True, secure=True,
+        samesite="none",
         path="/", max_age=7*24*60*60
     )
     return {"user": {"user_id": user_id, "email": email, "name": user_name}}
