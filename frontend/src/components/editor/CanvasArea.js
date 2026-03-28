@@ -302,6 +302,23 @@ export const CanvasArea = ({
   const [rectSelectEnd, setRectSelectEnd] = useState(null);
   const [isRectSelecting, setIsRectSelecting] = useState(false);
 
+  // Auto-fit zoom: fill container width on mount and container resize
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const fit = () => {
+      const w = container.clientWidth;
+      if (w > 0 && pageSize?.width > 0) {
+        const fitZoom = Math.max(0.25, Math.min(3, (w - 32) / pageSize.width));
+        setZoom(fitZoom);
+      }
+    };
+    const t = setTimeout(fit, 100);
+    const ro = new ResizeObserver(fit);
+    ro.observe(container);
+    return () => { clearTimeout(t); ro.disconnect(); };
+  }, [canvasContainerRef, pageSize?.width, setZoom]);
+
   // Zoom tool - scroll towards cursor position
   useEffect(() => {
     const h = (e) => {
