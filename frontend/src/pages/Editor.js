@@ -728,29 +728,48 @@ const Editor = () => {
   };
 
   // === HIGHLIGHTER Tool (like Redact - applies to selected text) ===
-  // Helper: wrap selected text with styled span using saved selection info
+  // Helper: wrap selected text with styled span using DOM Range API (reliable across HTML tags)
   const wrapSelection = useCallback((styleStr, attributes = {}) => {
     if (!savedSelectionRef.current) return false;
-    const { elementId, text, html } = savedSelectionRef.current;
-    if (!text || !elementId || !html) return false;
-    
-    // Build span attributes string
-    const attrStr = Object.entries(attributes).map(([k, v]) => `${k}="${v}"`).join(' ');
-    const wrappedText = `<span style="${styleStr}" ${attrStr}>${text}</span>`;
-    
-    // Replace first occurrence of selected text in the HTML
-    // Use a safe replacement that doesn't touch existing HTML tags
-    const idx = html.indexOf(text);
-    if (idx === -1) return false;
-    const newHtml = html.substring(0, idx) + wrappedText + html.substring(idx + text.length);
-    
-    savedSelectionRef.current = null;
-    setCanvasElements(prev => prev.map(e => 
-      e.id === elementId 
-        ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') }
-        : e
-    ));
-    return true;
+    const { elementId, range, editableDiv, isCollapsed, text } = savedSelectionRef.current;
+    if (isCollapsed || !range || !elementId || !editableDiv) return false;
+    if (!text || !text.trim()) return false;
+
+    try {
+      // Restore focus + selection
+      editableDiv.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+
+      const span = document.createElement('span');
+      span.setAttribute('style', styleStr);
+      Object.entries(attributes).forEach(([k, v]) => span.setAttribute(k, v));
+
+      try {
+        // Simple case: selection inside a single node
+        range.surroundContents(span);
+      } catch {
+        // Complex case: selection spans multiple elements — extract & rewrap
+        const fragment = range.extractContents();
+        span.appendChild(fragment);
+        range.insertNode(span);
+      }
+
+      const newHtml = editableDiv.innerHTML;
+      sel.removeAllRanges();
+      savedSelectionRef.current = null;
+
+      setCanvasElements(prev => prev.map(e =>
+        e.id === elementId
+          ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') }
+          : e
+      ));
+      return true;
+    } catch (err) {
+      console.warn('wrapSelection failed:', err);
+      return false;
+    }
   }, [setCanvasElements]);
 
   const applyHighlight = useCallback(() => {

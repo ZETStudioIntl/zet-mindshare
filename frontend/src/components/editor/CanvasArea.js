@@ -150,11 +150,10 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
   const handleRemoveFormatting = useCallback(() => {
     let html = el.htmlContent || el.content || '';
     if (removeTarget === 'redact') {
-      html = html.replace(/<span[^>]*data-redacted="true"[^>]*>(.*?)<\/span>/gi, '$1');
+      html = html.replace(/<span[^>]*data-redacted="true"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
     } else if (removeTarget === 'highlight') {
-      html = html.replace(/<span[^>]*data-highlight="true"[^>]*>(.*?)<\/span>/gi, '$1');
+      html = html.replace(/<span[^>]*data-highlight="true"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
     }
-    const plain = html.replace(/<[^>]*>/g, '');
     onCommit(el.id, html, true);
     setRemoveTarget(null);
   }, [el.id, el.htmlContent, el.content, removeTarget, onCommit]);
@@ -202,14 +201,23 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
         dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
       />
       {removeTarget && (
-        <button
-          data-testid={`remove-${removeTarget}-btn`}
-          onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveFormatting(); }}
-          className="absolute left-0 z-50 flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105"
-          style={{ top: '100%', marginTop: 4, background: 'var(--zet-bg-card, #1e1e2e)', border: '1px solid var(--zet-border, #333)', color: 'var(--zet-text, #eee)', boxShadow: '0 4px 12px rgba(0,0,0,0.4)', whiteSpace: 'nowrap' }}
+        <div
+          className="absolute z-50 flex items-center gap-1 rounded-lg text-xs font-medium shadow-xl"
+          style={{ top: '100%', left: 0, marginTop: 5, background: removeTarget === 'redact' ? '#1a0000' : '#2a2000', border: `1px solid ${removeTarget === 'redact' ? '#ef4444' : '#f59e0b'}`, whiteSpace: 'nowrap', overflow: 'hidden' }}
+          onMouseDown={e => e.stopPropagation()}
         >
-          {removeTarget === 'redact' ? 'Bandı Kaldır' : 'İşareti Kaldır'}
-        </button>
+          <span className="px-2.5 py-1.5" style={{ color: removeTarget === 'redact' ? '#fca5a5' : '#fde68a' }}>
+            {removeTarget === 'redact' ? '🔲 Sansür Seçili' : '🟡 Renk Seçili'}
+          </span>
+          <button
+            data-testid={`remove-${removeTarget}-btn`}
+            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); handleRemoveFormatting(); }}
+            className="px-2.5 py-1.5 font-semibold transition-colors hover:opacity-80"
+            style={{ background: removeTarget === 'redact' ? '#ef4444' : '#f59e0b', color: '#fff', borderLeft: '1px solid rgba(255,255,255,0.15)' }}
+          >
+            Kaldır ✕
+          </button>
+        </div>
       )}
     </div>
   );
