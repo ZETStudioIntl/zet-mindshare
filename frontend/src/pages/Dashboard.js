@@ -453,9 +453,9 @@ Devam etmek istiyor musunuz?`;
   const addQuickNote = async () => {
     if (!quickNote.trim()) return;
     try {
-      const res = await axios.post(`${API}/notes`, { 
+      const res = await axios.post(`${API}/notes`, {
         content: quickNote,
-        reminder_time: noteReminder || null
+        reminder_time: noteReminder ? new Date(noteReminder).toISOString() : null
       }, { withCredentials: true });
       setNotes([res.data, ...notes]);
       setQuickNote('');
@@ -777,7 +777,48 @@ Devam etmek istiyor musunuz?`;
             ))}
           </div>
         ) : (
-          <div className="space-y-3 mb-6">
+          <>
+          {/* Quick Note Input - always at top in notes tab */}
+          <div className="zet-card p-4 mb-4 sticky top-0 z-10" style={{ background: 'var(--zet-bg-card)' }}>
+            <div className="flex gap-2 mb-2">
+              <input
+                type="text"
+                placeholder={t('quickNote')}
+                value={quickNote}
+                onChange={(e) => setQuickNote(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addQuickNote()}
+                className="zet-input flex-1"
+                data-testid="quick-note-input"
+              />
+              <button
+                onClick={addQuickNote}
+                className="zet-btn px-4"
+                data-testid="add-note-btn"
+              >
+                <Plus className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <Bell className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              <input
+                type="datetime-local"
+                value={noteReminder}
+                onChange={(e) => setNoteReminder(e.target.value)}
+                className="zet-input flex-1 text-xs"
+                style={{ background: 'var(--zet-bg)' }}
+              />
+              {noteReminder && (
+                <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10">
+                  <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                </button>
+              )}
+            </div>
+            <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
+              {t('setReminder') || 'Hatırlatıcı ayarlayarak bildirim alın'}
+            </p>
+          </div>
+
+          <div className="space-y-3 mb-20">
             {filteredNotes.map(note => (
               <div 
                 key={note.note_id} 
@@ -814,48 +855,8 @@ Devam etmek istiyor musunuz?`;
               </div>
             )}
           </div>
+          </>
         )}
-
-        {/* Quick Note Input */}
-        <div className="zet-card p-4 mb-20">
-          <div className="flex gap-2 mb-2">
-            <input
-              type="text"
-              placeholder={t('quickNote')}
-              value={quickNote}
-              onChange={(e) => setQuickNote(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addQuickNote()}
-              className="zet-input flex-1"
-              data-testid="quick-note-input"
-            />
-            <button 
-              onClick={addQuickNote}
-              className="zet-btn px-4"
-              data-testid="add-note-btn"
-            >
-              <Plus className="h-5 w-5" />
-            </button>
-          </div>
-          {/* Reminder time input */}
-          <div className="flex items-center gap-2">
-            <Bell className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-            <input
-              type="datetime-local"
-              value={noteReminder}
-              onChange={(e) => setNoteReminder(e.target.value)}
-              className="zet-input flex-1 text-xs"
-              style={{ background: 'var(--zet-bg)' }}
-            />
-            {noteReminder && (
-              <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10">
-                <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-              </button>
-            )}
-          </div>
-          <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
-            {t('setReminder') || 'Hatırlatıcı ayarlayarak bildirim alın'}
-          </p>
-        </div>
       </main>
 
       {/* Bottom Tabs */}

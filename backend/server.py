@@ -691,13 +691,26 @@ async def update_note_reminder(note_id: str, reminder_time: str = Body(..., embe
 
 @api_router.get("/notes/reminders")
 async def get_due_reminders(user: User = Depends(get_current_user)):
-    now = datetime.now(timezone.utc).isoformat()
-    reminders = await db.quick_notes.find({
+    now = datetime.now(timezone.utc)
+    all_pending = await db.quick_notes.find({
         "user_id": user.user_id,
-        "reminder_time": {"$lte": now},
-        "reminder_sent": False
-    }, {"_id": 0}).to_list(100)
-    return reminders
+        "reminder_sent": False,
+        "reminder_time": {"$ne": None, "$exists": True, "$nin": ["", None]}
+    }, {"_id": 0}).to_list(1000)
+    due = []
+    for note in all_pending:
+        rt_str = note.get("reminder_time")
+        if not rt_str:
+            continue
+        try:
+            rt = datetime.fromisoformat(rt_str.replace("Z", "+00:00"))
+            if rt.tzinfo is None:
+                rt = rt.replace(tzinfo=timezone.utc)
+            if rt <= now:
+                due.append(note)
+        except Exception:
+            pass
+    return due
 
 @api_router.put("/notes/{note_id}/reminder-sent")
 async def mark_reminder_sent(note_id: str, user: User = Depends(get_current_user)):
