@@ -1114,6 +1114,18 @@ async def clear_chat_history(doc_id: str, ai_type: str = "zeta", user: User = De
 
 # ============ ZETA AI ROUTES ============
 
+@api_router.get("/gemini/models")
+async def list_gemini_models():
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        return {"error": "GEMINI_API_KEY eksik"}
+    try:
+        client = google_genai.Client(api_key=api_key)
+        models = await asyncio.to_thread(lambda: [m.name for m in client.models.list()])
+        return {"models": models}
+    except Exception as e:
+        return {"error": str(e)}
+
 # ZET Judge Mini - Business Analysis AI
 @api_router.post("/judge/chat")
 async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
