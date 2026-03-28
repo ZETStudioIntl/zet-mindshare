@@ -174,7 +174,13 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
       <div ref={ref} data-testid={`text-element-${el.id}`} contentEditable={isEditing} suppressContentEditableWarning
         onDoubleClick={(e) => { e.stopPropagation(); setRemoveTarget(null); onStartEdit(el.id); }}
         onClick={handleClick}
-        onBlur={() => { 
+        onBlur={(e) => {
+          const rt = e.relatedTarget;
+          // Toolbar butonuna tıklanınca blur olmasın — editingId korunur
+          if (isEditing && rt && (rt.tagName === 'BUTTON' || rt.tagName === 'SELECT' || rt.tagName === 'INPUT' || rt.getAttribute?.('role') === 'button')) {
+            setTimeout(() => { if (ref.current) ref.current.focus(); }, 0);
+            return;
+          }
           if (ref.current) {
             onCommit(el.id, ref.current.innerHTML, true);
           }
@@ -189,13 +195,16 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
           textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none',
           textAlign: el.textAlign || 'left',
           width: fixedWidth,
-          wordWrap: 'break-word', whiteSpace: 'pre-wrap', lineHeight: el.lineHeight || 1.5,
+          wordWrap: 'break-word', whiteSpace: 'pre-wrap',
+          lineHeight: el.lineHeight || 1.5,
+          WebkitLineClamp: 'unset',
           cursor: 'text', caretColor: 'var(--zet-primary)',
           paddingLeft: (el.paddingLeft || 0) * zoom,
           paddingRight: (el.paddingRight || 0) * zoom,
           paddingTop: (el.paddingTop || 0) * zoom,
           paddingBottom: (el.paddingBottom || 0) * zoom,
           backgroundColor: el.highlightColor || undefined,
+          '--lh': el.lineHeight || 1.5,
           ...gradientStyle,
         }}
         dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
@@ -258,7 +267,7 @@ export const CanvasArea = ({
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd, useGradient,
   zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage, onCopyElement, onMirrorElement,
-  rulerVisible, gridVisible, gridSize, pageMargins: pageMarginsProp, eraserDragMode,
+  rulerVisible, gridVisible, gridSize, snapToGrid, pageMargins: pageMarginsProp, eraserDragMode,
 }) => {
   const canvasRef = useRef(null);
   const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
@@ -663,7 +672,12 @@ export const CanvasArea = ({
           : i
         ));
       } else if (draggedEl) {
-        setCanvasElements(p => p.map(i => i.id === dragging ? { ...i, x: Math.max(0, x - dragOffset.x), y: Math.max(0, y - dragOffset.y) } : i));
+        const gs = gridSize || 20;
+        const rawX = Math.max(0, x - dragOffset.x);
+        const rawY = Math.max(0, y - dragOffset.y);
+        const newX = snapToGrid ? Math.round(rawX / gs) * gs : rawX;
+        const newY = snapToGrid ? Math.round(rawY / gs) * gs : rawY;
+        setCanvasElements(p => p.map(i => i.id === dragging ? { ...i, x: newX, y: newY } : i));
       }
     }
     if (resizing) {
@@ -743,12 +757,10 @@ export const CanvasArea = ({
           });
           return newPaths;
         });
-        // Only remove canvas elements whose CENTER is directly under the eraser
+        // Silgi yolu üzerindeki elementleri bounding-box ile tespit et
         const elementsToRemove = canvasElements.filter(el => {
           if (el.locked || el.hidden) return false;
-          const cx = el.x + (el.width || 50) / 2;
-          const cy = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 50) / 2);
-          return eraserTrail.some(ep => dist({ x: cx, y: cy }, ep) < r);
+          return eraserTrail.some(ep => isPointInElement(ep.x, ep.y, el));
         });
         if (elementsToRemove.length > 0) {
           const updatedElements = canvasElements.filter(el => !elementsToRemove.includes(el));
@@ -884,20 +896,37 @@ export const CanvasArea = ({
             {/* Ruler - Horizontal */}
             {rulerVisible && idx === currentPage && (
               <>
-                <div className="absolute -top-6 left-0 h-5 flex items-end overflow-hidden" style={{ width: (page.pageSize?.width || pageSize.width) * zoom }}>
+                {/* Horizontal ruler — sayfa üzerinde sabit şerit */}
+                <div
+                  className="absolute left-0 flex items-end pointer-events-none"
+                  style={{
+                    top: 0, height: 20, width: (page.pageSize?.width || pageSize.width) * zoom,
+                    background: 'rgba(30,30,50,0.82)', zIndex: 10, borderBottom: '1px solid rgba(100,100,220,0.5)',
+                  }}
+                >
                   {Array.from({ length: Math.ceil((page.pageSize?.width || pageSize.width) / 50) + 1 }).map((_, i) => (
-                    <div key={`rh${i}`} className="flex-shrink-0" style={{ width: 50 * zoom }}>
-                      <div className="h-3 border-l" style={{ borderColor: 'var(--zet-text-muted)' }} />
-                      <span className="text-[9px] ml-0.5" style={{ color: 'var(--zet-text-muted)' }}>{i * 50}</span>
+                    <div key={`rh${i}`} className="flex-shrink-0 relative" style={{ width: 50 * zoom }}>
+                      <div style={{ position: 'absolute', left: 0, bottom: 0, height: i % 2 === 0 ? 10 : 6, width: 1, background: 'rgba(180,180,255,0.7)' }} />
+                      {i % 2 === 0 && (
+                        <span style={{ position: 'absolute', left: 2, top: 2, fontSize: 8, color: 'rgba(180,180,255,0.9)', userSelect: 'none' }}>{i * 50}</span>
+                      )}
                     </div>
                   ))}
                 </div>
-                {/* Ruler - Vertical */}
-                <div className="absolute -left-6 top-0 w-5 flex flex-col items-end overflow-hidden" style={{ height: (page.pageSize?.height || pageSize.height) * zoom }}>
+                {/* Vertical ruler — sayfa solunda sabit şerit */}
+                <div
+                  className="absolute top-0 pointer-events-none"
+                  style={{
+                    left: 0, width: 20, height: (page.pageSize?.height || pageSize.height) * zoom,
+                    background: 'rgba(30,30,50,0.82)', zIndex: 10, borderRight: '1px solid rgba(100,100,220,0.5)',
+                  }}
+                >
                   {Array.from({ length: Math.ceil((page.pageSize?.height || pageSize.height) / 50) + 1 }).map((_, i) => (
-                    <div key={`rv${i}`} className="flex-shrink-0 flex items-start" style={{ height: 50 * zoom }}>
-                      <span className="text-[9px] mr-0.5" style={{ color: 'var(--zet-text-muted)', writingMode: 'vertical-lr', transform: 'rotate(180deg)' }}>{i * 50}</span>
-                      <div className="w-3 border-t" style={{ borderColor: 'var(--zet-text-muted)' }} />
+                    <div key={`rv${i}`} className="relative" style={{ position: 'absolute', top: i * 50 * zoom, left: 0, width: 20, height: 1 }}>
+                      <div style={{ position: 'absolute', right: 0, top: 0, width: i % 2 === 0 ? 10 : 6, height: 1, background: 'rgba(180,180,255,0.7)' }} />
+                      {i % 2 === 0 && (
+                        <span style={{ position: 'absolute', left: 2, top: -5, fontSize: 8, color: 'rgba(180,180,255,0.9)', userSelect: 'none', writingMode: 'horizontal-tb' }}>{i * 50}</span>
+                      )}
                     </div>
                   ))}
                 </div>
