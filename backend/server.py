@@ -690,8 +690,10 @@ async def update_note_reminder(note_id: str, reminder_time: str = Body(..., embe
     return {"message": "Reminder set"}
 
 @api_router.get("/notes/reminders")
-async def get_due_reminders(user: User = Depends(get_current_user)):
+async def get_due_reminders(utc_offset: int = 0, user: User = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
+    # Local "now" for comparing naive (old-format) reminder times
+    now_local_naive = (now + timedelta(minutes=utc_offset)).replace(tzinfo=None)
     all_pending = await db.quick_notes.find({
         "user_id": user.user_id,
         "reminder_sent": False,
@@ -705,9 +707,13 @@ async def get_due_reminders(user: User = Depends(get_current_user)):
         try:
             rt = datetime.fromisoformat(rt_str.replace("Z", "+00:00"))
             if rt.tzinfo is None:
-                rt = rt.replace(tzinfo=timezone.utc)
-            if rt <= now:
-                due.append(note)
+                # Old format: naive local time — compare with local now
+                if rt <= now_local_naive:
+                    due.append(note)
+            else:
+                # New format: UTC-aware — compare directly
+                if rt <= now:
+                    due.append(note)
         except Exception:
             pass
     return due

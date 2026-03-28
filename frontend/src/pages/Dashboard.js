@@ -240,7 +240,8 @@ const Dashboard = () => {
   useEffect(() => {
     const checkReminders = async () => {
       try {
-        const res = await axios.get(`${API}/notes/reminders`, { withCredentials: true });
+        const utcOffset = -new Date().getTimezoneOffset();
+        const res = await axios.get(`${API}/notes/reminders?utc_offset=${utcOffset}`, { withCredentials: true });
         if (res.data && res.data.length > 0) {
           res.data.forEach(note => {
             showNotification('ZET Mindshare Hatırlatıcı', note.content);
@@ -507,7 +508,7 @@ Devam etmek istiyor musunuz?`;
   }
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
+    <div className="min-h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
       {/* Header */}
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-3">
@@ -720,7 +721,7 @@ Devam etmek istiyor musunuz?`;
       )}
 
       {/* Main Content */}
-      <main className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full">
+      <main className="flex-1 p-4 max-w-4xl mx-auto w-full">
         {/* Search */}
         <div className="relative mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
@@ -779,7 +780,7 @@ Devam etmek istiyor musunuz?`;
         ) : (
           <>
           {/* Quick Note Input - always at top in notes tab */}
-          <div className="zet-card p-4 mb-4 sticky top-0 z-10" style={{ background: 'var(--zet-bg-card)' }}>
+          <div className="zet-card p-4 mb-4" style={{ background: 'var(--zet-bg-card)' }}>
             <div className="flex gap-2 mb-2">
               <input
                 type="text"
@@ -818,7 +819,7 @@ Devam etmek istiyor musunuz?`;
             </p>
           </div>
 
-          <div className="space-y-3 mb-20">
+          <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 22rem)' }}>
             {filteredNotes.map(note => (
               <div 
                 key={note.note_id} 
