@@ -96,7 +96,7 @@ const Editor = () => {
   useEffect(() => {
     const saveSelection = () => {
       const sel = window.getSelection();
-      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+      if (sel && sel.rangeCount > 0) {
         const range = sel.getRangeAt(0);
         const container = range.commonAncestorContainer;
         const textEl = (container.nodeType === 3 ? container.parentElement : container);
@@ -106,8 +106,12 @@ const Editor = () => {
             elementId: editableDiv.dataset.testid?.replace('text-element-', ''),
             text: sel.toString(),
             html: editableDiv.innerHTML,
+            range: range.cloneRange(),
+            editableDiv,
+            isCollapsed: sel.isCollapsed,
           };
         }
+        // If outside a text element, keep the last saved value — don't clear
       }
     };
     window.document.addEventListener('selectionchange', saveSelection);
@@ -2076,6 +2080,70 @@ const Editor = () => {
       setIsBold(bold);
     }
   };
+  // === INLINE STYLE — applies to selection, cursor (next chars), or whole element ===
+  const applyInlineStyle = (type, value) => {
+    const saved = savedSelectionRef.current;
+
+    if (saved?.editableDiv?.isContentEditable) {
+      const { editableDiv, range, isCollapsed, elementId } = saved;
+
+      // Restore focus + caret/selection
+      editableDiv.focus();
+      try {
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+      } catch (_) {}
+
+      if (!isCollapsed) {
+        // ── Text is selected: apply to selection only ──
+        const selText = window.getSelection()?.toString() || saved.text;
+        // Escape HTML entities in selected text for safe insertion
+        const esc = (t) => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        switch (type) {
+          case 'bold':          document.execCommand('bold', false, null); break;
+          case 'italic':        document.execCommand('italic', false, null); break;
+          case 'underline':     document.execCommand('underline', false, null); break;
+          case 'strikethrough': document.execCommand('strikeThrough', false, null); break;
+          case 'fontSize':      document.execCommand('insertHTML', false, `<span style="font-size:${value}px">${esc(selText)}</span>`); break;
+          case 'fontFamily':    document.execCommand('insertHTML', false, `<span style="font-family:'${value}'">${esc(selText)}</span>`); break;
+          case 'lineHeight':    document.execCommand('insertHTML', false, `<span style="line-height:${value}">${esc(selText)}</span>`); break;
+          default: break;
+        }
+      } else {
+        // ── Cursor only: set format for next typed characters ──
+        switch (type) {
+          case 'bold':          document.execCommand('bold', false, null); break;
+          case 'italic':        document.execCommand('italic', false, null); break;
+          case 'underline':     document.execCommand('underline', false, null); break;
+          case 'strikethrough': document.execCommand('strikeThrough', false, null); break;
+          default:
+            // font/size/lineHeight with cursor only → apply to whole element
+            applyTextStyle(type, value);
+            return;
+        }
+      }
+
+      // Commit DOM changes → React state
+      setTimeout(() => {
+        if (!editableDiv.isConnected) return;
+        const newHtml = editableDiv.innerHTML;
+        setCanvasElements(prev => {
+          const updated = prev.map(e => e.id === elementId
+            ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') }
+            : e
+          );
+          handleSaveHistory(updated);
+          return updated;
+        });
+      }, 0);
+      return;
+    }
+
+    // Not in editing mode → apply to whole element
+    applyTextStyle(type, value);
+  };
+
   const onSaveHistory = handleSaveHistory;
 
   // === COLOR ===
@@ -2366,19 +2434,19 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showTextSize && <DraggablePanel title={t('textSize')} onClose={() => setShowTextSize(false)} initialPosition={{ x: isMobile ? 20 : 370, y: 100 }}>
-      <div className="space-y-3 w-48"><input type="range" min="8" max="72" value={currentFontSize} onChange={e => { const v = Number(e.target.value); setCurrentFontSize(v); applyTextStyle('fontSize', v); }} className="w-full accent-blue-500" />
-        <div className="flex items-center gap-2"><input type="number" min="8" max="100" value={currentFontSize} onChange={e => { const v = Math.max(8, Number(e.target.value) || 16); setCurrentFontSize(v); applyTextStyle('fontSize', v); }} className="zet-input w-16 text-center text-sm" /><span className="text-sm" style={{ color: 'var(--zet-text)' }}>pt</span></div>
+      <div className="space-y-3 w-48"><input type="range" min="8" max="72" value={currentFontSize} onChange={e => { const v = Number(e.target.value); setCurrentFontSize(v); applyInlineStyle('fontSize', v); }} className="w-full accent-blue-500" />
+        <div className="flex items-center gap-2"><input type="number" min="8" max="100" value={currentFontSize} onChange={e => { const v = Math.max(8, Number(e.target.value) || 16); setCurrentFontSize(v); applyInlineStyle('fontSize', v); }} className="zet-input w-16 text-center text-sm" /><span className="text-sm" style={{ color: 'var(--zet-text)' }}>pt</span></div>
         <div className="p-2 rounded text-center" style={{ background: 'var(--zet-bg)' }}><span style={{ fontSize: Math.min(currentFontSize, 36), color: 'var(--zet-text)', fontFamily: currentFont }}>Aa</span></div>
       </div>
     </DraggablePanel>}
     {showFont && <DraggablePanel title={t('font')} onClose={() => setShowFont(false)} initialPosition={{ x: isMobile ? 20 : 420, y: 100 }}>
       <div className="w-56"><div className="relative mb-2"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} /><input placeholder={t('search')} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" /></div>
-        <div className="max-h-48 overflow-y-auto space-y-0.5">{filteredFonts.map(f => <button key={f} onClick={() => { setCurrentFont(f); applyTextStyle('fontFamily', f); setShowFont(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f }}>{f}</button>)}</div>
+        <div className="max-h-48 overflow-y-auto space-y-0.5">{filteredFonts.map(f => <button key={f} onClick={() => { setCurrentFont(f); applyInlineStyle('fontFamily', f); setShowFont(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f }}>{f}</button>)}</div>
       </div>
     </DraggablePanel>}
     {showLineSpacing && <DraggablePanel title={t('lineSpacing')} onClose={() => setShowLineSpacing(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
       <div className="space-y-2 w-48">
-        {LINE_SPACINGS.map(s => <button key={s} onClick={() => { setCurrentLineHeight(s); if (selectedElement) applyTextStyle('lineHeight', s); setShowLineSpacing(false); }}
+        {LINE_SPACINGS.map(s => <button key={s} onClick={() => { setCurrentLineHeight(s); applyInlineStyle('lineHeight', s); setShowLineSpacing(false); }}
           className={`w-full p-2 rounded text-left text-sm transition-colors ${currentLineHeight === s ? 'glow-sm' : 'hover:bg-white/5'}`}
           style={{ background: currentLineHeight === s ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{s}x</button>)}
       </div>
@@ -2386,10 +2454,10 @@ const Editor = () => {
     {showWordType && <DraggablePanel title={t('wordType')} onClose={() => setShowWordType(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
       <div className="space-y-2 w-52">
         <div className="grid grid-cols-2 gap-2">
-          <button data-testid="toggle-bold" onClick={() => { setIsBold(!isBold); applyTextStyle('bold', !isBold); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isBold ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isBold ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Bold className="h-4 w-4" /> Bold</button>
-          <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyTextStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItalic ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItalic ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italic className="h-4 w-4" /> Italic</button>
-          <button data-testid="toggle-underline" onClick={() => { setIsUnderline(!isUnderline); applyTextStyle('underline', !isUnderline); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isUnderline ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isUnderline ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Underline className="h-4 w-4" /> Underline</button>
-          <button data-testid="toggle-strikethrough" onClick={() => { setIsStrikethrough(!isStrikethrough); applyTextStyle('strikethrough', !isStrikethrough); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isStrikethrough ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isStrikethrough ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Strikethrough className="h-4 w-4" /> Strike</button>
+          <button data-testid="toggle-bold" onClick={() => { setIsBold(!isBold); applyInlineStyle('bold', !isBold); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isBold ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isBold ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Bold className="h-4 w-4" /> Bold</button>
+          <button data-testid="toggle-italic" onClick={() => { setIsItalic(!isItalic); applyInlineStyle('italic', !isItalic); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isItalic ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isItalic ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Italic className="h-4 w-4" /> Italic</button>
+          <button data-testid="toggle-underline" onClick={() => { setIsUnderline(!isUnderline); applyInlineStyle('underline', !isUnderline); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isUnderline ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isUnderline ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Underline className="h-4 w-4" /> Underline</button>
+          <button data-testid="toggle-strikethrough" onClick={() => { setIsStrikethrough(!isStrikethrough); applyInlineStyle('strikethrough', !isStrikethrough); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isStrikethrough ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isStrikethrough ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Strikethrough className="h-4 w-4" /> Strike</button>
         </div>
         {/* Highlighter Section */}
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
