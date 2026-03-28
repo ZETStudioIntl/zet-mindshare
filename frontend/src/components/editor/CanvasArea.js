@@ -668,10 +668,19 @@ export const CanvasArea = ({
     }
     if (resizing) {
       if (resizing.isText) {
-        // Text elements: only resize width
         setCanvasElements(p => p.map(el => el.id === resizing.id ? { ...el, width: Math.max(60, x - resizing.startX) } : el));
       } else {
-        setCanvasElements(p => p.map(el => el.id === resizing.id ? { ...el, width: Math.max(30, x - resizing.startX), height: Math.max(30, y - resizing.startY) } : el));
+        setCanvasElements(p => p.map(el => {
+          if (el.id !== resizing.id) return el;
+          const newW = Math.max(30, x - resizing.startX);
+          const newH = Math.max(30, y - resizing.startY);
+          if (el.type === 'table' && resizing.origWidth) {
+            const scale = newW / resizing.origWidth;
+            const newFontSize = Math.max(8, Math.round((resizing.origFontSize || 12) * scale));
+            return { ...el, width: newW, height: newH, tableFontSize: newFontSize };
+          }
+          return { ...el, width: newW, height: newH };
+        }));
       }
     }
   }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, isRectSelecting, rectSelectStart, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
@@ -960,10 +969,10 @@ export const CanvasArea = ({
                   </g>
                 );
               })}
-              {/* Active drawing */}
-              {isDrawing && (activeTool === 'draw' || activeTool === 'marking') && currentPath.length > 1 && <path d={`M ${currentPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={activeTool === 'marking' ? (markingColor || '#FFFF00') : currentColor} strokeWidth={(activeTool === 'marking' ? (markingSize || 20) : drawSize) * zoom} strokeOpacity={activeTool === 'marking' ? (markingOpacity || 40) / 100 : drawOpacity / 100} fill="none" strokeLinecap={activeTool === 'marking' ? 'butt' : 'round'} />}
-              {/* Pen tool preview */}
-              {penPoints.length > 0 && (<><path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />{penPoints.map((p, i) => <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={i === 0 ? '#4ca8ad' : currentColor} stroke="#fff" strokeWidth={1} />)}</>)}
+              {/* Active drawing — only on current page */}
+              {idx === currentPage && isDrawing && (activeTool === 'draw' || activeTool === 'marking') && currentPath.length > 1 && <path d={`M ${currentPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={activeTool === 'marking' ? (markingColor || '#FFFF00') : currentColor} strokeWidth={(activeTool === 'marking' ? (markingSize || 20) : drawSize) * zoom} strokeOpacity={activeTool === 'marking' ? (markingOpacity || 40) / 100 : drawOpacity / 100} fill="none" strokeLinecap={activeTool === 'marking' ? 'butt' : 'round'} />}
+              {/* Pen tool preview — only on current page */}
+              {idx === currentPage && penPoints.length > 0 && (<><path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />{penPoints.map((p, i) => <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={i === 0 ? '#4ca8ad' : currentColor} stroke="#fff" strokeWidth={1} />)}</>)}
               {/* Lasso selection path */}
               {isDrawing && activeTool === 'select' && lassoPath.length > 1 && (
                 <path d={`M ${lassoPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z`} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="4,4" fill="rgba(76,168,173,0.15)" />
@@ -1079,7 +1088,7 @@ export const CanvasArea = ({
                   )}
                   {el.type === 'table' && el.tableData && (
                     <div className="relative w-full h-full group" data-testid={`editable-table-${el.id}`}>
-                      <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: Math.max(9, 12 * zoom) + 'px', tableLayout: 'fixed' }}>
+                      <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: Math.max(8, (el.tableFontSize || 12) * zoom) + 'px', tableLayout: 'fixed' }}>
                         <tbody>
                           {el.tableData.map((row, ri) => (
                             <tr key={ri}>
@@ -1087,6 +1096,12 @@ export const CanvasArea = ({
                                 <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
                                   contentEditable suppressContentEditableWarning
                                   style={{ border: '1px solid #999', padding: '3px 5px', background: 'transparent', color: '#111', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
+                                  ref={(node) => {
+                                    // Only set innerHTML when the cell is NOT focused to avoid overwriting user input
+                                    if (node && document.activeElement !== node) {
+                                      node.innerHTML = cell;
+                                    }
+                                  }}
                                   onFocus={(e) => { e.stopPropagation(); }}
                                   onBlur={(e) => {
                                     const val = e.target.innerText;
@@ -1097,14 +1112,13 @@ export const CanvasArea = ({
                                     }));
                                   }}
                                   onMouseDown={(e) => { e.stopPropagation(); }}
-                                  dangerouslySetInnerHTML={{ __html: cell }}
                                 />
                               ))}
                             </tr>
                           ))}
                         </tbody>
                       </table>
-                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-3 h-3 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                         {elementMenu === el.id && <ElementMenu el={{...el, type: 'table'}} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
                       </>)}
