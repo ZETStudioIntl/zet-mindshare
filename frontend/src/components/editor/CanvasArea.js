@@ -1078,7 +1078,7 @@ export const CanvasArea = ({
                               {row.map((cell, ci) => (
                                 <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
                                   contentEditable suppressContentEditableWarning
-                                  style={{ border: '1px solid #888', padding: '2px 4px', background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text)', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', overflow: 'visible', wordBreak: 'break-word' }}
+                                  style={{ border: '1px solid #999', padding: '3px 5px', background: 'transparent', color: '#111', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
                                   onFocus={(e) => { e.stopPropagation(); }}
                                   onBlur={(e) => {
                                     const val = e.target.innerText;
