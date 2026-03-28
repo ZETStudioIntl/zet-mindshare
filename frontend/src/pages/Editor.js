@@ -2904,9 +2904,27 @@ const Editor = () => {
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
           <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</label>
           <div className="grid grid-cols-3 gap-1">
-            <button onClick={() => { setMarginTop(40); setMarginBottom(40); setMarginLeft(40); setMarginRight(40); }} className="zet-btn text-xs py-1.5">Normal</button>
-            <button onClick={() => { setMarginTop(20); setMarginBottom(20); setMarginLeft(20); setMarginRight(20); }} className="zet-btn text-xs py-1.5">Dar</button>
-            <button onClick={() => { setMarginTop(60); setMarginBottom(60); setMarginLeft(60); setMarginRight(60); }} className="zet-btn text-xs py-1.5">Geniş</button>
+            <button onClick={() => {
+              const ml = 40, mr = 40;
+              setMarginTop(40); setMarginBottom(40); setMarginLeft(ml); setMarginRight(mr);
+              const w = pageSize.width - ml - mr;
+              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
+              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
+            }} className="zet-btn text-xs py-1.5">Normal</button>
+            <button onClick={() => {
+              const ml = 20, mr = 20;
+              setMarginTop(20); setMarginBottom(20); setMarginLeft(ml); setMarginRight(mr);
+              const w = pageSize.width - ml - mr;
+              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
+              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
+            }} className="zet-btn text-xs py-1.5">Dar</button>
+            <button onClick={() => {
+              const ml = 60, mr = 60;
+              setMarginTop(60); setMarginBottom(60); setMarginLeft(ml); setMarginRight(mr);
+              const w = pageSize.width - ml - mr;
+              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
+              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
+            }} className="zet-btn text-xs py-1.5">Geniş</button>
           </div>
         </div>
         <div className="pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--zet-border)' }}>
