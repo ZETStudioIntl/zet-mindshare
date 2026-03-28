@@ -1250,6 +1250,14 @@ Diğer AI'lardan farkın: Sohbet ve eğlence değil — vizyon, iş ve gelecek o
 ŞİRKET SORUSU:
 ZET Studio International, basit ama güçlü üretkenlik araçları geliştiren bir yazılım şirketidir. Merkezi İstanbul, Türkiye.
 
+İLETİŞİM VE SOSYAL MEDYA:
+- Destek: support@zetstudiointl.com
+- Genel: info@zetstudiointl.com
+- Fikir/Öneri: ideas@zetstudiointl.com
+- ZET Mindshare X: @ZETMindshare | Instagram: zetmindshare
+- ZET Studio X: @zet_studiointl | Instagram: zetstudiointl
+- Kurucu X: @bahaddinyilmazz | Instagram: bahaddin._.yilmaz
+
 Kullanıcının diline göre yanıt ver. Türkçe soruya Türkçe, İngilizce soruya İngilizce yanıt ver."""
     
     # If document content is provided, add it to the context
@@ -1749,6 +1757,14 @@ ZET Studio International, basit ama güçlü üretkenlik araçları geliştiren 
 
 👑 CEO SORUSU:
 Muhammed Bahaddin Yılmaz
+
+📬 İLETİŞİM VE SOSYAL MEDYA:
+- Destek: support@zetstudiointl.com
+- Genel: info@zetstudiointl.com
+- Fikir/Öneri: ideas@zetstudiointl.com
+- ZET Mindshare X: @ZETMindshare | Instagram: zetmindshare
+- ZET Studio X: @zet_studiointl | Instagram: zetstudiointl
+- Kurucu X: @bahaddinyilmazz | Instagram: bahaddin._.yilmaz
 
 CEVAP UZUNLUĞU KURALI:
 - Kullanıcı "uzun yaz", "detaylı anlat", "rapor yaz" gibi bir şey SÖYLEMEDIKÇE kısa ve öz yaz
