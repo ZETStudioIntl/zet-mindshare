@@ -2613,6 +2613,8 @@ async def root():
 
 app.include_router(api_router)
 
+frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
@@ -2621,6 +2623,7 @@ app.add_middleware(
         "http://localhost:3001",
         "http://127.0.0.1:3000",
         "https://exciting-comfort-production.up.railway.app",
+        frontend_url,
     ],
     allow_methods=["*"],
     allow_headers=["*"],
