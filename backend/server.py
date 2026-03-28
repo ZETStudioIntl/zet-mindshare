@@ -1263,7 +1263,7 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
     client = google_genai.Client(api_key=api_key)
     resp = await asyncio.to_thread(
         client.models.generate_content,
-        model="gemini-1.5-pro",
+        model="gemini-2.0-flash",
         contents=contents,
         config=genai_types.GenerateContentConfig(system_instruction=system_message)
     )
@@ -1348,7 +1348,7 @@ FORMAT KURALLARI:
     user_text = f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}\n\nONEMLI: EN AZ {total_words} kelime yaz. Kisa yazma, her sayfayi tamamen doldur."
     resp = await asyncio.to_thread(
         client.models.generate_content,
-        model="gemini-1.5-pro",
+        model="gemini-2.0-flash",
         contents=user_text,
         config=genai_types.GenerateContentConfig(system_instruction=system_message)
     )
@@ -1402,7 +1402,7 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     # Step 1: Generate search queries from the topic
     q_resp = await asyncio.to_thread(
         genai_client.models.generate_content,
-        model="gemini-1.5-pro",
+        model="gemini-2.0-flash",
         contents=f"Konu: {req.topic}",
         config=genai_types.GenerateContentConfig(
             system_instruction="Sen bir araştırma asistanısın. Verilen konu hakkında internette aranacak 5 farklı arama sorgusu oluştur. Her sorguyu yeni satırda yaz. Sadece sorgu metinlerini yaz, başka bir şey ekleme. Sorguları İngilizce ve Türkçe karışık yaz."
@@ -1508,7 +1508,7 @@ KURALLAR:
 
     analysis_resp = await asyncio.to_thread(
         genai_client.models.generate_content,
-        model="gemini-1.5-pro",
+        model="gemini-2.0-flash",
         contents=f"Konu: {req.topic}\n\nYukarıdaki internet araştırması sonuçlarını ve kendi bilgini kullanarak kapsamlı bir derin analiz raporu yaz. Raporun sonunda kaynak linklerini listele.",
         config=genai_types.GenerateContentConfig(system_instruction=analysis_system)
     )
@@ -1758,7 +1758,7 @@ The user may ask questions about this document. Use this content to provide rele
     client = google_genai.Client(api_key=api_key)
     resp = await asyncio.to_thread(
         client.models.generate_content,
-        model="gemini-1.5-pro",
+        model="gemini-2.0-flash",
         contents=contents,
         config=genai_types.GenerateContentConfig(system_instruction=system_message)
     )
@@ -1908,7 +1908,7 @@ async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current
     client = google_genai.Client(api_key=api_key)
     resp = await asyncio.to_thread(
         client.models.generate_content,
-        model="gemini-1.5-pro",
+        model="gemini-2.0-flash",
         contents=req.text,
         config=genai_types.GenerateContentConfig(
             system_instruction=f"You are a translator. Translate the given text to {req.target_language}. Return ONLY the translated text, nothing else. No explanations, no quotes."
