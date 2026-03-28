@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -41,6 +41,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
   const [notes, setNotes] = useState([]);
+  const notesRef = useRef([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNote, setQuickNote] = useState('');
   const [noteReminder, setNoteReminder] = useState('');
@@ -237,11 +238,14 @@ const Dashboard = () => {
     }
   }, []);
 
-  // Check for due reminders every 30 seconds
+  // notesRef her zaman güncel notes'u tutar
+  useEffect(() => { notesRef.current = notes; }, [notes]);
+
+  // Alarm kontrolü — sadece bir kez başlar, ref üzerinden güncel notlara erişir
   useEffect(() => {
     const check = () => {
       const now = new Date();
-      const due = notes.filter(n => n.reminder_time && !n.reminder_sent && new Date(n.reminder_time) <= now);
+      const due = notesRef.current.filter(n => n.reminder_time && !n.reminder_sent && new Date(n.reminder_time) <= now);
       if (due.length === 0) return;
       setFiredAlarms(prev => {
         const existing = new Set(prev.map(a => a.note_id));
@@ -253,9 +257,8 @@ const Dashboard = () => {
       });
     };
     const interval = setInterval(check, 10000);
-    check();
     return () => clearInterval(interval);
-  }, [notes]);
+  }, []);
 
   const fetchSubscription = async () => {
     try {
