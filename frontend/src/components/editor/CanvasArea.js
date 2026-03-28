@@ -250,7 +250,7 @@ export const CanvasArea = ({
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd, useGradient,
   zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage, onCopyElement, onMirrorElement,
-  rulerVisible, gridVisible, gridSize, pageMargins: pageMarginsProp,
+  rulerVisible, gridVisible, gridSize, pageMargins: pageMarginsProp, eraserDragMode,
 }) => {
   const canvasRef = useRef(null);
   const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
@@ -707,19 +707,51 @@ export const CanvasArea = ({
     // Eraser: remove paths and elements that intersect with eraser trail
     if (isDrawing && activeTool === 'eraser' && eraserTrail.length > 0) {
       const r = eraserSize || 15;
-      // Remove draw paths
-      setDrawPaths(prev => prev.filter(path => !path.points.some(pp => eraserTrail.some(ep => dist(pp, ep) < r))));
-      // Remove canvas elements that intersect with eraser trail
-      const elementsToRemove = canvasElements.filter(el => {
-        if (el.locked || el.hidden) return false;
-        const elCenterX = el.x + (el.width || 50) / 2;
-        const elCenterY = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 50) / 2);
-        return eraserTrail.some(ep => dist({ x: elCenterX, y: elCenterY }, ep) < r + Math.max(el.width || 50, el.height || 50) / 2);
-      });
-      if (elementsToRemove.length > 0) {
-        const updatedElements = canvasElements.filter(el => !elementsToRemove.includes(el));
-        setCanvasElements(updatedElements);
-        onSaveHistory(updatedElements);
+      if (eraserDragMode !== false) {
+        // DRAG MODE: partial path erasing — split paths at erased points
+        setDrawPaths(prev => {
+          const newPaths = [];
+          prev.forEach(path => {
+            const isNearEraser = pt => eraserTrail.some(ep => dist(pt, ep) < r);
+            let segment = [];
+            path.points.forEach(pt => {
+              if (isNearEraser(pt)) {
+                if (segment.length > 1) newPaths.push({ ...path, points: segment });
+                segment = [];
+              } else {
+                segment.push(pt);
+              }
+            });
+            if (segment.length > 1) newPaths.push({ ...path, points: segment });
+          });
+          return newPaths;
+        });
+        // Only remove canvas elements whose CENTER is directly under the eraser
+        const elementsToRemove = canvasElements.filter(el => {
+          if (el.locked || el.hidden) return false;
+          const cx = el.x + (el.width || 50) / 2;
+          const cy = el.y + (el.type === 'text' ? (el.fontSize || 16) / 2 : (el.height || 50) / 2);
+          return eraserTrail.some(ep => dist({ x: cx, y: cy }, ep) < r);
+        });
+        if (elementsToRemove.length > 0) {
+          const updatedElements = canvasElements.filter(el => !elementsToRemove.includes(el));
+          setCanvasElements(updatedElements);
+          onSaveHistory(updatedElements);
+        }
+      } else {
+        // CLICK MODE: remove only at the single click point
+        const clickPt = eraserTrail[0];
+        setDrawPaths(prev => prev.filter(path => !path.points.some(pp => dist(pp, clickPt) < r)));
+        const elementsToRemove = canvasElements.filter(el => {
+          if (el.locked || el.hidden) return false;
+          return clickPt.x >= el.x && clickPt.x <= el.x + (el.width || 50) &&
+                 clickPt.y >= el.y && clickPt.y <= el.y + (el.height || el.fontSize || 16);
+        });
+        if (elementsToRemove.length > 0) {
+          const updatedElements = canvasElements.filter(el => !elementsToRemove.includes(el));
+          setCanvasElements(updatedElements);
+          onSaveHistory(updatedElements);
+        }
       }
     }
     // Lasso selection - find elements inside the lasso path
@@ -740,7 +772,7 @@ export const CanvasArea = ({
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     setCropDragging(false); setCropStart(null); setDragging(null); setResizing(null);
-  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -860,7 +892,7 @@ export const CanvasArea = ({
               <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
                 <defs>
                   <pattern id="grid" width={gridSize * zoom} height={gridSize * zoom} patternUnits="userSpaceOnUse">
-                    <path d={`M ${gridSize * zoom} 0 L 0 0 0 ${gridSize * zoom}`} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="0.5" />
+                    <path d={`M ${gridSize * zoom} 0 L 0 0 0 ${gridSize * zoom}`} fill="none" stroke="rgba(100,100,200,0.25)" strokeWidth="0.5" />
                   </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />

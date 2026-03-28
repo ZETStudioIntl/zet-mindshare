@@ -943,9 +943,10 @@ const Editor = () => {
   // === TEXT ALIGNMENT ===
   const applyTextAlign = (align) => {
     setCurrentTextAlign(align);
-    if (selectedElement) {
+    const target = selectedElement || lastSelectedRef.current;
+    if (target) {
       setCanvasElements(prev => {
-        const updated = prev.map(el => el.id === selectedElement ? { ...el, textAlign: align } : el);
+        const updated = prev.map(el => el.id === target ? { ...el, textAlign: align } : el);
         handleSaveHistory(updated);
         return updated;
       });
@@ -2053,12 +2054,26 @@ const Editor = () => {
 
   // === WORD TYPE (apply to selected or set default) ===
   const applyTextStyle = (prop, val) => {
-    if (selectedElement) {
+    const target = selectedElement || lastSelectedRef.current;
+    if (target) {
       setCanvasElements(prev => {
-        const updated = prev.map(el => el.id === selectedElement ? { ...el, [prop]: val } : el);
+        const updated = prev.map(el => el.id === target ? { ...el, [prop]: val } : el);
         handleSaveHistory(updated);
         return updated;
       });
+    }
+  };
+
+  const applyHeadingStyle = (fontSize, bold) => {
+    const target = selectedElement || lastSelectedRef.current;
+    if (target) {
+      setCanvasElements(prev => {
+        const updated = prev.map(el => el.id === target ? { ...el, fontSize, bold } : el);
+        handleSaveHistory(updated);
+        return updated;
+      });
+      setCurrentFontSize(fontSize);
+      setIsBold(bold);
     }
   };
   const onSaveHistory = handleSaveHistory;
@@ -2386,7 +2401,20 @@ const Editor = () => {
               }} className={`w-6 h-6 rounded transition-all ${highlighterColor === c ? 'ring-2 ring-white scale-110' : ''}`} style={{ background: c }} data-testid={`highlight-color-${c}`} />
             ))}
             <button onClick={() => {
-              if (selectedElement) { applyTextStyle('highlightColor', null); }
+              const target = selectedElement || lastSelectedRef.current;
+              if (!target) return;
+              setCanvasElements(prev => {
+                const updated = prev.map(el => {
+                  if (el.id !== target) return el;
+                  const cleaned = { ...el, highlightColor: undefined };
+                  if (el.htmlContent) {
+                    cleaned.htmlContent = el.htmlContent.replace(/<span[^>]*data-highlight="true"[^>]*>(.*?)<\/span>/gi, '$1');
+                  }
+                  return cleaned;
+                });
+                handleSaveHistory(updated);
+                return updated;
+              });
             }} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }} data-testid="highlight-remove" title="Kaldır">
               <X className="h-3 w-3" />
             </button>
@@ -2457,13 +2485,25 @@ const Editor = () => {
     </DraggablePanel>}
     
     {/* Paragraph Alignment Panel */}
-    {showParagraph && <DraggablePanel title="Paragraph" onClose={() => setShowParagraph(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
-      <div className="space-y-2 w-52">
-        <div className="grid grid-cols-4 gap-2">
-          <button onClick={() => applyTextAlign('left')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'left' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'left' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignLeft className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
-          <button onClick={() => applyTextAlign('center')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'center' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'center' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignCenter className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
-          <button onClick={() => applyTextAlign('right')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'right' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'right' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignRight className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
-          <button onClick={() => applyTextAlign('justify')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'justify' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'justify' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignJustify className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+    {showParagraph && <DraggablePanel title="Paragraf" onClose={() => setShowParagraph(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="space-y-3 w-52">
+        <div>
+          <p className="text-xs mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Başlık Stili</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            <button onClick={() => applyHeadingStyle(32, true)} className="p-2 rounded font-bold text-sm transition-colors hover:bg-white/10" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>H1</button>
+            <button onClick={() => applyHeadingStyle(24, true)} className="p-2 rounded font-bold text-sm transition-colors hover:bg-white/10" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>H2</button>
+            <button onClick={() => applyHeadingStyle(18, true)} className="p-2 rounded font-bold text-sm transition-colors hover:bg-white/10" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>H3</button>
+            <button onClick={() => applyHeadingStyle(12, false)} className="p-2 rounded text-xs transition-colors hover:bg-white/10" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>Nor</button>
+          </div>
+        </div>
+        <div>
+          <p className="text-xs mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Hizalama</p>
+          <div className="grid grid-cols-4 gap-2">
+            <button onClick={() => applyTextAlign('left')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'left' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'left' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignLeft className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+            <button onClick={() => applyTextAlign('center')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'center' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'center' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignCenter className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+            <button onClick={() => applyTextAlign('right')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'right' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'right' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignRight className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+            <button onClick={() => applyTextAlign('justify')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'justify' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'justify' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignJustify className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+          </div>
         </div>
       </div>
     </DraggablePanel>}
@@ -3397,6 +3437,7 @@ const Editor = () => {
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
+            eraserDragMode={eraserDragMode}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
         </div>
 
@@ -3637,7 +3678,8 @@ const Editor = () => {
           pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
           zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
           onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
-          rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize} />
+          rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
+          eraserDragMode={eraserDragMode} />
 
         <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
           pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
