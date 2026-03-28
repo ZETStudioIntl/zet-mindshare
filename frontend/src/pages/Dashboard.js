@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -41,7 +41,6 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
   const [notes, setNotes] = useState([]);
-  const notesRef = useRef([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNote, setQuickNote] = useState('');
   const [noteReminder, setNoteReminder] = useState('');
@@ -83,7 +82,8 @@ const Dashboard = () => {
   const [creditPackages, setCreditPackages] = useState([]);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
-  const [firedAlarms, setFiredAlarms] = useState([]); // in-app alarm queue
+  const [firedAlarms, setFiredAlarms] = useState([]);
+  const [alarmTick, setAlarmTick] = useState(0);
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -238,27 +238,27 @@ const Dashboard = () => {
     }
   }, []);
 
-  // notesRef her zaman güncel notes'u tutar
-  useEffect(() => { notesRef.current = notes; }, [notes]);
-
-  // Alarm kontrolü — sadece bir kez başlar, ref üzerinden güncel notlara erişir
+  // Her 10sn tick at
   useEffect(() => {
-    const check = () => {
-      const now = new Date();
-      const due = notesRef.current.filter(n => n.reminder_time && !n.reminder_sent && new Date(n.reminder_time) <= now);
-      if (due.length === 0) return;
-      setFiredAlarms(prev => {
-        const existing = new Set(prev.map(a => a.note_id));
-        return [...prev, ...due.filter(n => !existing.has(n.note_id))];
-      });
-      due.forEach(n => {
-        setNotes(prev => prev.map(note => note.note_id === n.note_id ? { ...note, reminder_sent: true } : note));
-        axios.put(`${API}/notes/${n.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
-      });
-    };
-    const interval = setInterval(check, 10000);
-    return () => clearInterval(interval);
+    const i = setInterval(() => setAlarmTick(t => t + 1), 10000);
+    return () => clearInterval(i);
   }, []);
+
+  // notes veya tick değişince alarm kontrol et
+  useEffect(() => {
+    if (notes.length === 0) return;
+    const now = new Date();
+    const due = notes.filter(n => n.reminder_time && !n.reminder_sent && new Date(n.reminder_time) <= now);
+    if (due.length === 0) return;
+    setFiredAlarms(prev => {
+      const existing = new Set(prev.map(a => a.note_id));
+      return [...prev, ...due.filter(n => !existing.has(n.note_id))];
+    });
+    due.forEach(n => {
+      setNotes(prev => prev.map(note => note.note_id === n.note_id ? { ...note, reminder_sent: true } : note));
+      axios.put(`${API}/notes/${n.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
+    });
+  }, [notes, alarmTick]);
 
   const fetchSubscription = async () => {
     try {
