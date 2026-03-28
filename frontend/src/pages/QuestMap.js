@@ -392,6 +392,7 @@ const QuestMap = () => {
   const diffLabel = { circle: 'Kolay', square: 'Orta', triangle: 'Zor', star: 'Efsanevi' };
 
   return (
+    <>
     <div className="fixed inset-0 flex flex-col" style={{ background: BG }} data-testid="quest-map-page">
       {/* Header */}
       <header className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'rgba(40,50,120,0.25)', background: 'rgba(5,8,16,0.97)', zIndex: 20 }}>
@@ -495,6 +496,7 @@ const QuestMap = () => {
         </div>
       </div>
     )}
+    </>
   );
 };
 
