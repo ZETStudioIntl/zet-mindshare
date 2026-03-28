@@ -459,7 +459,7 @@ Devam etmek istiyor musunuz?`;
     try {
       const res = await axios.post(`${API}/notes`, {
         content: quickNote,
-        reminder_time: noteReminder ? new Date(noteReminder).toISOString() : null
+        reminder_time: noteReminder || null
       }, { withCredentials: true });
       setNotes([res.data, ...notes]);
       setQuickNote('');
