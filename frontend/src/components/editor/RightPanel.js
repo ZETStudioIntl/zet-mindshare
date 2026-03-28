@@ -29,6 +29,7 @@ export const RightPanel = ({
   zetaCustomPrompt,
   judgeMood,
   onAutoWriteContent,
+  onRefreshCredits,
 }) => {
   const { t } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
@@ -204,7 +205,7 @@ export const RightPanel = ({
       }, { withCredentials: true });
       if (res.data.success) {
         setAutoResult(res.data);
-        if (onAutoWriteContent) onAutoWriteContent(res.data.pages || [res.data.content], autoPages);
+        if (onRefreshCredits) onRefreshCredits();
       } else {
         setAutoError(res.data.error || 'Yazma başarısız');
       }
@@ -580,8 +581,15 @@ export const RightPanel = ({
                       <div className="rounded-lg p-2 text-xs max-h-48 overflow-y-auto whitespace-pre-wrap" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
                         {autoResult.content?.substring(0, 600)}...
                       </div>
+                      <button
+                        onClick={() => { if (onAutoWriteContent) onAutoWriteContent(autoResult.pages || [autoResult.content], autoPages); }}
+                        className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
+                        style={{ background: '#10b981', color: 'white' }}
+                      >
+                        <Plus className="h-3.5 w-3.5" /> Belgeye Ekle
+                      </button>
                       <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
-                        İçerik belgenize eklendi. Kalan kredi: {autoResult.credits_remaining}
+                        Kalan kredi: {autoResult.credits_remaining}
                       </p>
                     </div>
                   )}

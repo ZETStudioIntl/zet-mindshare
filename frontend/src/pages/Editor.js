@@ -467,22 +467,20 @@ const Editor = () => {
   useEffect(() => { fetchDocument(); }, [docId]);
 
   // Fetch user usage and plan
-  useEffect(() => {
-    const fetchUsage = async () => {
-      try {
-        const res = await axios.get(`${API}/usage`, { withCredentials: true });
-        setUserUsage(res.data);
-        setUserPlan(res.data.plan || 'free');
-        setCreditsRemaining(res.data.credits_remaining || 0);
-        setDailyCredits(res.data.daily_credits || 20);
-        setPlanLimits(res.data.limits || {});
-        setCreditCosts(res.data.credit_costs || {});
-      } catch (err) {
-        console.log('Failed to fetch usage');
-      }
-    };
-    fetchUsage();
-  }, []);
+  const refreshCredits = async () => {
+    try {
+      const res = await axios.get(`${API}/usage`, { withCredentials: true });
+      setUserUsage(res.data);
+      setUserPlan(res.data.plan || 'free');
+      setCreditsRemaining(res.data.credits_remaining || 0);
+      setDailyCredits(res.data.daily_credits || 20);
+      setPlanLimits(res.data.limits || {});
+      setCreditCosts(res.data.credit_costs || {});
+    } catch (err) {
+      console.log('Failed to fetch usage');
+    }
+  };
+  useEffect(() => { refreshCredits(); }, []);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastLoadedPageRef = useRef(null);
@@ -593,37 +591,30 @@ const Editor = () => {
 
   const handleAutoWriteContent = (pages, pageCount) => {
     if (!pages || pages.length === 0) return;
-    const targetPage = currentPage >= 0 ? currentPage : 0;
-    const firstEl = {
-      id: `auto_${Date.now()}_0`,
+    const makeEl = (content, idx) => ({
+      id: `auto_${Date.now()}_${idx}`,
       type: 'text',
-      x: 60,
-      y: 50,
-      content: pages[0].replace(/\*\*(.*?)\*\*/g, '$1').trim(),
+      x: marginLeft || 60,
+      y: marginTop || 50,
+      content: content.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
       fontFamily: 'Open Sans',
       fontSize: 11,
       color: '#222222',
       lineHeight: 1.6,
-      width: pageSize.width - 120,
-    };
-    // Add first page content to canvasElements so it appears immediately
-    setCanvasElements(prev => [...prev, firstEl]);
-    // Add extra pages to document if multi-page result
+      width: pageSize.width - (marginLeft || 60) - (marginRight || 60),
+    });
+
+    // Add first page content to current canvas immediately
+    setCanvasElements(prev => [...prev, makeEl(pages[0], 0)]);
+
+    // Add remaining pages as new document pages (no page limit enforced)
     if (pages.length > 1) {
       setDocument(prev => {
         const updatedPages = [...(prev.pages || [])];
         pages.slice(1).forEach((pageContent, idx) => {
-          const cleanText = pageContent.replace(/\*\*(.*?)\*\*/g, '$1').trim();
           updatedPages.push({
             page_id: `page_auto_${Date.now()}_${idx + 1}`,
-            elements: [{
-              id: `auto_${Date.now()}_${idx + 1}`,
-              type: 'text', x: 60, y: 50,
-              content: cleanText,
-              fontFamily: 'Open Sans', fontSize: 11,
-              color: '#222222', lineHeight: 1.6,
-              width: pageSize.width - 120,
-            }],
+            elements: [makeEl(pageContent, idx + 1)],
             drawPaths: [],
             pageSize,
           });
@@ -3622,7 +3613,7 @@ const Editor = () => {
                 onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
                 onShowChatSettings={() => setShowChatSettings(true)}
                 zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
-                onAutoWriteContent={handleAutoWriteContent} />
+                onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits} />
             </div>
           </div>
         )}
