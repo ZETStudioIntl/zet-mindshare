@@ -1289,7 +1289,10 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
             client.models.generate_content,
             model="gemini-2.5-flash",
             contents=contents,
-            config=genai_types.GenerateContentConfig(system_instruction=system_message)
+            config=genai_types.GenerateContentConfig(
+                system_instruction=system_message,
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
+            )
         )
         response = resp.text
     except Exception as e:

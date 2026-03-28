@@ -606,7 +606,7 @@ const Editor = () => {
       width: pageSize.width - ml - mr,
     });
 
-    // Insert all pages AFTER current page
+    // Save current canvas then insert all pages AFTER current page
     const insertAt = currentPage + 1;
     const newPages = pages.map((pageContent, idx) => ({
       page_id: `page_auto_${Date.now()}_${idx}`,
@@ -616,12 +616,17 @@ const Editor = () => {
     }));
 
     setDocument(prev => {
-      const updatedPages = [...(prev.pages || [])];
+      if (!prev?.pages) return prev;
+      const updatedPages = [...prev.pages];
+      // Save current canvas first
+      if (updatedPages[currentPage]) {
+        updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
+      }
       updatedPages.splice(insertAt, 0, ...newPages);
       return { ...prev, pages: updatedPages };
     });
-    // Navigate to first inserted page
-    setCurrentPage(insertAt);
+    // Navigate after state update
+    setTimeout(() => setCurrentPage(insertAt), 50);
   };
 
   const deletePage = (index) => {
