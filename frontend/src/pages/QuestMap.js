@@ -65,6 +65,7 @@ const QuestMap = () => {
   const [completed, setCompleted] = useState(new Set());
   const [sp, setSp] = useState(0);
   const [vp, setVp] = useState({ x: 0, y: 0, z: 0.35 });
+  const [rankUpModal, setRankUpModal] = useState(null); // { newRank, oldRank }
   const [drag, setDrag] = useState(false);
   const [dragO, setDragO] = useState({ x: 0, y: 0 });
   const [selected, setSelected] = useState(null);
@@ -379,6 +380,9 @@ const QuestMap = () => {
       const r = await axios.post(`${API}/quests/${q.id}/complete`, { xp: q.sp }, { withCredentials: true });
       setCompleted(new Set(r.data.completed_quests)); setSp(r.data.quest_xp);
       playCompleteSound();
+      if (r.data.rank_up) {
+        setRankUpModal({ newRank: r.data.new_rank, oldRank: r.data.old_rank });
+      }
     } catch (e) { console.error(e); }
   };
 
@@ -477,6 +481,20 @@ const QuestMap = () => {
         )}
       </div>
     </div>
+
+    {/* Rank Up Modal */}
+    {rankUpModal && (
+      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setRankUpModal(null)}>
+        <div className="rounded-2xl p-8 text-center max-w-sm w-full mx-4 animate-fadeIn" style={{ background: 'linear-gradient(135deg, #0a0f2e, #1a1f4e)', border: '1px solid rgba(251,191,36,0.4)' }} onClick={e => e.stopPropagation()}>
+          <div className="text-5xl mb-4">🏆</div>
+          <h2 className="text-2xl font-bold mb-2" style={{ color: '#fbbf24' }}>Rütbe Yükseldi!</h2>
+          <p className="text-sm mb-1" style={{ color: '#94a3b8' }}>{rankUpModal.oldRank} → </p>
+          <p className="text-3xl font-black mb-6" style={{ color: '#fbbf24' }}>{rankUpModal.newRank}</p>
+          <p className="text-xs mb-6" style={{ color: '#64748b' }}>Tebrikler! Yeni rütbenle ZET Mindshare'de bir adım öne geçtin.</p>
+          <button onClick={() => setRankUpModal(null)} className="px-6 py-2 rounded-full font-medium text-sm" style={{ background: 'linear-gradient(135deg, #b45309, #fbbf24)', color: '#0a0f2e' }}>Harika!</button>
+        </div>
+      </div>
+    )}
   );
 };
 

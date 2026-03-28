@@ -1005,6 +1005,7 @@ CREDIT_COSTS = {
     'judge_deep': 70,
     'deep_analysis': 100,
     'zeta_chat': 0,  # Free, limited by char count
+    'auto_write': 15,  # per page
 }
 
 async def get_user_credits(user_id: str):
@@ -1275,17 +1276,17 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
-    # Estimate: ~43 page lines per page (3200 chars / 75 chars per line)
-    estimated_lines = req.page_count * 43
-    estimated_credits = max(10, (estimated_lines // 3) * 10)
+    # Cost: 15 credits per page (fixed, predictable)
+    cost_per_page = CREDIT_COSTS.get('auto_write', 15)
+    total_cost = cost_per_page * req.page_count
 
-    # Check credits
+    # Check credits upfront
     credit_info = await get_user_credits(user.user_id)
-    if credit_info['credits_remaining'] < estimated_credits:
+    if credit_info['credits_remaining'] < total_cost:
         return {
             "success": False,
-            "error": f"Yetersiz kredi! Tahmini maliyet: {estimated_credits} kredi. Kalan: {credit_info['credits_remaining']} kredi.",
-            "estimated_credits": estimated_credits,
+            "error": f"Yetersiz kredi! Bu işlem {total_cost} kredi gerektirir ({cost_per_page} kredi/sayfa × {req.page_count} sayfa). Kalan: {credit_info['credits_remaining']} kredi.",
+            "estimated_credits": total_cost,
             "credits_remaining": credit_info['credits_remaining']
         }
 
@@ -1340,18 +1341,22 @@ FORMAT KURALLARI:
     )
     response = resp.text
 
-    # Count page lines: ~75 characters per visual line on A4 at font 11
-    total_chars = len(response)
-    page_lines = max(1, total_chars // 75)
-    actual_credits = max(10, (page_lines // 3) * 10)
-
-    # Spend actual credits
+    # Spend credits (with bonus deduction)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await db.usage.update_one(
         {"user_id": user.user_id, "date": today},
-        {"$inc": {"credits_used": actual_credits}},
+        {"$inc": {"credits_used": total_cost}},
         upsert=True
     )
+    # Deduct from bonus_credits if daily limit exceeded
+    new_used = credit_info['credits_used'] + total_cost
+    daily_overspend = new_used - credit_info['daily_credits']
+    if daily_overspend > 0 and credit_info.get('bonus_credits', 0) > 0:
+        bonus_deduct = min(daily_overspend, credit_info['bonus_credits'])
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$inc": {"bonus_credits": -bonus_deduct}}
+        )
 
     # Split by pages
     pages = response.split('---SAYFA SONU---')
@@ -1361,9 +1366,8 @@ FORMAT KURALLARI:
         "success": True,
         "content": response,
         "pages": pages,
-        "lines": page_lines,
-        "credits_spent": actual_credits,
-        "credits_remaining": max(0, credit_info['credits_remaining'] - actual_credits)
+        "credits_spent": total_cost,
+        "credits_remaining": max(0, credit_info['credits_remaining'] - total_cost)
     }
 
 @api_router.post("/zeta/deep-analysis")
@@ -2253,6 +2257,22 @@ async def get_quest_progress(user: User = Depends(get_current_user)):
 class QuestCompleteRequest(BaseModel):
     xp: int = 10
 
+RANK_THRESHOLDS = [
+    {"name": "Çırak",   "xp": 0},
+    {"name": "Kalfa",   "xp": 100},
+    {"name": "Usta",    "xp": 500},
+    {"name": "Uzman",   "xp": 1500},
+    {"name": "Maestro", "xp": 5000},
+    {"name": "Efsane",  "xp": 15000},
+]
+
+def get_rank_name(xp: int) -> str:
+    rank = RANK_THRESHOLDS[0]["name"]
+    for r in RANK_THRESHOLDS:
+        if xp >= r["xp"]:
+            rank = r["name"]
+    return rank
+
 @api_router.post("/quests/{quest_id}/complete")
 async def complete_quest(quest_id: int, req: QuestCompleteRequest, user: User = Depends(get_current_user)):
     user_data = await users_collection.find_one({"user_id": user.user_id}, {"_id": 0, "completed_quests": 1, "quest_xp": 1})
@@ -2262,12 +2282,23 @@ async def complete_quest(quest_id: int, req: QuestCompleteRequest, user: User = 
         return {"completed_quests": completed, "quest_xp": current_xp, "already_completed": True}
     completed.append(quest_id)
     new_xp = current_xp + req.xp
+
+    old_rank = get_rank_name(current_xp)
+    new_rank = get_rank_name(new_xp)
+    rank_up = new_rank != old_rank
+
     await users_collection.update_one(
         {"user_id": user.user_id},
         {"$set": {"completed_quests": completed, "quest_xp": new_xp}},
         upsert=True
     )
-    return {"completed_quests": completed, "quest_xp": new_xp}
+    return {
+        "completed_quests": completed,
+        "quest_xp": new_xp,
+        "rank_up": rank_up,
+        "new_rank": new_rank if rank_up else None,
+        "old_rank": old_rank if rank_up else None,
+    }
 
 # ============ COLLABORATION & SHARING ============
 
