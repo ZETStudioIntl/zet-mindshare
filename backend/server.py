@@ -1750,7 +1750,14 @@ ZET Studio International, basit ama güçlü üretkenlik araçları geliştiren 
 👑 CEO SORUSU:
 Muhammed Bahaddin Yılmaz
 
-Yanıtları KISA tut. Kullanıcının dilinde yanıt ver!
+CEVAP UZUNLUĞU KURALI:
+- Kullanıcı "uzun yaz", "detaylı anlat", "rapor yaz" gibi bir şey SÖYLEMEDIKÇE kısa ve öz yaz
+- Sohbet soruları → 1-3 cümle
+- Açıklama soruları → maksimum 1 kısa paragraf
+- Liste istekleri → en fazla 5 madde
+- Uzun içerik sadece kullanıcı açıkça istediğinde
+
+Kullanıcının dilinde yanıt ver!
 """
     
     # If document content is provided, add it to the context
