@@ -239,32 +239,23 @@ const Dashboard = () => {
 
   // Check for due reminders every 30 seconds
   useEffect(() => {
-    const checkReminders = async () => {
-      try {
-        const utcOffset = -new Date().getTimezoneOffset();
-        const res = await axios.get(`${API}/notes/reminders?utc_offset=${utcOffset}`, { withCredentials: true });
-        if (res.data && res.data.length > 0) {
-          setFiredAlarms(prev => {
-            const existingIds = new Set(prev.map(n => n.note_id));
-            const newAlarms = res.data.filter(n => !existingIds.has(n.note_id));
-            return [...prev, ...newAlarms];
-          });
-          res.data.forEach(note => {
-            // Also try browser notification as bonus
-            if ('Notification' in window && Notification.permission === 'granted') {
-              new Notification('🔔 ZET Hatırlatıcı', { body: note.content, tag: note.note_id });
-            }
-            axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
-          });
-        }
-      } catch (err) {
-        console.log('Reminder check error:', err);
-      }
+    const check = () => {
+      const now = new Date();
+      const due = notes.filter(n => n.reminder_time && !n.reminder_sent && new Date(n.reminder_time) <= now);
+      if (due.length === 0) return;
+      setFiredAlarms(prev => {
+        const existing = new Set(prev.map(a => a.note_id));
+        return [...prev, ...due.filter(n => !existing.has(n.note_id))];
+      });
+      due.forEach(n => {
+        setNotes(prev => prev.map(note => note.note_id === n.note_id ? { ...note, reminder_sent: true } : note));
+        axios.put(`${API}/notes/${n.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
+      });
     };
-    const interval = setInterval(checkReminders, 15000);
-    checkReminders();
+    const interval = setInterval(check, 10000);
+    check();
     return () => clearInterval(interval);
-  }, []);
+  }, [notes]);
 
   const fetchSubscription = async () => {
     try {
