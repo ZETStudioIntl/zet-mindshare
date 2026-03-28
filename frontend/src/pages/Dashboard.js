@@ -236,6 +236,15 @@ const Dashboard = () => {
       setShowCredits(true);
       window.history.replaceState({}, '', '/dashboard');
     }
+    // Her 30sn notları yeniden çek (alarm kontrolü için)
+    const fetchNotes = async () => {
+      try {
+        const res = await axios.get(`${API}/notes`, { withCredentials: true });
+        setNotes(res.data);
+      } catch {}
+    };
+    const interval = setInterval(fetchNotes, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   // Her 10sn tick at
