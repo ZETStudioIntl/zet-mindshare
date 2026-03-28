@@ -79,7 +79,14 @@ export const RightPanel = ({
   const [deepError, setDeepError] = useState('');
 
   useEffect(() => {
-    if (docId) loadChatHistory();
+    if (docId) {
+      // Reset messages when switching documents
+      setZetaMessages([]);
+      setJudgeMessages([]);
+      setZetaSessionId(null);
+      setJudgeSessionId(null);
+      loadChatHistory();
+    }
   }, [docId]);
 
   const loadChatHistory = async () => {
@@ -96,21 +103,26 @@ export const RightPanel = ({
         { role: 'user', content: h.user_message },
         { role: 'assistant', content: h.ai_response }
       ]);
-      if (zetaMsgs.length) setZetaMessages(zetaMsgs);
-      if (judgeMsgs.length) setJudgeMessages(judgeMsgs);
+      setZetaMessages(zetaMsgs);
+      setJudgeMessages(judgeMsgs);
       if (zetaRes.data.length) setZetaSessionId(zetaRes.data[zetaRes.data.length - 1].session_id);
       if (judgeRes.data.length) setJudgeSessionId(judgeRes.data[judgeRes.data.length - 1].session_id);
+      // Scroll to bottom after history loads
+      setTimeout(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'instant' });
+        judgeChatEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      }, 100);
     } catch (err) {
       console.log('No chat history found');
     }
   };
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   }, [zetaMessages]);
 
   useEffect(() => {
-    judgeChatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    setTimeout(() => judgeChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   }, [judgeMessages]);
 
   useEffect(() => {
