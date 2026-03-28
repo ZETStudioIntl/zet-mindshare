@@ -346,7 +346,7 @@ export const RightPanel = ({
             className={`flex-1 p-2 flex items-center justify-center gap-1.5 transition-all ${activeAI === 'zeta' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
             style={{ borderColor: activeAI === 'zeta' ? 'var(--zet-primary-light)' : 'transparent' }}
           >
-            <Sparkles className="h-3.5 w-3.5" style={{ color: 'var(--zet-primary-light)' }} />
+            <img src="/zeta-icon.svg" alt="ZETA" style={{ width: 14, height: 14, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
             <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>ZETA</span>
           </button>
           <button
@@ -374,7 +374,7 @@ export const RightPanel = ({
                 <div data-testid="zeta-messages" className="flex-1 p-2 overflow-y-auto text-xs" style={{ background: 'var(--zet-bg)' }}>
                   {zetaMessages.length === 0 && (
                     <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
-                      <Sparkles className="h-5 w-5 mx-auto mb-2 opacity-50" />
+                      <img src="/zeta-icon.svg" alt="ZETA" className="mx-auto mb-2" style={{ width: 28, height: 28, opacity: 0.6, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
                       <p className="text-xs font-medium">{t('askZetaAnything')}</p>
                       <p className="text-[10px] mt-2 opacity-70">Belgenizi otomatik olarak görüyorum. Siyah bantla gizlenen alanları göremem.</p>
                     </div>
@@ -387,6 +387,11 @@ export const RightPanel = ({
                         </div>
                       )}
                       <div className="inline-flex items-start gap-1 max-w-[90%]">
+                        {msg.role === 'assistant' && (
+                          <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5" style={{ background: 'var(--zet-primary)', minWidth: 20 }}>
+                            <img src="/zeta-icon.svg" alt="Z" style={{ width: 11, height: 11 }} />
+                          </div>
+                        )}
                         <div className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap" style={{ background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}>
                           {msg.content}
                         </div>

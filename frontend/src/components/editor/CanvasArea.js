@@ -892,7 +892,7 @@ export const CanvasArea = ({
               <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
                 <defs>
                   <pattern id="grid" width={gridSize * zoom} height={gridSize * zoom} patternUnits="userSpaceOnUse">
-                    <path d={`M ${gridSize * zoom} 0 L 0 0 0 ${gridSize * zoom}`} fill="none" stroke="rgba(100,100,200,0.25)" strokeWidth="0.5" />
+                    <path d={`M ${gridSize * zoom} 0 L 0 0 0 ${gridSize * zoom}`} fill="none" stroke="rgba(100,100,220,0.55)" strokeWidth="0.8" />
                   </pattern>
                 </defs>
                 <rect width="100%" height="100%" fill="url(#grid)" />
@@ -1078,7 +1078,7 @@ export const CanvasArea = ({
                               {row.map((cell, ci) => (
                                 <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
                                   contentEditable suppressContentEditableWarning
-                                  style={{ border: '1px solid #555', padding: '2px 4px', background: 'rgba(255,255,255,0.05)', color: 'var(--zet-text)', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text' }}
+                                  style={{ border: '1px solid #888', padding: '2px 4px', background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text)', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', overflow: 'visible', wordBreak: 'break-word' }}
                                   onFocus={(e) => { e.stopPropagation(); }}
                                   onBlur={(e) => {
                                     const val = e.target.innerText;
