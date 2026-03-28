@@ -82,6 +82,7 @@ const Dashboard = () => {
   const [creditPackages, setCreditPackages] = useState([]);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const [firedAlarms, setFiredAlarms] = useState([]); // in-app alarm queue
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -243,19 +244,27 @@ const Dashboard = () => {
         const utcOffset = -new Date().getTimezoneOffset();
         const res = await axios.get(`${API}/notes/reminders?utc_offset=${utcOffset}`, { withCredentials: true });
         if (res.data && res.data.length > 0) {
+          setFiredAlarms(prev => {
+            const existingIds = new Set(prev.map(n => n.note_id));
+            const newAlarms = res.data.filter(n => !existingIds.has(n.note_id));
+            return [...prev, ...newAlarms];
+          });
           res.data.forEach(note => {
-            showNotification('ZET Mindshare Hatırlatıcı', note.content);
+            // Also try browser notification as bonus
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('🔔 ZET Hatırlatıcı', { body: note.content, tag: note.note_id });
+            }
             axios.put(`${API}/notes/${note.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
           });
         }
-      } catch (err) { 
+      } catch (err) {
         console.log('Reminder check error:', err);
       }
     };
-    const interval = setInterval(checkReminders, 30000);
-    checkReminders(); // Check immediately on load
+    const interval = setInterval(checkReminders, 15000);
+    checkReminders();
     return () => clearInterval(interval);
-  }, [showNotification]);
+  }, []);
 
   const fetchSubscription = async () => {
     try {
@@ -887,6 +896,26 @@ Devam etmek istiyor musunuz?`;
           </button>
         </div>
       </div>
+
+      {/* In-app Alarm Notifications */}
+      {firedAlarms.length > 0 && (
+        <div className="fixed top-4 right-4 z-50 flex flex-col gap-2" style={{ maxWidth: 320 }}>
+          {firedAlarms.map(alarm => (
+            <div key={alarm.note_id} className="zet-card p-4 animate-fadeIn flex items-start gap-3"
+              style={{ background: 'var(--zet-bg-card)', border: '1px solid #eab308', boxShadow: '0 0 20px rgba(234,179,8,0.3)' }}>
+              <BellRing className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#eab308' }} />
+              <div className="flex-1 min-w-0">
+                <p className="font-medium text-sm mb-1" style={{ color: '#eab308' }}>Hatırlatıcı</p>
+                <p className="text-sm break-words" style={{ color: 'var(--zet-text)' }}>{alarm.content}</p>
+              </div>
+              <button onClick={() => setFiredAlarms(prev => prev.filter(a => a.note_id !== alarm.note_id))}
+                className="p-1 rounded hover:bg-white/10 flex-shrink-0">
+                <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* New Document Modal */}
       {showNewDoc && (
