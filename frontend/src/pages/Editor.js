@@ -591,37 +591,37 @@ const Editor = () => {
 
   const handleAutoWriteContent = (pages, pageCount) => {
     if (!pages || pages.length === 0) return;
+    const ml = marginLeft || 40;
+    const mr = marginRight || 40;
+    const mt = marginTop || 40;
     const makeEl = (content, idx) => ({
       id: `auto_${Date.now()}_${idx}`,
       type: 'text',
-      x: marginLeft || 60,
-      y: marginTop || 50,
+      x: ml, y: mt,
       content: content.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
       fontFamily: 'Open Sans',
       fontSize: 11,
       color: '#222222',
       lineHeight: 1.6,
-      width: pageSize.width - (marginLeft || 60) - (marginRight || 60),
+      width: pageSize.width - ml - mr,
     });
 
-    // Add first page content to current canvas immediately
-    setCanvasElements(prev => [...prev, makeEl(pages[0], 0)]);
+    // Insert all pages AFTER current page
+    const insertAt = currentPage + 1;
+    const newPages = pages.map((pageContent, idx) => ({
+      page_id: `page_auto_${Date.now()}_${idx}`,
+      elements: [makeEl(pageContent, idx)],
+      drawPaths: [],
+      pageSize,
+    }));
 
-    // Add remaining pages as new document pages (no page limit enforced)
-    if (pages.length > 1) {
-      setDocument(prev => {
-        const updatedPages = [...(prev.pages || [])];
-        pages.slice(1).forEach((pageContent, idx) => {
-          updatedPages.push({
-            page_id: `page_auto_${Date.now()}_${idx + 1}`,
-            elements: [makeEl(pageContent, idx + 1)],
-            drawPaths: [],
-            pageSize,
-          });
-        });
-        return { ...prev, pages: updatedPages };
-      });
-    }
+    setDocument(prev => {
+      const updatedPages = [...(prev.pages || [])];
+      updatedPages.splice(insertAt, 0, ...newPages);
+      return { ...prev, pages: updatedPages };
+    });
+    // Navigate to first inserted page
+    setCurrentPage(insertAt);
   };
 
   const deletePage = (index) => {
