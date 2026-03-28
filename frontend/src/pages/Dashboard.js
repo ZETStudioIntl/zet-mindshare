@@ -507,7 +507,7 @@ Devam etmek istiyor musunuz?`;
   }
 
   return (
-    <div className="min-h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
+    <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
       {/* Header */}
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-3">
@@ -720,7 +720,7 @@ Devam etmek istiyor musunuz?`;
       )}
 
       {/* Main Content */}
-      <main className="flex-1 p-4 max-w-4xl mx-auto w-full">
+      <main className="flex-1 overflow-y-auto p-4 max-w-4xl mx-auto w-full">
         {/* Search */}
         <div className="relative mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
