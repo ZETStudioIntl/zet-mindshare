@@ -790,7 +790,7 @@ Devam etmek istiyor musunuz?`;
             ))}
           </div>
         ) : (
-          <div className="flex flex-col flex-1 overflow-hidden">
+          <div className="flex flex-col flex-1 min-h-0">
           {/* Quick Note Input - always at top in notes tab */}
           <div className="zet-card p-4 mb-4 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
             <div className="flex gap-2 mb-2">
@@ -831,7 +831,7 @@ Devam etmek istiyor musunuz?`;
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-3 pb-20">
+          <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pb-20">
             {filteredNotes.map(note => (
               <div 
                 key={note.note_id} 
