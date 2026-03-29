@@ -747,8 +747,12 @@ Devam etmek istiyor musunuz?`;
           />
         </div>
 
-        {/* Documents/Notes Grid */}
-        {activeTab === 'documents' ? (
+        {/* Documents/Notes/Media Grid */}
+        {activeTab === 'media' ? (
+          <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--zet-text-muted)' }}>
+            Media coming soon
+          </div>
+        ) : activeTab === 'documents' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card */}
             <button 
@@ -886,16 +890,27 @@ Devam etmek istiyor musunuz?`;
           >
             {t('documents')}
           </button>
-          <button 
+          <button
             onClick={() => setActiveTab('notes')}
             className={`flex-1 py-2 px-4 rounded-lg transition-all ${activeTab === 'notes' ? 'glow-sm' : ''}`}
-            style={{ 
+            style={{
               background: activeTab === 'notes' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'transparent',
               color: activeTab === 'notes' ? 'var(--zet-text)' : 'var(--zet-text-muted)'
             }}
             data-testid="tab-notes"
           >
             {t('notes')}
+          </button>
+          <button
+            onClick={() => setActiveTab('media')}
+            className={`flex-1 py-2 px-4 rounded-lg transition-all ${activeTab === 'media' ? 'glow-sm' : ''}`}
+            style={{
+              background: activeTab === 'media' ? 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' : 'transparent',
+              color: activeTab === 'media' ? 'var(--zet-text)' : 'var(--zet-text-muted)'
+            }}
+            data-testid="tab-media"
+          >
+            Media
           </button>
         </div>
       </div>
