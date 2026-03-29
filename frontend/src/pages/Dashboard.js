@@ -529,7 +529,7 @@ Devam etmek istiyor musunuz?`;
             alt="ZET" 
             className="h-10 w-10"
           />
-          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
+          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare ttest</span>
           <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
             <Award className="h-3 w-3" /> {currentRank.name}
           </span>
