@@ -733,7 +733,7 @@ Devam etmek istiyor musunuz?`;
       )}
 
       {/* Main Content */}
-      <main className="flex-1 overflow-hidden flex flex-col p-4 max-w-4xl mx-auto w-full">
+      <main className="flex-1 overflow-hidden flex flex-col p-4 w-full" style={{ maxWidth: 896, margin: '0 auto' }}>
         {/* Search */}
         <div className="relative mb-6">
           <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
