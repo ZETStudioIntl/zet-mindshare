@@ -831,7 +831,7 @@ Devam etmek istiyor musunuz?`;
             </p>
           </div>
 
-          <div className="flex-1 overflow-y-auto min-h-0 space-y-3 pb-20">
+          <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 350px)' }}>
             {filteredNotes.map(note => (
               <div 
                 key={note.note_id} 
