@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n 'API}\\\\\\\\' \"c:/Users/Muhammed Bahaddin/.vscode/zet-mindshare/frontend/src/pages/Dashboard.js\")",
+      "Bash(python3:*)",
+      "Bash(pip show:*)",
+      "Bash(python -c \"from google import genai; from google.genai import types; print\\(''OK'', genai.__version__\\)\")"
+    ]
+  }
+}
