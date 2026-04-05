@@ -412,18 +412,22 @@ Devam etmek istiyor musunuz?`;
 
   const fetchData = async () => {
     try {
-      const [docsRes, notesRes, notebooksRes] = await Promise.all([
+      const [docsRes, notesRes] = await Promise.all([
         axios.get(`${API}/documents`, { withCredentials: true }),
-        axios.get(`${API}/notes`, { withCredentials: true }),
-        axios.get(`${API}/notebooks`, { withCredentials: true })
+        axios.get(`${API}/notes`, { withCredentials: true })
       ]);
       setDocuments(docsRes.data);
       setNotes(notesRes.data);
-      setNotebooks(notebooksRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+    try {
+      const notebooksRes = await axios.get(`${API}/notebooks`, { withCredentials: true });
+      setNotebooks(notebooksRes.data);
+    } catch (error) {
+      console.error('Error fetching notebooks:', error);
     }
   };
 
