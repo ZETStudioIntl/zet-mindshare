@@ -79,6 +79,15 @@ class QuickNote(BaseModel):
 class QuickNoteCreate(BaseModel):
     content: str
     reminder_time: Optional[str] = None
+    notebook_id: Optional[str] = None
+
+class NotebookCreate(BaseModel):
+    name: str
+    color: Optional[str] = "#292F91"
+
+class NotebookUpdate(BaseModel):
+    name: Optional[str] = None
+    color: Optional[str] = None
 
 class ChatMessage(BaseModel):
     role: str
@@ -657,6 +666,54 @@ async def delete_document(doc_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Document not found")
     return {"message": "Document deleted"}
 
+# ============ NOTEBOOKS ROUTES ============
+
+@api_router.get("/notebooks", response_model=List[dict])
+async def get_notebooks(user: User = Depends(get_current_user)):
+    notebooks = await db.notebooks.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return notebooks
+
+@api_router.post("/notebooks")
+async def create_notebook(notebook: NotebookCreate, user: User = Depends(get_current_user)):
+    notebook_id = f"nb_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    notebook_dict = {
+        "notebook_id": notebook_id,
+        "user_id": user.user_id,
+        "name": notebook.name,
+        "color": notebook.color or "#292F91",
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat()
+    }
+    await db.notebooks.insert_one(notebook_dict)
+    return {k: v for k, v in notebook_dict.items() if k != "_id"}
+
+@api_router.put("/notebooks/{notebook_id}")
+async def update_notebook(notebook_id: str, update: NotebookUpdate, user: User = Depends(get_current_user)):
+    set_data = {}
+    if update.name is not None:
+        set_data["name"] = update.name
+    if update.color is not None:
+        set_data["color"] = update.color
+    if not set_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    set_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.notebooks.update_one(
+        {"notebook_id": notebook_id, "user_id": user.user_id},
+        {"$set": set_data}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    return {"message": "Notebook updated"}
+
+@api_router.delete("/notebooks/{notebook_id}")
+async def delete_notebook(notebook_id: str, user: User = Depends(get_current_user)):
+    result = await db.notebooks.delete_one({"notebook_id": notebook_id, "user_id": user.user_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    await db.quick_notes.delete_many({"notebook_id": notebook_id, "user_id": user.user_id})
+    return {"message": "Notebook and its notes deleted"}
+
 # ============ QUICK NOTES ROUTES ============
 
 @api_router.get("/notes", response_model=List[dict])
@@ -674,6 +731,7 @@ async def create_note(note: QuickNoteCreate, user: User = Depends(get_current_us
         "content": note.content,
         "reminder_time": note.reminder_time,
         "reminder_sent": False,
+        "notebook_id": note.notebook_id,
         "created_at": now.isoformat()
     }
     await db.quick_notes.insert_one(note_dict)

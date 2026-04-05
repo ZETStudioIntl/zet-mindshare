@@ -84,6 +84,12 @@ const Dashboard = () => {
   const [showMissions, setShowMissions] = useState(false);
   const [firedAlarms, setFiredAlarms] = useState([]);
   const [alarmTick, setAlarmTick] = useState(0);
+  const [notebooks, setNotebooks] = useState([]);
+  const [activeNotebook, setActiveNotebook] = useState(null);
+  const [newNotebookName, setNewNotebookName] = useState('');
+  const [showNewNotebook, setShowNewNotebook] = useState(false);
+  const [notebookNote, setNotebookNote] = useState('');
+  const [notebookSearch, setNotebookSearch] = useState('');
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -406,16 +412,55 @@ Devam etmek istiyor musunuz?`;
 
   const fetchData = async () => {
     try {
-      const [docsRes, notesRes] = await Promise.all([
+      const [docsRes, notesRes, notebooksRes] = await Promise.all([
         axios.get(`${API}/documents`, { withCredentials: true }),
-        axios.get(`${API}/notes`, { withCredentials: true })
+        axios.get(`${API}/notes`, { withCredentials: true }),
+        axios.get(`${API}/notebooks`, { withCredentials: true })
       ]);
       setDocuments(docsRes.data);
       setNotes(notesRes.data);
+      setNotebooks(notebooksRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const createNotebook = async () => {
+    if (!newNotebookName.trim()) return;
+    try {
+      const res = await axios.post(`${API}/notebooks`, { name: newNotebookName }, { withCredentials: true });
+      setNotebooks(prev => [res.data, ...prev]);
+      setNewNotebookName('');
+      setShowNewNotebook(false);
+    } catch (error) {
+      console.error('Error creating notebook:', error);
+    }
+  };
+
+  const deleteNotebook = async (notebookId) => {
+    try {
+      await axios.delete(`${API}/notebooks/${notebookId}`, { withCredentials: true });
+      setNotebooks(prev => prev.filter(n => n.notebook_id !== notebookId));
+      setNotes(prev => prev.filter(n => n.notebook_id !== notebookId));
+      if (activeNotebook?.notebook_id === notebookId) setActiveNotebook(null);
+    } catch (error) {
+      console.error('Error deleting notebook:', error);
+    }
+  };
+
+  const addNoteToNotebook = async () => {
+    if (!notebookNote.trim() || !activeNotebook) return;
+    try {
+      const res = await axios.post(`${API}/notes`, {
+        content: notebookNote,
+        notebook_id: activeNotebook.notebook_id
+      }, { withCredentials: true });
+      setNotes(prev => [res.data, ...prev]);
+      setNotebookNote('');
+    } catch (error) {
+      console.error('Error adding note to notebook:', error);
     }
   };
 
@@ -502,10 +547,6 @@ Devam etmek istiyor musunuz?`;
     d.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const filteredNotes = notes.filter(n => 
-    n.content.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   const handleLogout = async () => {
     await logout();
     navigate('/login');
@@ -529,7 +570,7 @@ Devam etmek istiyor musunuz?`;
             alt="ZET" 
             className="h-10 w-10"
           />
-          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare ttest</span>
+          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
           <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
             <Award className="h-3 w-3" /> {currentRank.name}
           </span>
@@ -793,85 +834,243 @@ Devam etmek istiyor musunuz?`;
               </div>
             ))}
           </div>
-        ) : (
+        ) : activeNotebook ? (
+          /* ── Defter İçi Görünüm ── */
           <div className="flex flex-col flex-1 min-h-0">
-          {/* Quick Note Input - always at top in notes tab */}
-          <div className="zet-card p-4 mb-4 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
-            <div className="flex gap-2 mb-2">
+            {/* Defter başlığı + geri butonu */}
+            <div className="flex items-center gap-3 mb-4 flex-shrink-0">
+              <button
+                onClick={() => { setActiveNotebook(null); setNotebookSearch(''); }}
+                className="p-2 rounded-lg hover:bg-white/10 transition-all"
+                style={{ color: 'var(--zet-text-muted)' }}
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
+                style={{ background: `${activeNotebook.color}25`, border: `1px solid ${activeNotebook.color}50` }}>
+                📓
+              </div>
+              <span className="font-semibold text-lg truncate" style={{ color: 'var(--zet-text)' }}>{activeNotebook.name}</span>
+            </div>
+
+            {/* Defter içi arama */}
+            <div className="zet-card p-3 mb-3 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
               <input
                 type="text"
-                placeholder={t('quickNote')}
-                value={quickNote}
-                onChange={(e) => setQuickNote(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && addQuickNote()}
-                className="zet-input flex-1"
-                data-testid="quick-note-input"
-              />
-              <button
-                onClick={addQuickNote}
-                className="zet-btn px-4"
-                data-testid="add-note-btn"
-              >
-                <Plus className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="flex items-center gap-2">
-              <Bell className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-              <input
-                type="datetime-local"
-                value={noteReminder}
-                onChange={(e) => setNoteReminder(e.target.value)}
-                className="zet-input flex-1 text-xs"
+                placeholder="Bu defterde ara..."
+                value={notebookSearch}
+                onChange={(e) => setNotebookSearch(e.target.value)}
+                className="zet-input w-full text-sm"
                 style={{ background: 'var(--zet-bg)' }}
               />
-              {noteReminder && (
-                <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10">
-                  <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+            </div>
+
+            {/* Bu deftere not ekle */}
+            <div className="zet-card p-3 mb-4 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Bu deftere not ekle..."
+                  value={notebookNote}
+                  onChange={(e) => setNotebookNote(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addNoteToNotebook()}
+                  className="zet-input flex-1"
+                  data-testid="notebook-note-input"
+                />
+                <button
+                  onClick={addNoteToNotebook}
+                  className="zet-btn px-4"
+                  data-testid="add-notebook-note-btn"
+                >
+                  <Plus className="h-5 w-5" />
                 </button>
+              </div>
+            </div>
+
+            {/* Defterdeki notlar */}
+            <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 400px)' }}>
+              {notes
+                .filter(n => n.notebook_id === activeNotebook.notebook_id &&
+                  (!notebookSearch || n.content.toLowerCase().includes(notebookSearch.toLowerCase())))
+                .map(note => (
+                  <div
+                    key={note.note_id}
+                    className="zet-card p-4 flex items-start justify-between group"
+                    data-testid={`note-card-${note.note_id}`}
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteNote(note.note_id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
+                      data-testid={`delete-note-${note.note_id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-400" />
+                    </button>
+                  </div>
+                ))}
+              {notes.filter(n => n.notebook_id === activeNotebook.notebook_id).length === 0 && (
+                <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
+                  Bu defterde henüz not yok
+                </div>
               )}
             </div>
-            <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('setReminder') || 'Hatırlatıcı ayarlayarak bildirim alın'}
-            </p>
           </div>
-
-          <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 350px)' }}>
-            {filteredNotes.map(note => (
-              <div 
-                key={note.note_id} 
-                className="zet-card p-4 flex items-start justify-between group"
-                data-testid={`note-card-${note.note_id}`}
+        ) : (
+          /* ── Ana Notlar Görünümü ── */
+          <div className="flex flex-col flex-1 min-h-0">
+            {/* Üst aksiyon satırı: Yeni Defter butonu + hızlı not input */}
+            <div className="flex gap-2 mb-3 flex-shrink-0">
+              <button
+                onClick={() => setShowNewNotebook(true)}
+                className="zet-btn flex items-center gap-2 px-3 py-2 text-sm flex-shrink-0"
+                style={{ background: 'rgba(41,47,145,0.3)', border: '1px solid rgba(41,47,145,0.5)' }}
+                data-testid="new-notebook-btn"
               >
-                <div className="flex items-start gap-3 flex-1 min-w-0">
-                  <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
-                  <div className="min-w-0 flex-1">
-                    <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
-                    <div className="flex items-center gap-2 mt-1">
-                      <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
-                      {note.reminder_time && (
-                        <span className="text-xs flex items-center gap-1 px-2 py-0.5 rounded" style={{ background: note.reminder_sent ? 'var(--zet-bg)' : 'rgba(234, 179, 8, 0.2)', color: note.reminder_sent ? 'var(--zet-text-muted)' : '#eab308' }}>
-                          {note.reminder_sent ? <Bell className="h-3 w-3" /> : <BellRing className="h-3 w-3" />}
-                          {new Date(note.reminder_time).toLocaleString()}
-                        </span>
-                      )}
-                    </div>
-                  </div>
+                <span>📓</span>
+                <span>Yeni Defter</span>
+              </button>
+            </div>
+
+            {/* Yeni Defter formu */}
+            {showNewNotebook && (
+              <div className="zet-card p-3 mb-3 flex-shrink-0 animate-fadeIn" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(41,47,145,0.5)' }}>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    placeholder="Defter adı..."
+                    value={newNotebookName}
+                    onChange={(e) => setNewNotebookName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); if (e.key === 'Escape') { setShowNewNotebook(false); setNewNotebookName(''); } }}
+                    className="zet-input flex-1"
+                    autoFocus
+                    data-testid="new-notebook-input"
+                  />
+                  <button onClick={createNotebook} className="zet-btn px-3" data-testid="create-notebook-btn">
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }} className="p-2 rounded hover:bg-white/10">
+                    <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                  </button>
                 </div>
-                <button 
-                  onClick={() => deleteNote(note.note_id)}
-                  className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                  data-testid={`delete-note-${note.note_id}`}
-                >
-                  <Trash2 className="h-4 w-4 text-red-400" />
-                </button>
-              </div>
-            ))}
-            {filteredNotes.length === 0 && (
-              <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
-                {t('noNotesYet')}
               </div>
             )}
-          </div>
+
+            {/* Hızlı not input */}
+            <div className="zet-card p-4 mb-4 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  placeholder={t('quickNote')}
+                  value={quickNote}
+                  onChange={(e) => setQuickNote(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && addQuickNote()}
+                  className="zet-input flex-1"
+                  data-testid="quick-note-input"
+                />
+                <button onClick={addQuickNote} className="zet-btn px-4" data-testid="add-note-btn">
+                  <Plus className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <Bell className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                <input
+                  type="datetime-local"
+                  value={noteReminder}
+                  onChange={(e) => setNoteReminder(e.target.value)}
+                  className="zet-input flex-1 text-xs"
+                  style={{ background: 'var(--zet-bg)' }}
+                />
+                {noteReminder && (
+                  <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10">
+                    <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                  </button>
+                )}
+              </div>
+              <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
+                {t('setReminder') || 'Hatırlatıcı ayarlayarak bildirim alın'}
+              </p>
+            </div>
+
+            <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 420px)' }}>
+              {/* Defterler */}
+              {notebooks.filter(nb => !searchQuery || nb.name.toLowerCase().includes(searchQuery.toLowerCase())).map(nb => (
+                <div
+                  key={nb.notebook_id}
+                  className="zet-card p-4 flex items-center justify-between group cursor-pointer hover:bg-white/5 transition-all"
+                  onClick={() => setActiveNotebook(nb)}
+                  data-testid={`notebook-card-${nb.notebook_id}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                      style={{ background: `${nb.color || '#292F91'}25`, border: `1px solid ${nb.color || '#292F91'}50` }}>
+                      📓
+                    </div>
+                    <div>
+                      <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{nb.name}</p>
+                      <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                        {notes.filter(n => n.notebook_id === nb.notebook_id).length} not
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deleteNotebook(nb.notebook_id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
+                      data-testid={`delete-notebook-${nb.notebook_id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-400" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              {/* Düz notlar (notebook_id yok) */}
+              {notes
+                .filter(n => !n.notebook_id && (!searchQuery || n.content.toLowerCase().includes(searchQuery.toLowerCase())))
+                .map(note => (
+                  <div
+                    key={note.note_id}
+                    className="zet-card p-4 flex items-start justify-between group"
+                    data-testid={`note-card-${note.note_id}`}
+                  >
+                    <div className="flex items-start gap-3 flex-1 min-w-0">
+                      <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
+                          {note.reminder_time && (
+                            <span className="text-xs flex items-center gap-1 px-2 py-0.5 rounded" style={{ background: note.reminder_sent ? 'var(--zet-bg)' : 'rgba(234, 179, 8, 0.2)', color: note.reminder_sent ? 'var(--zet-text-muted)' : '#eab308' }}>
+                              {note.reminder_sent ? <Bell className="h-3 w-3" /> : <BellRing className="h-3 w-3" />}
+                              {new Date(note.reminder_time).toLocaleString()}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => deleteNote(note.note_id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
+                      data-testid={`delete-note-${note.note_id}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-red-400" />
+                    </button>
+                  </div>
+                ))}
+
+              {notebooks.length === 0 && notes.filter(n => !n.notebook_id).length === 0 && (
+                <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
+                  {t('noNotesYet')}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
