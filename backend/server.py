@@ -2444,12 +2444,12 @@ class QuestCompleteRequest(BaseModel):
     xp: int = 10
 
 RANK_THRESHOLDS = [
-    {"name": "Çırak",   "xp": 0},
-    {"name": "Kalfa",   "xp": 100},
-    {"name": "Usta",    "xp": 500},
-    {"name": "Uzman",   "xp": 1500},
-    {"name": "Maestro", "xp": 5000},
-    {"name": "Efsane",  "xp": 15000},
+    {"name": "Demir",   "xp": 0},
+    {"name": "Gümüş",  "xp": 100},
+    {"name": "Altın",  "xp": 500},
+    {"name": "Elmas",  "xp": 1500},
+    {"name": "Zümrüt", "xp": 5000},
+    {"name": "Endless", "xp": 15000},
 ]
 
 def get_rank_name(xp: int) -> str:

@@ -5,8 +5,8 @@ import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
-  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
-  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target, Map, Star, Copy,
+  Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
+  Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy,
   MoreVertical, ArrowUp, ArrowDown, Pin
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
@@ -109,12 +109,12 @@ const Dashboard = () => {
 
   // Rank system
   const RANKS = [
-    { name: 'Çırak',   xp: 0,     color: '#9ca3af', level: 1, next: 100   },
-    { name: 'Kalfa',   xp: 100,   color: '#22c55e', level: 2, next: 500   },
-    { name: 'Usta',    xp: 500,   color: '#3b82f6', level: 3, next: 1500  },
-    { name: 'Uzman',   xp: 1500,  color: '#8b5cf6', level: 4, next: 5000  },
-    { name: 'Maestro', xp: 5000,  color: '#f59e0b', level: 5, next: 15000 },
-    { name: 'Efsane',  xp: 15000, color: '#ef4444', level: 6, next: null  },
+    { name: 'Demir',   xp: 0,     color: '#9ca3af', level: 1, next: 100   },
+    { name: 'Gümüş',  xp: 100,   color: '#22c55e', level: 2, next: 500   },
+    { name: 'Altın',  xp: 500,   color: '#3b82f6', level: 3, next: 1500  },
+    { name: 'Elmas',  xp: 1500,  color: '#8b5cf6', level: 4, next: 5000  },
+    { name: 'Zümrüt', xp: 5000,  color: '#f59e0b', level: 5, next: 15000 },
+    { name: 'Endless', xp: 15000, color: '#ef4444', level: 6, next: null  },
   ];
   const getCurrentRank = (xp) => {
     let rank = RANKS[0];
@@ -756,188 +756,124 @@ Devam etmek istiyor musunuz?`;
 
       {/* Settings Dropdown */}
       {showSettings && (
-        <div className="absolute right-4 top-16 zet-card p-4 z-50 min-w-[240px] animate-fadeIn" data-testid="settings-menu">
-          <div className="flex items-center justify-between mb-4">
-            <span className="font-medium" style={{ color: 'var(--zet-text)' }}>{t('settings')}</span>
-            <button onClick={() => setShowSettings(false)} className="p-1 rounded hover:bg-white/10">
-              <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-            </button>
-          </div>
-          
-          <div className="flex items-center gap-3 mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            <img src={user?.picture || 'https://via.placeholder.com/40'} alt="" className="w-10 h-10 rounded-full" />
-            <div>
-              <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{user?.name}</p>
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
+        <div className="fixed inset-0 z-50 flex" style={{ background: 'rgba(0,0,0,0.7)' }} data-testid="settings-menu">
+          <div className="relative w-full max-w-lg mx-auto flex flex-col animate-fadeIn" style={{ background: 'var(--zet-bg)', overflowY: 'auto' }}>
+            {/* Header */}
+            <div className="flex items-center gap-3 p-5 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
+              <button onClick={() => setShowSettings(false)} className="p-2 rounded-lg hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }}>
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <span className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>{t('settings')}</span>
+            </div>
+
+            {/* Profil */}
+            <div className="p-5 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+              <div className="flex items-center gap-4">
+                <img src={user?.picture || 'https://via.placeholder.com/48'} alt="" className="w-14 h-14 rounded-full" />
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-base truncate" style={{ color: 'var(--zet-text)' }}>{user?.name}</p>
+                  <p className="text-sm truncate" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }}>
+                      {currentRank.name}
+                    </span>
+                    <span className="text-xs font-bold" style={{ color: userSubscription === 'ultra' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
+                      {userSubscription.toUpperCase()}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowProfileEdit(true); setShowSettings(false); }}
+                  className="p-2 rounded-lg hover:bg-white/10 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}
+                  data-testid="profile-edit-btn"
+                >
+                  <FileEdit className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Menü listesi */}
+            <div className="flex-1 p-3">
+              {/* Dil */}
+              <div className="mb-1">
+                <button
+                  onClick={() => setShowLanguages(!showLanguages)}
+                  className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-white/5 transition-all"
+                >
+                  <span className="flex items-center gap-3" style={{ color: 'var(--zet-text)' }}>
+                    <Globe className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} /> {t('language') || 'Dil'}
+                  </span>
+                  <span className="text-sm flex items-center gap-1" style={{ color: 'var(--zet-text-muted)' }}>
+                    {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
+                    <ChevronRight className="h-4 w-4" />
+                  </span>
+                </button>
+                {showLanguages && (
+                  <div className="grid grid-cols-2 gap-1 px-2 pb-2">
+                    {LANGUAGES.map(lang => (
+                      <button
+                        key={lang.code}
+                        onClick={() => { changeLanguage(lang.code); setShowLanguages(false); }}
+                        className="flex items-center gap-2 p-2 rounded-lg text-sm transition-all"
+                        style={{ background: language === lang.code ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}
+                      >
+                        <span>{lang.flag}</span><span className="truncate">{lang.name}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {[
+                { icon: <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />, label: 'AI Ayarları', color: '#4ca8ad', action: () => { setShowAISettings(true); setShowSettings(false); }, testId: 'ai-settings-btn' },
+                { icon: <Award className="h-5 w-5" style={{ color: '#f59e0b' }} />, label: 'Rütbeler', color: '#f59e0b', action: () => { setShowRanks(true); setShowSettings(false); }, testId: 'ranks-btn' },
+                { icon: <Map className="h-5 w-5" style={{ color: '#4ca8ad' }} />, label: 'Görev Haritası', color: '#4ca8ad', action: () => { navigate('/quest-map'); setShowSettings(false); }, testId: 'missions-btn' },
+                { icon: <CreditCard className="h-5 w-5" style={{ color: 'var(--zet-primary-light)' }} />, label: t('subscription') || 'Abonelik', color: 'var(--zet-primary-light)', action: () => { setShowSubscription(true); setShowSettings(false); }, testId: 'subscription-btn' },
+                { icon: <Zap className="h-5 w-5" style={{ color: '#fbbf24' }} />, label: 'Kredi Al', color: '#fbbf24', action: () => { fetchCreditPackages(); setShowCredits(true); setShowSettings(false); }, testId: 'buy-credits-btn' },
+                { icon: <Keyboard className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: t('shortcuts') || 'Kısayollar', action: () => { setShowShortcuts(true); setShowSettings(false); } },
+                { icon: <Zap className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: `${t('fastSelect') || 'Hızlı Seçim'} (${fastSelectTools.length}/${fastSelectLimit})`, action: () => { setShowFastSelect(true); setShowSettings(false); } },
+                { icon: <HardDrive className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: driveConnected ? '✓ Drive Bağlı' : 'Google Drive Bağla', action: driveConnected ? null : connectGoogleDrive },
+                { icon: <Cloud className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: t('cloudStorage'), action: null },
+              ].map((item, i) => (
+                <button
+                  key={i}
+                  onClick={item.action || undefined}
+                  disabled={!item.action}
+                  className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-white/5 transition-all mb-1 disabled:opacity-50"
+                  data-testid={item.testId}
+                >
+                  <span className="flex items-center gap-3" style={{ color: item.color || 'var(--zet-text)' }}>
+                    {item.icon} {item.label}
+                  </span>
+                  {item.action && <ChevronRight className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />}
+                </button>
+              ))}
+
+              {/* Abonelik iptal */}
+              {userSubscription !== 'free' && (
+                <button
+                  onClick={() => { handleCancelSubscription(); }}
+                  disabled={subscribing}
+                  className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-red-500/10 transition-all mb-1 text-red-400"
+                >
+                  <X className="h-5 w-5" /> {t('cancelSubscription') || 'Aboneliği İptal Et'}
+                </button>
+              )}
+
+              {/* Çıkış */}
+              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                <button
+                  onClick={handleLogout}
+                  className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-red-500/10 transition-all text-red-400"
+                  data-testid="logout-btn"
+                >
+                  <LogOut className="h-5 w-5" /> {t('logout')}
+                </button>
+              </div>
             </div>
           </div>
-
-          {/* Language Selector */}
-          <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            <button 
-              onClick={() => setShowLanguages(!showLanguages)}
-              className="flex items-center justify-between w-full p-2 rounded hover:bg-white/5"
-            >
-              <span className="flex items-center gap-2" style={{ color: 'var(--zet-text-muted)' }}>
-                <Globe className="h-4 w-4" /> {t('language') || 'Dil'}
-              </span>
-              <span className="text-sm" style={{ color: 'var(--zet-text)' }}>
-                {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
-              </span>
-            </button>
-            {showLanguages && (
-              <div className="grid grid-cols-2 gap-1 mt-2 max-h-48 overflow-y-auto">
-                {LANGUAGES.map(lang => (
-                  <button 
-                    key={lang.code}
-                    onClick={() => { changeLanguage(lang.code); setShowLanguages(false); }}
-                    className={`flex items-center gap-2 p-2 rounded text-sm transition-all ${language === lang.code ? 'ring-1 ring-blue-500' : 'hover:bg-white/5'}`}
-                    style={{ background: language === lang.code ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}
-                  >
-                    <span>{lang.flag}</span>
-                    <span className="truncate">{lang.name}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Current Subscription Status */}
-          <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            <div className="flex items-center justify-between p-2 rounded" style={{ background: userSubscription !== 'free' ? 'linear-gradient(135deg, #8b5cf620, #f59e0b20)' : 'var(--zet-bg)' }}>
-              <div className="flex items-center gap-2">
-                {userSubscription !== 'free' && <Crown className="h-4 w-4 text-yellow-500" />}
-                <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan') || 'Mevcut Plan'}</span>
-              </div>
-              <span className="font-bold" style={{ 
-                color: userSubscription === 'ultra' ? '#f59e0b' : 
-                       userSubscription === 'pro' ? '#8b5cf6' : 
-                       userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)'
-              }}>
-                {userSubscription.toUpperCase()}
-              </span>
-            </div>
-            {userSubscription !== 'free' && (
-              <button 
-                onClick={handleCancelSubscription}
-                disabled={subscribing}
-                className="text-xs text-red-400 hover:text-red-300 mt-2 w-full text-center"
-              >
-                {t('cancelSubscription') || 'Aboneliği İptal Et'}
-              </button>
-            )}
-          </div>
-
-          {/* Google Drive Connection */}
-          <div className="mb-4 pb-4 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-            <label className="flex items-center gap-2 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
-              <HardDrive className="h-4 w-4" /> Google Drive
-            </label>
-            {driveConnected ? (
-              <div className="flex items-center gap-2 p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
-                <Check className="h-4 w-4 text-green-500" />
-                <span className="text-sm text-green-500">{t('connected') || 'Bağlandı'}</span>
-              </div>
-            ) : (
-              <button 
-                onClick={connectGoogleDrive}
-                disabled={connectingDrive}
-                className="zet-btn w-full flex items-center justify-center gap-2 py-2"
-              >
-                <Link2 className="h-4 w-4" />
-                {connectingDrive ? 'Bağlanıyor...' : (t('connectDrive') || 'Drive Bağla')}
-              </button>
-            )}
-          </div>
-
-          {/* Shortcuts */}
-          <button 
-            onClick={() => { setShowShortcuts(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: 'var(--zet-text-muted)' }}
-          >
-            <Keyboard className="h-4 w-4" /> {t('shortcuts') || 'Kısayollar'}
-          </button>
-
-          {/* Fast Select */}
-          <button 
-            onClick={() => { setShowFastSelect(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: 'var(--zet-text-muted)' }}
-          >
-            <Zap className="h-4 w-4" /> {t('fastSelect') || 'Hızlı Seçim'} ({fastSelectTools.length}/{fastSelectLimit})
-          </button>
-
-          {/* AI Settings */}
-          <button 
-            onClick={() => { setShowAISettings(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: '#4ca8ad' }}
-            data-testid="ai-settings-btn"
-          >
-            <Sparkles className="h-4 w-4" /> AI Ayarları
-          </button>
-
-          {/* Ranks */}
-          <button 
-            onClick={() => { setShowRanks(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: '#f59e0b' }}
-            data-testid="ranks-btn"
-          >
-            <Award className="h-4 w-4" /> Rütbe
-          </button>
-
-          {/* Missions - Quest Map */}
-          <button 
-            onClick={() => { navigate('/quest-map'); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: '#4ca8ad' }}
-            data-testid="missions-btn"
-          >
-            <Map className="h-4 w-4" /> Görev Haritası
-          </button>
-
-          {/* Subscription */}
-          <button 
-            onClick={() => { setShowSubscription(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: 'var(--zet-primary-light)' }}
-            data-testid="subscription-btn"
-          >
-            <CreditCard className="h-4 w-4" /> {t('subscription') || 'Abonelik'}
-          </button>
-
-          {/* Buy Credits */}
-          <button 
-            onClick={() => { fetchCreditPackages(); setShowCredits(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: '#fbbf24' }}
-            data-testid="buy-credits-btn"
-          >
-            <Zap className="h-4 w-4" /> Kredi Al
-          </button>
-
-          {/* Edit Profile */}
-          <button 
-            onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowProfileEdit(true); setShowSettings(false); }}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" 
-            style={{ color: 'var(--zet-text-muted)' }}
-            data-testid="profile-edit-btn"
-          >
-            <User className="h-4 w-4" /> Profili Düzenle
-          </button>
-
-          <button className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 mb-2" style={{ color: 'var(--zet-text-muted)' }}>
-            <Cloud className="h-4 w-4" /> {t('cloudStorage')}
-          </button>
-          <button 
-            onClick={handleLogout}
-            className="flex items-center gap-2 w-full p-2 rounded hover:bg-white/5 text-red-400"
-            data-testid="logout-btn"
-          >
-            <LogOut className="h-4 w-4" /> {t('logout')}
-          </button>
+          {/* Dışarı tıklayınca kapat */}
+          <div className="flex-1" onClick={() => setShowSettings(false)} />
         </div>
       )}
 
