@@ -81,6 +81,9 @@ class QuickNoteCreate(BaseModel):
     reminder_time: Optional[str] = None
     notebook_id: Optional[str] = None
 
+class NoteContentUpdate(BaseModel):
+    content: str
+
 class NotebookCreate(BaseModel):
     name: str
     color: Optional[str] = "#292F91"
@@ -736,6 +739,18 @@ async def create_note(note: QuickNoteCreate, user: User = Depends(get_current_us
     }
     await db.quick_notes.insert_one(note_dict)
     return {k: v for k, v in note_dict.items() if k != "_id"}
+
+@api_router.put("/notes/{note_id}")
+async def update_note_content(note_id: str, update: NoteContentUpdate, user: User = Depends(get_current_user)):
+    if not update.content.strip():
+        raise HTTPException(status_code=400, detail="Content cannot be empty")
+    result = await db.quick_notes.update_one(
+        {"note_id": note_id, "user_id": user.user_id},
+        {"$set": {"content": update.content}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"message": "Note updated"}
 
 @api_router.put("/notes/{note_id}/reminder")
 async def update_note_reminder(note_id: str, reminder_time: str = Body(..., embed=True), user: User = Depends(get_current_user)):

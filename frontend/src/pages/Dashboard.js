@@ -3,10 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
-import { 
-  Search, Settings, Plus, FileText, StickyNote, LogOut, 
+import {
+  Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Link2, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
-  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target, Map, Star
+  Bell, BellRing, Upload, FileEdit, Crown, User, Sparkles, Scale, Award, Target, Map, Star, Copy
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -90,6 +90,8 @@ const Dashboard = () => {
   const [showNewNotebook, setShowNewNotebook] = useState(false);
   const [notebookNote, setNotebookNote] = useState('');
   const [notebookSearch, setNotebookSearch] = useState('');
+  const [editingNoteId, setEditingNoteId] = useState(null);
+  const [editingNoteContent, setEditingNoteContent] = useState('');
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -451,6 +453,18 @@ Devam etmek istiyor musunuz?`;
       if (activeNotebook?.notebook_id === notebookId) setActiveNotebook(null);
     } catch (error) {
       console.error('Error deleting notebook:', error);
+    }
+  };
+
+  const updateNote = async (noteId, newContent) => {
+    if (!newContent.trim()) return;
+    try {
+      await axios.put(`${API}/notes/${noteId}`, { content: newContent }, { withCredentials: true });
+      setNotes(prev => prev.map(n => n.note_id === noteId ? { ...n, content: newContent } : n));
+      setEditingNoteId(null);
+      setEditingNoteContent('');
+    } catch (error) {
+      console.error('Error updating note:', error);
     }
   };
 
@@ -905,17 +919,51 @@ Devam etmek istiyor musunuz?`;
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
                       <div className="min-w-0 flex-1">
-                        <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
+                        {editingNoteId === note.note_id ? (
+                          <div className="flex gap-2">
+                            <input
+                              className="zet-input flex-1 text-sm"
+                              value={editingNoteContent}
+                              onChange={(e) => setEditingNoteContent(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') updateNote(note.note_id, editingNoteContent); if (e.key === 'Escape') { setEditingNoteId(null); setEditingNoteContent(''); } }}
+                              autoFocus
+                            />
+                            <button onClick={() => updateNote(note.note_id, editingNoteContent)} className="p-1 rounded hover:bg-white/10">
+                              <Check className="h-4 w-4" style={{ color: '#22c55e' }} />
+                            </button>
+                            <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="p-1 rounded hover:bg-white/10">
+                              <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
+                        )}
                         <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
                       </div>
                     </div>
-                    <button
-                      onClick={() => deleteNote(note.note_id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                      data-testid={`delete-note-${note.note_id}`}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-400" />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                      <button
+                        onClick={() => { setEditingNoteId(note.note_id); setEditingNoteContent(note.content); }}
+                        className="p-1 hover:bg-white/10 rounded"
+                        title="Düzenle"
+                      >
+                        <FileEdit className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                      </button>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(note.content)}
+                        className="p-1 hover:bg-white/10 rounded"
+                        title="Kopyala"
+                      >
+                        <Copy className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                      </button>
+                      <button
+                        onClick={() => deleteNote(note.note_id)}
+                        className="p-1 hover:bg-red-500/20 rounded"
+                        data-testid={`delete-note-${note.note_id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-400" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               {notes.filter(n => n.notebook_id === activeNotebook.notebook_id).length === 0 && (
@@ -928,44 +976,8 @@ Devam etmek istiyor musunuz?`;
         ) : (
           /* ── Ana Notlar Görünümü ── */
           <div className="flex flex-col flex-1 min-h-0">
-            {/* Üst aksiyon satırı: Yeni Defter butonu + hızlı not input */}
-            <div className="flex gap-2 mb-3 flex-shrink-0">
-              <button
-                onClick={() => setShowNewNotebook(true)}
-                className="zet-btn flex items-center gap-2 px-3 py-2 text-sm flex-shrink-0"
-                style={{ background: 'rgba(41,47,145,0.3)', border: '1px solid rgba(41,47,145,0.5)' }}
-                data-testid="new-notebook-btn"
-              >
-                <span>📓</span>
-                <span>Yeni Defter</span>
-              </button>
-            </div>
 
-            {/* Yeni Defter formu */}
-            {showNewNotebook && (
-              <div className="zet-card p-3 mb-3 flex-shrink-0 animate-fadeIn" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(41,47,145,0.5)' }}>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Defter adı..."
-                    value={newNotebookName}
-                    onChange={(e) => setNewNotebookName(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); if (e.key === 'Escape') { setShowNewNotebook(false); setNewNotebookName(''); } }}
-                    className="zet-input flex-1"
-                    autoFocus
-                    data-testid="new-notebook-input"
-                  />
-                  <button onClick={createNotebook} className="zet-btn px-3" data-testid="create-notebook-btn">
-                    <Check className="h-4 w-4" />
-                  </button>
-                  <button onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }} className="p-2 rounded hover:bg-white/10">
-                    <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Hızlı not input */}
+            {/* Hızlı not input + Yeni Defter butonu */}
             <div className="zet-card p-4 mb-4 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
               <div className="flex gap-2 mb-2">
                 <input
@@ -982,7 +994,7 @@ Devam etmek istiyor musunuz?`;
                 </button>
               </div>
               <div className="flex items-center gap-2">
-                <Bell className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                <Bell className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
                 <input
                   type="datetime-local"
                   value={noteReminder}
@@ -991,14 +1003,42 @@ Devam etmek istiyor musunuz?`;
                   style={{ background: 'var(--zet-bg)' }}
                 />
                 {noteReminder && (
-                  <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10">
+                  <button onClick={() => setNoteReminder('')} className="p-1 rounded hover:bg-white/10 flex-shrink-0">
                     <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
                   </button>
                 )}
+                <button
+                  onClick={() => setShowNewNotebook(v => !v)}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
+                  style={{ background: showNewNotebook ? 'var(--zet-primary)' : 'rgba(41,47,145,0.3)', border: '1px solid rgba(41,47,145,0.6)', color: 'var(--zet-text)' }}
+                  data-testid="new-notebook-btn"
+                >
+                  <span>📓</span>
+                  <span>Yeni Defter</span>
+                </button>
               </div>
-              <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>
-                {t('setReminder') || 'Hatırlatıcı ayarlayarak bildirim alın'}
-              </p>
+
+              {/* Yeni Defter inline formu */}
+              {showNewNotebook && (
+                <div className="flex gap-2 mt-3 animate-fadeIn">
+                  <input
+                    type="text"
+                    placeholder="Defter adı..."
+                    value={newNotebookName}
+                    onChange={(e) => setNewNotebookName(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); if (e.key === 'Escape') { setShowNewNotebook(false); setNewNotebookName(''); } }}
+                    className="zet-input flex-1 text-sm"
+                    autoFocus
+                    data-testid="new-notebook-input"
+                  />
+                  <button onClick={createNotebook} className="zet-btn px-3" data-testid="create-notebook-btn">
+                    <Check className="h-4 w-4" />
+                  </button>
+                  <button onClick={() => { setShowNewNotebook(false); setNewNotebookName(''); }} className="p-2 rounded hover:bg-white/10">
+                    <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                  </button>
+                </div>
+              )}
             </div>
 
             <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 420px)' }}>
@@ -1022,7 +1062,7 @@ Devam etmek istiyor musunuz?`;
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
                     <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteNotebook(nb.notebook_id); }}
@@ -1047,7 +1087,25 @@ Devam etmek istiyor musunuz?`;
                     <div className="flex items-start gap-3 flex-1 min-w-0">
                       <StickyNote className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
                       <div className="min-w-0 flex-1">
-                        <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
+                        {editingNoteId === note.note_id ? (
+                          <div className="flex gap-2">
+                            <input
+                              className="zet-input flex-1 text-sm"
+                              value={editingNoteContent}
+                              onChange={(e) => setEditingNoteContent(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === 'Enter') updateNote(note.note_id, editingNoteContent); if (e.key === 'Escape') { setEditingNoteId(null); setEditingNoteContent(''); } }}
+                              autoFocus
+                            />
+                            <button onClick={() => updateNote(note.note_id, editingNoteContent)} className="p-1 rounded hover:bg-white/10">
+                              <Check className="h-4 w-4" style={{ color: '#22c55e' }} />
+                            </button>
+                            <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="p-1 rounded hover:bg-white/10">
+                              <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                            </button>
+                          </div>
+                        ) : (
+                          <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
+                        )}
                         <div className="flex items-center gap-2 mt-1">
                           <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(note.created_at)}</p>
                           {note.reminder_time && (
@@ -1059,13 +1117,29 @@ Devam etmek istiyor musunuz?`;
                         </div>
                       </div>
                     </div>
-                    <button
-                      onClick={() => deleteNote(note.note_id)}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                      data-testid={`delete-note-${note.note_id}`}
-                    >
-                      <Trash2 className="h-4 w-4 text-red-400" />
-                    </button>
+                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0 ml-2">
+                      <button
+                        onClick={() => { setEditingNoteId(note.note_id); setEditingNoteContent(note.content); }}
+                        className="p-1 hover:bg-white/10 rounded"
+                        title="Düzenle"
+                      >
+                        <FileEdit className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                      </button>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(note.content)}
+                        className="p-1 hover:bg-white/10 rounded"
+                        title="Kopyala"
+                      >
+                        <Copy className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                      </button>
+                      <button
+                        onClick={() => deleteNote(note.note_id)}
+                        className="p-1 hover:bg-red-500/20 rounded"
+                        data-testid={`delete-note-${note.note_id}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-red-400" />
+                      </button>
+                    </div>
                   </div>
                 ))}
 
