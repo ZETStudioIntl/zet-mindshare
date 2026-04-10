@@ -452,6 +452,7 @@ Devam etmek istiyor musunuz?`;
       setShowNewNotebook(false);
     } catch (error) {
       console.error('Error creating notebook:', error);
+      alert(error.response?.data?.detail || `Defter oluşturulamadı (${error.response?.status || 'bağlantı hatası'})`);
     }
   };
 
