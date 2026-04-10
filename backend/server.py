@@ -740,6 +740,16 @@ async def create_note(note: QuickNoteCreate, user: User = Depends(get_current_us
     await db.quick_notes.insert_one(note_dict)
     return {k: v for k, v in note_dict.items() if k != "_id"}
 
+@api_router.put("/notes/{note_id}/pin")
+async def pin_note(note_id: str, pinned: bool = Body(..., embed=True), user: User = Depends(get_current_user)):
+    result = await db.quick_notes.update_one(
+        {"note_id": note_id, "user_id": user.user_id},
+        {"$set": {"pinned": pinned}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Note not found")
+    return {"message": "Note pin updated"}
+
 @api_router.put("/notes/{note_id}")
 async def update_note_content(note_id: str, update: NoteContentUpdate, user: User = Depends(get_current_user)):
     if not update.content.strip():
