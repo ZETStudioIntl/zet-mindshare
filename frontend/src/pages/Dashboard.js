@@ -6,7 +6,7 @@ import axios from 'axios';
 import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
-  Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy,
+  Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
   MoreVertical, ArrowUp, ArrowDown, Pin
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
@@ -46,6 +46,7 @@ const Dashboard = () => {
   const [quickNote, setQuickNote] = useState('');
   const [noteReminder, setNoteReminder] = useState('');
   const [showSettings, setShowSettings] = useState(false);
+  const [settingsTab, setSettingsTab] = useState('general');
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
@@ -756,124 +757,201 @@ Devam etmek istiyor musunuz?`;
 
       {/* Settings Dropdown */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex" style={{ background: 'rgba(0,0,0,0.7)' }} data-testid="settings-menu">
-          <div className="relative w-full max-w-lg mx-auto flex flex-col animate-fadeIn" style={{ background: 'var(--zet-bg)', overflowY: 'auto' }}>
-            {/* Header */}
-            <div className="flex items-center gap-3 p-5 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
-              <button onClick={() => setShowSettings(false)} className="p-2 rounded-lg hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }}>
-                <ChevronLeft className="h-5 w-5" />
-              </button>
-              <span className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>{t('settings')}</span>
-            </div>
+        <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--zet-bg)' }} data-testid="settings-menu">
+          {/* Top bar */}
+          <div className="flex items-center gap-3 px-6 py-4 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
+            <button onClick={() => setShowSettings(false)} className="p-2 rounded-lg hover:bg-white/10 transition-all mr-2" style={{ color: 'var(--zet-text-muted)' }}>
+              <ChevronLeft className="h-5 w-5" />
+            </button>
+            <span className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Ayarlar</span>
+          </div>
 
-            {/* Profil */}
-            <div className="p-5 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-              <div className="flex items-center gap-4">
-                <img src={user?.picture || 'https://via.placeholder.com/48'} alt="" className="w-14 h-14 rounded-full" />
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-base truncate" style={{ color: 'var(--zet-text)' }}>{user?.name}</p>
-                  <p className="text-sm truncate" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }}>
-                      {currentRank.name}
-                    </span>
-                    <span className="text-xs font-bold" style={{ color: userSubscription === 'ultra' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
-                      {userSubscription.toUpperCase()}
-                    </span>
-                  </div>
+          {/* Body: sidebar + content */}
+          <div className="flex flex-1 min-h-0">
+            {/* Left sidebar */}
+            <div className="w-56 flex-shrink-0 border-r overflow-y-auto py-4 px-3" style={{ borderColor: 'var(--zet-border)' }}>
+              {/* Profil özeti */}
+              <div className="flex items-center gap-3 px-3 pb-4 mb-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+                <img src={user?.picture || 'https://via.placeholder.com/36'} alt="" className="w-9 h-9 rounded-full flex-shrink-0" />
+                <div className="min-w-0">
+                  <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{user?.name}</p>
+                  <span className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color }}>
+                    {currentRank.name}
+                  </span>
                 </div>
-                <button
-                  onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowProfileEdit(true); setShowSettings(false); }}
-                  className="p-2 rounded-lg hover:bg-white/10 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}
-                  data-testid="profile-edit-btn"
-                >
-                  <FileEdit className="h-5 w-5" />
-                </button>
-              </div>
-            </div>
-
-            {/* Menü listesi */}
-            <div className="flex-1 p-3">
-              {/* Dil */}
-              <div className="mb-1">
-                <button
-                  onClick={() => setShowLanguages(!showLanguages)}
-                  className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-white/5 transition-all"
-                >
-                  <span className="flex items-center gap-3" style={{ color: 'var(--zet-text)' }}>
-                    <Globe className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} /> {t('language') || 'Dil'}
-                  </span>
-                  <span className="text-sm flex items-center gap-1" style={{ color: 'var(--zet-text-muted)' }}>
-                    {LANGUAGES.find(l => l.code === language)?.flag} {LANGUAGES.find(l => l.code === language)?.name}
-                    <ChevronRight className="h-4 w-4" />
-                  </span>
-                </button>
-                {showLanguages && (
-                  <div className="grid grid-cols-2 gap-1 px-2 pb-2">
-                    {LANGUAGES.map(lang => (
-                      <button
-                        key={lang.code}
-                        onClick={() => { changeLanguage(lang.code); setShowLanguages(false); }}
-                        className="flex items-center gap-2 p-2 rounded-lg text-sm transition-all"
-                        style={{ background: language === lang.code ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}
-                      >
-                        <span>{lang.flag}</span><span className="truncate">{lang.name}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
               </div>
 
               {[
-                { icon: <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />, label: 'AI Ayarları', color: '#4ca8ad', action: () => { setShowAISettings(true); setShowSettings(false); }, testId: 'ai-settings-btn' },
-                { icon: <Award className="h-5 w-5" style={{ color: '#f59e0b' }} />, label: 'Rütbeler', color: '#f59e0b', action: () => { setShowRanks(true); setShowSettings(false); }, testId: 'ranks-btn' },
-                { icon: <Map className="h-5 w-5" style={{ color: '#4ca8ad' }} />, label: 'Görev Haritası', color: '#4ca8ad', action: () => { navigate('/quest-map'); setShowSettings(false); }, testId: 'missions-btn' },
-                { icon: <CreditCard className="h-5 w-5" style={{ color: 'var(--zet-primary-light)' }} />, label: t('subscription') || 'Abonelik', color: 'var(--zet-primary-light)', action: () => { setShowSubscription(true); setShowSettings(false); }, testId: 'subscription-btn' },
-                { icon: <Zap className="h-5 w-5" style={{ color: '#fbbf24' }} />, label: 'Kredi Al', color: '#fbbf24', action: () => { fetchCreditPackages(); setShowCredits(true); setShowSettings(false); }, testId: 'buy-credits-btn' },
-                { icon: <Keyboard className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: t('shortcuts') || 'Kısayollar', action: () => { setShowShortcuts(true); setShowSettings(false); } },
-                { icon: <Zap className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: `${t('fastSelect') || 'Hızlı Seçim'} (${fastSelectTools.length}/${fastSelectLimit})`, action: () => { setShowFastSelect(true); setShowSettings(false); } },
-                { icon: <HardDrive className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: driveConnected ? '✓ Drive Bağlı' : 'Google Drive Bağla', action: driveConnected ? null : connectGoogleDrive },
-                { icon: <Cloud className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />, label: t('cloudStorage'), action: null },
-              ].map((item, i) => (
+                { id: 'general',      icon: <User className="h-4 w-4" />,       label: 'Genel' },
+                { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: 'AI Ayarları',    color: '#4ca8ad' },
+                { id: 'ranks',        icon: <Award className="h-4 w-4" />,      label: 'Rütbeler',       color: '#f59e0b' },
+                { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: 'Görev Haritası', color: '#4ca8ad' },
+                { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: 'Abonelik',       color: 'var(--zet-primary-light)' },
+                { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: 'Kredi Al',       color: '#fbbf24' },
+                { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: 'Kısayollar' },
+                { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
+              ].map(item => (
                 <button
-                  key={i}
-                  onClick={item.action || undefined}
-                  disabled={!item.action}
-                  className="flex items-center justify-between w-full p-3 rounded-xl hover:bg-white/5 transition-all mb-1 disabled:opacity-50"
-                  data-testid={item.testId}
+                  key={item.id}
+                  onClick={() => { if (item.id === 'quests') { navigate('/quest-map'); setShowSettings(false); } else setSettingsTab(item.id); }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mb-0.5 transition-all"
+                  style={{
+                    background: settingsTab === item.id ? 'rgba(255,255,255,0.08)' : 'transparent',
+                    color: settingsTab === item.id ? (item.color || 'var(--zet-text)') : (item.color || 'var(--zet-text-muted)'),
+                    fontWeight: settingsTab === item.id ? 600 : 400,
+                  }}
                 >
-                  <span className="flex items-center gap-3" style={{ color: item.color || 'var(--zet-text)' }}>
-                    {item.icon} {item.label}
-                  </span>
-                  {item.action && <ChevronRight className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />}
+                  {item.icon} {item.label}
                 </button>
               ))}
 
-              {/* Abonelik iptal */}
-              {userSubscription !== 'free' && (
-                <button
-                  onClick={() => { handleCancelSubscription(); }}
-                  disabled={subscribing}
-                  className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-red-500/10 transition-all mb-1 text-red-400"
-                >
-                  <X className="h-5 w-5" /> {t('cancelSubscription') || 'Aboneliği İptal Et'}
-                </button>
-              )}
-
               {/* Çıkış */}
-              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                <button
-                  onClick={handleLogout}
-                  className="flex items-center gap-3 w-full p-3 rounded-xl hover:bg-red-500/10 transition-all text-red-400"
-                  data-testid="logout-btn"
-                >
-                  <LogOut className="h-5 w-5" /> {t('logout')}
+              <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-all" data-testid="logout-btn">
+                  <LogOut className="h-4 w-4" /> Çıkış Yap
                 </button>
               </div>
             </div>
+
+            {/* Right content */}
+            <div className="flex-1 overflow-y-auto p-8">
+
+              {settingsTab === 'general' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Genel</h2>
+
+                  {/* Profil */}
+                  <div className="mb-8">
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Profil</p>
+                    <div className="flex items-center gap-4 p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
+                      <img src={user?.picture || 'https://via.placeholder.com/56'} alt="" className="w-14 h-14 rounded-full flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-semibold truncate" style={{ color: 'var(--zet-text)' }}>{user?.name}</p>
+                        <p className="text-sm truncate" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
+                      </div>
+                      <button
+                        onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowProfileEdit(true); setShowSettings(false); }}
+                        className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-all flex-shrink-0"
+                        style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text)' }}
+                        data-testid="profile-edit-btn"
+                      >
+                        Düzenle
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Dil */}
+                  <div className="mb-8">
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Dil</p>
+                    <div className="grid grid-cols-2 gap-2">
+                      {LANGUAGES.map(lang => (
+                        <button
+                          key={lang.code}
+                          onClick={() => changeLanguage(lang.code)}
+                          className="flex items-center gap-2 p-3 rounded-xl text-sm transition-all"
+                          style={{ background: language === lang.code ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)', border: language === lang.code ? '1px solid rgba(255,255,255,0.2)' : '1px solid transparent' }}
+                        >
+                          <span>{lang.flag}</span><span>{lang.name}</span>
+                          {language === lang.code && <Check className="h-3 w-3 ml-auto" />}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Plan */}
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Plan</p>
+                    <div className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)' }}>
+                      <span style={{ color: 'var(--zet-text)' }}>Mevcut Plan</span>
+                      <span className="font-bold text-lg" style={{ color: userSubscription === 'ultra' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
+                        {userSubscription.toUpperCase()}
+                      </span>
+                    </div>
+                    {userSubscription !== 'free' && (
+                      <button onClick={handleCancelSubscription} disabled={subscribing} className="mt-2 text-sm text-red-400 hover:text-red-300 w-full text-center py-2">
+                        Aboneliği İptal Et
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'ai' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>AI Ayarları</h2>
+                  <button onClick={() => { setShowAISettings(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="ai-settings-btn">
+                    AI Ayarlarını Aç
+                  </button>
+                </div>
+              )}
+
+              {settingsTab === 'ranks' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Rütbeler</h2>
+                  <div className="space-y-3">
+                    {RANKS.map(r => (
+                      <div key={r.name} className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: currentRank.name === r.name ? `1px solid ${r.color}60` : '1px solid transparent' }}>
+                        <div className="flex items-center gap-3">
+                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                          <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
+                          {currentRank.name === r.name && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>Şu an</span>}
+                        </div>
+                        <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-6 p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
+                    <div className="flex justify-between text-sm mb-2" style={{ color: 'var(--zet-text-muted)' }}>
+                      <span>{currentRank.name}</span>
+                      {nextRank && <span>{nextRank.name}</span>}
+                    </div>
+                    <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
+                      <div className="h-full rounded-full transition-all" style={{ width: `${rankProgress}%`, background: currentRank.color }} />
+                    </div>
+                    <p className="text-xs mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>{userSP.toLocaleString()} / {nextRank ? nextRank.xp.toLocaleString() : '∞'} XP</p>
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'subscription' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Abonelik</h2>
+                  <button onClick={() => { setShowSubscription(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="subscription-btn">
+                    Planları Görüntüle
+                  </button>
+                </div>
+              )}
+
+              {settingsTab === 'credits' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Kredi Al</h2>
+                  <button onClick={() => { fetchCreditPackages(); setShowCredits(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="buy-credits-btn">
+                    Kredi Paketlerini Gör
+                  </button>
+                </div>
+              )}
+
+              {settingsTab === 'shortcuts' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Kısayollar</h2>
+                  <button onClick={() => { setShowShortcuts(true); setShowSettings(false); }} className="zet-btn w-full py-3">
+                    Kısayolları Düzenle
+                  </button>
+                </div>
+              )}
+
+              {settingsTab === 'fastselect' && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Fast Select</h2>
+                  <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>Aktif: {fastSelectTools.length}/{fastSelectLimit}</p>
+                  <button onClick={() => { setShowFastSelect(true); setShowSettings(false); }} className="zet-btn w-full py-3">
+                    Fast Select'i Düzenle
+                  </button>
+                </div>
+              )}
+
+            </div>
           </div>
-          {/* Dışarı tıklayınca kapat */}
-          <div className="flex-1" onClick={() => setShowSettings(false)} />
         </div>
       )}
 
