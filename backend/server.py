@@ -2434,11 +2434,21 @@ async def upload_to_icloud(user: User = Depends(get_current_user)):
 
 @api_router.get("/quests/progress")
 async def get_quest_progress(user: User = Depends(get_current_user)):
-    user_data = await users_collection.find_one({"user_id": user.user_id}, {"_id": 0, "completed_quests": 1, "quest_xp": 1})
+    user_data = await users_collection.find_one({"user_id": user.user_id}, {"_id": 0, "completed_quests": 1, "quest_xp": 1, "active_time_seconds": 1})
     return {
         "completed_quests": user_data.get("completed_quests", []) if user_data else [],
-        "quest_xp": user_data.get("quest_xp", 0) if user_data else 0
+        "quest_xp": user_data.get("quest_xp", 0) if user_data else 0,
+        "active_time_seconds": user_data.get("active_time_seconds", 0) if user_data else 0,
     }
+
+@api_router.post("/users/heartbeat")
+async def user_heartbeat(user: User = Depends(get_current_user), seconds: int = Body(30, embed=True)):
+    await users_collection.update_one(
+        {"user_id": user.user_id},
+        {"$inc": {"active_time_seconds": seconds}},
+        upsert=True
+    )
+    return {"ok": True}
 
 class QuestCompleteRequest(BaseModel):
     xp: int = 10

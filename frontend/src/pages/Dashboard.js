@@ -81,6 +81,8 @@ const Dashboard = () => {
   const [userSubscription, setUserSubscription] = useState('free');
   const [subscribing, setSubscribing] = useState(false);
   const [userSP, setUserSP] = useState(0);
+  const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
+  const [completedQuestCount, setCompletedQuestCount] = useState(0);
   
   // New Settings states
   const [showProfileEdit, setShowProfileEdit] = useState(false);
@@ -279,6 +281,20 @@ const Dashboard = () => {
     return () => clearInterval(i);
   }, []);
 
+  // Heartbeat: her 30sn aktif zamanı kaydet
+  useEffect(() => {
+    const INTERVAL = 30000;
+    const sendHeartbeat = () => {
+      axios.post(`${API}/users/heartbeat`, { seconds: 30 }, { withCredentials: true })
+        .then(res => {
+          if (res.data?.ok) setActiveTimeSeconds(prev => prev + 30);
+        })
+        .catch(() => {});
+    };
+    const id = setInterval(sendHeartbeat, INTERVAL);
+    return () => clearInterval(id);
+  }, []);
+
   // notes veya tick değişince alarm kontrol et
   useEffect(() => {
     if (notes.length === 0) return;
@@ -303,6 +319,8 @@ const Dashboard = () => {
     try {
       const spRes = await axios.get(`${API}/quests/progress`, { withCredentials: true });
       setUserSP(spRes.data.quest_xp || 0);
+      setActiveTimeSeconds(spRes.data.active_time_seconds || 0);
+      setCompletedQuestCount((spRes.data.completed_quests || []).length);
     } catch { /* ignore */ }
   };
 
@@ -958,20 +976,56 @@ Devam etmek istiyor musunuz?`;
                 </div>
               )}
 
-              {settingsTab === 'ranks' && (
+              {settingsTab === 'ranks' && (() => {
+                const RANK_REQUIREMENTS = {
+                  'Gümüş':  { hours: 10,  quests: 70 },
+                  'Altın':  { hours: 25,  quests: 130 },
+                  'Elmas':  { hours: 60,  quests: 200 },
+                  'Zümrüt': { hours: 90,  quests: 300 },
+                  'Endless':{ hours: 200, quests: 500 },
+                };
+                const activeHours = activeTimeSeconds / 3600;
+                return (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('ranks')}</h2>
                   <div className="space-y-3">
-                    {RANKS.map(r => (
-                      <div key={r.name} className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: currentRank.name === r.name ? `1px solid ${r.color}60` : '1px solid transparent' }}>
-                        <div className="flex items-center gap-3">
-                          <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
-                          <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
-                          {currentRank.name === r.name && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
+                    {RANKS.map(r => {
+                      const req = RANK_REQUIREMENTS[r.name];
+                      const isCurrent = currentRank.name === r.name;
+                      return (
+                      <div key={r.name} className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: isCurrent ? `1px solid ${r.color}60` : '1px solid transparent' }}>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-3">
+                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                            <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
+                            {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
+                          </div>
+                          <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
                         </div>
-                        <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
+                        {req && (
+                          <div className="mt-2 space-y-1.5">
+                            <div>
+                              <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                                <span>⏱ {Math.floor(activeHours)}h / {req.hours}h</span>
+                                <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (activeHours / req.hours) * 100)}%`, background: activeHours >= req.hours ? r.color : 'rgba(255,255,255,0.3)' }} />
+                              </div>
+                            </div>
+                            <div>
+                              <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                                <span>🎯 {completedQuestCount} / {req.quests} {t('questMap')}</span>
+                                <span>{Math.min(100, Math.round((completedQuestCount / req.quests) * 100))}%</span>
+                              </div>
+                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (completedQuestCount / req.quests) * 100)}%`, background: completedQuestCount >= req.quests ? r.color : 'rgba(255,255,255,0.3)' }} />
+                              </div>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    ))}
+                    );})}
                   </div>
                   <div className="mt-6 p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
                     <div className="flex justify-between text-sm mb-2" style={{ color: 'var(--zet-text-muted)' }}>
@@ -984,7 +1038,8 @@ Devam etmek istiyor musunuz?`;
                     <p className="text-xs mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>{userSP.toLocaleString()} / {nextRank ? nextRank.xp.toLocaleString() : '∞'} XP</p>
                   </div>
                 </div>
-              )}
+                );
+              })()}
 
               {settingsTab === 'subscription' && (
                 <div className="max-w-lg">
