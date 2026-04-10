@@ -319,6 +319,12 @@ const Dashboard = () => {
     setSubscribing(false);
   };
 
+  useEffect(() => {
+    if (showSettings && settingsTab === 'credits' && creditPackages.length === 0) {
+      fetchCreditPackages();
+    }
+  }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const fetchCreditPackages = async () => {
     try {
       const res = await axios.get(`${API}/credits/packages`, { withCredentials: true });
@@ -899,9 +905,56 @@ Devam etmek istiyor musunuz?`;
               {settingsTab === 'ai' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('aiSettings')}</h2>
-                  <button onClick={() => { setShowAISettings(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="ai-settings-btn">
-                    {t('openAISettings')}
-                  </button>
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-xl" style={{ background: 'rgba(76, 168, 173, 0.1)', border: '1px solid rgba(76, 168, 173, 0.3)' }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
+                        <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Özelleştirme</h3>
+                      </div>
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
+                          <select value={zetaMood} onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }} className="zet-input text-sm w-full">
+                            <option value="cheerful">🎉 Neşeli</option>
+                            <option value="professional">💼 Profesyonel</option>
+                            <option value="curious">🔍 Meraklı</option>
+                            <option value="custom">✨ Özel</option>
+                          </select>
+                        </div>
+                        {zetaMood === 'custom' && (
+                          <div>
+                            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Özel Prompt</label>
+                            <textarea value={zetaCustomPrompt} onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }} placeholder="ZETA nasıl davransın?" className="zet-input text-sm w-full h-20 resize-none" />
+                          </div>
+                        )}
+                        <div>
+                          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
+                          <select value={zetaEmoji} onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }} className="zet-input text-sm w-full">
+                            <option value="none">❌ Kullanma</option>
+                            <option value="low">📍 Az Kullan</option>
+                            <option value="medium">📌 Orta</option>
+                            <option value="high">🎯 Çok Kullan</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="p-4 rounded-xl" style={{ background: 'rgba(200, 0, 90, 0.1)', border: '1px solid rgba(200, 0, 90, 0.3)' }}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <Scale className="h-5 w-5" style={{ color: '#c8005a' }} />
+                        <h3 className="font-semibold" style={{ color: '#c8005a' }}>ZET Judge Mini Özelleştirme</h3>
+                      </div>
+                      <div>
+                        <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
+                        <select value={judgeMood} onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }} className="zet-input text-sm w-full">
+                          <option value="normal">⚖️ Normal (Yapıcı eleştiri)</option>
+                          <option value="harsh">🔥 Sert (Esprili dalga geçme)</option>
+                        </select>
+                        <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
+                          {judgeMood === 'harsh' ? '😈 Judge sizi esprilerle "kavuracak"!' : '🤝 Judge yapıcı ve profesyonel olacak.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 
@@ -936,37 +989,173 @@ Devam etmek istiyor musunuz?`;
               {settingsTab === 'subscription' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('subscription')}</h2>
-                  <button onClick={() => { setShowSubscription(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="subscription-btn">
-                    {t('viewPlans')}
-                  </button>
+                  <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
+                    <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
+                    <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userSP.toLocaleString()} SP</span>
+                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- SP ile de plan alabilirsiniz</span>
+                  </div>
+                  <div className="flex justify-center mb-6">
+                    <div className="flex rounded-lg p-1" style={{ background: 'var(--zet-bg)' }}>
+                      <button onClick={() => setBillingCycle('monthly')} className="px-4 py-2 rounded-md text-sm font-medium transition-all" style={{ background: billingCycle === 'monthly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'monthly' ? 'white' : 'var(--zet-text-muted)' }}>{t('monthly')}</button>
+                      <button onClick={() => setBillingCycle('yearly')} className="px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1" style={{ background: billingCycle === 'yearly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'yearly' ? 'white' : 'var(--zet-text-muted)' }}>
+                        {t('yearly')} <span className="text-xs px-1.5 py-0.5 rounded bg-green-500 text-white">-17%</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="relative">
+                    <button onClick={() => setCurrentPlanIndex(Math.max(0, currentPlanIndex - 1))} disabled={currentPlanIndex === 0} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30" style={{ background: 'var(--zet-bg-card)' }}>
+                      <ChevronLeft className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                    </button>
+                    <button onClick={() => setCurrentPlanIndex(Math.min(SUBSCRIPTION_PLANS.length - 1, currentPlanIndex + 1))} disabled={currentPlanIndex === SUBSCRIPTION_PLANS.length - 1} className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30" style={{ background: 'var(--zet-bg-card)' }}>
+                      <ChevronRight className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                    </button>
+                    <div className="overflow-hidden">
+                      <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentPlanIndex * 100}%)` }}>
+                        {SUBSCRIPTION_PLANS.map((plan) => {
+                          const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+                          const period = billingCycle === 'monthly' ? '/mo' : '/yr';
+                          return (
+                            <div key={plan.id} className="w-full flex-shrink-0 px-2">
+                              <div className={`relative rounded-2xl p-6 transition-all ${plan.recommended ? 'ring-2' : ''}`} style={{ background: `linear-gradient(135deg, ${plan.color}15 0%, ${plan.color}05 100%)`, border: `1px solid ${plan.color}30` }}>
+                                {plan.recommended && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>{t('recommended')}</div>}
+                                <div className="text-center mb-6 pt-2">
+                                  <h3 className="text-2xl font-bold mb-2" style={{ color: plan.color }}>{plan.name}</h3>
+                                  <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{period}</span></div>
+                                  {billingCycle === 'yearly' && <p className="text-xs mt-1 text-green-400">{t('saveYearly')}</p>}
+                                </div>
+                                <ul className="space-y-3 mb-6">
+                                  {plan.features.map((feature, fidx) => (<li key={fidx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}><Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />{feature}</li>))}
+                                </ul>
+                                <div className="space-y-2">
+                                  <button onClick={() => handleSubscribe(plan.id)} disabled={subscribing || userSubscription === plan.id} className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50" style={{ background: userSubscription === plan.id ? 'var(--zet-bg)' : plan.color, color: userSubscription === plan.id ? plan.color : 'white', border: userSubscription === plan.id ? `2px solid ${plan.color}` : 'none' }} data-testid={`select-plan-${plan.id}`}>
+                                    {userSubscription === plan.id ? t('currentPlan') : `$${price}${period} ile Al`}
+                                  </button>
+                                  {userSubscription !== plan.id && (
+                                    <button onClick={() => handleBuyWithSP(plan.id)} disabled={subscribing || userSP < plan.spCost} className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-40 flex items-center justify-center gap-2" style={{ background: userSP >= plan.spCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)', color: userSP >= plan.spCost ? '#fbbf24' : 'var(--zet-text-muted)', border: `1px solid ${userSP >= plan.spCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
+                                      <Star className="h-4 w-4" />{plan.spCost.toLocaleString()} SP ile Al
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div className="flex justify-center gap-2 mt-4">
+                      {SUBSCRIPTION_PLANS.map((_, idx) => (<button key={idx} onClick={() => setCurrentPlanIndex(idx)} className={`w-2 h-2 rounded-full transition-all ${currentPlanIndex === idx ? 'w-6' : ''}`} style={{ background: currentPlanIndex === idx ? SUBSCRIPTION_PLANS[idx].color : 'var(--zet-text-muted)' }} />))}
+                    </div>
+                  </div>
+                  <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>{t('subscriptionNote')}</p>
                 </div>
               )}
 
               {settingsTab === 'credits' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('buyCredits')}</h2>
-                  <button onClick={() => { fetchCreditPackages(); setShowCredits(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="buy-credits-btn">
-                    {t('viewCreditPackages')}
-                  </button>
+                  {creditPackages.length > 0 && creditPackages[0].discounted_price !== creditPackages[0].price && (
+                    <div className="mb-3 px-3 py-2 rounded-lg text-center" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                      <span className="text-xs font-bold" style={{ color: '#10b981' }}>%15 Abone İndirimi Uygulandı!</span>
+                    </div>
+                  )}
+                  <div className="space-y-2.5">
+                    {creditPackages.length === 0 ? (
+                      <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
+                        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} />
+                      </div>
+                    ) : creditPackages.map(pkg => {
+                      const hasDiscount = pkg.discounted_price !== pkg.price;
+                      return (
+                        <div key={pkg.id} className="flex items-center justify-between p-3 rounded-xl transition-all hover:scale-[1.01]" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }} data-testid={`credit-pack-${pkg.credits}`}>
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: pkg.credits >= 1000 ? 'rgba(251,191,36,0.15)' : pkg.credits >= 700 ? 'rgba(139,92,246,0.15)' : pkg.credits >= 350 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)' }}>
+                              <Zap className="h-5 w-5" style={{ color: pkg.credits >= 1000 ? '#fbbf24' : pkg.credits >= 700 ? '#8b5cf6' : pkg.credits >= 350 ? '#3b82f6' : '#10b981' }} />
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold" style={{ color: 'var(--zet-text)' }}>{pkg.credits} Kredi</p>
+                              <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{pkg.credits >= 1000 ? 'En Avantajlı' : pkg.credits >= 700 ? 'Popüler' : pkg.credits >= 350 ? 'Standart' : 'Başlangıç'}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2.5">
+                            <div className="text-right">
+                              {hasDiscount && <p className="text-[10px] line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price}</p>}
+                              <p className="text-sm font-bold" style={{ color: hasDiscount ? '#10b981' : 'var(--zet-text)' }}>${pkg.discounted_price}</p>
+                            </div>
+                            <button onClick={() => handleBuyCredits(pkg.id)} disabled={buyingCredits} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 disabled:opacity-40" style={{ background: 'var(--zet-primary)', color: 'white' }} data-testid={`buy-credit-${pkg.credits}`}>
+                              {buyingCredits ? '...' : 'Satın Al'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
+                    Kredi paketleri anında hesabınıza eklenir. Free dışındaki planlara %15 indirim uygulanır.<br />Maksimum kredi bakiyesi: 1000. Limit aşıldığında fazla krediler silinir.
+                  </p>
                 </div>
               )}
 
               {settingsTab === 'shortcuts' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('shortcuts')}</h2>
-                  <button onClick={() => { setShowShortcuts(true); setShowSettings(false); }} className="zet-btn w-full py-3">
-                    {t('editShortcuts')}
-                  </button>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                    <input placeholder="Search tools..." value={shortcutSearch} onChange={(e) => setShortcutSearch(e.target.value)} className="zet-input pl-9 w-full" />
+                  </div>
+                  <div className="space-y-1">
+                    {TOOLS.filter(tool => !shortcutSearch || (t(tool.nameKey) || tool.nameKey).toLowerCase().includes(shortcutSearch.toLowerCase()) || tool.id.toLowerCase().includes(shortcutSearch.toLowerCase())).map(tool => {
+                      const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
+                      return (
+                        <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
+                          <div className="flex items-center gap-2">
+                            <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                            <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{t(tool.nameKey) || tool.nameKey}</span>
+                          </div>
+                          {editingShortcut === tool.id ? (
+                            <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { const ns = { ...shortcuts }; Object.keys(ns).forEach(k => { if (ns[k] === tool.id) delete ns[k]; }); ns[e.key.toUpperCase()] = tool.id; setShortcuts(ns); localStorage.setItem('zet_shortcuts', JSON.stringify(ns)); setEditingShortcut(null); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
+                          ) : (
+                            <button onClick={() => setEditingShortcut(tool.id)} className="px-2 py-1 rounded text-xs font-mono" style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}>{currentKey || '—'}</button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="pt-3 mt-3 border-t text-xs" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+                    <p>Click a key to edit. Press a new key to assign.</p>
+                  </div>
                 </div>
               )}
 
               {settingsTab === 'fastselect' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Fast Select</h2>
-                  <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>{t('fastSelectActive')} {fastSelectTools.length}/{fastSelectLimit}</p>
-                  <button onClick={() => { setShowFastSelect(true); setShowSettings(false); }} className="zet-btn w-full py-3">
-                    {t('editFastSelect')}
-                  </button>
+                  <p className="text-sm mb-3" style={{ color: 'var(--zet-text-muted)' }}>{t('fastSelectActive')} {fastSelectTools.length}/{fastSelectLimit}</p>
+                  <div className="grid grid-cols-4 gap-2 mb-4">
+                    {fastSelectTools.map((toolId, idx) => {
+                      const tool = TOOLS.find(t => t.id === toolId);
+                      return (
+                        <div key={idx} className="flex flex-col items-center p-3 rounded-lg" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>
+                          {tool ? <tool.icon className="h-6 w-6 mb-1" /> : <Plus className="h-6 w-6 mb-1" />}
+                          <span className="text-xs truncate w-full text-center">{tool ? (t(tool.nameKey) || tool.nameKey) : 'Empty'}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="relative mb-3">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                    <input placeholder="Search tools..." value={fastSelectSearch} onChange={(e) => setFastSelectSearch(e.target.value)} className="zet-input pl-9 w-full" />
+                  </div>
+                  <div className="grid grid-cols-6 gap-1">
+                    {TOOLS.filter(tool => !fastSelectSearch || (t(tool.nameKey) || tool.nameKey).toLowerCase().includes(fastSelectSearch.toLowerCase()) || tool.id.toLowerCase().includes(fastSelectSearch.toLowerCase())).map(tool => (
+                      <button key={tool.id} onClick={() => { if (fastSelectTools.includes(tool.id)) { const nt = fastSelectTools.filter(t => t !== tool.id); setFastSelectTools(nt); localStorage.setItem('zet_fast_select', JSON.stringify(nt)); } else if (fastSelectTools.length < fastSelectLimit) { const nt = [...fastSelectTools, tool.id]; setFastSelectTools(nt); localStorage.setItem('zet_fast_select', JSON.stringify(nt)); } }} className={`p-2 rounded flex flex-col items-center transition-all ${fastSelectTools.includes(tool.id) ? 'ring-2 ring-blue-500' : 'hover:bg-white/10'}`} style={{ background: fastSelectTools.includes(tool.id) ? 'var(--zet-primary)' : 'var(--zet-bg)' }} title={t(tool.nameKey) || tool.nameKey}>
+                        <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs mt-3" style={{ color: 'var(--zet-text-muted)' }}>
+                    {fastSelectTools.length}/{fastSelectLimit} {t('selected')}
+                    {userSubscription === 'free' && <span className="ml-1 text-blue-400">(Daha fazlası için yükselt)</span>}
+                  </p>
                 </div>
               )}
 
