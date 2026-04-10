@@ -122,6 +122,60 @@ const translations = {
     saveYearly: 'Save per year',
     setReminder: 'Set a reminder to get notified',
     currentPlan: 'Current Plan',
+
+    // Settings tabs
+    general: 'General',
+    aiSettings: 'AI Settings',
+    ranks: 'Ranks',
+    questMap: 'Quest Map',
+    buyCredits: 'Buy Credits',
+    logoutBtn: 'Log Out',
+
+    // Settings content
+    profile: 'Profile',
+    edit: 'Edit',
+    plan: 'Plan',
+    cancelSubscription: 'Cancel Subscription',
+    openAISettings: 'Open AI Settings',
+    currentBadge: 'Current',
+    viewPlans: 'View Plans',
+    viewCreditPackages: 'View Credit Packages',
+    editShortcuts: 'Edit Shortcuts',
+    fastSelectActive: 'Active:',
+    editFastSelect: 'Edit Fast Select',
+
+    // Notebooks & Notes
+    newNotebook: 'New Notebook',
+    notebookNamePlaceholder: 'Notebook name...',
+    searchInNotebook: 'Search in this notebook...',
+    addNoteToNotebook: 'Add note to this notebook...',
+    noNotesInNotebook: 'No notes in this notebook',
+    notesCount: 'notes',
+    reminder: 'Reminder',
+
+    // Documents
+    document: 'Document',
+    editPDF: 'Edit PDF',
+    openPDF: 'Open & Edit PDF',
+    clickToUpload: 'Click to upload PDF',
+    createDocument: 'Create Document',
+
+    // Delete confirmation
+    deleteNote: 'Delete note',
+    cannotUndo: 'This action cannot be undone.',
+    cancel: 'Cancel',
+    yesDelete: 'Yes, delete',
+
+    // Note menu
+    noteMenuDelete: 'Delete',
+    noteMenuEdit: 'Edit',
+    noteMenuCopy: 'Copy',
+    noteMenuSendDown: 'Send to bottom',
+    noteMenuSendUp: 'Bring to top',
+    noteMenuPin: 'Pin',
+    noteMenuUnpin: 'Unpin',
+    zetaSummary: 'Zeta Summary',
+    analyzing: 'Analyzing...',
   },
   tr: {
     // Login
@@ -244,6 +298,60 @@ const translations = {
     saveYearly: 'Yılda tasarruf edin',
     setReminder: 'Bildirim almak için hatırlatıcı ayarlayın',
     currentPlan: 'Mevcut Plan',
+
+    // Settings tabs
+    general: 'Genel',
+    aiSettings: 'AI Ayarları',
+    ranks: 'Rütbeler',
+    questMap: 'Görev Haritası',
+    buyCredits: 'Kredi Al',
+    logoutBtn: 'Çıkış Yap',
+
+    // Settings content
+    profile: 'Profil',
+    edit: 'Düzenle',
+    plan: 'Plan',
+    cancelSubscription: 'Aboneliği İptal Et',
+    openAISettings: 'AI Ayarlarını Aç',
+    currentBadge: 'Şu an',
+    viewPlans: 'Planları Görüntüle',
+    viewCreditPackages: 'Kredi Paketlerini Gör',
+    editShortcuts: 'Kısayolları Düzenle',
+    fastSelectActive: 'Aktif:',
+    editFastSelect: "Fast Select'i Düzenle",
+
+    // Notebooks & Notes
+    newNotebook: 'Yeni Defter',
+    notebookNamePlaceholder: 'Defter adı...',
+    searchInNotebook: 'Bu defterde ara...',
+    addNoteToNotebook: 'Bu deftere not ekle...',
+    noNotesInNotebook: 'Bu defterde henüz not yok',
+    notesCount: 'not',
+    reminder: 'Hatırlatıcı',
+
+    // Documents
+    document: 'Belge',
+    editPDF: 'PDF Düzenle',
+    openPDF: 'PDF Aç ve Düzenle',
+    clickToUpload: 'PDF yüklemek için tıklayın',
+    createDocument: 'Belge Oluştur',
+
+    // Delete confirmation
+    deleteNote: 'Notu sil',
+    cannotUndo: 'Bu işlem geri alınamaz.',
+    cancel: 'İptal',
+    yesDelete: 'Evet, sil',
+
+    // Note menu
+    noteMenuDelete: 'Sil',
+    noteMenuEdit: 'Düzenle',
+    noteMenuCopy: 'Kopyala',
+    noteMenuSendDown: 'Alta gönder',
+    noteMenuSendUp: 'Üste çıkar',
+    noteMenuPin: 'Sabitle',
+    noteMenuUnpin: 'Sabiti kaldır',
+    zetaSummary: 'Zeta Özet',
+    analyzing: 'Analiz ediliyor...',
   },
   de: {
     documentCreation: 'Dokumenterstellung mit KI-Power',

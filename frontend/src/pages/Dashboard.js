@@ -632,13 +632,13 @@ Devam etmek istiyor musunuz?`;
     const isFirst = idx === 0;
     const isLast = idx === visibleNotes.length - 1;
     return [
-      { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { setConfirmDeleteNoteId(note.note_id); setOpenMenuNoteId(null); } },
-      { icon: <FileEdit className="h-4 w-4" />, label: 'Düzenle', action: () => { setEditingNoteId(note.note_id); setEditingNoteContent(note.content); setOpenMenuNoteId(null); } },
-      { icon: <Copy className="h-4 w-4" />, label: 'Kopyala', action: () => { navigator.clipboard.writeText(note.content); setOpenMenuNoteId(null); } },
-      { icon: <ArrowDown className="h-4 w-4" />, label: 'Alta gönder', disabled: isLast, action: () => { if (!isLast) { moveNote(note.note_id, 'bottom'); setOpenMenuNoteId(null); } } },
-      { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: 'Zeta Özet', action: () => analyzeWithZeta(note) },
-      { icon: <ArrowUp className="h-4 w-4" />, label: 'Üste çıkar', disabled: isFirst, action: () => { if (!isFirst) { moveNote(note.note_id, 'top'); setOpenMenuNoteId(null); } } },
-      { icon: <Pin className="h-4 w-4" style={{ color: note.pinned ? '#f59e0b' : 'inherit' }} />, label: note.pinned ? 'Sabiti kaldır' : 'Sabitle', action: () => { pinNote(note); setOpenMenuNoteId(null); } },
+      { icon: <Trash2 className="h-4 w-4" />, label: t('noteMenuDelete'), color: '#ef4444', action: () => { setConfirmDeleteNoteId(note.note_id); setOpenMenuNoteId(null); } },
+      { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { setEditingNoteId(note.note_id); setEditingNoteContent(note.content); setOpenMenuNoteId(null); } },
+      { icon: <Copy className="h-4 w-4" />, label: t('noteMenuCopy'), action: () => { navigator.clipboard.writeText(note.content); setOpenMenuNoteId(null); } },
+      { icon: <ArrowDown className="h-4 w-4" />, label: t('noteMenuSendDown'), disabled: isLast, action: () => { if (!isLast) { moveNote(note.note_id, 'bottom'); setOpenMenuNoteId(null); } } },
+      { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => analyzeWithZeta(note) },
+      { icon: <ArrowUp className="h-4 w-4" />, label: t('noteMenuSendUp'), disabled: isFirst, action: () => { if (!isFirst) { moveNote(note.note_id, 'top'); setOpenMenuNoteId(null); } } },
+      { icon: <Pin className="h-4 w-4" style={{ color: note.pinned ? '#f59e0b' : 'inherit' }} />, label: note.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { pinNote(note); setOpenMenuNoteId(null); } },
     ];
   };
 
@@ -688,12 +688,12 @@ Devam etmek istiyor musunuz?`;
               {zetaAnalysis.loading ? (
                 <div className="flex items-center gap-2" style={{ color: 'var(--zet-text-muted)' }}>
                   <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
-                  Analiz ediliyor...
+                  {t('analyzing')}
                 </div>
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#4ca8ad' }}><ZetaIcon size={12} color="#4ca8ad" /> ZETA Özet</span>
+                    <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#4ca8ad' }}><ZetaIcon size={12} color="#4ca8ad" /> {t('zetaSummary')}</span>
                     <button onClick={() => setZetaAnalysis({ noteId: null, loading: false, result: null })} className="p-0.5 rounded hover:bg-white/10">
                       <X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
                     </button>
@@ -783,7 +783,7 @@ Devam etmek istiyor musunuz?`;
             <button onClick={() => setShowSettings(false)} className="p-2 rounded-lg hover:bg-white/10 transition-all mr-2" style={{ color: 'var(--zet-text-muted)' }}>
               <ChevronLeft className="h-5 w-5" />
             </button>
-            <span className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Ayarlar</span>
+            <span className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>{t('settings')}</span>
           </div>
 
           {/* Body: sidebar + content */}
@@ -802,13 +802,13 @@ Devam etmek istiyor musunuz?`;
               </div>
 
               {[
-                { id: 'general',      icon: <User className="h-4 w-4" />,       label: 'Genel' },
-                { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: 'AI Ayarları',    color: '#4ca8ad' },
-                { id: 'ranks',        icon: <Award className="h-4 w-4" />,      label: 'Rütbeler',       color: '#f59e0b' },
-                { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: 'Görev Haritası', color: '#4ca8ad' },
-                { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: 'Abonelik',       color: 'var(--zet-primary-light)' },
-                { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: 'Kredi Al',       color: '#fbbf24' },
-                { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: 'Kısayollar' },
+                { id: 'general',      icon: <User className="h-4 w-4" />,       label: t('general') },
+                { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
+                { id: 'ranks',        icon: <Award className="h-4 w-4" />,      label: t('ranks'),         color: '#f59e0b' },
+                { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('questMap'),      color: '#4ca8ad' },
+                { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: t('subscription'),  color: 'var(--zet-primary-light)' },
+                { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
+                { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
               ].map(item => (
                 <button
@@ -828,7 +828,7 @@ Devam etmek istiyor musunuz?`;
               {/* Çıkış */}
               <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--zet-border)' }}>
                 <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-all" data-testid="logout-btn">
-                  <LogOut className="h-4 w-4" /> Çıkış Yap
+                  <LogOut className="h-4 w-4" /> {t('logoutBtn')}
                 </button>
               </div>
             </div>
@@ -838,11 +838,11 @@ Devam etmek istiyor musunuz?`;
 
               {settingsTab === 'general' && (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Genel</h2>
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('general')}</h2>
 
                   {/* Profil */}
                   <div className="mb-8">
-                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Profil</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>{t('profile')}</p>
                     <div className="flex items-center gap-4 p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
                       <img src={user?.picture || 'https://via.placeholder.com/56'} alt="" className="w-14 h-14 rounded-full flex-shrink-0" />
                       <div className="flex-1 min-w-0">
@@ -855,14 +855,14 @@ Devam etmek istiyor musunuz?`;
                         style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text)' }}
                         data-testid="profile-edit-btn"
                       >
-                        Düzenle
+                        {t('edit')}
                       </button>
                     </div>
                   </div>
 
                   {/* Dil */}
                   <div className="mb-8">
-                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Dil</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>{t('language')}</p>
                     <div className="grid grid-cols-2 gap-2">
                       {LANGUAGES.map(lang => (
                         <button
@@ -880,16 +880,16 @@ Devam etmek istiyor musunuz?`;
 
                   {/* Plan */}
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Plan</p>
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>{t('plan')}</p>
                     <div className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)' }}>
-                      <span style={{ color: 'var(--zet-text)' }}>Mevcut Plan</span>
+                      <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan')}</span>
                       <span className="font-bold text-lg" style={{ color: userSubscription === 'ultra' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
                         {userSubscription.toUpperCase()}
                       </span>
                     </div>
                     {userSubscription !== 'free' && (
                       <button onClick={handleCancelSubscription} disabled={subscribing} className="mt-2 text-sm text-red-400 hover:text-red-300 w-full text-center py-2">
-                        Aboneliği İptal Et
+                        {t('cancelSubscription')}
                       </button>
                     )}
                   </div>
@@ -898,23 +898,23 @@ Devam etmek istiyor musunuz?`;
 
               {settingsTab === 'ai' && (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>AI Ayarları</h2>
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('aiSettings')}</h2>
                   <button onClick={() => { setShowAISettings(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="ai-settings-btn">
-                    AI Ayarlarını Aç
+                    {t('openAISettings')}
                   </button>
                 </div>
               )}
 
               {settingsTab === 'ranks' && (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Rütbeler</h2>
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('ranks')}</h2>
                   <div className="space-y-3">
                     {RANKS.map(r => (
                       <div key={r.name} className="flex items-center justify-between p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: currentRank.name === r.name ? `1px solid ${r.color}60` : '1px solid transparent' }}>
                         <div className="flex items-center gap-3">
                           <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
                           <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
-                          {currentRank.name === r.name && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>Şu an</span>}
+                          {currentRank.name === r.name && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                         </div>
                         <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
                       </div>
@@ -935,27 +935,27 @@ Devam etmek istiyor musunuz?`;
 
               {settingsTab === 'subscription' && (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Abonelik</h2>
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('subscription')}</h2>
                   <button onClick={() => { setShowSubscription(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="subscription-btn">
-                    Planları Görüntüle
+                    {t('viewPlans')}
                   </button>
                 </div>
               )}
 
               {settingsTab === 'credits' && (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Kredi Al</h2>
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('buyCredits')}</h2>
                   <button onClick={() => { fetchCreditPackages(); setShowCredits(true); setShowSettings(false); }} className="zet-btn w-full py-3" data-testid="buy-credits-btn">
-                    Kredi Paketlerini Gör
+                    {t('viewCreditPackages')}
                   </button>
                 </div>
               )}
 
               {settingsTab === 'shortcuts' && (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Kısayollar</h2>
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('shortcuts')}</h2>
                   <button onClick={() => { setShowShortcuts(true); setShowSettings(false); }} className="zet-btn w-full py-3">
-                    Kısayolları Düzenle
+                    {t('editShortcuts')}
                   </button>
                 </div>
               )}
@@ -963,9 +963,9 @@ Devam etmek istiyor musunuz?`;
               {settingsTab === 'fastselect' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Fast Select</h2>
-                  <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>Aktif: {fastSelectTools.length}/{fastSelectLimit}</p>
+                  <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>{t('fastSelectActive')} {fastSelectTools.length}/{fastSelectLimit}</p>
                   <button onClick={() => { setShowFastSelect(true); setShowSettings(false); }} className="zet-btn w-full py-3">
-                    Fast Select'i Düzenle
+                    {t('editFastSelect')}
                   </button>
                 </div>
               )}
@@ -1028,7 +1028,7 @@ Devam etmek istiyor musunuz?`;
                   </button>
                 </div>
                 <h3 className="font-medium mb-1 truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</h3>
-                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Document</p>
+                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('document')}</p>
                 <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}>
                   <Clock className="h-3 w-3" />
                   {formatTime(doc.updated_at || doc.created_at)}
@@ -1059,7 +1059,7 @@ Devam etmek istiyor musunuz?`;
             <div className="zet-card p-3 mb-3 flex-shrink-0" style={{ background: 'var(--zet-bg-card)' }}>
               <input
                 type="text"
-                placeholder="Bu defterde ara..."
+                placeholder={t('searchInNotebook')}
                 value={notebookSearch}
                 onChange={(e) => setNotebookSearch(e.target.value)}
                 className="zet-input w-full text-sm"
@@ -1072,7 +1072,7 @@ Devam etmek istiyor musunuz?`;
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Bu deftere not ekle..."
+                  placeholder={t('addNoteToNotebook')}
                   value={notebookNote}
                   onChange={(e) => setNotebookNote(e.target.value)}
                   onKeyDown={(e) => e.key === 'Enter' && addNoteToNotebook()}
@@ -1097,7 +1097,7 @@ Devam etmek istiyor musunuz?`;
                 .map(note => renderNoteCard(note))}
               {notes.filter(n => n.notebook_id === activeNotebook.notebook_id).length === 0 && (
                 <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
-                  Bu defterde henüz not yok
+                  {t('noNotesInNotebook')}
                 </div>
               )}
             </div>
@@ -1143,7 +1143,7 @@ Devam etmek istiyor musunuz?`;
                   data-testid="new-notebook-btn"
                 >
                   <span>📓</span>
-                  <span>Yeni Defter</span>
+                  <span>{t('newNotebook')}</span>
                 </button>
               </div>
 
@@ -1152,7 +1152,7 @@ Devam etmek istiyor musunuz?`;
                 <div className="flex gap-2 mt-3 animate-fadeIn">
                   <input
                     type="text"
-                    placeholder="Defter adı..."
+                    placeholder={t('notebookNamePlaceholder')}
                     value={newNotebookName}
                     onChange={(e) => setNewNotebookName(e.target.value)}
                     onKeyDown={(e) => { if (e.key === 'Enter') createNotebook(); if (e.key === 'Escape') { setShowNewNotebook(false); setNewNotebookName(''); } }}
@@ -1187,7 +1187,7 @@ Devam etmek istiyor musunuz?`;
                     <div>
                       <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{nb.name}</p>
                       <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                        {notes.filter(n => n.notebook_id === nb.notebook_id).length} not
+                        {notes.filter(n => n.notebook_id === nb.notebook_id).length} {t('notesCount')}
                       </p>
                     </div>
                   </div>
@@ -1266,8 +1266,8 @@ Devam etmek istiyor musunuz?`;
                 <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
               </div>
               <div>
-                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>Notu sil</p>
-                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Bu işlem geri alınamaz.</p>
+                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>{t('deleteNote')}</p>
+                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cannotUndo')}</p>
               </div>
             </div>
             <div className="flex gap-2">
@@ -1276,14 +1276,14 @@ Devam etmek istiyor musunuz?`;
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
                 style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
               >
-                İptal
+                {t('cancel')}
               </button>
               <button
                 onClick={() => { deleteNote(confirmDeleteNoteId); setConfirmDeleteNoteId(null); }}
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
                 style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
               >
-                Evet, sil
+                {t('yesDelete')}
               </button>
             </div>
           </div>
@@ -1298,7 +1298,7 @@ Devam etmek istiyor musunuz?`;
               style={{ background: 'var(--zet-bg-card)', border: '1px solid #eab308', boxShadow: '0 0 20px rgba(234,179,8,0.3)' }}>
               <BellRing className="h-5 w-5 flex-shrink-0 mt-0.5" style={{ color: '#eab308' }} />
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-sm mb-1" style={{ color: '#eab308' }}>Hatırlatıcı</p>
+                <p className="font-medium text-sm mb-1" style={{ color: '#eab308' }}>{t('reminder')}</p>
                 <p className="text-sm break-words" style={{ color: 'var(--zet-text)' }}>{alarm.content}</p>
               </div>
               <button onClick={() => setFiredAlarms(prev => prev.filter(a => a.note_id !== alarm.note_id))}
@@ -1337,7 +1337,7 @@ Devam etmek istiyor musunuz?`;
                 style={{ background: newDocType === 'pdf' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}
               >
                 <FileEdit className="h-8 w-8 mx-auto mb-2" style={{ color: 'var(--zet-text)' }} />
-                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF') || 'PDF Düzenle'}</span>
+                <span className="block text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('editPDF')}</span>
               </button>
             </div>
 
@@ -1365,7 +1365,7 @@ Devam etmek istiyor musunuz?`;
                   ) : (
                     <div style={{ color: 'var(--zet-text-muted)' }}>
                       <Upload className="h-8 w-8 mx-auto mb-2" />
-                      <span className="text-sm">{t('clickToUpload') || 'PDF yüklemek için tıklayin'}</span>
+                      <span className="text-sm">{t('clickToUpload')}</span>
                     </div>
                   )}
                 </div>
@@ -1415,7 +1415,7 @@ Devam etmek istiyor musunuz?`;
               disabled={newDocType === 'pdf' && !pdfFile}
               className="zet-btn w-full disabled:opacity-50"
             >
-              {newDocType === 'pdf' ? (t('openPDF') || 'PDF Ac ve Düzenle') : 'Belge Oluştur'}
+              {newDocType === 'pdf' ? t('openPDF') : t('createDocument')}
             </button>
           </div>
         </div>
