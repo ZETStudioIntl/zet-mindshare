@@ -17,6 +17,83 @@ const LOCK_C = { fill: '#0f1118', stroke: '#1e2235', glow: 'none' };
 const BG = '#050810';
 const R = 20;
 
+function drawBorder(ctx, md) {
+  if (!md.mapMinX) return;
+  const { mapMinX: x1, mapMinY: y1, mapMaxX: x2, mapMaxY: y2 } = md;
+  const w = x2 - x1, h = y2 - y1;
+  const STEP = 55;
+
+  // Outer border line
+  ctx.strokeStyle = 'rgba(56,189,248,0.22)';
+  ctx.lineWidth = 1.5;
+  ctx.setLineDash([]);
+  ctx.strokeRect(x1, y1, w, h);
+
+  // Inner border line
+  const PAD = 16;
+  ctx.strokeStyle = 'rgba(56,189,248,0.10)';
+  ctx.lineWidth = 0.8;
+  ctx.strokeRect(x1 + PAD, y1 + PAD, w - PAD * 2, h - PAD * 2);
+
+  // Decorative shapes along the border
+  const drawBorderShape = (bx, by, idx) => {
+    const shapes = ['circle', 'square', 'diamond', 'circle', 'square'];
+    const s = shapes[idx % shapes.length];
+    const r = 4;
+    ctx.fillStyle = 'rgba(56,189,248,0.28)';
+    ctx.strokeStyle = 'rgba(56,189,248,0.45)';
+    ctx.lineWidth = 0.8;
+    ctx.beginPath();
+    if (s === 'circle') {
+      ctx.arc(bx, by, r, 0, Math.PI * 2);
+    } else if (s === 'square') {
+      ctx.rect(bx - r, by - r, r * 2, r * 2);
+    } else {
+      ctx.moveTo(bx, by - r * 1.3);
+      ctx.lineTo(bx + r * 1.3, by);
+      ctx.lineTo(bx, by + r * 1.3);
+      ctx.lineTo(bx - r * 1.3, by);
+      ctx.closePath();
+    }
+    ctx.fill();
+    ctx.stroke();
+  };
+
+  // Draw along all four sides
+  let idx = 0;
+  for (let bx = x1 + STEP; bx < x2 - STEP / 2; bx += STEP) {
+    drawBorderShape(bx, y1, idx++);
+    drawBorderShape(bx, y2, idx++);
+  }
+  for (let by = y1 + STEP; by < y2 - STEP / 2; by += STEP) {
+    drawBorderShape(x1, by, idx++);
+    drawBorderShape(x2, by, idx++);
+  }
+
+  // Stars at corners
+  const drawCornerStar = (cx, cy) => {
+    const r = 10, ir = 4;
+    ctx.fillStyle = 'rgba(251,191,36,0.7)';
+    ctx.strokeStyle = 'rgba(251,191,36,0.9)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+      const a1 = (i * 72 - 90) * Math.PI / 180;
+      const a2 = ((i * 72) + 36 - 90) * Math.PI / 180;
+      if (i === 0) ctx.moveTo(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
+      else ctx.lineTo(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
+      ctx.lineTo(cx + ir * Math.cos(a2), cy + ir * Math.sin(a2));
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  };
+  drawCornerStar(x1, y1);
+  drawCornerStar(x2, y1);
+  drawCornerStar(x1, y2);
+  drawCornerStar(x2, y2);
+}
+
 function drawNode(ctx, shape, x, y, r, c, hover) {
   if (c.glow !== 'none') { ctx.shadowColor = c.glow; ctx.shadowBlur = hover ? 24 : 10; }
   ctx.fillStyle = c.fill; ctx.strokeStyle = c.stroke; ctx.lineWidth = hover ? 3 : 1.8;
@@ -96,7 +173,7 @@ const QuestMap = () => {
     const cvs = canvasRef.current;
     const cw = cvs ? cvs.clientWidth : 960;
     const ch = cvs ? cvs.clientHeight : 600;
-    setVp({ z: 0.35, x: cw / 2 - d.centerX * 0.35, y: ch / 2 - d.centerY * 0.35 });
+    setVp({ z: 0.28, x: cw / 2 - d.centerX * 0.28, y: ch / 2 - d.centerY * 0.28 });
 
     axios.get(`${API}/quests/progress`, { withCredentials: true })
       .then(r => { setCompleted(new Set(r.data.completed_quests || [])); setSp(r.data.quest_xp || 0); })
@@ -133,7 +210,6 @@ const QuestMap = () => {
     const v = vpR.current, md = mdR.current, comp = compR.current;
     const hov = hovR.current, sel = selR.current;
     const sq = searchR.current.toLowerCase().trim();
-    const t = animRef.current;
 
     const vl = -v.x / v.z - 120, vr = (-v.x + w) / v.z + 120;
     const vt = -v.y / v.z - 120, vb = (-v.y + h) / v.z + 120;
@@ -152,63 +228,52 @@ const QuestMap = () => {
 
     ctx.save(); ctx.translate(v.x, v.y); ctx.scale(v.z, v.z);
 
-    // Draw connections - the spider web
+    // Decorative border
+    drawBorder(ctx, md);
+
+    // Draw connections - orthogonal L-shaped paths
     md.connections.forEach(cn => {
       const f = md.quests[cn.from], tt = md.quests[cn.to];
       if (!f || !tt) return;
-      if (f.x < vl && tt.x < vl) return;
-      if (f.x > vr && tt.x > vr) return;
-      if (f.y < vt && tt.y < vt) return;
-      if (f.y > vb && tt.y > vb) return;
+      if (Math.max(f.x, tt.x) < vl || Math.min(f.x, tt.x) > vr) return;
+      if (Math.max(f.y, tt.y) < vt || Math.min(f.y, tt.y) > vb) return;
 
       const bothDone = comp.has(cn.from) && comp.has(cn.to);
       const anyDone = comp.has(cn.from) || comp.has(cn.to);
-      const dx = tt.x - f.x, dy = tt.y - f.y;
-      const len = Math.hypot(dx, dy);
-      const isLong = len > 250;
+      const dx = Math.abs(tt.x - f.x), dy = Math.abs(tt.y - f.y);
+      const isLong = dx > 300 || dy > 300;
 
       if (bothDone) {
-        ctx.strokeStyle = 'rgba(74,222,128,0.55)';
+        ctx.strokeStyle = 'rgba(74,222,128,0.6)';
         ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.8;
+        ctx.globalAlpha = 0.85;
       } else if (anyDone) {
-        ctx.strokeStyle = 'rgba(56,189,248,0.35)';
-        ctx.lineWidth = 1.2;
-        ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = 'rgba(56,189,248,0.45)';
+        ctx.lineWidth = 1.5;
+        ctx.globalAlpha = 0.6;
       } else {
-        ctx.strokeStyle = isLong ? 'rgba(100,70,180,0.2)' : 'rgba(50,60,140,0.28)';
-        ctx.lineWidth = isLong ? 0.5 : 0.8;
-        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = isLong ? 'rgba(80,60,160,0.18)' : 'rgba(56,80,180,0.32)';
+        ctx.lineWidth = isLong ? 0.6 : 1;
+        ctx.globalAlpha = 0.6;
       }
 
-      const mx = (f.x + tt.x) / 2;
-      const my = (f.y + tt.y) / 2;
-      const curveAmt = isLong ? 20 : 0;
-      const cpx = mx + (dy / (len || 1)) * curveAmt;
-      const cpy = my - (dx / (len || 1)) * curveAmt;
-
+      // Orthogonal L-shaped path: horizontal first then vertical
       ctx.beginPath();
-      if (curveAmt > 0) {
-        ctx.moveTo(f.x, f.y);
-        ctx.quadraticCurveTo(cpx, cpy, tt.x, tt.y);
+      ctx.moveTo(f.x, f.y);
+      if (Math.abs(f.y - tt.y) < 4) {
+        // Same row: draw straight horizontal
+        ctx.lineTo(tt.x, tt.y);
+      } else if (Math.abs(f.x - tt.x) < 4) {
+        // Same column: draw straight vertical
+        ctx.lineTo(tt.x, tt.y);
       } else {
-        ctx.moveTo(f.x, f.y); ctx.lineTo(tt.x, tt.y);
+        // L-shape: go horizontal to tt.x, then vertical to tt.y
+        ctx.lineTo(tt.x, f.y);
+        ctx.lineTo(tt.x, tt.y);
       }
       ctx.stroke();
       ctx.globalAlpha = 1;
     });
-
-    // Animated pulse on center hub connections
-    if (v.z > 0.2) {
-      ctx.globalAlpha = 0.15 + Math.sin(t * 0.03) * 0.08;
-      ctx.strokeStyle = 'rgba(56,189,248,0.4)';
-      ctx.lineWidth = 2;
-      for (let i = 1; i <= 20 && i < md.quests.length; i++) {
-        const q = md.quests[i];
-        ctx.beginPath(); ctx.moveTo(md.centerX, md.centerY); ctx.lineTo(q.x, q.y); ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-    }
 
     // Search set
     const searchSet = new Set();

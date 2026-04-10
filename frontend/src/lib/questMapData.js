@@ -458,197 +458,131 @@ const QUEST_CHAINS = {
   ],
 };
 
-// Deterministiç seeded random
-function seededRandom(seed) {
-  let s = seed;
-  return () => {
-    s = (s * 1103515245 + 12345) & 0x7fffffff;
-    return s / 0x7fffffff;
-  };
-}
-
 export function generateQuestMap() {
-  // Flatten all quests
-  const all = [];
-  Object.values(QUEST_CHAINS).forEach(chain => {
-    chain.forEach(q => all.push({ ...q, sp: SP_VALUES[q.shape] || 20 }));
-  });
+  // Grid-based "board game map" layout
+  const CELL = 82;      // grid spacing
+  const COLS = 22;      // columns per row in a chain
+  const MARGIN = 180;   // border margin
+  const CHAIN_GAP = 52; // extra vertical gap between chains
 
-  // Sort: circles first (center), stars last (edge)
-  const ord = { circle: 0, square: 1, triangle: 2, star: 3 };
-  all.sort((a, b) => ord[a.shape] - ord[b.shape]);
-
-  while (all.length > 500) all.pop();
-  // Pad to 500 if needed
-  const padQuests = [
-    { name: 'Gizemli Görev', desc: 'Bu görevi keşfet', shape: 'circle' },
-    { name: 'Gizli Yol', desc: 'Gizli bir yol bul', shape: 'square' },
-    { name: 'Karanlik Orman', desc: 'Karanlik ormandan gec', shape: 'triangle' },
-    { name: 'Altin Kapi', desc: 'Altin kapiyi ac', shape: 'star' },
-  ];
-  let padIdx = 0;
-  while (all.length < 500) {
-    const p = padQuests[padIdx % padQuests.length];
-    all.push({ ...p, name: `${p.name} ${Math.floor(padIdx / 4) + 1}`, sp: SP_VALUES[p.shape] });
-    padIdx++;
-  }
-
-  const count = 500;
-  const rng = seededRandom(42);
-  const CX = 2800, CY = 2800; // center of the web
-
-  // Place quests in concentriç spiral rings
-  const quests = [];
-
-  // Quest 0 at dead center
-  quests.push({ id: 0, name: all[0].name, desc: all[0].desc, sp: all[0].sp, shape: all[0].shape, x: CX, y: CY });
-
-  // Spiral placement: golden-angle based
-  const goldenAngle = 137.508 * (Math.PI / 180);
-  for (let i = 1; i < count; i++) {
-    const angle = i * goldenAngle;
-    // Radius grows with sqrt for even distribution, with perturbation
-    const baseR = 38 * Math.sqrt(i);
-    const jitter = (rng() - 0.5) * 22;
-    const r = baseR + jitter;
-    const x = CX + r * Math.cos(angle);
-    const y = CY + r * Math.sin(angle);
-    quests.push({
-      id: i, name: all[i].name, desc: all[i].desc,
-      sp: all[i].sp, shape: all[i].shape, x, y,
-    });
-  }
-
-  // Build spatial index for neighbor finding
-  const cellSize = 120;
-  const grid = {};
-  quests.forEach(q => {
-    const cx = Math.floor(q.x / cellSize);
-    const cy = Math.floor(q.y / cellSize);
-    const key = `${cx},${cy}`;
-    if (!grid[key]) grid[key] = [];
-    grid[key].push(q.id);
-  });
-
-  const getNearbyCells = (x, y) => {
-    const cx = Math.floor(x / cellSize);
-    const cy = Math.floor(y / cellSize);
-    const ids = [];
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dy = -1; dy <= 1; dy++) {
-        const k = `${cx + dx},${cy + dy}`;
-        if (grid[k]) ids.push(...grid[k]);
-      }
-    }
-    return ids;
-  };
-
-  // Generate connections - multiple layers for complexity
   const connections = [];
   const connSet = new Set();
   const addConn = (a, b) => {
     if (a === b) return;
     const mn = Math.min(a, b), mx = Math.max(a, b);
     const key = `${mn}-${mx}`;
-    if (!connSet.has(key)) {
-      connSet.add(key);
-      connections.push({ from: mn, to: mx });
-    }
+    if (!connSet.has(key)) { connSet.add(key); connections.push({ from: mn, to: mx }); }
   };
 
-  // Layer 1: Nearest neighbors (spatial proximity) - creates the dense web
-  quests.forEach(q => {
-    const nearby = getNearbyCells(q.x, q.y);
-    const dists = nearby
-      .filter(id => id !== q.id)
-      .map(id => ({ id, d: Math.hypot(quests[id].x - q.x, quests[id].y - q.y) }))
-      .sort((a, b) => a.d - b.d);
-    // Connect to 3-5 nearest
-    const maxN = 3 + Math.floor(rng() * 3);
-    for (let j = 0; j < Math.min(maxN, dists.length); j++) {
-      if (dists[j].d < 200) addConn(q.id, dists[j].id);
+  const padTemplates = [
+    { name: 'Gizemli Görev', desc: 'Bu görevi keşfet', shape: 'circle' },
+    { name: 'Gizli Yol', desc: 'Gizli bir yol bul', shape: 'square' },
+    { name: 'Karanlik Orman', desc: 'Karanlik ormandan gec', shape: 'triangle' },
+    { name: 'Altin Kapi', desc: 'Altin kapiyi ac', shape: 'star' },
+  ];
+
+  const quests = [];
+  let currentY = MARGIN;
+  const chainBoundaries = []; // { firstId, lastId }
+
+  Object.values(QUEST_CHAINS).forEach((chain, chainIdx) => {
+    // Pad chain to make complete rows
+    const chainItems = [...chain];
+    let padI = 0;
+    while (chainItems.length < Math.ceil(chainItems.length / COLS) * COLS) {
+      const t = padTemplates[padI % padTemplates.length];
+      chainItems.push({ ...t });
+      padI++;
     }
+
+    const firstId = quests.length;
+    let localRow = 0;
+    let dir = 1; // 1=right, -1=left
+    let localCol = 0;
+
+    chainItems.forEach((q) => {
+      const col = dir > 0 ? localCol : (COLS - 1 - localCol);
+      const x = MARGIN + col * CELL;
+      const y = currentY + localRow * CELL;
+      quests.push({
+        id: quests.length,
+        name: q.name, desc: q.desc,
+        sp: SP_VALUES[q.shape] || 20,
+        shape: q.shape,
+        x, y,
+      });
+
+      localCol++;
+      if (localCol >= COLS) {
+        localCol = 0;
+        localRow++;
+        dir *= -1;
+      }
+    });
+
+    const lastId = quests.length - 1;
+    chainBoundaries.push({ firstId, lastId });
+
+    // Connect sequential quests within chain
+    for (let i = firstId; i < lastId; i++) addConn(i, i + 1);
+
+    // Advance Y for next chain
+    const rowsUsed = Math.ceil(chainItems.length / COLS);
+    currentY += rowsUsed * CELL + CHAIN_GAP;
   });
 
-  // Layer 2: Spiral sequence connections (creates spiral threads)
-  for (let i = 0; i < count - 1; i++) {
-    addConn(i, i + 1);
+  // Pad total to 500 if needed
+  while (quests.length < 500) {
+    const t = padTemplates[quests.length % padTemplates.length];
+    const prevQ = quests[quests.length - 1];
+    const newId = quests.length;
+    quests.push({
+      id: newId, name: `${t.name} ${Math.floor(newId / 4)}`,
+      desc: t.desc, sp: SP_VALUES[t.shape], shape: t.shape,
+      x: prevQ.x + CELL, y: prevQ.y,
+    });
+    addConn(newId - 1, newId);
   }
-  // Close spiral loops every N
-  for (let i = 0; i < count; i += 13) {
-    if (i + 13 < count) addConn(i, i + 13);
+  while (quests.length > 500) quests.pop();
+
+  // Connect chain ends to next chain starts (vertical connectors)
+  for (let i = 0; i < chainBoundaries.length - 1; i++) {
+    addConn(chainBoundaries[i].lastId, chainBoundaries[i + 1].firstId);
   }
 
-  // Layer 3: Radial spokes from center
-  for (let i = 1; i < count; i++) {
-    const dx = quests[i].x - CX, dy = quests[i].y - CY;
-    const dist = Math.hypot(dx, dy);
-    // Connect nodes at similar angles but different distances
-    if (i % 7 === 0) {
-      const targetDist = dist * 0.55;
-      let best = -1, bestDiff = Infinity;
-      for (let j = 0; j < count; j++) {
-        if (j === i) continue;
-        const d2 = Math.hypot(quests[j].x - CX, quests[j].y - CY);
-        const angle1 = Math.atan2(dy, dx);
-        const angle2 = Math.atan2(quests[j].y - CY, quests[j].x - CX);
-        let angleDiff = Math.abs(angle1 - angle2);
-        if (angleDiff > Math.PI) angleDiff = 2 * Math.PI - angleDiff;
-        const diff = Math.abs(d2 - targetDist) + angleDiff * 200;
-        if (diff < bestDiff) { bestDiff = diff; best = j; }
-      }
-      if (best >= 0) addConn(i, best);
-    }
-  }
-
-  // Layer 4: Concentric ring connections
-  const ringQuests = quests.slice(1).map(q => ({
-    ...q,
-    dist: Math.hypot(q.x - CX, q.y - CY),
-    angle: Math.atan2(q.y - CY, q.x - CX),
-  }));
-  ringQuests.sort((a, b) => a.dist - b.dist);
-
-  const ringSize = 20;
-  for (let start = 0; start < ringQuests.length; start += ringSize) {
-    const ring = ringQuests.slice(start, Math.min(start + ringSize, ringQuests.length));
-    ring.sort((a, b) => a.angle - b.angle);
-    for (let j = 0; j < ring.length; j++) {
-      const next = (j + 1) % ring.length;
-      addConn(ring[j].id, ring[next].id);
-    }
-  }
-
-  // Layer 5: Long-range cross connections (creates the labyrinth feel)
-  for (let i = 0; i < count; i += 11) {
-    const target = (i + 37 + Math.floor(rng() * 50)) % count;
-    addConn(i, target);
-  }
-  for (let i = 0; i < count; i += 23) {
-    const target = (i + 97 + Math.floor(rng() * 80)) % count;
-    addConn(i, target);
-  }
-
-  // Layer 6: Hub connections from quest 0
-  for (let i = 1; i <= 20; i++) {
-    addConn(0, i);
+  // Add sparse cross-chain connections for maze feel
+  for (let i = 0; i < chainBoundaries.length - 1; i++) {
+    const curr = chainBoundaries[i];
+    const next = chainBoundaries[i + 1];
+    const currMid = Math.floor((curr.firstId + curr.lastId) / 2);
+    const nextMid = Math.floor((next.firstId + next.lastId) / 2);
+    addConn(currMid, nextMid);
+    // One more cross at 1/3 position
+    const curr3 = curr.firstId + Math.floor((curr.lastId - curr.firstId) / 3);
+    const next3 = next.firstId + Math.floor((next.lastId - next.firstId) / 3);
+    addConn(curr3, next3);
   }
 
   // Calculate bounds
   let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
   quests.forEach(q => {
-    if (q.x < minX) minX = q.x;
-    if (q.x > maxX) maxX = q.x;
-    if (q.y < minY) minY = q.y;
-    if (q.y > maxY) maxY = q.y;
+    minX = Math.min(minX, q.x); maxX = Math.max(maxX, q.x);
+    minY = Math.min(minY, q.y); maxY = Math.max(maxY, q.y);
   });
+
+  const CX = (minX + maxX) / 2;
+  const CY = (minY + maxY) / 2;
 
   return {
     quests, connections,
-    totalWidth: maxX - minX + 400,
-    totalHeight: maxY - minY + 400,
+    totalWidth: maxX - minX + MARGIN * 2,
+    totalHeight: maxY - minY + MARGIN * 2,
     centerX: CX,
     centerY: CY,
+    mapMinX: minX - MARGIN,
+    mapMinY: minY - MARGIN,
+    mapMaxX: maxX + MARGIN,
+    mapMaxY: maxY + MARGIN,
   };
 }
 
