@@ -35,6 +35,12 @@ const PAGE_SIZES = [
   { name: 'Square', width: 600, height: 600 },
 ];
 
+const ZetaIcon = ({ size = 14, color = '#4ca8ad' }) => (
+  <svg width={size} height={size} viewBox="0 0 119.3 121.6" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path fill={color} d="M100,121.7H.4v-35.6L77.3,28.1H3.6C3.6,12.6,14.1,0,27.2,0h92.4v30l-84,63.6h2.2l80.8.4v7.6c0,11.1-8.3,20.1-18.6,20.1h0Z"/>
+  </svg>
+);
+
 const Dashboard = () => {
   const { user, logout, updateUser } = useAuth();
   const { t, language, changeLanguage } = useLanguage();
@@ -95,6 +101,7 @@ const Dashboard = () => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [openMenuNoteId, setOpenMenuNoteId] = useState(null);
+  const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState(null);
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
   const [editEmail, setEditEmail] = useState('');
@@ -617,15 +624,23 @@ Devam etmek istiyor musunuz?`;
     navigate('/login');
   };
 
-  const NOTE_MENU = (note) => [
-    { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { deleteNote(note.note_id); setOpenMenuNoteId(null); } },
-    { icon: <FileEdit className="h-4 w-4" />, label: 'Düzenle', action: () => { setEditingNoteId(note.note_id); setEditingNoteContent(note.content); setOpenMenuNoteId(null); } },
-    { icon: <Copy className="h-4 w-4" />, label: 'Kopyala', action: () => { navigator.clipboard.writeText(note.content); setOpenMenuNoteId(null); } },
-    { icon: <ArrowDown className="h-4 w-4" />, label: 'Alta gönder', action: () => { moveNote(note.note_id, 'bottom'); setOpenMenuNoteId(null); } },
-    { icon: <Sparkles className="h-4 w-4" style={{ color: '#4ca8ad' }} />, label: 'Zeta Analiz', action: () => analyzeWithZeta(note) },
-    { icon: <ArrowUp className="h-4 w-4" />, label: 'Üste çıkar', action: () => { moveNote(note.note_id, 'top'); setOpenMenuNoteId(null); } },
-    { icon: <Pin className="h-4 w-4" style={{ color: note.pinned ? '#f59e0b' : 'inherit' }} />, label: note.pinned ? 'Sabiti kaldır' : 'Sabitle', action: () => { pinNote(note); setOpenMenuNoteId(null); } },
-  ];
+  const visibleNotes = [...notes.filter(n => !n.notebook_id && (!searchQuery || n.content.toLowerCase().includes(searchQuery.toLowerCase())))]
+    .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+  const NOTE_MENU = (note) => {
+    const idx = visibleNotes.findIndex(n => n.note_id === note.note_id);
+    const isFirst = idx === 0;
+    const isLast = idx === visibleNotes.length - 1;
+    return [
+      { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { setConfirmDeleteNoteId(note.note_id); setOpenMenuNoteId(null); } },
+      { icon: <FileEdit className="h-4 w-4" />, label: 'Düzenle', action: () => { setEditingNoteId(note.note_id); setEditingNoteContent(note.content); setOpenMenuNoteId(null); } },
+      { icon: <Copy className="h-4 w-4" />, label: 'Kopyala', action: () => { navigator.clipboard.writeText(note.content); setOpenMenuNoteId(null); } },
+      { icon: <ArrowDown className="h-4 w-4" />, label: 'Alta gönder', disabled: isLast, action: () => { if (!isLast) { moveNote(note.note_id, 'bottom'); setOpenMenuNoteId(null); } } },
+      { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: 'Zeta Özet', action: () => analyzeWithZeta(note) },
+      { icon: <ArrowUp className="h-4 w-4" />, label: 'Üste çıkar', disabled: isFirst, action: () => { if (!isFirst) { moveNote(note.note_id, 'top'); setOpenMenuNoteId(null); } } },
+      { icon: <Pin className="h-4 w-4" style={{ color: note.pinned ? '#f59e0b' : 'inherit' }} />, label: note.pinned ? 'Sabiti kaldır' : 'Sabitle', action: () => { pinNote(note); setOpenMenuNoteId(null); } },
+    ];
+  };
 
   const renderNoteCard = (note) => (
     <div
@@ -678,7 +693,7 @@ Devam etmek istiyor musunuz?`;
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
-                    <span className="text-xs font-medium" style={{ color: '#4ca8ad' }}>⚡ ZETA Analiz</span>
+                    <span className="flex items-center gap-1 text-xs font-medium" style={{ color: '#4ca8ad' }}><ZetaIcon size={12} color="#4ca8ad" /> ZETA Özet</span>
                     <button onClick={() => setZetaAnalysis({ noteId: null, loading: false, result: null })} className="p-0.5 rounded hover:bg-white/10">
                       <X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
                     </button>
@@ -707,8 +722,13 @@ Devam etmek istiyor musunuz?`;
                 <button
                   key={item.label}
                   onClick={item.action}
-                  className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-white/5 transition-all text-left"
-                  style={{ color: item.color || 'var(--zet-text)' }}
+                  disabled={item.disabled}
+                  className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left"
+                  style={{
+                    color: item.disabled ? 'var(--zet-text-muted)' : (item.color || 'var(--zet-text)'),
+                    opacity: item.disabled ? 0.4 : 1,
+                    cursor: item.disabled ? 'not-allowed' : 'pointer',
+                  }}
                 >
                   {item.icon}
                   {item.label}
@@ -1185,9 +1205,7 @@ Devam etmek istiyor musunuz?`;
               ))}
 
               {/* Düz notlar (notebook_id yok) — sabitliler önce */}
-              {[...notes.filter(n => !n.notebook_id && (!searchQuery || n.content.toLowerCase().includes(searchQuery.toLowerCase())))]
-                .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0))
-                .map(note => renderNoteCard(note))}
+              {visibleNotes.map(note => renderNoteCard(note))}
 
               {notebooks.length === 0 && notes.filter(n => !n.notebook_id).length === 0 && (
                 <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
@@ -1237,6 +1255,40 @@ Devam etmek istiyor musunuz?`;
           </button>
         </div>
       </div>
+
+      {/* Delete Note Confirmation */}
+      {confirmDeleteNoteId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmDeleteNoteId(null)}>
+          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
+            style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
+              </div>
+              <div>
+                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>Notu sil</p>
+                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Bu işlem geri alınamaz.</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteNoteId(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
+                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => { deleteNote(confirmDeleteNoteId); setConfirmDeleteNoteId(null); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
+              >
+                Evet, sil
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* In-app Alarm Notifications */}
       {firedAlarms.length > 0 && (
