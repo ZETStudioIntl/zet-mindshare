@@ -142,7 +142,7 @@ const QuestMap = () => {
   const [completed, setCompleted] = useState(new Set());
   const [sp, setSp] = useState(0);
   const [vp, setVp] = useState({ x: 0, y: 0, z: 0.35 });
-  const [rankUpModal, setRankUpModal] = useState(null); // { newRank, oldRank }
+  const [rankUpModal, setRankUpModal] = useState(null);
   const [drag, setDrag] = useState(false);
   const [dragO, setDragO] = useState({ x: 0, y: 0 });
   const [selected, setSelected] = useState(null);
@@ -156,6 +156,7 @@ const QuestMap = () => {
   const selR = useRef(selected); selR.current = selected;
   const searchR = useRef(search); searchR.current = search;
   const adjRef = useRef(new Map());
+  const visR = useRef(new Set([0]));
 
   useEffect(() => {
     const d = generateQuestMap();
@@ -186,6 +187,31 @@ const QuestMap = () => {
       .then(r => { setCompleted(new Set(r.data.completed_quests || [])); setSp(r.data.quest_xp || 0); })
       .catch(() => {});
   }, []);
+
+  // Compute visible set: BFS up to FOG_RADIUS hops from every completed quest (or quest 0)
+  const FOG_RADIUS = 10;
+  useEffect(() => {
+    const adj = adjRef.current;
+    const vis = new Set();
+    const queue = [];
+    const seeds = completed.size > 0 ? [...completed] : [0];
+    seeds.forEach(id => { vis.add(id); queue.push({ id, depth: 0 }); });
+    // Also always seed quest 0
+    if (!vis.has(0)) { vis.add(0); queue.push({ id: 0, depth: 0 }); }
+    let head = 0;
+    while (head < queue.length) {
+      const { id, depth } = queue[head++];
+      if (depth >= FOG_RADIUS) continue;
+      const neighbors = adj.get(id) || [];
+      for (const nb of neighbors) {
+        if (!vis.has(nb)) {
+          vis.add(nb);
+          queue.push({ id: nb, depth: depth + 1 });
+        }
+      }
+    }
+    visR.current = vis;
+  }, [completed]);
 
   const isUnlocked = useCallback((qid) => {
     if (qid === 0) return true;
@@ -326,6 +352,44 @@ const QuestMap = () => {
       }
       ctx.globalAlpha = 1;
     });
+
+    // === FOG OF WAR ===
+    // Draw fog over every node NOT in visible set
+    const vis = visR.current;
+    if (vis.size > 0) {
+      md.quests.forEach(q => {
+        if (q.x < vl - 60 || q.x > vr + 60 || q.y < vt - 60 || q.y > vb + 60) return;
+        if (vis.has(q.id)) return;
+        // Fog circle covering the node
+        const fogR = R + 20;
+        const grad = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, fogR);
+        grad.addColorStop(0, 'rgba(5,8,16,0.97)');
+        grad.addColorStop(0.6, 'rgba(5,8,16,0.92)');
+        grad.addColorStop(1, 'rgba(5,8,16,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, fogR, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Solid fog fill pass — cover connections/labels in fogged areas
+      md.quests.forEach(q => {
+        if (q.x < vl - 60 || q.x > vr + 60 || q.y < vt - 60 || q.y > vb + 60) return;
+        if (vis.has(q.id)) return;
+        ctx.fillStyle = BG;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, R + 4, 0, Math.PI * 2);
+        ctx.fill();
+        // Fog node indicator (grey dot)
+        ctx.fillStyle = 'rgba(30,34,53,0.85)';
+        ctx.strokeStyle = 'rgba(40,45,70,0.6)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, R * 0.55, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+    }
 
     ctx.restore();
 
