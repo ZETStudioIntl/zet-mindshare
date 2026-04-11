@@ -312,84 +312,107 @@ const QuestMap = () => {
     const searchSet = new Set();
     if (sq) md.quests.forEach(q => { if (q.name.toLowerCase().includes(sq) || q.desc.toLowerCase().includes(sq)) searchSet.add(q.id); });
 
-    // Nodes
+    const vis = visR.current;
+
+    // Nodes — 3 states: foggy (not in vis) | locked (in vis, not unlocked) | visible
     md.quests.forEach(q => {
       if (q.x < vl || q.x > vr || q.y < vt || q.y > vb) return;
       const isDone = comp.has(q.id);
       const unlocked = isDone || isUnlocked(q.id);
+      const inVis = vis.size === 0 || vis.has(q.id);
+      const isFoggy = !inVis;
       const isHov = hov === q.id;
       const isSel = sel && sel.id === q.id;
       const isMatch = searchSet.size > 0 && searchSet.has(q.id);
+      const nr = (isHov || isSel) ? R + 4 : R;
 
       if (searchSet.size > 0 && !isMatch) ctx.globalAlpha = 0.06;
 
-      const c = isDone ? DONE_C : !unlocked ? LOCK_C : SHAPE_COLORS[q.shape] || SHAPE_COLORS.circle;
-      const nr = (isHov || isSel) ? R + 4 : R;
+      if (isFoggy) {
+        // --- FOGGY: draw shape dimly, then fog overlay ---
+        const dimC = {
+          fill: 'rgba(10,14,28,0.7)',
+          stroke: 'rgba(40,50,80,0.5)',
+          glow: 'none',
+        };
+        ctx.globalAlpha = 0.35;
+        drawNode(ctx, q.shape, q.x, q.y, nr, dimC, false);
+        ctx.globalAlpha = 1;
 
-      drawNode(ctx, q.shape, q.x, q.y, nr, c, isHov || isSel);
+        // Fog radial overlay — denser in center
+        const fogR = nr + 18;
+        const fog = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, fogR);
+        fog.addColorStop(0,   'rgba(5,8,20,0.82)');
+        fog.addColorStop(0.5, 'rgba(10,14,30,0.65)');
+        fog.addColorStop(1,   'rgba(5,8,20,0)');
+        ctx.fillStyle = fog;
+        ctx.beginPath(); ctx.arc(q.x, q.y, fogR, 0, Math.PI * 2); ctx.fill();
 
-      if (isDone) drawCheck(ctx, q.x, q.y - 2);
-      else if (!unlocked) drawLock(ctx, q.x, q.y);
-      else {
-        ctx.fillStyle = c.stroke; ctx.font = 'bold 8px "DM Sans",sans-serif';
-        ctx.textAlign = 'center'; ctx.fillText(`${q.sp}`, q.x, q.y + 3);
+        // Faint "?" hint
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = '#94a3b8';
+        ctx.font = `bold ${Math.round(nr * 0.85)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', q.x, q.y);
+        ctx.textBaseline = 'alphabetic';
+        ctx.globalAlpha = 1;
+
+      } else if (!unlocked) {
+        // --- LOCKED: shape visible but greyed, "?" overlay ---
+        const lockedC = { fill: '#0d1120', stroke: '#2a3050', glow: 'none' };
+        drawNode(ctx, q.shape, q.x, q.y, nr, lockedC, false);
+        ctx.fillStyle = '#4a5580';
+        ctx.font = `bold ${Math.round(nr * 0.9)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('?', q.x, q.y);
+        ctx.textBaseline = 'alphabetic';
+
+        if (isHov || isSel) {
+          // tooltip-like hint above node
+          const tip = 'Bu görev henüz açılmadı';
+          ctx.font = '9px "DM Sans",sans-serif';
+          const tw = ctx.measureText(tip).width + 12;
+          ctx.fillStyle = 'rgba(10,14,30,0.92)';
+          ctx.strokeStyle = 'rgba(74,85,128,0.6)';
+          ctx.lineWidth = 0.8;
+          const tx = q.x - tw / 2, ty = q.y - nr - 24;
+          ctx.beginPath(); ctx.roundRect(tx, ty, tw, 16, 4); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#94a3b8';
+          ctx.textAlign = 'center';
+          ctx.fillText(tip, q.x, ty + 11);
+        }
+
+      } else {
+        // --- VISIBLE & UNLOCKED ---
+        const c = isDone ? DONE_C : SHAPE_COLORS[q.shape] || SHAPE_COLORS.circle;
+        drawNode(ctx, q.shape, q.x, q.y, nr, c, isHov || isSel);
+
+        if (isDone) drawCheck(ctx, q.x, q.y - 2);
+        else {
+          ctx.fillStyle = c.stroke; ctx.font = 'bold 8px "DM Sans",sans-serif';
+          ctx.textAlign = 'center'; ctx.fillText(`${q.sp}`, q.x, q.y + 3);
+        }
+
+        if (v.z > 0.3) {
+          ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
+          ctx.fillStyle = isDone ? '#86efac' : '#94a3b8';
+          ctx.fillText(q.name, q.x, q.y + R + 13);
+        }
+
+        if (isHov || isSel) {
+          ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(q.x, q.y, nr + 8, 0, Math.PI * 2); ctx.stroke();
+        }
       }
 
-      // Labels only when zoomed enough
-      if (v.z > 0.3) {
-        ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
-        ctx.fillStyle = isDone ? '#86efac' : unlocked ? '#94a3b8' : '#1e2235';
-        ctx.fillText(q.name, q.x, q.y + R + 13);
-      }
-
-      if (isHov || isSel) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.arc(q.x, q.y, nr + 8, 0, Math.PI * 2); ctx.stroke();
-      }
       if (isMatch) {
         ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2;
         ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(q.x, q.y, nr + 10, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
       }
       ctx.globalAlpha = 1;
     });
-
-    // === FOG OF WAR ===
-    // Draw fog over every node NOT in visible set
-    const vis = visR.current;
-    if (vis.size > 0) {
-      md.quests.forEach(q => {
-        if (q.x < vl - 60 || q.x > vr + 60 || q.y < vt - 60 || q.y > vb + 60) return;
-        if (vis.has(q.id)) return;
-        // Fog circle covering the node
-        const fogR = R + 20;
-        const grad = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, fogR);
-        grad.addColorStop(0, 'rgba(5,8,16,0.97)');
-        grad.addColorStop(0.6, 'rgba(5,8,16,0.92)');
-        grad.addColorStop(1, 'rgba(5,8,16,0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(q.x, q.y, fogR, 0, Math.PI * 2);
-        ctx.fill();
-      });
-
-      // Solid fog fill pass — cover connections/labels in fogged areas
-      md.quests.forEach(q => {
-        if (q.x < vl - 60 || q.x > vr + 60 || q.y < vt - 60 || q.y > vb + 60) return;
-        if (vis.has(q.id)) return;
-        ctx.fillStyle = BG;
-        ctx.beginPath();
-        ctx.arc(q.x, q.y, R + 4, 0, Math.PI * 2);
-        ctx.fill();
-        // Fog node indicator (grey dot)
-        ctx.fillStyle = 'rgba(30,34,53,0.85)';
-        ctx.strokeStyle = 'rgba(40,45,70,0.6)';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.arc(q.x, q.y, R * 0.55, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      });
-    }
 
     ctx.restore();
 
