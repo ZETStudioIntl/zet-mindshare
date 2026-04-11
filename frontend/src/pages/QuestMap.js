@@ -170,10 +170,17 @@ const QuestMap = () => {
     });
     adjRef.current = adj;
 
-    const cvs = canvasRef.current;
-    const cw = cvs ? cvs.clientWidth : 960;
-    const ch = cvs ? cvs.clientHeight : 600;
-    setVp({ z: 0.28, x: cw / 2 - d.centerX * 0.28, y: ch / 2 - d.centerY * 0.28 });
+    // Delay so canvas has its real size after layout
+    requestAnimationFrame(() => {
+      const cvs2 = canvasRef.current;
+      const cw = cvs2 ? cvs2.clientWidth : 1200;
+      const ch = cvs2 ? cvs2.clientHeight : 700;
+      // For horizontal map: fit vertically, start from left edge
+      const z = Math.max(0.25, Math.min(0.9, (ch - 80) / d.totalHeight));
+      const x = -(d.mapMinX ?? 0) * z + 60;
+      const y = ch / 2 - d.centerY * z;
+      setVp({ z, x, y });
+    });
 
     axios.get(`${API}/quests/progress`, { withCredentials: true })
       .then(r => { setCompleted(new Set(r.data.completed_quests || [])); setSp(r.data.quest_xp || 0); })

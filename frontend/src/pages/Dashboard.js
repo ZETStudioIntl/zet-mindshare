@@ -83,6 +83,7 @@ const Dashboard = () => {
   const [userSP, setUserSP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
+  const [showRankBadge, setShowRankBadge] = useState(() => localStorage.getItem('zet_show_rank') !== 'false');
   
   // New Settings states
   const [showAISettings, setShowAISettings] = useState(false);
@@ -801,9 +802,16 @@ Devam etmek istiyor musunuz?`;
             className="h-10 w-10"
           />
           <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
-          <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
-            <Award className="h-3 w-3" /> {currentRank.name}
-          </span>
+          {showRankBadge && (
+            <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
+              <Award className="h-3 w-3" /> {currentRank.name}
+            </span>
+          )}
+          {user?.name && (
+            <span className="hidden sm:block text-sm" style={{ color: 'var(--zet-text-muted)' }}>
+              Merhaba, <span style={{ color: 'var(--zet-text)', fontWeight: 500 }}>{user.name.split(' ')[0]}</span>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button 
@@ -1093,7 +1101,21 @@ Devam etmek istiyor musunuz?`;
                 const activeHours = activeTimeSeconds / 3600;
                 return (
                 <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('ranks')}</h2>
+                  <div className="flex items-center justify-between mb-6">
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>{t('ranks')}</h2>
+                    <button
+                      onClick={() => {
+                        const next = !showRankBadge;
+                        setShowRankBadge(next);
+                        localStorage.setItem('zet_show_rank', String(next));
+                      }}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
+                      style={{ background: showRankBadge ? `${currentRank.color}20` : 'rgba(255,255,255,0.06)', color: showRankBadge ? currentRank.color : 'var(--zet-text-muted)', border: `1px solid ${showRankBadge ? currentRank.color + '40' : 'transparent'}` }}
+                    >
+                      <Award className="h-3 w-3" />
+                      {showRankBadge ? 'Profilde göster ✓' : 'Profilde gizle'}
+                    </button>
+                  </div>
                   <div className="space-y-3">
                     {RANKS.map(r => {
                       const req = RANK_REQUIREMENTS[r.name];
