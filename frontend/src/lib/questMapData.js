@@ -459,11 +459,13 @@ const QUEST_CHAINS = {
 };
 
 export function generateQuestMap() {
-  // Grid-based "board game map" layout
+  // Horizontal "board game map" layout
+  // Each chain snakes vertically (down → up → down) in columns
+  // Chains placed side by side expanding to the right
   const CELL = 82;      // grid spacing
-  const COLS = 22;      // columns per row in a chain
+  const ROWS = 22;      // rows per column in a chain
   const MARGIN = 180;   // border margin
-  const CHAIN_GAP = 52; // extra vertical gap between chains
+  const CHAIN_GAP = 52; // horizontal gap between chains
 
   const connections = [];
   const connSet = new Set();
@@ -482,14 +484,14 @@ export function generateQuestMap() {
   ];
 
   const quests = [];
-  let currentY = MARGIN;
-  const chainBoundaries = []; // { firstId, lastId }
+  let currentX = MARGIN;
+  const chainBoundaries = [];
 
-  Object.values(QUEST_CHAINS).forEach((chain, chainIdx) => {
-    // Pad chain to make complete rows
+  Object.values(QUEST_CHAINS).forEach((chain) => {
+    // Pad chain to make complete columns
     const chainItems = [...chain];
     let padI = 0;
-    while (chainItems.length < Math.ceil(chainItems.length / COLS) * COLS) {
+    while (chainItems.length < Math.ceil(chainItems.length / ROWS) * ROWS) {
       const t = padTemplates[padI % padTemplates.length];
       chainItems.push({ ...t });
       padI++;
@@ -497,13 +499,13 @@ export function generateQuestMap() {
 
     const firstId = quests.length;
     let localRow = 0;
-    let dir = 1; // 1=right, -1=left
     let localCol = 0;
+    let dir = 1; // 1=down, -1=up
 
     chainItems.forEach((q) => {
-      const col = dir > 0 ? localCol : (COLS - 1 - localCol);
-      const x = MARGIN + col * CELL;
-      const y = currentY + localRow * CELL;
+      const row = dir > 0 ? localRow : (ROWS - 1 - localRow);
+      const x = currentX + localCol * CELL;
+      const y = MARGIN + row * CELL;
       quests.push({
         id: quests.length,
         name: q.name, desc: q.desc,
@@ -512,10 +514,10 @@ export function generateQuestMap() {
         x, y,
       });
 
-      localCol++;
-      if (localCol >= COLS) {
-        localCol = 0;
-        localRow++;
+      localRow++;
+      if (localRow >= ROWS) {
+        localRow = 0;
+        localCol++;
         dir *= -1;
       }
     });
@@ -526,13 +528,13 @@ export function generateQuestMap() {
     // Connect sequential quests within chain
     for (let i = firstId; i < lastId; i++) addConn(i, i + 1);
 
-    // Advance Y for next chain
-    const rowsUsed = Math.ceil(chainItems.length / COLS);
-    currentY += rowsUsed * CELL + CHAIN_GAP;
+    // Advance X for next chain
+    const colsUsed = Math.ceil(chainItems.length / ROWS);
+    currentX += colsUsed * CELL + CHAIN_GAP;
   });
 
-  // Pad total to 500 if needed
-  while (quests.length < 500) {
+  // Pad total to 2000 if needed (extend horizontally from last quest)
+  while (quests.length < 2000) {
     const t = padTemplates[quests.length % padTemplates.length];
     const prevQ = quests[quests.length - 1];
     const newId = quests.length;
@@ -543,9 +545,9 @@ export function generateQuestMap() {
     });
     addConn(newId - 1, newId);
   }
-  while (quests.length > 500) quests.pop();
+  while (quests.length > 2000) quests.pop();
 
-  // Connect chain ends to next chain starts (vertical connectors)
+  // Connect chain ends to next chain starts (horizontal connectors)
   for (let i = 0; i < chainBoundaries.length - 1; i++) {
     addConn(chainBoundaries[i].lastId, chainBoundaries[i + 1].firstId);
   }
@@ -557,7 +559,6 @@ export function generateQuestMap() {
     const currMid = Math.floor((curr.firstId + curr.lastId) / 2);
     const nextMid = Math.floor((next.firstId + next.lastId) / 2);
     addConn(currMid, nextMid);
-    // One more cross at 1/3 position
     const curr3 = curr.firstId + Math.floor((curr.lastId - curr.firstId) / 3);
     const next3 = next.firstId + Math.floor((next.lastId - next.firstId) / 3);
     addConn(curr3, next3);
