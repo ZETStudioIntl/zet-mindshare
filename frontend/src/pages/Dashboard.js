@@ -1004,17 +1004,50 @@ Devam etmek istiyor musunuz?`;
                         placeholder="Adınız"
                       />
                     </div>
-                    {/* E-posta (readonly) */}
-                    <div>
-                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta</label>
-                      <input
-                        type="email"
-                        value={user?.email || ''}
-                        className="zet-input w-full opacity-50 cursor-not-allowed"
-                        disabled
-                      />
-                      <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta değiştirilemez</p>
-                    </div>
+                    {/* E-posta değiştir */}
+                    {(() => {
+                      const [newEmail, setNewEmail] = React.useState('');
+                      const [emailSending, setEmailSending] = React.useState(false);
+                      const [emailSent, setEmailSent] = React.useState(false);
+                      return (
+                        <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="flex items-center justify-between">
+                            <label className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>E-posta</label>
+                            <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(76,168,173,0.15)', color: '#4ca8ad' }}>Mevcut: {user?.email}</span>
+                          </div>
+                          {emailSent ? (
+                            <p className="text-sm text-green-400">✅ Onay e-postası gönderildi. Gelen kutunuzu kontrol edin.</p>
+                          ) : (
+                            <>
+                              <input
+                                type="email"
+                                value={newEmail}
+                                onChange={e => setNewEmail(e.target.value)}
+                                className="zet-input w-full"
+                                placeholder="Yeni e-posta adresi"
+                              />
+                              <button
+                                disabled={emailSending || !newEmail || newEmail === user?.email}
+                                onClick={async () => {
+                                  setEmailSending(true);
+                                  try {
+                                    await axios.post(`${API}/auth/change-email/request`, { new_email: newEmail }, { withCredentials: true });
+                                    setEmailSent(true);
+                                  } catch (err) {
+                                    alert(err.response?.data?.detail || 'Bir hata oluştu');
+                                  }
+                                  setEmailSending(false);
+                                }}
+                                className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40"
+                                style={{ background: 'var(--zet-primary)', color: '#fff' }}
+                              >
+                                {emailSending ? 'Gönderiliyor...' : 'Onay E-postası Gönder'}
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {/* Kaydet */}
                     <button
                       disabled={uploadingPhoto}

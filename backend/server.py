@@ -451,6 +451,61 @@ async def upload_profile_picture(req: ProfilePictureUpload, user: User = Depends
     )
     return {"message": "Profile picture updated", "picture_url": image_data}
 
+class EmailChangeRequest(BaseModel):
+    new_email: str
+
+@api_router.post("/auth/change-email/request")
+async def request_email_change(req: EmailChangeRequest, user: User = Depends(get_current_user)):
+    new_email = req.new_email.strip().lower()
+    if not new_email or "@" not in new_email:
+        raise HTTPException(status_code=400, detail="Geçersiz e-posta adresi")
+    # Check if already in use
+    existing = await db.users.find_one({"email": new_email})
+    if existing:
+        raise HTTPException(status_code=409, detail="Bu e-posta adresi zaten kullanılıyor")
+    token = uuid.uuid4().hex
+    expires_at = datetime.now(timezone.utc).timestamp() + 3600  # 1 hour
+    await db.email_change_tokens.insert_one({
+        "user_id": user.user_id,
+        "new_email": new_email,
+        "token": token,
+        "expires_at": expires_at,
+    })
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    confirm_url = f"{frontend_url}/confirm-email-change?token={token}"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #111827; color: #fff; border-radius: 12px;">
+        <h2 style="color: #4ca8ad; margin-bottom: 16px;">📧 E-posta Değiştirme Onayı</h2>
+        <p style="color: #d1d5db; margin-bottom: 8px;">Hesabınızın e-posta adresini değiştirmek istediniz.</p>
+        <p style="color: #d1d5db; margin-bottom: 20px;"><strong>Yeni e-posta:</strong> {new_email}</p>
+        <p style="color: #d1d5db; margin-bottom: 24px;">Bu isteği siz yapmadıysanız bu e-postayı görmezden gelebilirsiniz.</p>
+        <a href="{confirm_url}" style="display: inline-block; background: #4ca8ad; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px;">E-postayı Onayla</a>
+        <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Bu bağlantı 1 saat geçerlidir.</p>
+    </div>
+    """
+    await send_email(user.email, "📧 ZET Mindshare - E-posta Değiştirme Onayı", html_content)
+    return {"message": "Confirmation email sent"}
+
+@api_router.post("/auth/change-email/confirm")
+async def confirm_email_change(token: str = Body(..., embed=True)):
+    record = await db.email_change_tokens.find_one({"token": token})
+    if not record:
+        raise HTTPException(status_code=400, detail="Geçersiz veya süresi dolmuş bağlantı")
+    if datetime.now(timezone.utc).timestamp() > record["expires_at"]:
+        await db.email_change_tokens.delete_one({"token": token})
+        raise HTTPException(status_code=400, detail="Bağlantının süresi dolmuş")
+    # Double-check uniqueness at confirm time
+    existing = await db.users.find_one({"email": record["new_email"]})
+    if existing:
+        await db.email_change_tokens.delete_one({"token": token})
+        raise HTTPException(status_code=409, detail="Bu e-posta adresi artık kullanılıyor")
+    await db.users.update_one(
+        {"user_id": record["user_id"]},
+        {"$set": {"email": record["new_email"]}}
+    )
+    await db.email_change_tokens.delete_one({"token": token})
+    return {"message": "Email updated", "new_email": record["new_email"]}
+
 @api_router.post("/auth/logout")
 async def logout(request: Request, response: Response):
     session_token = request.cookies.get("session_token")
