@@ -326,6 +326,8 @@ const Dashboard = () => {
     due.forEach(n => {
       setNotes(prev => prev.map(note => note.note_id === n.note_id ? { ...note, reminder_sent: true } : note));
       axios.put(`${API}/notes/${n.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
+      // Browser / in-app notification
+      showNotification('🔔 ZET Hatırlatıcı', n.content?.slice(0, 100) || 'Bir hatırlatıcınız var');
     });
   }, [notes, alarmTick]);
 
@@ -662,8 +664,19 @@ Devam etmek istiyor musunuz?`;
   );
 
   const handleLogout = async () => {
+    if (!window.confirm('Oturumu kapatmak istediğinizden emin misiniz?')) return;
     await logout();
     navigate('/login');
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Hesabınızı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz. Tüm notlarınız ve verileriniz kalıcı olarak silinecektir.')) return;
+    try {
+      await axios.post(`${API}/auth/delete-account/request`, {}, { withCredentials: true });
+      alert('Onay e-postası gönderildi. E-postanızdaki bağlantıya tıklayarak hesabınızı silebilirsiniz.');
+    } catch {
+      alert('Bir hata oluştu. Lütfen tekrar deneyin.');
+    }
   };
 
   const visibleNotes = [...notes.filter(n => !n.notebook_id && (!searchQuery || n.content.toLowerCase().includes(searchQuery.toLowerCase())))]
@@ -880,6 +893,9 @@ Devam etmek istiyor musunuz?`;
                 <button onClick={handleLogout} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-red-400 hover:bg-red-500/10 transition-all" data-testid="logout-btn">
                   <LogOut className="h-4 w-4" /> {t('logoutBtn')}
                 </button>
+                <button onClick={handleDeleteAccount} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-500/10 transition-all mt-0.5">
+                  <Trash2 className="h-4 w-4" /> Hesabı Sil
+                </button>
               </div>
             </div>
 
@@ -934,7 +950,7 @@ Devam etmek istiyor musunuz?`;
                     <div className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)' }}>
                       <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan')}</span>
                       <span className="font-bold text-lg" style={{ color: userSubscription === 'ultra' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
-                        {userSubscription.toUpperCase()}
+                        {userSubscription === 'ultra' ? 'ZET Creative Station' : userSubscription === 'free' ? 'Ücretsiz' : userSubscription.charAt(0).toUpperCase() + userSubscription.slice(1)}
                       </span>
                     </div>
                     {userSubscription !== 'free' && (

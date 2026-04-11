@@ -459,6 +459,51 @@ async def logout(request: Request, response: Response):
     response.delete_cookie(key="session_token", path="/")
     return {"message": "Logged out"}
 
+@api_router.post("/auth/delete-account/request")
+async def request_account_deletion(user: User = Depends(get_current_user)):
+    """Send a confirmation email with a deletion token."""
+    token = uuid.uuid4().hex
+    expires_at = (datetime.now(timezone.utc).timestamp() + 3600)  # 1 hour
+    await db.deletion_tokens.insert_one({
+        "user_id": user.user_id,
+        "token": token,
+        "expires_at": expires_at,
+    })
+    frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    confirm_url = f"{frontend_url}/confirm-delete?token={token}"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #111827; color: #fff; border-radius: 12px;">
+        <h2 style="color: #ef4444; margin-bottom: 16px;">⚠️ Hesap Silme Onayı</h2>
+        <p style="color: #d1d5db; margin-bottom: 20px;">Hesabınızı silmek istediğinizi aldık. Bu işlem <strong>geri alınamaz</strong>. Tüm notlarınız, dokümanlarınız ve verileriniz kalıcı olarak silinecektir.</p>
+        <p style="color: #d1d5db; margin-bottom: 24px;">Bu isteği siz yapmadıysanız bu e-postayı görmezden gelebilirsiniz.</p>
+        <a href="{confirm_url}" style="display: inline-block; background: #ef4444; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px;">Hesabı Kalıcı Olarak Sil</a>
+        <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Bu bağlantı 1 saat geçerlidir.</p>
+    </div>
+    """
+    await send_email(user.email, "⚠️ ZET Mindshare - Hesap Silme Onayı", html_content)
+    return {"message": "Confirmation email sent"}
+
+@api_router.post("/auth/delete-account/confirm")
+async def confirm_account_deletion(token: str = Body(..., embed=True), response: Response = None):
+    """Confirm deletion using the token from email."""
+    record = await db.deletion_tokens.find_one({"token": token})
+    if not record:
+        raise HTTPException(status_code=400, detail="Geçersiz veya süresi dolmuş bağlantı")
+    if datetime.now(timezone.utc).timestamp() > record["expires_at"]:
+        await db.deletion_tokens.delete_one({"token": token})
+        raise HTTPException(status_code=400, detail="Bağlantının süresi dolmuş")
+    user_id = record["user_id"]
+    # Delete all user data
+    await db.users.delete_one({"user_id": user_id})
+    await db.user_sessions.delete_many({"user_id": user_id})
+    await db.quick_notes.delete_many({"user_id": user_id})
+    await db.documents.delete_many({"user_id": user_id})
+    await db.notebooks.delete_many({"user_id": user_id})
+    await db.deletion_tokens.delete_one({"token": token})
+    if response:
+        response.delete_cookie(key="session_token", path="/")
+    return {"message": "Account deleted"}
+
 # ============ EMAIL AUTH ROUTES ============
 
 @api_router.post("/auth/register")
@@ -810,22 +855,6 @@ async def get_due_reminders(utc_offset: int = 0, user: User = Depends(get_curren
 
 @api_router.put("/notes/{note_id}/reminder-sent")
 async def mark_reminder_sent(note_id: str, user: User = Depends(get_current_user)):
-    # Get the note content
-    note = await db.quick_notes.find_one({"note_id": note_id, "user_id": user.user_id}, {"_id": 0})
-    if note:
-        # Send email notification
-        html_content = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
-            <h2 style="color: #4ca8ad; margin-bottom: 20px;">🔔 ZET Mindshare Hatırlatıcı</h2>
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-                <p style="margin: 0; font-size: 16px;">{note.get('content', '')}</p>
-            </div>
-            <p style="color: #888; font-size: 12px;">Bu e-posta, ayarladığınız hatırlatıcı için gönderilmiştir.</p>
-            <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 10px;">ZET Mindshare'i Aç</a>
-        </div>
-        """
-        await send_email(user.email, "🔔 ZET Mindshare Hatırlatıcı", html_content)
-    
     await db.quick_notes.update_one(
         {"note_id": note_id, "user_id": user.user_id},
         {"$set": {"reminder_sent": True}}

@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import QuestMap from "./pages/QuestMap";
 import SharedView from "./pages/SharedView";
+import ConfirmDelete from "./pages/ConfirmDelete";
 
 const AppRouter = () => {
   return (
@@ -32,6 +33,7 @@ const AppRouter = () => {
       } />
       <Route path="/auth-callback" element={<AuthCallback />} />
       <Route path="/shared/:shareId" element={<SharedView />} />
+      <Route path="/confirm-delete" element={<ConfirmDelete />} />
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
