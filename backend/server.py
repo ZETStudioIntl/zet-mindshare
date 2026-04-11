@@ -2551,14 +2551,39 @@ async def get_quest_progress(user: User = Depends(get_current_user)):
         "active_time_seconds": user_data.get("active_time_seconds", 0) if user_data else 0,
     }
 
+ISTANBUL_TZ_OFFSET = 3  # UTC+3
+
 @api_router.post("/users/heartbeat")
-async def user_heartbeat(user: User = Depends(get_current_user), seconds: int = Body(30, embed=True)):
+async def user_heartbeat(user: User = Depends(get_current_user)):
+    # Sunucu saatini kullan (İstanbul UTC+3) — client saatine güvenme
+    now_utc = datetime.now(timezone.utc)
+    now_istanbul = now_utc + timedelta(hours=ISTANBUL_TZ_OFFSET)
+
+    user_data = await users_collection.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "last_heartbeat": 1}
+    )
+    last_hb = user_data.get("last_heartbeat") if user_data else None
+
+    # Rate-limit: son heartbeat'ten en az 25 saniye geçmeli
+    if last_hb:
+        try:
+            last_dt = datetime.fromisoformat(last_hb.replace("Z", "+00:00"))
+            elapsed = (now_utc - last_dt).total_seconds()
+            if elapsed < 25:
+                return {"ok": False, "reason": "too_soon", "elapsed": round(elapsed)}
+        except Exception:
+            pass
+
     await users_collection.update_one(
         {"user_id": user.user_id},
-        {"$inc": {"active_time_seconds": seconds}},
+        {
+            "$inc": {"active_time_seconds": 30},
+            "$set": {"last_heartbeat": now_utc.isoformat()}
+        },
         upsert=True
     )
-    return {"ok": True}
+    return {"ok": True, "server_time_istanbul": now_istanbul.strftime("%H:%M:%S")}
 
 class QuestCompleteRequest(BaseModel):
     xp: int = 10

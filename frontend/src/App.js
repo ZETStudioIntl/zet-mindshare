@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import "@/index.css";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
-import { AuthProvider } from "./contexts/AuthContext";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import AuthCallback from "./components/AuthCallback";
 import ProtectedRoute from "./components/ProtectedRoute";
@@ -12,6 +12,46 @@ import QuestMap from "./pages/QuestMap";
 import SharedView from "./pages/SharedView";
 import ConfirmDelete from "./pages/ConfirmDelete";
 import ConfirmEmailChange from "./pages/ConfirmEmailChange";
+import axios from "axios";
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+// Global heartbeat — tüm sayfalarda çalışır, sunucu saatine göre rate-limited
+const GlobalHeartbeat = () => {
+  const { user } = useAuth();
+  const lastActivityRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (!user) return;
+
+    const INTERVAL = 30000;
+    const INACTIVE_LIMIT = 5 * 60 * 1000;
+
+    const onActivity = () => { lastActivityRef.current = Date.now(); };
+    document.addEventListener('mousemove', onActivity, { passive: true });
+    document.addEventListener('keydown', onActivity, { passive: true });
+    document.addEventListener('click', onActivity, { passive: true });
+    document.addEventListener('scroll', onActivity, { passive: true });
+
+    const sendHeartbeat = () => {
+      if (document.hidden) return;
+      const isActive = Date.now() - lastActivityRef.current < INACTIVE_LIMIT;
+      if (!isActive) return;
+      axios.post(`${API}/users/heartbeat`, {}, { withCredentials: true }).catch(() => {});
+    };
+
+    const id = setInterval(sendHeartbeat, INTERVAL);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('mousemove', onActivity);
+      document.removeEventListener('keydown', onActivity);
+      document.removeEventListener('click', onActivity);
+      document.removeEventListener('scroll', onActivity);
+    };
+  }, [user]);
+
+  return null;
+};
 
 const AppRouter = () => {
   return (
@@ -47,6 +87,7 @@ function App() {
     <LanguageProvider>
       <AuthProvider>
         <BrowserRouter>
+          <GlobalHeartbeat />
           <AppRouter />
         </BrowserRouter>
       </AuthProvider>
