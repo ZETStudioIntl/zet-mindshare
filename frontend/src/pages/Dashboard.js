@@ -156,9 +156,9 @@ const Dashboard = () => {
   const SUBSCRIPTION_PLANS = [
     {
       id: 'ultra',
-      name: 'Ultra',
-      monthlyPrice: 30,
-      yearlyPrice: 299.99,
+      name: 'ZET Creative Station',
+      monthlyPrice: 40,
+      yearlyPrice: 400,
       spCost: 50000,
       features: [
         '1200 Kredi/gün',
@@ -176,8 +176,8 @@ const Dashboard = () => {
     {
       id: 'pro',
       name: 'Pro',
-      monthlyPrice: 13,
-      yearlyPrice: 129.99,
+      monthlyPrice: 25,
+      yearlyPrice: 250,
       spCost: 30000,
       features: [
         '130 Kredi/gün',
@@ -195,8 +195,8 @@ const Dashboard = () => {
     {
       id: 'plus',
       name: 'Plus',
-      monthlyPrice: 5,
-      yearlyPrice: 49.99,
+      monthlyPrice: 10,
+      yearlyPrice: 100,
       spCost: 10000,
       features: [
         '40 Kredi/gün',
@@ -808,8 +808,8 @@ Devam etmek istiyor musunuz?`;
             </span>
           )}
           {user?.name && (
-            <span className="hidden sm:block text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-              Merhaba, <span style={{ color: 'var(--zet-text)', fontWeight: 500 }}>{user.name.split(' ')[0]}</span>
+            <span className="hidden sm:block" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.25rem', fontWeight: 700, color: '#4ca8ad', letterSpacing: '0.01em' }}>
+              Merhaba, {user.name.split(' ')[0]} 👋
             </span>
           )}
         </div>
@@ -1181,7 +1181,7 @@ Devam etmek istiyor musunuz?`;
                     <div className="flex rounded-lg p-1" style={{ background: 'var(--zet-bg)' }}>
                       <button onClick={() => setBillingCycle('monthly')} className="px-4 py-2 rounded-md text-sm font-medium transition-all" style={{ background: billingCycle === 'monthly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'monthly' ? 'white' : 'var(--zet-text-muted)' }}>{t('monthly')}</button>
                       <button onClick={() => setBillingCycle('yearly')} className="px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1" style={{ background: billingCycle === 'yearly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'yearly' ? 'white' : 'var(--zet-text-muted)' }}>
-                        {t('yearly')} <span className="text-xs px-1.5 py-0.5 rounded bg-green-500 text-white">-17%</span>
+                        {t('yearly')}
                       </button>
                     </div>
                   </div>
@@ -1195,16 +1195,25 @@ Devam etmek istiyor musunuz?`;
                     <div className="overflow-hidden">
                       <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentPlanIndex * 100}%)` }}>
                         {SUBSCRIPTION_PLANS.map((plan) => {
-                          const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
-                          const period = billingCycle === 'monthly' ? '/mo' : '/yr';
+                          const isYearly = billingCycle === 'yearly';
+                          const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
+                          const fullYearlyPrice = plan.monthlyPrice * 12;
+                          const period = isYearly ? '/yr' : '/mo';
                           return (
                             <div key={plan.id} className="w-full flex-shrink-0 px-2">
                               <div className={`relative rounded-2xl p-6 transition-all ${plan.recommended ? 'ring-2' : ''}`} style={{ background: `linear-gradient(135deg, ${plan.color}15 0%, ${plan.color}05 100%)`, border: `1px solid ${plan.color}30` }}>
                                 {plan.recommended && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>{t('recommended')}</div>}
                                 <div className="text-center mb-6 pt-2">
                                   <h3 className="text-2xl font-bold mb-2" style={{ color: plan.color }}>{plan.name}</h3>
-                                  <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{period}</span></div>
-                                  {billingCycle === 'yearly' && <p className="text-xs mt-1 text-green-400">{t('saveYearly')}</p>}
+                                  {isYearly ? (
+                                    <div className="flex flex-col items-center gap-0.5">
+                                      <span className="text-sm line-through" style={{ color: 'var(--zet-text-muted)' }}>${fullYearlyPrice}/yr</span>
+                                      <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>/yr</span></div>
+                                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">%{Math.round((1 - price / fullYearlyPrice) * 100)} tasarruf</span>
+                                    </div>
+                                  ) : (
+                                    <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>/mo</span></div>
+                                  )}
                                 </div>
                                 <ul className="space-y-3 mb-6">
                                   {plan.features.map((feature, fidx) => (<li key={fidx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}><Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />{feature}</li>))}
