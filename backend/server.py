@@ -49,6 +49,7 @@ class Document(BaseModel):
     doc_type: str = "document"
     content: dict = Field(default_factory=dict)
     pages: List[dict] = Field(default_factory=lambda: [{"page_id": "page_1", "content": {}}])
+    pinned: bool = False
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -69,6 +70,7 @@ class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[dict] = None
     pages: Optional[List[dict]] = None
+    pinned: Optional[bool] = None
 
 class QuickNote(BaseModel):
     note_id: str = Field(default_factory=lambda: f"note_{uuid.uuid4().hex[:12]}")
@@ -727,6 +729,7 @@ async def apple_auth_callback(request: Request, response: Response):
 @api_router.get("/documents", response_model=List[dict])
 async def get_documents(user: User = Depends(get_current_user)):
     docs = await db.documents.find({"user_id": user.user_id}, {"_id": 0}).to_list(100)
+    docs.sort(key=lambda d: (not d.get("pinned", False), d.get("updated_at", "")), reverse=False)
     return docs
 
 @api_router.post("/documents")

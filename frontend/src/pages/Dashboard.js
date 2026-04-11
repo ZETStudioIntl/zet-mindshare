@@ -108,8 +108,10 @@ const Dashboard = () => {
   const [openMenuDocId, setOpenMenuDocId] = useState(null);
   const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
+  const [confirmDeleteNotebookId, setConfirmDeleteNotebookId] = useState(null);
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [renamingDocTitle, setRenamingDocTitle] = useState('');
+  const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -642,6 +644,43 @@ Devam etmek istiyor musunuz?`;
       setRenamingDocTitle('');
     } catch (error) {
       console.error('Error renaming document:', error);
+    }
+  };
+
+  const pinDocument = async (doc) => {
+    const newPinned = !doc.pinned;
+    try {
+      await axios.put(`${API}/documents/${doc.doc_id}`, { pinned: newPinned }, { withCredentials: true });
+      setDocuments(prev => {
+        const updated = prev.map(d => d.doc_id === doc.doc_id ? { ...d, pinned: newPinned } : d);
+        return [...updated].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+      });
+    } catch (error) {
+      console.error('Error pinning document:', error);
+    }
+    setOpenMenuDocId(null);
+  };
+
+  const analyzeDocWithZeta = async (doc) => {
+    setZetaDocAnalysis({ docId: doc.doc_id, loading: true, result: null });
+    setOpenMenuDocId(null);
+    try {
+      const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
+      const pages = res.data.pages || [];
+      const text = pages.map(p => {
+        const ops = p.content?.ops || [];
+        return ops.map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
+      }).join('\n').trim();
+      if (!text) {
+        setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: 'Belge boş.' });
+        return;
+      }
+      const chatRes = await axios.post(`${API}/zeta/chat`, {
+        message: `Bu belgeyi kısaca özetle ve önemli noktaları belirt:\n\n${text.slice(0, 3000)}`
+      }, { withCredentials: true });
+      setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: chatRes.data.response });
+    } catch {
+      setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: 'Analiz başarısız oldu.' });
     }
   };
 
@@ -1423,13 +1462,14 @@ Devam etmek istiyor musunuz?`;
       <main className="flex-1 overflow-hidden flex flex-col p-4 w-full" style={{ maxWidth: 896, margin: '0 auto' }}>
         {/* Search */}
         <div className="relative mb-6">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none z-10" style={{ color: 'var(--zet-text-muted)' }} />
           <input
             type="text"
-            placeholder={t('searchDocuments')}
+            placeholder={activeTab === 'notes' ? t('searchNotes') : activeTab === 'media' ? t('searchMedia') : t('searchDocuments')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="zet-input pl-12"
+            className="zet-input"
+            style={{ paddingLeft: '2.75rem' }}
             data-testid="search-input"
           />
         </div>
@@ -1456,12 +1496,14 @@ Devam etmek istiyor musunuz?`;
               <div
                 key={doc.doc_id}
                 className="zet-card p-4 cursor-pointer group relative"
+                style={{ border: doc.pinned ? '1px solid rgba(245,158,11,0.4)' : undefined }}
                 onClick={() => { if (renamingDocId !== doc.doc_id) navigate(`/editor/${doc.doc_id}`); }}
                 data-testid={`doc-card-${doc.doc_id}`}
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center relative" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
                     <FileText className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                    {doc.pinned && <Pin className="h-3 w-3 absolute -top-1 -right-1" style={{ color: '#f59e0b' }} />}
                   </div>
                   <button
                     onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setDocMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuDocId(openMenuDocId === doc.doc_id ? null : doc.doc_id); }}
@@ -1492,6 +1534,24 @@ Devam etmek istiyor musunuz?`;
                   <Clock className="h-3 w-3" />
                   {formatTime(doc.updated_at || doc.created_at)}
                 </div>
+                {zetaDocAnalysis.docId === doc.doc_id && (
+                  <div className="mt-2 p-2 rounded-lg text-xs" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)' }} onClick={e => e.stopPropagation()}>
+                    {zetaDocAnalysis.loading ? (
+                      <div className="flex items-center gap-1" style={{ color: 'var(--zet-text-muted)' }}>
+                        <div className="w-2.5 h-2.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
+                        {t('analyzing')}
+                      </div>
+                    ) : (
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <span className="flex items-center gap-1 font-medium" style={{ color: '#4ca8ad' }}><ZetaIcon size={10} color="#4ca8ad" /> {t('zetaSummary')}</span>
+                          <button onClick={() => setZetaDocAnalysis({ docId: null, loading: false, result: null })} className="p-0.5 rounded hover:bg-white/10"><X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                        </div>
+                        <p className="whitespace-pre-wrap break-words" style={{ color: 'var(--zet-text)' }}>{zetaDocAnalysis.result}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
 
@@ -1502,10 +1562,12 @@ Devam etmek istiyor musunuz?`;
                 style={{ top: docMenuPos.top, right: docMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
                 onClick={e => e.stopPropagation()}
               >
-                {[
-                  { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { const doc = filteredDocs.find(d => d.doc_id === openMenuDocId); if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
+                {(() => { const doc = filteredDocs.find(d => d.doc_id === openMenuDocId); return [
+                  { icon: <Pin className="h-4 w-4" style={{ color: doc?.pinned ? '#f59e0b' : 'inherit' }} />, label: doc?.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { if (doc) pinDocument(doc); } },
+                  { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) analyzeDocWithZeta(doc); } },
+                  { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
                   { icon: <Trash2 className="h-4 w-4" />, label: t('noteMenuDelete'), color: '#ef4444', action: () => { setConfirmDeleteDocId(openMenuDocId); setOpenMenuDocId(null); } },
-                ].map(item => (
+                ]; })().map(item => (
                   <button
                     key={item.label}
                     onClick={item.action}
@@ -1677,7 +1739,7 @@ Devam etmek istiyor musunuz?`;
                   <div className="flex items-center gap-1">
                     <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
                     <button
-                      onClick={(e) => { e.stopPropagation(); deleteNotebook(nb.notebook_id); }}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteNotebookId(nb.notebook_id); }}
                       className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
                       data-testid={`delete-notebook-${nb.notebook_id}`}
                     >
@@ -1802,6 +1864,40 @@ Devam etmek istiyor musunuz?`;
               </button>
               <button
                 onClick={() => { deleteDocument(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
+              >
+                {t('yesDelete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Notebook Confirmation */}
+      {confirmDeleteNotebookId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmDeleteNotebookId(null)}>
+          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
+            style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
+              </div>
+              <div>
+                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>{t('deleteNotebook')}</p>
+                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cannotUndo')}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteNotebookId(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
+                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={() => { deleteNotebook(confirmDeleteNotebookId); setConfirmDeleteNotebookId(null); }}
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
                 style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
               >

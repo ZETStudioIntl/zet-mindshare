@@ -13,6 +13,9 @@ const translations = {
     
     // Dashboard
     searchDocuments: 'Search documents...',
+    searchNotes: 'Search notes...',
+    searchMedia: 'Search posts...',
+    deleteNotebook: 'Delete notebook',
     newDocument: 'New Document',
     documents: 'Documents',
     notes: 'Notes',
@@ -189,6 +192,9 @@ const translations = {
     
     // Dashboard
     searchDocuments: 'Belge ara...',
+    searchNotes: 'Not ara...',
+    searchMedia: 'Gönderi ara...',
+    deleteNotebook: 'Defteri sil',
     newDocument: 'Yeni Belge',
     documents: 'Belgeler',
     notes: 'Notlar',
