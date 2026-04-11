@@ -533,17 +533,41 @@ export function generateQuestMap() {
     currentX += colsUsed * CELL + CHAIN_GAP;
   });
 
-  // Pad total to 2000 if needed (extend horizontally from last quest)
-  while (quests.length < 2000) {
-    const t = padTemplates[quests.length % padTemplates.length];
-    const prevQ = quests[quests.length - 1];
-    const newId = quests.length;
-    quests.push({
-      id: newId, name: `${t.name} ${Math.floor(newId / 4)}`,
-      desc: t.desc, sp: SP_VALUES[t.shape], shape: t.shape,
-      x: prevQ.x + CELL, y: prevQ.y,
-    });
-    addConn(newId - 1, newId);
+  // Pad total to 2000 — continue snake column pattern from where chains left off
+  {
+    let padLocalRow = 0;
+    let padLocalCol = 0;
+    let padDir = 1;
+    const padFirstId = quests.length;
+
+    while (quests.length < 2000) {
+      const t = padTemplates[quests.length % padTemplates.length];
+      const newId = quests.length;
+      const row = padDir > 0 ? padLocalRow : (ROWS - 1 - padLocalRow);
+      const x = currentX + padLocalCol * CELL;
+      const y = MARGIN + row * CELL;
+      quests.push({
+        id: newId,
+        name: `${t.name} ${Math.floor(newId / 4)}`,
+        desc: t.desc,
+        sp: SP_VALUES[t.shape],
+        shape: t.shape,
+        x, y,
+      });
+      if (newId > padFirstId) addConn(newId - 1, newId);
+
+      padLocalRow++;
+      if (padLocalRow >= ROWS) {
+        padLocalRow = 0;
+        padLocalCol++;
+        padDir *= -1;
+      }
+    }
+    // Connect last real chain to pad section
+    if (chainBoundaries.length > 0) {
+      addConn(chainBoundaries[chainBoundaries.length - 1].lastId, padFirstId);
+    }
+    chainBoundaries.push({ firstId: padFirstId, lastId: quests.length - 1 });
   }
   while (quests.length > 2000) quests.pop();
 

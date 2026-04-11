@@ -170,18 +170,17 @@ const QuestMap = () => {
     });
     adjRef.current = adj;
 
-    // Wait for canvas to have real dimensions after layout
-    const initVp = () => {
+    // Init viewport after canvas has real size
+    const initVp = (mapData) => {
       const cvs2 = canvasRef.current;
-      const cw = (cvs2 && cvs2.clientWidth > 0) ? cvs2.clientWidth : window.innerWidth;
-      const ch = (cvs2 && cvs2.clientHeight > 0) ? cvs2.clientHeight : window.innerHeight - 120;
-      const z = Math.max(0.15, Math.min(0.9, (ch - 80) / d.totalHeight));
-      const x = -(d.mapMinX ?? 0) * z + 60;
-      const y = ch / 2 - d.centerY * z;
+      const cw = (cvs2 && cvs2.offsetWidth > 0) ? cvs2.offsetWidth : window.innerWidth;
+      const ch = (cvs2 && cvs2.offsetHeight > 0) ? cvs2.offsetHeight : window.innerHeight - 120;
+      const z = Math.max(0.15, Math.min(0.85, (ch - 80) / mapData.totalHeight));
+      const x = -(mapData.mapMinX ?? 0) * z + 80;
+      const y = ch / 2 - mapData.centerY * z;
       setVp({ z, x, y });
     };
-    // Try immediately, then retry after paint
-    setTimeout(initVp, 50);
+    setTimeout(() => initVp(d), 100);
 
     axios.get(`${API}/quests/progress`, { withCredentials: true })
       .then(r => { setCompleted(new Set(r.data.completed_quests || [])); setSp(r.data.quest_xp || 0); })
