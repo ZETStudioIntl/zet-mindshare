@@ -281,18 +281,37 @@ const Dashboard = () => {
     return () => clearInterval(i);
   }, []);
 
-  // Heartbeat: her 30sn aktif zamanı kaydet
+  // Heartbeat: sekme aktif + kullanıcı son 5dk içinde hareket ettiyse 30sn say
   useEffect(() => {
     const INTERVAL = 30000;
+    const INACTIVE_LIMIT = 5 * 60 * 1000; // 5 dakika
+    let lastActivity = Date.now();
+
+    const onActivity = () => { lastActivity = Date.now(); };
+    document.addEventListener('mousemove', onActivity, { passive: true });
+    document.addEventListener('keydown', onActivity, { passive: true });
+    document.addEventListener('click', onActivity, { passive: true });
+    document.addEventListener('scroll', onActivity, { passive: true });
+
     const sendHeartbeat = () => {
+      const isVisible = !document.hidden;
+      const isActive = Date.now() - lastActivity < INACTIVE_LIMIT;
+      if (!isVisible || !isActive) return;
       axios.post(`${API}/users/heartbeat`, { seconds: 30 }, { withCredentials: true })
         .then(res => {
           if (res.data?.ok) setActiveTimeSeconds(prev => prev + 30);
         })
         .catch(() => {});
     };
+
     const id = setInterval(sendHeartbeat, INTERVAL);
-    return () => clearInterval(id);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('mousemove', onActivity);
+      document.removeEventListener('keydown', onActivity);
+      document.removeEventListener('click', onActivity);
+      document.removeEventListener('scroll', onActivity);
+    };
   }, []);
 
   // notes veya tick değişince alarm kontrol et
