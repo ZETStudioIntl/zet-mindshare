@@ -103,7 +103,13 @@ const Dashboard = () => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [openMenuNoteId, setOpenMenuNoteId] = useState(null);
+  const [noteMenuPos, setNoteMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState(null);
+  const [openMenuDocId, setOpenMenuDocId] = useState(null);
+  const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
+  const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
+  const [renamingDocId, setRenamingDocId] = useState(null);
+  const [renamingDocTitle, setRenamingDocTitle] = useState('');
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -627,6 +633,18 @@ Devam etmek istiyor musunuz?`;
     }
   };
 
+  const renameDocument = async (docId, newTitle) => {
+    if (!newTitle.trim()) return;
+    try {
+      await axios.put(`${API}/documents/${docId}`, { title: newTitle.trim() }, { withCredentials: true });
+      setDocuments(docs => docs.map(d => d.doc_id === docId ? { ...d, title: newTitle.trim() } : d));
+      setRenamingDocId(null);
+      setRenamingDocTitle('');
+    } catch (error) {
+      console.error('Error renaming document:', error);
+    }
+  };
+
   const addQuickNote = async () => {
     if (!quickNote.trim()) return;
     try {
@@ -764,7 +782,7 @@ Devam etmek istiyor musunuz?`;
         </div>
         <div className="relative flex-shrink-0">
           <button
-            onClick={(e) => { e.stopPropagation(); setOpenMenuNoteId(openMenuNoteId === note.note_id ? null : note.note_id); }}
+            onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setNoteMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuNoteId(openMenuNoteId === note.note_id ? null : note.note_id); }}
             className="p-1 rounded hover:bg-white/10 transition-all"
             style={{ color: 'var(--zet-text-muted)' }}
           >
@@ -772,8 +790,8 @@ Devam etmek istiyor musunuz?`;
           </button>
           {openMenuNoteId === note.note_id && (
             <div
-              className="absolute right-0 top-7 z-50 py-1 rounded-xl min-w-[168px] animate-fadeIn"
-              style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+              className="fixed z-50 py-1 rounded-xl min-w-[168px] animate-fadeIn"
+              style={{ top: noteMenuPos.top, right: noteMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
               onClick={(e) => e.stopPropagation()}
             >
               {NOTE_MENU(note).map(item => (
@@ -1435,25 +1453,40 @@ Devam etmek istiyor musunuz?`;
 
             {/* Document Cards */}
             {filteredDocs.map(doc => (
-              <div 
-                key={doc.doc_id} 
+              <div
+                key={doc.doc_id}
                 className="zet-card p-4 cursor-pointer group relative"
-                onClick={() => navigate(`/editor/${doc.doc_id}`)}
+                onClick={() => { if (renamingDocId !== doc.doc_id) navigate(`/editor/${doc.doc_id}`); }}
                 data-testid={`doc-card-${doc.doc_id}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
                     <FileText className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
                   </div>
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); deleteDocument(doc.doc_id); }}
-                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                    data-testid={`delete-doc-${doc.doc_id}`}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setDocMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuDocId(openMenuDocId === doc.doc_id ? null : doc.doc_id); }}
+                    className="p-1 rounded hover:bg-white/10 transition-all"
+                    style={{ color: 'var(--zet-text-muted)' }}
+                    data-testid={`doc-menu-btn-${doc.doc_id}`}
                   >
-                    <Trash2 className="h-4 w-4 text-red-400" />
+                    <MoreVertical className="h-4 w-4" />
                   </button>
                 </div>
-                <h3 className="font-medium mb-1 truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</h3>
+                {renamingDocId === doc.doc_id ? (
+                  <div className="flex gap-1 mb-1" onClick={e => e.stopPropagation()}>
+                    <input
+                      className="zet-input flex-1 text-sm font-medium"
+                      value={renamingDocTitle}
+                      onChange={e => setRenamingDocTitle(e.target.value)}
+                      onKeyDown={e => { if (e.key === 'Enter') renameDocument(doc.doc_id, renamingDocTitle); if (e.key === 'Escape') { setRenamingDocId(null); setRenamingDocTitle(''); } }}
+                      autoFocus
+                    />
+                    <button onClick={() => renameDocument(doc.doc_id, renamingDocTitle)} className="p-1 rounded hover:bg-white/10"><Check className="h-4 w-4" style={{ color: '#22c55e' }} /></button>
+                    <button onClick={() => { setRenamingDocId(null); setRenamingDocTitle(''); }} className="p-1 rounded hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                  </div>
+                ) : (
+                  <h3 className="font-medium mb-1 truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</h3>
+                )}
                 <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('document')}</p>
                 <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}>
                   <Clock className="h-3 w-3" />
@@ -1461,6 +1494,30 @@ Devam etmek istiyor musunuz?`;
                 </div>
               </div>
             ))}
+
+            {/* Document menu dropdown (fixed, not clipped) */}
+            {openMenuDocId && (
+              <div
+                className="fixed z-50 py-1 rounded-xl min-w-[160px] animate-fadeIn"
+                style={{ top: docMenuPos.top, right: docMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+                onClick={e => e.stopPropagation()}
+              >
+                {[
+                  { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { const doc = filteredDocs.find(d => d.doc_id === openMenuDocId); if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
+                  { icon: <Trash2 className="h-4 w-4" />, label: t('noteMenuDelete'), color: '#ef4444', action: () => { setConfirmDeleteDocId(openMenuDocId); setOpenMenuDocId(null); } },
+                ].map(item => (
+                  <button
+                    key={item.label}
+                    onClick={item.action}
+                    className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5"
+                    style={{ color: item.color || 'var(--zet-text)' }}
+                  >
+                    {item.icon}
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         ) : activeNotebook ? (
           /* ── Defter İçi Görünüm ── */
@@ -1706,6 +1763,45 @@ Devam etmek istiyor musunuz?`;
               </button>
               <button
                 onClick={() => { deleteNote(confirmDeleteNoteId); setConfirmDeleteNoteId(null); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
+              >
+                {t('yesDelete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Backdrop to close floating menus */}
+      {(openMenuNoteId || openMenuDocId) && (
+        <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuNoteId(null); setOpenMenuDocId(null); }} />
+      )}
+
+      {/* Delete Document Confirmation */}
+      {confirmDeleteDocId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmDeleteDocId(null)}>
+          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
+            style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
+                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
+              </div>
+              <div>
+                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>{t('deleteNote')}</p>
+                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cannotUndo')}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmDeleteDocId(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
+                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
+              >
+                {t('cancel')}
+              </button>
+              <button
+                onClick={() => { deleteDocument(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
                 className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
                 style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
               >
