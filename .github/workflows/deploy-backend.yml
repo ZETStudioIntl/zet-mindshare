@@ -50,7 +50,7 @@ jobs:
             --region $REGION \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars MONGO_URL=${{ secrets.MONGO_URL }},DB_NAME=${{ secrets.DB_NAME }},GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }},RESEND_API_KEY=${{ secrets.RESEND_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }},STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }},JWT_SECRET=${{ secrets.JWT_SECRET }},SENDER_EMAIL=info@zetstudiointl.com \
+            --set-env-vars MONGO_URL=${{ secrets.MONGO_URL }},DB_NAME=${{ secrets.DB_NAME }},GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }},RESEND_API_KEY=${{ secrets.RESEND_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }},STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }},JWT_SECRET=${{ secrets.JWT_SECRET }},SENDER_EMAIL=info@zetstudiointl.com,FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
             --quiet
 
       - name: Show service URL
