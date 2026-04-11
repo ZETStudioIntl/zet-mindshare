@@ -113,6 +113,10 @@ const Dashboard = () => {
   const [renamingDocTitle, setRenamingDocTitle] = useState('');
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
   const [rankTab, setRankTab] = useState('requirements');
+  const [zetaSearch, setZetaSearch] = useState(false);
+  const [zetaSearchQuery, setZetaSearchQuery] = useState('');
+  const [zetaSearchLoading, setZetaSearchLoading] = useState(false);
+  const [zetaSearchResults, setZetaSearchResults] = useState(null);
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -663,6 +667,43 @@ Devam etmek istiyor musunuz?`;
     } catch {
       setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: 'Analiz başarısız oldu.' });
     }
+  };
+
+  const handleZetaSearch = async () => {
+    if (!zetaSearchQuery.trim()) return;
+    setZetaSearchLoading(true);
+    setZetaSearchResults(null);
+    try {
+      // Belgeler için içerik çek
+      let context = '';
+      if (activeTab === 'documents') {
+        // Tüm belgelerin başlıklarını ver, içerik için top 5'i çek
+        const titles = documents.map((d, i) => `[${i + 1}] "${d.title}" (id:${d.doc_id})`).join('\n');
+        // İlgili belgelerin içeriğini çek (paralel, max 8)
+        const topDocs = documents.slice(0, 8);
+        const contents = await Promise.allSettled(
+          topDocs.map(d => axios.get(`${API}/documents/${d.doc_id}`, { withCredentials: true }))
+        );
+        const docTexts = topDocs.map((d, i) => {
+          const res = contents[i];
+          if (res.status !== 'fulfilled') return '';
+          const pages = res.value.data.pages || [];
+          const text = pages.map(p => (p.content?.ops || []).map(op => typeof op.insert === 'string' ? op.insert : '').join('')).join(' ').trim().slice(0, 800);
+          return `[${i + 1}] "${d.title}": ${text}`;
+        }).filter(Boolean).join('\n\n');
+        context = `Kullanıcının belgeleri:\n${docTexts}\n\nTüm belge başlıkları:\n${titles}`;
+      } else {
+        // Notlar
+        const noteTexts = notes.slice(0, 30).map((n, i) => `[${i + 1}] "${n.content.slice(0, 200)}"`).join('\n');
+        context = `Kullanıcının notları:\n${noteTexts}`;
+      }
+      const prompt = `Kullanıcı şunu arıyor: "${zetaSearchQuery}"\n\n${context}\n\nYukarıdaki ${activeTab === 'documents' ? 'belgeler' : 'notlar'} arasında bu aramayla en çok eşleşen ${activeTab === 'documents' ? 'belgeleri' : 'notları'} bul. Kısa ve net cevap ver, hangi ${activeTab === 'documents' ? 'belge' : 'not'} ve neden eşleştiğini söyle.`;
+      const res = await axios.post(`${API}/zeta/chat`, { message: prompt }, { withCredentials: true });
+      setZetaSearchResults(res.data.response);
+    } catch {
+      setZetaSearchResults('Arama sırasında bir hata oluştu.');
+    }
+    setZetaSearchLoading(false);
   };
 
   const addQuickNote = async () => {
@@ -1501,17 +1542,76 @@ Devam etmek istiyor musunuz?`;
       {/* Main Content */}
       <main className="flex-1 overflow-hidden flex flex-col p-4 w-full" style={{ maxWidth: 896, margin: '0 auto' }}>
         {/* Search */}
-        <div className="relative mb-6">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none z-10" style={{ color: 'var(--zet-text-muted)' }} />
-          <input
-            type="text"
-            placeholder={activeTab === 'notes' ? t('searchNotes') : activeTab === 'media' ? t('searchMedia') : t('searchDocuments')}
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="zet-input"
-            style={{ paddingLeft: '2.75rem' }}
-            data-testid="search-input"
-          />
+        <div className="mb-6">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 pointer-events-none z-10" style={{ color: 'var(--zet-text-muted)' }} />
+              <input
+                type="text"
+                placeholder={activeTab === 'notes' ? t('searchNotes') : activeTab === 'media' ? t('searchMedia') : t('searchDocuments')}
+                value={zetaSearch ? zetaSearchQuery : searchQuery}
+                onChange={e => zetaSearch ? setZetaSearchQuery(e.target.value) : setSearchQuery(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && zetaSearch) handleZetaSearch(); }}
+                className="zet-input w-full"
+                style={{ paddingLeft: '2.75rem', paddingRight: zetaSearch ? '2.75rem' : undefined }}
+                data-testid="search-input"
+              />
+              {zetaSearch && zetaSearchQuery && (
+                <button onClick={() => { setZetaSearchQuery(''); setZetaSearchResults(null); }} className="absolute right-3 top-1/2 -translate-y-1/2 p-0.5 rounded hover:bg-white/10">
+                  <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                </button>
+              )}
+            </div>
+            {activeTab !== 'media' && (
+              <button
+                onClick={() => { setZetaSearch(v => !v); setZetaSearchQuery(''); setSearchQuery(''); setZetaSearchResults(null); }}
+                className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all flex-shrink-0"
+                style={{
+                  background: zetaSearch ? 'rgba(76,168,173,0.2)' : 'var(--zet-bg-card)',
+                  border: `1px solid ${zetaSearch ? 'rgba(76,168,173,0.6)' : 'var(--zet-border)'}`,
+                  color: zetaSearch ? '#4ca8ad' : 'var(--zet-text-muted)',
+                }}
+                title="Zeta ile semantik arama"
+              >
+                <ZetaIcon size={15} color={zetaSearch ? '#4ca8ad' : 'currentColor'} />
+                <span>Zeta</span>
+              </button>
+            )}
+            {zetaSearch && zetaSearchQuery.trim() && (
+              <button
+                onClick={handleZetaSearch}
+                disabled={zetaSearchLoading}
+                className="px-4 py-2 rounded-xl text-sm font-medium transition-all flex-shrink-0 disabled:opacity-50"
+                style={{ background: 'rgba(76,168,173,0.9)', color: '#fff' }}
+              >
+                {zetaSearchLoading ? '...' : 'Ara'}
+              </button>
+            )}
+          </div>
+
+          {/* Zeta arama sonuçları */}
+          {zetaSearch && (zetaSearchLoading || zetaSearchResults) && (
+            <div className="mt-3 p-4 rounded-xl animate-fadeIn" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.3)' }}>
+              {zetaSearchLoading ? (
+                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text-muted)' }}>
+                  <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
+                  Zeta belgelerini tarayarak arıyor...
+                </div>
+              ) : (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: '#4ca8ad' }}>
+                      <ZetaIcon size={12} color="#4ca8ad" /> Zeta Arama Sonucu
+                    </span>
+                    <button onClick={() => setZetaSearchResults(null)} className="p-0.5 rounded hover:bg-white/10">
+                      <X className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
+                    </button>
+                  </div>
+                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--zet-text)' }}>{zetaSearchResults}</p>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Documents/Notes/Media Grid */}
