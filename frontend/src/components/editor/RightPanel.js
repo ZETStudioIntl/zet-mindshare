@@ -31,7 +31,7 @@ export const RightPanel = ({
   onAutoWriteContent,
   onRefreshCredits,
 }) => {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [pagesOpen, setPagesOpen] = useState(true);
   const [zetaOpen, setZetaOpen] = useState(true);
   const showPages = forceSection ? forceSection === 'pages' : true;
@@ -149,6 +149,12 @@ export const RightPanel = ({
 
   const sendJudgeMessage = async () => {
     if (!judgeInput.trim() && !judgeImage) return;
+    if (language === 'tr' && !(documentContent || '').trim()) {
+      const userMsg = { role: 'user', content: judgeInput };
+      setJudgeMessages(prev => [...prev, userMsg, { role: 'assistant', content: "I'm sorry ама ваш документ пуст. Aus diesem Grund لا أستطيع التحليل. Por eso 分析できません。" }]);
+      setJudgeInput('');
+      return;
+    }
     const userMsg = { role: 'user', content: judgeInput, image: judgeImage, mode: judgeMode };
     setJudgeMessages(prev => [...prev, userMsg]);
     setJudgeInput('');
