@@ -7,7 +7,7 @@ import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
-  MoreVertical, ArrowUp, ArrowDown, Pin
+  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -85,7 +85,6 @@ const Dashboard = () => {
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
   
   // New Settings states
-  const [showProfileEdit, setShowProfileEdit] = useState(false);
   const [showAISettings, setShowAISettings] = useState(false);
   const [showRanks, setShowRanks] = useState(false);
   const [showCredits, setShowCredits] = useState(false);
@@ -106,7 +105,6 @@ const Dashboard = () => {
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState(null);
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
-  const [editEmail, setEditEmail] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -846,6 +844,7 @@ Devam etmek istiyor musunuz?`;
 
               {[
                 { id: 'general',      icon: <User className="h-4 w-4" />,       label: t('general') },
+                { id: 'profile',      icon: <UserCheck className="h-4 w-4" />,  label: t('profile') },
                 { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
                 { id: 'ranks',        icon: <Award className="h-4 w-4" />,      label: t('ranks'),         color: '#f59e0b' },
                 { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('questMap'),      color: '#4ca8ad' },
@@ -893,7 +892,7 @@ Devam etmek istiyor musunuz?`;
                         <p className="text-sm truncate" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
                       </div>
                       <button
-                        onClick={() => { setEditName(user?.name || ''); setEditEmail(user?.email || ''); setShowProfileEdit(true); setShowSettings(false); }}
+                        onClick={() => { setEditName(user?.name || ''); setSettingsTab('profile'); }}
                         className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-all flex-shrink-0"
                         style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text)' }}
                         data-testid="profile-edit-btn"
@@ -935,6 +934,94 @@ Devam etmek istiyor musunuz?`;
                         {t('cancelSubscription')}
                       </button>
                     )}
+                  </div>
+                </div>
+              )}
+
+              {settingsTab === 'profile' && (
+                <div className="max-w-md">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('profile')}</h2>
+                  <div className="space-y-6">
+                    {/* Fotoğraf */}
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="relative group">
+                        <img
+                          src={profilePhotoPreview || user?.picture || 'https://via.placeholder.com/96'}
+                          alt="Profile"
+                          className="w-24 h-24 rounded-full object-cover border-2"
+                          style={{ borderColor: 'var(--zet-primary)' }}
+                        />
+                        <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                          <Upload className="h-6 w-6 text-white" />
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files[0];
+                              if (file) {
+                                setProfilePhoto(file);
+                                setProfilePhotoPreview(URL.createObjectURL(file));
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Fotoğrafı değiştirmek için tıklayın</span>
+                    </div>
+                    {/* İsim */}
+                    <div>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>İsim</label>
+                      <input
+                        type="text"
+                        value={editName}
+                        onChange={e => setEditName(e.target.value)}
+                        className="zet-input w-full"
+                        placeholder="Adınız"
+                      />
+                    </div>
+                    {/* E-posta (readonly) */}
+                    <div>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta</label>
+                      <input
+                        type="email"
+                        value={user?.email || ''}
+                        className="zet-input w-full opacity-50 cursor-not-allowed"
+                        disabled
+                      />
+                      <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta değiştirilemez</p>
+                    </div>
+                    {/* Kaydet */}
+                    <button
+                      disabled={uploadingPhoto}
+                      onClick={async () => {
+                        setUploadingPhoto(true);
+                        try {
+                          let pictureUrl = user?.picture;
+                          if (profilePhoto) {
+                            const reader = new FileReader();
+                            const base64 = await new Promise((resolve) => {
+                              reader.onload = (ev) => resolve(ev.target.result);
+                              reader.readAsDataURL(profilePhoto);
+                            });
+                            const photoRes = await axios.post(`${API}/auth/profile-picture`, { image_data: base64 }, { withCredentials: true });
+                            pictureUrl = photoRes.data.picture_url;
+                          }
+                          await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
+                          if (updateUser) updateUser({ ...user, name: editName, picture: pictureUrl });
+                          setProfilePhoto(null);
+                          setProfilePhotoPreview(null);
+                          alert('Profil güncellendi!');
+                        } catch {
+                          alert('Güncelleme başarısız');
+                        }
+                        setUploadingPhoto(false);
+                      }}
+                      className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
+                      style={{ background: 'var(--zet-primary)' }}
+                    >
+                      {uploadingPhoto ? 'Kaydediliyor...' : 'Kaydet'}
+                    </button>
                   </div>
                 </div>
               )}
@@ -2018,110 +2105,6 @@ Devam etmek istiyor musunuz?`;
         </div>
       )}
 
-      {/* Profile Edit Modal */}
-      {showProfileEdit && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowProfileEdit(false)}>
-          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Profili Düzenle</h2>
-              <button onClick={() => setShowProfileEdit(false)} className="p-1 rounded hover:bg-white/10">
-                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {/* Profile Photo */}
-              <div className="flex flex-col items-center gap-3">
-                <div className="relative group">
-                  <img 
-                    src={profilePhotoPreview || user?.picture || 'https://via.placeholder.com/80'} 
-                    alt="Profile" 
-                    className="w-20 h-20 rounded-full object-cover border-2" 
-                    style={{ borderColor: 'var(--zet-primary)' }}
-                    data-testid="profile-photo-preview"
-                  />
-                  <label className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-full opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                    <Upload className="h-6 w-6 text-white" />
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      data-testid="profile-photo-input"
-                      onChange={(e) => {
-                        const file = e.target.files[0];
-                        if (file) {
-                          setProfilePhoto(file);
-                          setProfilePhotoPreview(URL.createObjectURL(file));
-                        }
-                      }}
-                    />
-                  </label>
-                </div>
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Fotoğrafı değiştirmek için tıklayın</span>
-              </div>
-
-              <div>
-                <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>İsim</label>
-                <input 
-                  type="text" 
-                  value={editName} 
-                  onChange={e => setEditName(e.target.value)}
-                  className="zet-input w-full"
-                  placeholder="Adınız"
-                  data-testid="profile-name-input"
-                />
-              </div>
-              <div>
-                <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta</label>
-                <input 
-                  type="email" 
-                  value={editEmail} 
-                  onChange={e => setEditEmail(e.target.value)}
-                  className="zet-input w-full"
-                  placeholder="E-posta adresiniz"
-                  disabled
-                />
-                <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>E-posta değiştirilemez</p>
-              </div>
-              
-              <button 
-                data-testid="profile-save-btn"
-                disabled={uploadingPhoto}
-                onClick={async () => {
-                  setUploadingPhoto(true);
-                  try {
-                    let pictureUrl = user?.picture;
-                    // Upload photo if selected
-                    if (profilePhoto) {
-                      const reader = new FileReader();
-                      const base64 = await new Promise((resolve) => {
-                        reader.onload = (ev) => resolve(ev.target.result);
-                        reader.readAsDataURL(profilePhoto);
-                      });
-                      const photoRes = await axios.post(`${API}/auth/profile-picture`, { image_data: base64 }, { withCredentials: true });
-                      pictureUrl = photoRes.data.picture_url;
-                    }
-                    // Update name
-                    await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
-                    if (updateUser) updateUser({ ...user, name: editName, picture: pictureUrl });
-                    setShowProfileEdit(false);
-                    setProfilePhoto(null);
-                    setProfilePhotoPreview(null);
-                    alert('Profil güncellendi!');
-                  } catch (err) {
-                    alert('Güncelleme başarısız');
-                  }
-                  setUploadingPhoto(false);
-                }}
-                className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
-                style={{ background: 'var(--zet-primary)' }}
-              >
-                {uploadingPhoto ? 'Kaydediliyor...' : 'Kaydet'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* AI Settings Modal */}
       {showAISettings && (

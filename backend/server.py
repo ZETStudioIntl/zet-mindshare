@@ -337,7 +337,14 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         existing_user = await db.users.find_one({"email": email}, {"_id": 0})
         if existing_user:
             user_id = existing_user["user_id"]
-            await db.users.update_one({"user_id": user_id}, {"$set": {"name": name, "picture": picture}})
+            # Only overwrite name/picture from Google if user hasn't customized them
+            oauth_update = {}
+            if not existing_user.get("name_custom"):
+                oauth_update["name"] = name
+            if not existing_user.get("picture_custom"):
+                oauth_update["picture"] = picture
+            if oauth_update:
+                await db.users.update_one({"user_id": user_id}, {"$set": oauth_update})
         else:
             user_id = f"user_{uuid.uuid4().hex[:12]}"
             await db.users.insert_one({
@@ -428,19 +435,19 @@ async def update_profile(req: ProfileUpdate, user: User = Depends(get_current_us
     update_data = {}
     if req.name is not None:
         update_data["name"] = req.name
-    
+        update_data["name_custom"] = True
+
     if update_data:
         await db.users.update_one({"user_id": user.user_id}, {"$set": update_data})
-    
+
     return {"message": "Profile updated", "name": req.name}
 
 @api_router.post("/auth/profile-picture")
 async def upload_profile_picture(req: ProfilePictureUpload, user: User = Depends(get_current_user)):
     image_data = req.image_data
-    # Store the base64 image directly in the user document
     await db.users.update_one(
         {"user_id": user.user_id},
-        {"$set": {"picture": image_data}}
+        {"$set": {"picture": image_data, "picture_custom": True}}
     )
     return {"message": "Profile picture updated", "picture_url": image_data}
 
