@@ -2820,3 +2820,4 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+# trigger backend deploy Sat Apr 11 13:32:32 TSS 2026
