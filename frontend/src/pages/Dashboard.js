@@ -112,6 +112,7 @@ const Dashboard = () => {
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [renamingDocTitle, setRenamingDocTitle] = useState('');
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
+  const [rankTab, setRankTab] = useState('requirements');
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -1200,10 +1201,18 @@ Devam etmek istiyor musunuz?`;
                   'Zümrüt': { hours: 90,  quests: 300 },
                   'Endless':{ hours: 200, quests: 500 },
                 };
+                const RANK_REWARDS = {
+                  'Demir':   { credits: 30,   sp: 50   },
+                  'Gümüş':   { credits: 200,  sp: 400  },
+                  'Altın':   { credits: 500,  sp: 1000 },
+                  'Elmas':   { credits: 800,  sp: 1600 },
+                  'Zümrüt':  { credits: 1000, sp: 2400 },
+                  'Endless': { credits: 2000, sp: 3000 },
+                };
                 const activeHours = activeTimeSeconds / 3600;
                 return (
                 <div className="max-w-lg">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>{t('ranks')}</h2>
                     <button
                       onClick={() => {
@@ -1218,45 +1227,96 @@ Devam etmek istiyor musunuz?`;
                       {showRankBadge ? 'Profilde göster ✓' : 'Profilde gizle'}
                     </button>
                   </div>
-                  <div className="space-y-3">
-                    {RANKS.map(r => {
-                      const req = RANK_REQUIREMENTS[r.name];
-                      const isCurrent = currentRank.name === r.name;
-                      return (
-                      <div key={r.name} className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: isCurrent ? `1px solid ${r.color}60` : '1px solid transparent' }}>
-                        <div className="flex items-center justify-between mb-2">
+
+                  {/* Tab buttons */}
+                  <div className="flex gap-2 mb-5">
+                    {['requirements', 'rewards'].map(tab => (
+                      <button
+                        key={tab}
+                        onClick={() => setRankTab(tab)}
+                        className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                        style={{
+                          background: rankTab === tab ? 'var(--zet-primary)' : 'var(--zet-bg-card)',
+                          color: rankTab === tab ? 'white' : 'var(--zet-text-muted)',
+                          border: rankTab === tab ? 'none' : '1px solid var(--zet-border)',
+                        }}
+                      >
+                        {tab === 'requirements' ? 'Gereksinimler' : 'Ödüller'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {rankTab === 'requirements' ? (
+                    <div className="space-y-3">
+                      {RANKS.map(r => {
+                        const req = RANK_REQUIREMENTS[r.name];
+                        const isCurrent = currentRank.name === r.name;
+                        return (
+                        <div key={r.name} className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: isCurrent ? `1px solid ${r.color}60` : '1px solid transparent' }}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-3">
+                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                              <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
+                              {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
+                            </div>
+                            <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
+                          </div>
+                          {req ? (
+                            <div className="mt-2 space-y-1.5">
+                              <div>
+                                <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                                  <span>⏱ {Math.floor(activeHours)}h / {req.hours}h</span>
+                                  <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (activeHours / req.hours) * 100)}%`, background: activeHours >= req.hours ? r.color : 'rgba(255,255,255,0.3)' }} />
+                                </div>
+                              </div>
+                              <div>
+                                <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                                  <span>🎯 {completedQuestCount} / {req.quests} {t('questMap')}</span>
+                                  <span>{Math.min(100, Math.round((completedQuestCount / req.quests) * 100))}%</span>
+                                </div>
+                                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (completedQuestCount / req.quests) * 100)}%`, background: completedQuestCount >= req.quests ? r.color : 'rgba(255,255,255,0.3)' }} />
+                                </div>
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç rankı — gereksinim yok</p>
+                          )}
+                        </div>
+                      );})}
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="p-3 rounded-xl text-xs mb-2" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)', color: 'var(--zet-text-muted)' }}>
+                        🏆 Ödüller <strong style={{ color: 'var(--zet-text)' }}>sezon sonunda</strong> verilir. Sezon bittiğinde hangi rankta olursan o rankın ödülünü alırsın. Rank kredileri <strong style={{ color: 'var(--zet-text)' }}>1 ay</strong> boyunca geçerlidir.
+                      </div>
+                      {RANKS.map(r => {
+                        const reward = RANK_REWARDS[r.name];
+                        const isCurrent = currentRank.name === r.name;
+                        return (
+                        <div key={r.name} className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)', border: isCurrent ? `1px solid ${r.color}60` : '1px solid transparent' }}>
                           <div className="flex items-center gap-3">
                             <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
                             <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
                             {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                           </div>
-                          <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
-                        </div>
-                        {req && (
-                          <div className="mt-2 space-y-1.5">
-                            <div>
-                              <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                <span>⏱ {Math.floor(activeHours)}h / {req.hours}h</span>
-                                <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (activeHours / req.hours) * 100)}%`, background: activeHours >= req.hours ? r.color : 'rgba(255,255,255,0.3)' }} />
-                              </div>
-                            </div>
-                            <div>
-                              <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                <span>🎯 {completedQuestCount} / {req.quests} {t('questMap')}</span>
-                                <span>{Math.min(100, Math.round((completedQuestCount / req.quests) * 100))}%</span>
-                              </div>
-                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (completedQuestCount / req.quests) * 100)}%`, background: completedQuestCount >= req.quests ? r.color : 'rgba(255,255,255,0.3)' }} />
-                              </div>
-                            </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="flex items-center gap-1" style={{ color: '#fbbf24' }}>
+                              <Zap className="h-3.5 w-3.5" />{reward.credits} kredi
+                            </span>
+                            <span style={{ color: 'var(--zet-text-muted)' }}>+</span>
+                            <span className="flex items-center gap-1" style={{ color: '#f59e0b' }}>
+                              <Star className="h-3.5 w-3.5" />{reward.sp.toLocaleString()} SP
+                            </span>
                           </div>
-                        )}
-                      </div>
-                    );})}
-                  </div>
+                        </div>
+                      );})}
+                    </div>
+                  )}
+
                   <div className="mt-6 p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
                     <div className="flex justify-between text-sm mb-2" style={{ color: 'var(--zet-text-muted)' }}>
                       <span>{currentRank.name}</span>

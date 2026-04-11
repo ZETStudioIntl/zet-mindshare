@@ -1050,7 +1050,7 @@ CREDIT_PACKAGES = [
     {"id": "pack_900",  "credits": 900,  "price": 11.99},
     {"id": "pack_2000", "credits": 2000, "price": 22.99},
 ]
-MAX_CREDIT_BALANCE = 3000
+MAX_CREDIT_BALANCE = 5000
 SUBSCRIBER_DISCOUNT = 0.20  # 20% discount for paid plans
 
 class CreditPurchaseRequest(BaseModel):
@@ -1205,46 +1205,52 @@ CREDIT_COSTS = {
 }
 
 async def get_user_credits(user_id: str):
-    """Get user's current credits for today (daily + bonus)"""
+    """Get user's current credits for today (daily + package_credits daily reset + rank_credits 1-month)"""
     user_data = await db.users.find_one({"user_id": user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    bonus = user_data.get("bonus_credits", 0) if user_data else 0
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+
+    # rank_credits: 1 ay süren, expire olmuşsa 0
+    rank_credits_raw = user_data.get("rank_credits", 0) if user_data else 0
+    rank_credits_expiry = user_data.get("rank_credits_expiry") if user_data else None
+    if rank_credits_expiry:
+        try:
+            exp = datetime.fromisoformat(rank_credits_expiry.replace("Z", "+00:00"))
+            if now > exp:
+                rank_credits_raw = 0
+                await db.users.update_one({"user_id": user_id}, {"$set": {"rank_credits": 0, "rank_credits_expiry": None}})
+        except Exception:
+            pass
+    rank_credits = rank_credits_raw
+
+    # package_credits: günlük sıfırlanan bonus (usage'da tutulur)
     usage = await db.usage.find_one({"user_id": user_id, "date": today})
     credits_used = usage.get("credits_used", 0) if usage else 0
-    total_available = limits['daily_credits'] + bonus
+    # package_credits: users'daki bonus_credits alanı (backward compat) — günlük kullanılır sıfırlanmaz ama günlük harcandığında kullanılır
+    package_credits = user_data.get("bonus_credits", 0) if user_data else 0
+
+    total_available = limits['daily_credits'] + package_credits + rank_credits
     return {
         "plan": plan,
         "daily_credits": limits['daily_credits'],
-        "bonus_credits": bonus,
+        "bonus_credits": package_credits,
+        "rank_credits": rank_credits,
         "credits_used": credits_used,
         "credits_remaining": max(0, total_available - credits_used),
         "limits": limits
     }
 
 async def spend_credits(user_id: str, action: str) -> dict:
-    """Attempt to spend credits for an action. Daily credits used first, then bonus."""
+    """Attempt to spend credits. Order: daily -> package_credits -> rank_credits."""
     cost = CREDIT_COSTS.get(action, 0)
     if cost == 0:
         return {"success": True, "cost": 0}
-    
-    user_data = await db.users.find_one({"user_id": user_id})
-    plan = user_data.get("subscription", "free") if user_data else "free"
-    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    bonus = user_data.get("bonus_credits", 0) if user_data else 0
-    
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    usage = await db.usage.find_one({"user_id": user_id, "date": today})
-    
-    if not usage:
-        usage = {"user_id": user_id, "date": today, "credits_used": 0}
-        await db.usage.insert_one(usage)
-    
-    credits_used = usage.get("credits_used", 0)
-    total_available = limits['daily_credits'] + bonus
-    credits_remaining = total_available - credits_used
-    
+
+    credit_info = await get_user_credits(user_id)
+    credits_remaining = credit_info['credits_remaining']
+
     if credits_remaining < cost:
         return {
             "success": False,
@@ -1252,23 +1258,32 @@ async def spend_credits(user_id: str, action: str) -> dict:
             "credits_remaining": max(0, credits_remaining),
             "message": f"Yetersiz kredi! Bu islem {cost} kredi gerektirir, kalan: {max(0, credits_remaining)} kredi."
         }
-    
+
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await db.usage.update_one(
         {"user_id": user_id, "date": today},
         {"$inc": {"credits_used": cost}},
         upsert=True
     )
-    
-    # If daily credits exceeded, deduct overflow from bonus
-    new_used = credits_used + cost
+
+    # Deduct overflow from package_credits first, then rank_credits
+    limits = credit_info['limits']
+    new_used = credit_info['credits_used'] + cost
     daily_overspend = new_used - limits['daily_credits']
-    if daily_overspend > 0 and bonus > 0:
-        bonus_deduct = min(daily_overspend, bonus)
-        await db.users.update_one(
-            {"user_id": user_id},
-            {"$inc": {"bonus_credits": -bonus_deduct}}
-        )
-    
+    if daily_overspend > 0:
+        pkg = credit_info['bonus_credits']
+        rank = credit_info['rank_credits']
+        pkg_deduct = min(daily_overspend, pkg)
+        remaining_overspend = daily_overspend - pkg_deduct
+        rank_deduct = min(remaining_overspend, rank)
+        update_fields = {}
+        if pkg_deduct > 0:
+            update_fields["$inc"] = {"bonus_credits": -pkg_deduct}
+        if rank_deduct > 0:
+            update_fields.setdefault("$inc", {})["rank_credits"] = update_fields.get("$inc", {}).get("rank_credits", 0) - rank_deduct
+        if update_fields:
+            await db.users.update_one({"user_id": user_id}, update_fields)
+
     return {
         "success": True,
         "cost": cost,
@@ -1284,6 +1299,7 @@ async def get_usage(user: User = Depends(get_current_user)):
         "plan": credits_info['plan'],
         "daily_credits": credits_info['daily_credits'],
         "bonus_credits": credits_info.get('bonus_credits', 0),
+        "rank_credits": credits_info.get('rank_credits', 0),
         "credits_used": credits_info['credits_used'],
         "credits_remaining": credits_info['credits_remaining'],
         "zeta_chat_count": usage_doc.get("zeta_chat_count", 0),
