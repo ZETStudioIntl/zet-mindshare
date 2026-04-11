@@ -203,7 +203,7 @@ collab_manager = CollaborationManager()
 # ============ EMAIL HELPER ============
 
 resend.api_key = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "info@zetstudiointl.com")
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     """Send email using Resend API"""
