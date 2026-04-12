@@ -990,8 +990,8 @@ MATCHES:[1,3,5]`;
           />
           <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
           {showRankBadge && (
-            <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
-              <RankIcon rank={currentRank} size={14} /> {currentRank.name}
+            <span className="flex items-center px-1.5 py-0.5 rounded-full" style={{ background: `${currentRank.color}25`, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
+              <RankIcon rank={currentRank} size={18} />
             </span>
           )}
           {user?.name && (
