@@ -995,7 +995,7 @@ MATCHES:[1,3,5]`;
             </span>
           )}
           {user?.name && (
-            <span className="hidden sm:block" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.25rem', fontWeight: 700, color: '#4ca8ad', letterSpacing: '0.01em' }}>
+            <span style={{ fontFamily: "'Caveat', cursive", fontSize: '1.25rem', fontWeight: 700, color: '#4ca8ad', letterSpacing: '0.01em' }}>
               Merhaba, {user.name.split(' ')[0]}
             </span>
           )}

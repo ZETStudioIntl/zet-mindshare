@@ -1,8 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { useAuth } from '../../contexts/AuthContext';
 import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Volume2, Scale, Settings, PenTool, FileText, CreditCard, Search, X, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
+
+const CEO_EMAIL = 'muhammadbahaddinyilmaz@gmail.com';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -35,8 +38,22 @@ export const RightPanel = ({
   onTakeNote,
 }) => {
   const { t, language } = useLanguage();
+  const { user } = useAuth();
   const [pagesOpen, setPagesOpen] = useState(true);
   const [zetaOpen, setZetaOpen] = useState(true);
+
+  // CEO / console state
+  const [isCEO, setIsCEO] = useState(() => localStorage.getItem('zet_ceo_mode') === 'true');
+  const [showConsole, setShowConsole] = useState(false);
+  const [consoleLines, setConsoleLines] = useState([
+    { type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' },
+    { type: 'system', text: 'Type a command and press Enter.' },
+    { type: 'system', text: '' },
+  ]);
+  const [consoleInput, setConsoleInput] = useState('');
+  const [consoleStage, setConsoleStage] = useState('main'); // 'main' | 'admin_login'
+  const consoleEndRef = useRef(null);
+  const consoleInputRef = useRef(null);
   const showPages = forceSection ? forceSection === 'pages' : true;
   const showZeta = forceSection ? forceSection === 'zeta' : true;
 
@@ -219,7 +236,7 @@ export const RightPanel = ({
         document_content: documentContent || '',
         image_data: sentImage,
         mode: judgeMode,
-        personality: judgeMood || 'normal'
+        personality: judgeMood || 'normal', is_ceo: isCEO
       });
       if (res.data.locked || res.data.limit_exceeded || res.data.char_limit_exceeded) {
         setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response, isWarning: true }]);
@@ -307,8 +324,78 @@ export const RightPanel = ({
     setDeepLoading(false);
   };
 
+  // ─── Console logic ───────────────────────────────────────────
+  useEffect(() => { consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [consoleLines]);
+  useEffect(() => { if (showConsole) setTimeout(() => consoleInputRef.current?.focus(), 80); }, [showConsole]);
+
+  const addConsoleLine = (text, type = 'output') =>
+    setConsoleLines(prev => [...prev, { type, text }]);
+
+  const handleConsoleSubmit = () => {
+    const cmd = consoleInput.trim();
+    if (!cmd) return;
+    setConsoleInput('');
+    addConsoleLine(`> ${cmd}`, 'input');
+
+    const normalized = cmd.toLowerCase().replace(/\s+/g, '');
+
+    if (consoleStage === 'admin_login') {
+      addConsoleLine('Use the button above to authenticate.', 'error');
+      return;
+    }
+
+    if (normalized === '/open/console/') {
+      addConsoleLine('Already in console.', 'output');
+    } else if (normalized === '/open/admin/panel/login/') {
+      setConsoleStage('admin_login');
+      addConsoleLine('', 'output');
+      addConsoleLine('╔══════════════════════════════╗', 'output');
+      addConsoleLine('║   ZET ADMIN PANEL ACCESS     ║', 'output');
+      addConsoleLine('╚══════════════════════════════╝', 'output');
+      addConsoleLine('Identity verification required.', 'output');
+      addConsoleLine('[GOOGLE_AUTH_PROMPT]', 'auth');
+    } else if (normalized === 'exit' || normalized === 'close' || normalized === 'quit') {
+      setShowConsole(false);
+      setConsoleStage('main');
+    } else if (normalized === 'clear') {
+      setConsoleLines([{ type: 'system', text: 'Console cleared.' }]);
+    } else if (normalized === 'help') {
+      addConsoleLine('/open/admin/panel/login/  — Admin panel access', 'output');
+      addConsoleLine('clear                     — Clear terminal', 'output');
+      addConsoleLine('exit                      — Close terminal', 'output');
+    } else {
+      addConsoleLine(`Unknown command: ${cmd}`, 'error');
+      addConsoleLine('Type "help" for available commands.', 'output');
+    }
+  };
+
+  const handleAdminGoogleAuth = () => {
+    const currentEmail = user?.email || '';
+    if (currentEmail === CEO_EMAIL) {
+      localStorage.setItem('zet_ceo_mode', 'true');
+      setIsCEO(true);
+      setConsoleStage('main');
+      addConsoleLine('', 'output');
+      addConsoleLine('✓ IDENTITY VERIFIED', 'success');
+      addConsoleLine(`Welcome, CEO. Admin mode activated.`, 'success');
+      addConsoleLine('', 'output');
+    } else {
+      addConsoleLine('', 'output');
+      addConsoleLine('✗ ACCESS DENIED', 'error');
+      addConsoleLine('This session has been logged.', 'error');
+      setConsoleStage('main');
+    }
+  };
+  // ─────────────────────────────────────────────────────────────
+
   const sendZetaMessage = async () => {
     if (!zetaInput.trim() || zetaLoading) return;
+    // Intercept console command
+    if (zetaInput.trim().toLowerCase().replace(/\s+/g, '') === '/open/console/') {
+      setZetaInput('');
+      setShowConsole(true);
+      return;
+    }
     const msg = zetaInput;
     const imageToSend = zetaImage;
     setZetaMessages(prev => [...prev, { role: 'user', content: msg, image: imageToSend || null }]);
@@ -320,7 +407,7 @@ export const RightPanel = ({
         message: msg, doc_id: docId, session_id: zetaSessionId,
         document_content: documentContent || '', image: imageToSend || null,
         mood: zetaMood || 'professional', emoji_level: zetaEmoji || 'medium',
-        custom_prompt: zetaCustomPrompt || ''
+        custom_prompt: zetaCustomPrompt || '', is_ceo: isCEO
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
@@ -935,6 +1022,89 @@ export const RightPanel = ({
           </>
         )}
       </div>
+      )}
+
+      {/* ===== ZETA TERMINAL CONSOLE ===== */}
+      {showConsole && (
+        <div
+          className="fixed inset-0 z-[200] flex items-center justify-center"
+          style={{ background: 'rgba(0,0,0,0.85)' }}
+          onClick={(e) => { if (e.target === e.currentTarget) { setShowConsole(false); setConsoleStage('main'); } }}
+        >
+          <div
+            className="flex flex-col rounded-lg overflow-hidden"
+            style={{
+              width: 'min(640px, 96vw)', height: 'min(480px, 80vh)',
+              background: '#0d0d0d', border: '1px solid #333',
+              fontFamily: "'Courier New', Courier, monospace",
+              boxShadow: '0 0 40px rgba(0,255,70,0.15)',
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Title bar */}
+            <div className="flex items-center justify-between px-4 py-2 flex-shrink-0" style={{ background: '#1a1a1a', borderBottom: '1px solid #333' }}>
+              <div className="flex gap-1.5">
+                <span className="w-3 h-3 rounded-full" style={{ background: '#ff5f57' }} />
+                <span className="w-3 h-3 rounded-full" style={{ background: '#febc2e' }} />
+                <span className="w-3 h-3 rounded-full" style={{ background: '#28c840' }} />
+              </div>
+              <span className="text-xs" style={{ color: '#666' }}>zet-terminal — zsh</span>
+              <button onClick={() => { setShowConsole(false); setConsoleStage('main'); }} style={{ color: '#666', fontSize: 16, lineHeight: 1 }}>×</button>
+            </div>
+
+            {/* Output area */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-0.5" style={{ color: '#00e050' }}>
+              {consoleLines.map((line, i) => (
+                <div key={i} className="text-xs leading-relaxed whitespace-pre-wrap" style={{
+                  color: line.type === 'error' ? '#ff4444'
+                    : line.type === 'success' ? '#00ff88'
+                    : line.type === 'input' ? '#ffffff'
+                    : line.type === 'system' ? '#888'
+                    : line.type === 'auth' ? 'transparent'
+                    : '#00e050',
+                  display: line.type === 'auth' ? 'block' : undefined,
+                }}>
+                  {line.type === 'auth' ? (
+                    <div className="my-2">
+                      <button
+                        onClick={handleAdminGoogleAuth}
+                        className="flex items-center gap-2 px-4 py-2 rounded text-xs font-medium transition-all"
+                        style={{ background: '#fff', color: '#333', border: '1px solid #ccc' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+                        Sign in with Google
+                      </button>
+                    </div>
+                  ) : line.text}
+                </div>
+              ))}
+              <div ref={consoleEndRef} />
+            </div>
+
+            {/* Input area */}
+            <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ background: '#111', borderTop: '1px solid #222' }}>
+              <span className="text-xs" style={{ color: '#00e050' }}>{'>'}</span>
+              <input
+                ref={consoleInputRef}
+                value={consoleInput}
+                onChange={e => setConsoleInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleConsoleSubmit(); }}
+                className="flex-1 bg-transparent text-xs outline-none"
+                style={{ color: '#fff', caretColor: '#00e050' }}
+                placeholder="enter command..."
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <button
+                onClick={handleConsoleSubmit}
+                className="text-xs px-2 py-1 rounded"
+                style={{ background: '#1a3a1a', color: '#00e050', border: '1px solid #2a4a2a' }}
+              >
+                Run
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

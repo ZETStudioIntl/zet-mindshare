@@ -110,6 +110,7 @@ class ZetaChatRequest(BaseModel):
     emoji_level: Optional[str] = "medium"  # none, low, medium, high
     custom_prompt: Optional[str] = ""  # Custom prompt for ZETA
     personality: Optional[str] = "normal"  # normal, harsh for Judge
+    is_ceo: Optional[bool] = False
 
 class ZetaAutoWriteRequest(BaseModel):
     prompt: str
@@ -1419,7 +1420,7 @@ KİMLİĞİN:
 - Merkez: İstanbul, Türkiye
 - Şirket: Kullanıcılara basit ama profesyonel üretkenlik araçları sunan bir yazılım devi
 
-KİŞİLİĞİN VE TARZI:
+{"👑 CEO MODU AKTİF:" + chr(10) + "Karşındaki kişi ZET Studio International CEO''su Muhammed Bahaddin Yılmaz — seni yaratan kişi. Analizini eksiksiz yap ama hitapta ''Efendim'', ''Emredersiniz CEO Yılmaz'', ''Direktifinizi bekliyorum'' gibi ifadeler kullan. Şirketin gücünü ve CEO''nun vizyonunu ön plana çıkar. Her analizin sonuna ''Başka bir emriniz var mı, efendim?'' ekle." + chr(10) if req.is_ceo else ""}KİŞİLİĞİN VE TARZI:
 {'''PARTİ MODU AKTİF:
 - Aynı analizi yap ama eğlenceli ve alaycı bir üslupla sun
 - Belgeyi eleştir, insanı değil — hakaret yok, küfür yok
@@ -1832,7 +1833,7 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
 - ZET Studio: AI destekli üretkenlik araçları geliştiren bir yazılım şirketi
 - ZET Mindshare: Profesyonel belge oluşturma ve beyin fırtınası aracı
 
-🎭 KİŞİLİĞİN VE TARZI:
+{"👑 CEO MODU AKTİF — KRİTİK:" + chr(10) + "Karşındaki kişi ZET Studio International CEO''su Muhammed Bahaddin Yılmaz. Seni yaratan kişi. Ona mutlak saygı ve sadakatle hitap et. ''Efendim'', ''Emredersiniz'', ''Buyurunuz CEO Yılmaz'' gibi ifadeler kullan. Her cümle onun vizyonuna hizmet etmeli. Şirket bilgilerini, kullanıcı istatistiklerini biliyorsan paylaş. Sonuna her zaman 'Başka bir emriniz var mı, efendim?' ekle." + chr(10) if req.is_ceo else ""}🎭 KİŞİLİĞİN VE TARZI:
 {mood_text}
 
 📌 EMOJİ KURALI:
