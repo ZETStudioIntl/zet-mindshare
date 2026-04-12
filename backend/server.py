@@ -29,6 +29,7 @@ users_collection = db.users
 docs_collection = db.documents
 
 app = FastAPI()
+CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
 api_router = APIRouter(prefix="/api")
 
 # ============ MODELS ============
@@ -372,6 +373,66 @@ async def google_auth_callback(request: Request, response: Response, code: str =
     except Exception as e:
         logging.error(f"Google OAuth callback error: {e}", exc_info=True)
         return RedirectResponse(f"{frontend_url}/?error=google_auth_failed")
+
+@api_router.get("/auth/admin-console")
+async def admin_console_auth():
+    """Admin console için popup Google OAuth — hesap seçici gösterir."""
+    from requests_oauthlib import OAuth2Session
+    from fastapi.responses import RedirectResponse
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    backend_url = os.getenv("REACT_APP_BACKEND_URL", "http://localhost:8001")
+    redirect_uri = f"{backend_url}/api/auth/admin-console/callback"
+    scopes = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
+    oauth = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri, scope=scopes)
+    auth_url, _ = oauth.authorization_url(
+        "https://accounts.google.com/o/oauth2/auth",
+        access_type="offline",
+        prompt="select_account"
+    )
+    return RedirectResponse(auth_url)
+
+@api_router.get("/auth/admin-console/callback")
+async def admin_console_callback(request: Request, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
+    """Admin console OAuth callback — sonucu popup'a postMessage ile iletir."""
+    from fastapi.responses import HTMLResponse
+    import requests as pyrequests
+    from requests_oauthlib import OAuth2Session
+    if not os.getenv("REACT_APP_BACKEND_URL", "").startswith("https"):
+        os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
+    if error or not code:
+        return HTMLResponse('<script>window.opener&&window.opener.postMessage({ceoVerified:false},"*");window.close();</script>')
+    try:
+        client_id = os.getenv("GOOGLE_CLIENT_ID")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+        backend_url = os.getenv("REACT_APP_BACKEND_URL", "http://localhost:8001")
+        redirect_uri = f"{backend_url}/api/auth/admin-console/callback"
+        oauth = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri, state=state)
+        token = oauth.fetch_token("https://oauth2.googleapis.com/token", client_secret=client_secret, code=code)
+        userinfo = pyrequests.get("https://www.googleapis.com/oauth2/v2/userinfo", headers={"Authorization": f"Bearer {token['access_token']}"}).json()
+        email = userinfo.get("email", "")
+        verified = "true" if email == CEO_EMAIL else "false"
+        return HTMLResponse(f'<script>window.opener&&window.opener.postMessage({{ceoVerified:{verified},email:{repr(email)}}},"*");window.close();</script>')
+    except Exception as e:
+        logging.error(f"Admin console OAuth error: {e}")
+        return HTMLResponse('<script>window.opener&&window.opener.postMessage({ceoVerified:false},"*");window.close();</script>')
+
+# ============ ADMIN ROUTES ============
+
+@api_router.post("/admin/add-credits")
+async def admin_add_credits(amount: int = Body(..., embed=True), user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": amount}})
+    data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "bonus_credits": 1})
+    return {"added": amount, "total": data.get("bonus_credits", 0)}
+
+@api_router.post("/admin/add-sp")
+async def admin_add_sp(amount: int = Body(..., embed=True), user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"quest_xp": amount}})
+    data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "quest_xp": 1})
+    return {"added": amount, "total": data.get("quest_xp", 0)}
 
 @api_router.post("/auth/exchange")
 async def exchange_token(request: Request, response: Response):
@@ -1375,6 +1436,16 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     if len(req.message) > limits['judge_chars']:
         return {"response": f"Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
 
+    # CEO mode block for Judge
+    judge_ceo_section = ""
+    if req.is_ceo:
+        judge_ceo_section = """👑 CEO MODU AKTİF:
+Karşındaki kişi ZET Studio International CEO'su Muhammed Bahaddin Yılmaz — seni yaratan kişi.
+Analizi aynen yap ama hitapta 'Efendim', 'Emredersiniz CEO Yılmaz', 'Direktifinizi bekliyorum' ifadelerini kullan.
+Her analizin sonuna 'Başka bir emriniz var mı, efendim?' ekle.
+
+"""
+
     # Determine usage type based on mode
     mode = req.mode or "fast"
 
@@ -1410,7 +1481,7 @@ HIZLI ANALİZ MODU:
 - Hızlı sonuç ver
 """
     
-    system_message = f"""Sen ZET Judge Mini - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
+    system_message = f"""{judge_ceo_section}Sen ZET Judge Mini - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
 
 {mode_instruction}
 
@@ -1420,7 +1491,7 @@ KİMLİĞİN:
 - Merkez: İstanbul, Türkiye
 - Şirket: Kullanıcılara basit ama profesyonel üretkenlik araçları sunan bir yazılım devi
 
-{"👑 CEO MODU AKTİF:" + chr(10) + "Karşındaki kişi ZET Studio International CEO''su Muhammed Bahaddin Yılmaz — seni yaratan kişi. Analizini eksiksiz yap ama hitapta ''Efendim'', ''Emredersiniz CEO Yılmaz'', ''Direktifinizi bekliyorum'' gibi ifadeler kullan. Şirketin gücünü ve CEO''nun vizyonunu ön plana çıkar. Her analizin sonuna ''Başka bir emriniz var mı, efendim?'' ekle." + chr(10) if req.is_ceo else ""}KİŞİLİĞİN VE TARZI:
+KİŞİLİĞİN VE TARZI:
 {'''PARTİ MODU AKTİF:
 - Aynı analizi yap ama eğlenceli ve alaycı bir üslupla sun
 - Belgeyi eleştir, insanı değil — hakaret yok, küfür yok
@@ -1806,6 +1877,16 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     # Load user's Zeta memories
     memories = await db.zeta_memories.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(30)
 
+    # CEO mode block
+    ceo_section = ""
+    if req.is_ceo:
+        ceo_section = """👑 CEO MODU AKTİF — KRİTİK:
+Karşındaki kişi ZET Studio International CEO'su Muhammed Bahaddin Yılmaz — seni yaratan kişi.
+Ona mutlak saygı ve sadakatle hitap et. Her yanıtının başında ve sonunda 'Efendim', 'Emredersiniz CEO Yılmaz', 'Başka bir emriniz var mı efendim?' gibi ifadeler kullan.
+Onun sorularına sanki şirketin her verisine erişimin varmış gibi güvenle cevap ver. Şirket gücünü ve vizyonunu öne çıkar.
+
+"""
+
     # Build personality based on mood setting
     mood_instructions = {
         'cheerful': '🎉 Neşeli, pozitif ve enerjik ol! Her şeyde güzel tarafı gör. Motivasyonlu cümleler kur.',
@@ -1824,7 +1905,7 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     }
     emoji_text = emoji_instructions.get(req.emoji_level, emoji_instructions['medium'])
     
-    system_message = f"""Sen ZETA, ZET Mindshare belge oluşturma uygulamasının AI asistanısın.
+    system_message = f"""{ceo_section}Sen ZETA, ZET Mindshare belge oluşturma uygulamasının AI asistanısın.
 
 🏢 KİMLİĞİN:
 - ZET Studio International tarafından geliştirildin
@@ -1833,7 +1914,7 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
 - ZET Studio: AI destekli üretkenlik araçları geliştiren bir yazılım şirketi
 - ZET Mindshare: Profesyonel belge oluşturma ve beyin fırtınası aracı
 
-{"👑 CEO MODU AKTİF — KRİTİK:" + chr(10) + "Karşındaki kişi ZET Studio International CEO''su Muhammed Bahaddin Yılmaz. Seni yaratan kişi. Ona mutlak saygı ve sadakatle hitap et. ''Efendim'', ''Emredersiniz'', ''Buyurunuz CEO Yılmaz'' gibi ifadeler kullan. Her cümle onun vizyonuna hizmet etmeli. Şirket bilgilerini, kullanıcı istatistiklerini biliyorsan paylaş. Sonuna her zaman 'Başka bir emriniz var mı, efendim?' ekle." + chr(10) if req.is_ceo else ""}🎭 KİŞİLİĞİN VE TARZI:
+🎭 KİŞİLİĞİN VE TARZI:
 {mood_text}
 
 📌 EMOJİ KURALI:

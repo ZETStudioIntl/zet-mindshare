@@ -331,60 +331,94 @@ export const RightPanel = ({
   const addConsoleLine = (text, type = 'output') =>
     setConsoleLines(prev => [...prev, { type, text }]);
 
-  const handleConsoleSubmit = () => {
+  // All known commands (used for autocomplete)
+  const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
+  const ADMIN_COMMANDS = ['/delete/admin/', '/(number)/credits/', '/(number)/sp/'];
+  const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
+  const getConsoleSuggestions = (input) => {
+    if (!input) return [];
+    const lower = input.toLowerCase().replace(/\s/g, '');
+    return getVisibleCommands().filter(c => c.replace(/\(number\)/g, '').replace(/\s/g, '').startsWith(lower) || c.replace(/\(number\)/g, '').includes(lower));
+  };
+
+  const handleConsoleSubmit = async () => {
     const cmd = consoleInput.trim();
     if (!cmd) return;
     setConsoleInput('');
     addConsoleLine(`> ${cmd}`, 'input');
-
     const normalized = cmd.toLowerCase().replace(/\s+/g, '');
 
-    if (consoleStage === 'admin_login') {
-      addConsoleLine('Use the button above to authenticate.', 'error');
-      return;
-    }
+    // Extract numeric patterns like /(1000)/credits/ or /(500)/sp/
+    const creditMatch = cmd.match(/\/\((\d+)\)\/credits\//i);
+    const spMatch = cmd.match(/\/\((\d+)\)\/sp\//i);
 
     if (normalized === '/open/console/') {
       addConsoleLine('Already in console.', 'output');
     } else if (normalized === '/open/admin/panel/login/') {
-      setConsoleStage('admin_login');
       addConsoleLine('', 'output');
-      addConsoleLine('╔══════════════════════════════╗', 'output');
-      addConsoleLine('║   ZET ADMIN PANEL ACCESS     ║', 'output');
-      addConsoleLine('╚══════════════════════════════╝', 'output');
+      addConsoleLine('╔═══════════════════════════════╗', 'output');
+      addConsoleLine('║  ZET ADMIN PANEL — AUTH       ║', 'output');
+      addConsoleLine('╚═══════════════════════════════╝', 'output');
       addConsoleLine('Identity verification required.', 'output');
       addConsoleLine('[GOOGLE_AUTH_PROMPT]', 'auth');
-    } else if (normalized === 'exit' || normalized === 'close' || normalized === 'quit') {
-      setShowConsole(false);
-      setConsoleStage('main');
-    } else if (normalized === 'clear') {
-      setConsoleLines([{ type: 'system', text: 'Console cleared.' }]);
-    } else if (normalized === 'help') {
-      addConsoleLine('/open/admin/panel/login/  — Admin panel access', 'output');
-      addConsoleLine('clear                     — Clear terminal', 'output');
-      addConsoleLine('exit                      — Close terminal', 'output');
+      setConsoleStage('admin_login');
+    } else if (normalized === '/clear/') {
+      setConsoleLines([{ type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' }, { type: 'system', text: '' }]);
+    } else if (normalized === '/delete/admin/') {
+      if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
+      localStorage.removeItem('zet_ceo_mode');
+      setIsCEO(false);
+      addConsoleLine('Admin mode deactivated. Returned to standard user.', 'output');
+    } else if (creditMatch) {
+      if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
+      const amount = parseInt(creditMatch[1]);
+      addConsoleLine(`Adding ${amount} credits...`, 'output');
+      try {
+        const res = await axios.post(`${API}/admin/add-credits`, { amount }, { withCredentials: true });
+        addConsoleLine(`✓ ${amount} credits added. Total: ${res.data.total}`, 'success');
+      } catch { addConsoleLine('Error: could not add credits.', 'error'); }
+    } else if (spMatch) {
+      if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
+      const amount = parseInt(spMatch[1]);
+      addConsoleLine(`Adding ${amount} SP...`, 'output');
+      try {
+        const res = await axios.post(`${API}/admin/add-sp`, { amount }, { withCredentials: true });
+        addConsoleLine(`✓ ${amount} SP added. Total: ${res.data.total}`, 'success');
+      } catch { addConsoleLine('Error: could not add SP.', 'error'); }
+    } else if (normalized === 'exit' || normalized === 'close') {
+      setShowConsole(false); setConsoleStage('main');
     } else {
       addConsoleLine(`Unknown command: ${cmd}`, 'error');
-      addConsoleLine('Type "help" for available commands.', 'output');
     }
   };
 
   const handleAdminGoogleAuth = () => {
-    const currentEmail = user?.email || '';
-    if (currentEmail === CEO_EMAIL) {
-      localStorage.setItem('zet_ceo_mode', 'true');
-      setIsCEO(true);
-      setConsoleStage('main');
-      addConsoleLine('', 'output');
-      addConsoleLine('✓ IDENTITY VERIFIED', 'success');
-      addConsoleLine(`Welcome, CEO. Admin mode activated.`, 'success');
-      addConsoleLine('', 'output');
-    } else {
-      addConsoleLine('', 'output');
-      addConsoleLine('✗ ACCESS DENIED', 'error');
-      addConsoleLine('This session has been logged.', 'error');
-      setConsoleStage('main');
-    }
+    const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
+    const popup = window.open(`${backendUrl}/api/auth/admin-console`, 'AdminConsole', 'width=480,height=600,scrollbars=yes');
+    const onMessage = (e) => {
+      if (e.data && typeof e.data.ceoVerified !== 'undefined') {
+        window.removeEventListener('message', onMessage);
+        if (popup && !popup.closed) popup.close();
+        setConsoleStage('main');
+        if (e.data.ceoVerified) {
+          localStorage.setItem('zet_ceo_mode', 'true');
+          setIsCEO(true);
+          addConsoleLine('', 'output');
+          addConsoleLine('✓ IDENTITY VERIFIED', 'success');
+          addConsoleLine('Welcome, CEO. Admin mode activated.', 'success');
+          addConsoleLine('', 'output');
+        } else {
+          addConsoleLine('', 'output');
+          addConsoleLine('✗ ACCESS DENIED', 'error');
+          addConsoleLine('This session has been logged.', 'error');
+        }
+      }
+    };
+    window.addEventListener('message', onMessage);
+    // Cleanup if popup closed manually
+    const timer = setInterval(() => {
+      if (popup && popup.closed) { window.removeEventListener('message', onMessage); clearInterval(timer); setConsoleStage('main'); }
+    }, 500);
   };
   // ─────────────────────────────────────────────────────────────
 
@@ -1081,6 +1115,22 @@ export const RightPanel = ({
               <div ref={consoleEndRef} />
             </div>
 
+            {/* Autocomplete suggestions */}
+            {consoleInput && getConsoleSuggestions(consoleInput).length > 0 && (
+              <div className="flex-shrink-0 px-4 py-1.5 flex flex-wrap gap-1.5" style={{ background: '#0a0a0a', borderTop: '1px solid #1a1a1a' }}>
+                {getConsoleSuggestions(consoleInput).map((s, i) => (
+                  <button
+                    key={i}
+                    onClick={() => { setConsoleInput(s.replace('(number)', '')); consoleInputRef.current?.focus(); }}
+                    className="text-[10px] px-2 py-0.5 rounded font-mono"
+                    style={{ background: '#1a2a1a', color: '#00e050', border: '1px solid #2a3a2a' }}
+                  >
+                    {s}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {/* Input area */}
             <div className="flex items-center gap-2 px-4 py-3 flex-shrink-0" style={{ background: '#111', borderTop: '1px solid #222' }}>
               <span className="text-xs" style={{ color: '#00e050' }}>{'>'}</span>
@@ -1088,7 +1138,14 @@ export const RightPanel = ({
                 ref={consoleInputRef}
                 value={consoleInput}
                 onChange={e => setConsoleInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleConsoleSubmit(); }}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') { handleConsoleSubmit(); }
+                  else if (e.key === 'Tab') {
+                    e.preventDefault();
+                    const suggestions = getConsoleSuggestions(consoleInput);
+                    if (suggestions.length === 1) setConsoleInput(suggestions[0].replace('(number)', ''));
+                  }
+                }}
                 className="flex-1 bg-transparent text-xs outline-none"
                 style={{ color: '#fff', caretColor: '#00e050' }}
                 placeholder="enter command..."
