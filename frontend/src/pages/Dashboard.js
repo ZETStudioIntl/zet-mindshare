@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
+import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
@@ -906,10 +907,7 @@ MATCHES:[1,3,5]`;
           {zetaAnalysis.noteId === note.note_id && (
             <div className="mt-2 p-3 rounded-lg text-sm" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)' }}>
               {zetaAnalysis.loading ? (
-                <div className="flex items-center gap-2" style={{ color: 'var(--zet-text-muted)' }}>
-                  <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
-                  {t('analyzing')}
-                </div>
+                <ZetaTypingIndicator />
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-1">
@@ -1676,10 +1674,7 @@ MATCHES:[1,3,5]`;
           {zetaSearch && (zetaSearchLoading || zetaSearchResults) && (
             <div className="mt-3 p-4 rounded-xl animate-fadeIn" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.3)' }}>
               {zetaSearchLoading ? (
-                <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-                  <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
-                  Zeta {activeTab === 'documents' ? 'belge içeriklerini' : 'notları'} tarayarak arıyor...
-                </div>
+                <ZetaTypingIndicator hasDocument={activeTab === 'documents'} />
               ) : (
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -1796,10 +1791,7 @@ MATCHES:[1,3,5]`;
                 {zetaDocAnalysis.docId === doc.doc_id && (
                   <div className="mt-2 p-2 rounded-lg text-xs" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)' }} onClick={e => e.stopPropagation()}>
                     {zetaDocAnalysis.loading ? (
-                      <div className="flex items-center gap-1" style={{ color: 'var(--zet-text-muted)' }}>
-                        <div className="w-2.5 h-2.5 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
-                        {t('analyzing')}
-                      </div>
+                      <ZetaTypingIndicator hasDocument size={14} />
                     ) : (
                       <div>
                         <div className="flex items-center justify-between mb-1">

@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Volume2, Scale, Settings, PenTool, FileText, CreditCard, Search, X, ArrowLeft, SlidersHorizontal } from 'lucide-react';
 import axios from 'axios';
+import ZetaTypingIndicator from '../ZetaTypingIndicator';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -423,11 +424,7 @@ export const RightPanel = ({
                     </div>
                   ))}
                   {zetaLoading && (
-                    <div className="flex gap-1 py-1">
-                      <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '0ms' }} />
-                      <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '150ms' }} />
-                      <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: 'var(--zet-primary-light)', animationDelay: '300ms' }} />
-                    </div>
+                    <ZetaTypingIndicator className="py-1" />
                   )}
                   <div ref={chatEndRef} />
                   <audio ref={audioRef} hidden />
@@ -789,11 +786,7 @@ export const RightPanel = ({
                 </div>
               ))}
               {judgeLoading && (
-                <div className="flex gap-1 py-1">
-                  <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#c8005a', animationDelay: '0ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#c8005a', animationDelay: '150ms' }} />
-                  <div className="w-1.5 h-1.5 rounded-full animate-bounce" style={{ background: '#c8005a', animationDelay: '300ms' }} />
-                </div>
+                <ZetaTypingIndicator isJudge className="py-1" />
               )}
               <div ref={judgeChatEndRef} />
             </div>

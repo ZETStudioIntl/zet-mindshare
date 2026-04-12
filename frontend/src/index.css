@@ -169,6 +169,53 @@ body {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Zeta Typing Indicator */
+@keyframes zetaPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.12); }
+}
+
+@keyframes zetaShine {
+  0% { left: -120%; }
+  100% { left: 220%; }
+}
+
+@keyframes zetaMsgFade {
+  0% { opacity: 0; transform: translateY(4px); }
+  15%, 85% { opacity: 1; transform: translateY(0); }
+  100% { opacity: 0; transform: translateY(-4px); }
+}
+
+.zeta-typing-logo {
+  position: relative;
+  display: inline-block;
+  overflow: hidden;
+  animation: zetaPulse 1.5s ease-in-out infinite;
+  will-change: transform;
+}
+
+.zeta-typing-logo::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -120%;
+  width: 45%;
+  height: 200%;
+  background: linear-gradient(
+    45deg,
+    transparent 0%,
+    var(--zeta-shine-color, rgba(76, 168, 173, 0.35)) 50%,
+    transparent 100%
+  );
+  animation: zetaShine 2s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.zeta-typing-message {
+  animation: zetaMsgFade 2.5s ease-in-out infinite;
+  will-change: opacity, transform;
+}
+
 /* Fix for Emergent badge overlay */
 #emergent-badge {
   pointer-events: none !important;
