@@ -284,7 +284,7 @@ export const RightPanel = ({
   const stats = { pageCount: doc?.pages?.length || 0, wordCount };
 
   return (
-    <div data-testid="right-panel" className="w-72 border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
+    <div data-testid="right-panel" className="w-72 h-full border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
       {/* Export Button */}
       {showPages && (
         <div className="p-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
