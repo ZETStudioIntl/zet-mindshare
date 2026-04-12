@@ -120,7 +120,9 @@ const Dashboard = () => {
   const showConfirm = (title, msg, onConfirm, danger = false) => setConfirmModal({ title, msg, onConfirm, danger });
   const [zetaSearchQuery, setZetaSearchQuery] = useState('');
   const [zetaSearchLoading, setZetaSearchLoading] = useState(false);
-  const [zetaSearchResults, setZetaSearchResults] = useState(null);
+  const [zetaSearchResults, setZetaSearchResults] = useState(null); // { text, matches: [{id, title, type}] }
+  const [docContentsCache, setDocContentsCache] = useState({}); // docId -> text
+  const [docSearchLoading, setDocSearchLoading] = useState(false);
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
@@ -681,39 +683,77 @@ const Dashboard = () => {
     }
   };
 
+  const extractDocText = (docData) => {
+    const pages = docData.pages || [];
+    return pages.map(p => (p.content?.ops || []).map(op => typeof op.insert === 'string' ? op.insert : '').join('')).join(' ').trim();
+  };
+
   const handleZetaSearch = async () => {
     if (!zetaSearchQuery.trim()) return;
     setZetaSearchLoading(true);
     setZetaSearchResults(null);
     try {
-      // Belgeler için içerik çek
+      let items = []; // [{index, id, title, type, snippet}]
       let context = '';
+
       if (activeTab === 'documents') {
-        // Tüm belgelerin başlıklarını ver, içerik için top 5'i çek
-        const titles = documents.map((d, i) => `[${i + 1}] "${d.title}" (id:${d.doc_id})`).join('\n');
-        // İlgili belgelerin içeriğini çek (paralel, max 8)
-        const topDocs = documents.slice(0, 8);
-        const contents = await Promise.allSettled(
-          topDocs.map(d => axios.get(`${API}/documents/${d.doc_id}`, { withCredentials: true }))
+        // Tüm belgelerin içeriğini çek (cache'den veya API'den)
+        const allDocs = documents;
+        const fetchResults = await Promise.allSettled(
+          allDocs.map(d =>
+            docContentsCache[d.doc_id]
+              ? Promise.resolve({ data: { pages: [], _cached: docContentsCache[d.doc_id] } })
+              : axios.get(`${API}/documents/${d.doc_id}`, { withCredentials: true })
+          )
         );
-        const docTexts = topDocs.map((d, i) => {
-          const res = contents[i];
-          if (res.status !== 'fulfilled') return '';
-          const pages = res.value.data.pages || [];
-          const text = pages.map(p => (p.content?.ops || []).map(op => typeof op.insert === 'string' ? op.insert : '').join('')).join(' ').trim().slice(0, 800);
-          return `[${i + 1}] "${d.title}": ${text}`;
-        }).filter(Boolean).join('\n\n');
-        context = `Kullanıcının belgeleri:\n${docTexts}\n\nTüm belge başlıkları:\n${titles}`;
+        const newCache = { ...docContentsCache };
+        items = allDocs.map((d, i) => {
+          const res = fetchResults[i];
+          let text = '';
+          if (res.status === 'fulfilled') {
+            if (res.value.data._cached) {
+              text = res.value.data._cached;
+            } else {
+              text = extractDocText(res.value.data);
+              newCache[d.doc_id] = text;
+            }
+          }
+          return { index: i + 1, id: d.doc_id, title: d.title, type: 'document', snippet: text };
+        });
+        setDocContentsCache(newCache);
+        context = items.map(it => `[${it.index}] "${it.title}": ${it.snippet.slice(0, 600)}`).join('\n\n');
       } else {
-        // Notlar
-        const noteTexts = notes.slice(0, 30).map((n, i) => `[${i + 1}] "${n.content.slice(0, 200)}"`).join('\n');
-        context = `Kullanıcının notları:\n${noteTexts}`;
+        const allNotes = notes.slice(0, 50);
+        items = allNotes.map((n, i) => ({ index: i + 1, id: n.note_id, title: n.content.slice(0, 60), type: 'note', snippet: n.content }));
+        context = items.map(it => `[${it.index}] ${it.snippet.slice(0, 200)}`).join('\n');
       }
-      const prompt = `Kullanıcı şunu arıyor: "${zetaSearchQuery}"\n\n${context}\n\nYukarıdaki ${activeTab === 'documents' ? 'belgeler' : 'notlar'} arasında bu aramayla en çok eşleşen ${activeTab === 'documents' ? 'belgeleri' : 'notları'} bul. Kısa ve net cevap ver, hangi ${activeTab === 'documents' ? 'belge' : 'not'} ve neden eşleştiğini söyle.`;
+
+      const prompt = `Kullanıcı şunu arıyor: "${zetaSearchQuery}"
+
+${activeTab === 'documents' ? 'Belgeler' : 'Notlar'}:
+${context}
+
+En çok eşleşen sonuçları bul. Her eşleşme için "[N]" numarasını kullan. Kısa açıkla ve neden eşleştiğini belirt. Cevabın sonuna şu formatta bir JSON satırı ekle (başka yere koyma):
+MATCHES:[1,3,5]`;
+
       const res = await axios.post(`${API}/zeta/chat`, { message: prompt }, { withCredentials: true });
-      setZetaSearchResults(res.data.response);
+      const raw = res.data.response || '';
+
+      // Parse MATCHES:[...] satırını ayır
+      const matchLine = raw.match(/MATCHES:\[([^\]]*)\]/);
+      let matchedIndices = [];
+      if (matchLine) {
+        matchedIndices = matchLine[1].split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+      }
+      const cleanText = raw.replace(/MATCHES:\[[^\]]*\]/, '').trim();
+      const matches = matchedIndices
+        .map(idx => items.find(it => it.index === idx))
+        .filter(Boolean)
+        .map(it => ({ id: it.id, title: it.title, type: it.type }));
+
+      setZetaSearchResults({ text: cleanText, matches });
     } catch {
-      setZetaSearchResults('Arama sırasında bir hata oluştu.');
+      setZetaSearchResults({ text: 'Arama sırasında bir hata oluştu.', matches: [] });
     }
     setZetaSearchLoading(false);
   };
@@ -753,9 +793,33 @@ const Dashboard = () => {
     return `${days}${t('daysAgo')}`;
   };
 
-  const filteredDocs = documents.filter(d => 
-    d.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredDocs = documents.filter(d => {
+    if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
+    if (d.title.toLowerCase().includes(q)) return true;
+    const cached = docContentsCache[d.doc_id];
+    if (cached && cached.toLowerCase().includes(q)) return true;
+    return false;
+  });
+
+  // Belge içeriklerini arka planda yükle (normal arama için)
+  useEffect(() => {
+    if (activeTab !== 'documents' || !searchQuery || zetaSearch) return;
+    const uncached = documents.filter(d => !docContentsCache[d.doc_id]);
+    if (uncached.length === 0) return;
+    setDocSearchLoading(true);
+    Promise.allSettled(uncached.map(d => axios.get(`${API}/documents/${d.doc_id}`, { withCredentials: true })))
+      .then(results => {
+        setDocContentsCache(prev => {
+          const next = { ...prev };
+          uncached.forEach((d, i) => {
+            if (results[i].status === 'fulfilled') next[d.doc_id] = extractDocText(results[i].value.data);
+          });
+          return next;
+        });
+      })
+      .finally(() => setDocSearchLoading(false));
+  }, [searchQuery, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = () => {
     showConfirm('Çıkış Yap', 'Oturumu kapatmak istediğinizden emin misiniz?', async () => {
@@ -1614,7 +1678,7 @@ const Dashboard = () => {
               {zetaSearchLoading ? (
                 <div className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text-muted)' }}>
                   <div className="w-3.5 h-3.5 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
-                  Zeta belgelerini tarayarak arıyor...
+                  Zeta {activeTab === 'documents' ? 'belge içeriklerini' : 'notları'} tarayarak arıyor...
                 </div>
               ) : (
                 <div>
@@ -1626,9 +1690,45 @@ const Dashboard = () => {
                       <X className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
                     </button>
                   </div>
-                  <p className="text-sm whitespace-pre-wrap" style={{ color: 'var(--zet-text)' }}>{zetaSearchResults}</p>
+                  <p className="text-sm whitespace-pre-wrap mb-3" style={{ color: 'var(--zet-text)' }}>{zetaSearchResults?.text}</p>
+                  {zetaSearchResults?.matches?.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-2 border-t" style={{ borderColor: 'rgba(76,168,173,0.2)' }}>
+                      {zetaSearchResults.matches.map(m => (
+                        <button
+                          key={m.id}
+                          onClick={() => {
+                            if (m.type === 'document') {
+                              navigate(`/editor/${m.id}`);
+                            } else {
+                              // Nota kaydır: not sekmesine geç ve ilgili notu highlight et
+                              setActiveTab('notes');
+                              setZetaSearch(false);
+                              setTimeout(() => {
+                                const el = document.querySelector(`[data-testid="note-card-${m.id}"]`);
+                                if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                              }, 100);
+                            }
+                          }}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105"
+                          style={{ background: 'rgba(76,168,173,0.2)', border: '1px solid rgba(76,168,173,0.4)', color: '#4ca8ad' }}
+                        >
+                          {m.type === 'document' ? <FileText className="h-3 w-3" /> : <StickyNote className="h-3 w-3" />}
+                          {m.title.slice(0, 30)}{m.title.length > 30 ? '…' : ''}
+                          <ChevronRight className="h-3 w-3" />
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* Normal arama içerik yükleniyor göstergesi */}
+          {!zetaSearch && docSearchLoading && activeTab === 'documents' && searchQuery && (
+            <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>
+              <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
+              Belge içerikleri taranıyor...
             </div>
           )}
         </div>
