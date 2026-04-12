@@ -114,6 +114,10 @@ const Dashboard = () => {
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
   const [rankTab, setRankTab] = useState('requirements');
   const [zetaSearch, setZetaSearch] = useState(false);
+  const [toast, setToast] = useState(null); // { msg, type: 'success'|'error'|'info' }
+  const [confirmModal, setConfirmModal] = useState(null); // { title, msg, onConfirm, danger }
+  const showToast = (msg, type = 'info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
+  const showConfirm = (title, msg, onConfirm, danger = false) => setConfirmModal({ title, msg, onConfirm, danger });
   const [zetaSearchQuery, setZetaSearchQuery] = useState('');
   const [zetaSearchLoading, setZetaSearchLoading] = useState(false);
   const [zetaSearchResults, setZetaSearchResults] = useState(null);
@@ -341,16 +345,22 @@ const Dashboard = () => {
   };
 
   const handleSubscribe = async (planId) => {
-    setSubscribing(true);
-    try {
-      const res = await axios.post(`${API}/subscription`, { plan: planId, action: 'subscribe' }, { withCredentials: true });
-      setUserSubscription(res.data.plan);
-      setShowSubscription(false);
-      alert(`${planId.toUpperCase()} planina başarıyla abone oldunuz!`);
-    } catch (err) {
-      alert('Abonelik başarısız');
-    }
-    setSubscribing(false);
+    const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
+    showConfirm(
+      'Abonelik Onayı',
+      `${plan?.name || planId.toUpperCase()} planına abone olmak istiyor musunuz?`,
+      async () => {
+        setSubscribing(true);
+        try {
+          const res = await axios.post(`${API}/subscription`, { plan: planId, action: 'subscribe' }, { withCredentials: true });
+          setUserSubscription(res.data.plan);
+          showToast(`${plan?.name || planId.toUpperCase()} planına başarıyla abone oldunuz!`, 'success');
+        } catch {
+          showToast('Abonelik başarısız', 'error');
+        }
+        setSubscribing(false);
+      }
+    );
   };
 
   useEffect(() => {
@@ -369,24 +379,33 @@ const Dashboard = () => {
   const handleBuyCredits = async (packageId) => {
     const pkg = creditPackages.find(p => p.id === packageId);
     if (!pkg) return;
-    if (!window.confirm(`${pkg.credits} kredi satin almak istiyor musunuz?\nFiyat: $${pkg.discounted_price}`)) return;
-    setBuyingCredits(true);
-    try {
-      const res = await axios.post(`${API}/credits/buy`, { package_id: packageId }, { withCredentials: true });
-      if (res.data.needs_confirmation) {
-        if (window.confirm(`${res.data.message}\n\nDevam etmek istiyor musunuz?`)) {
-          const res2 = await axios.post(`${API}/credits/buy`, { package_id: packageId, confirm_overflow: true }, { withCredentials: true });
-          alert(res2.data.message);
+    showConfirm(
+      'Kredi Satın Al',
+      `${pkg.credits} kredi satın almak istiyor musunuz?\nFiyat: $${pkg.discounted_price}`,
+      async () => {
+        setBuyingCredits(true);
+        try {
+          const res = await axios.post(`${API}/credits/buy`, { package_id: packageId }, { withCredentials: true });
+          if (res.data.needs_confirmation) {
+            showConfirm(
+              'Kredi Limiti Aşılıyor',
+              res.data.message + '\n\nDevam etmek istiyor musunuz?',
+              async () => {
+                const res2 = await axios.post(`${API}/credits/buy`, { package_id: packageId, confirm_overflow: true }, { withCredentials: true });
+                showToast(res2.data.message, 'success');
+                fetchSubscription();
+              }
+            );
+          } else {
+            showToast(res.data.message, 'success');
+            fetchSubscription();
+          }
+        } catch (err) {
+          showToast(err.response?.data?.detail || 'Satın alma başarısız', 'error');
         }
-      } else {
-        alert(res.data.message);
+        setBuyingCredits(false);
       }
-      setShowCredits(false);
-      fetchSubscription();
-    } catch (err) {
-      alert(err.response?.data?.detail || 'Satin alma başarısız');
-    }
-    setBuyingCredits(false);
+    );
   };
 
 
@@ -394,60 +413,53 @@ const Dashboard = () => {
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
     if (!plan) return;
     if (userSP < plan.spCost) {
-      alert(`Yetersiz SP! Gerekli: ${plan.spCost.toLocaleString()} SP, Mevcut: ${userSP.toLocaleString()} SP`);
+      showToast(`Yetersiz SP! Gerekli: ${plan.spCost.toLocaleString()} SP, Mevcut: ${userSP.toLocaleString()} SP`, 'error');
       return;
     }
-    if (!window.confirm(`${plan.spCost.toLocaleString()} SP harcayarak ${plan.name} planina yükselmek istiyor musunuz?\n\nMevcut SP: ${userSP.toLocaleString()}\nKalan SP: ${(userSP - plan.spCost).toLocaleString()}`)) return;
-    setSubscribing(true);
-    try {
-      const res = await axios.post(`${API}/subscription/buy-with-sp`, { plan: planId }, { withCredentials: true });
-      setUserSubscription(res.data.plan);
-      setUserSP(res.data.remaining_sp);
-      setShowSubscription(false);
-      alert(`${planId.toUpperCase()} planina ${plan.spCost.toLocaleString()} SP ile yükseltildiniz!`);
-    } catch (err) {
-      alert(err.response?.data?.detail || 'SP ile satin alma başarısız');
-    }
-    setSubscribing(false);
+    showConfirm(
+      'SP ile Satın Al',
+      `${plan.spCost.toLocaleString()} SP harcayarak ${plan.name} planına yükselmek istiyor musunuz?\n\nMevcut SP: ${userSP.toLocaleString()}\nKalan SP: ${(userSP - plan.spCost).toLocaleString()}`,
+      async () => {
+        setSubscribing(true);
+        try {
+          const res = await axios.post(`${API}/subscription/buy-with-sp`, { plan: planId }, { withCredentials: true });
+          setUserSubscription(res.data.plan);
+          setUserSP(res.data.remaining_sp);
+          showToast(`${plan.name} planına ${plan.spCost.toLocaleString()} SP ile yükseltildiniz!`, 'success');
+        } catch (err) {
+          showToast(err.response?.data?.detail || 'SP ile satın alma başarısız', 'error');
+        }
+        setSubscribing(false);
+      }
+    );
   };
 
   const handleCancelSubscription = async () => {
-    // Get features user will lose
     const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === userSubscription);
-    const featuresList = currentPlan ? currentPlan.features.join('\n• ') : '';
-    
-    const confirmMsg = `⚠️ ABONELİK İPTALİ
-
-Emin misiniz? ${userSubscription.toUpperCase()} planını iptal ettiğinizde şu özellikleri kaybedeceksiniz:
-
-• ${featuresList}
-
-Bu işlem geri alınabilir ancak şu anki faturalandırma döneminin sonuna kadar geçerlidir.
-
-Devam etmek istiyor musunuz?`;
-    
-    if (!window.confirm(confirmMsg)) return;
-    
-    // Seçond confirmation
-    const secondConfirm = window.confirm('Son kez onaylıyor musunuz?\n\nOnayladığınızda e-posta adresinize bir iptal onay linki gönderilecektir.');
-    if (!secondConfirm) return;
-    
-    setSubscribing(true);
-    try {
-      const res = await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
-      if (res.data.cancel_pending) {
-        alert('📧 İptal onay e-postası gönderildi!\n\nAboneliğinizi iptal etmek için e-postanızdaki linke tıklayın.');
-      } else {
-        setUserSubscription('free');
-        const newTools = fastSelectTools.slice(0, 3);
-        setFastSelectTools(newTools);
-        localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
-        alert('Aboneliğiniz iptal edildi. FREE plana düştünüz.');
-      }
-    } catch (err) {
-      alert('Cancel failed');
-    }
-    setSubscribing(false);
+    const featuresList = currentPlan ? currentPlan.features.slice(0, 4).join(', ') : '';
+    showConfirm(
+      '⚠️ Abonelik İptali',
+      `${currentPlan?.name || userSubscription.toUpperCase()} planını iptal etmek istediğinizden emin misiniz?\n\nKaybedecekleriniz: ${featuresList}\n\nOnayladığınızda e-posta adresinize iptal onay linki gönderilecektir.`,
+      async () => {
+        setSubscribing(true);
+        try {
+          const res = await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
+          if (res.data.cancel_pending) {
+            showToast('📧 İptal onay e-postası gönderildi! E-postanızdaki linke tıklayın.', 'info');
+          } else {
+            setUserSubscription('free');
+            const newTools = fastSelectTools.slice(0, 3);
+            setFastSelectTools(newTools);
+            localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+            showToast('Aboneliğiniz iptal edildi.', 'info');
+          }
+        } catch {
+          showToast('İptal başarısız', 'error');
+        }
+        setSubscribing(false);
+      },
+      true // danger
+    );
   };
 
   const checkDriveConnection = async () => {
@@ -500,7 +512,7 @@ Devam etmek istiyor musunuz?`;
       setShowNewNotebook(false);
     } catch (error) {
       console.error('Error creating notebook:', error);
-      alert(error.response?.data?.detail || `Defter oluşturulamadı (${error.response?.status || 'bağlantı hatası'})`);
+      showToast(error.response?.data?.detail || `Defter oluşturulamadı (${error.response?.status || 'bağlantı hatası'})`, 'error');
     }
   };
 
@@ -745,20 +757,27 @@ Devam etmek istiyor musunuz?`;
     d.title.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
-  const handleLogout = async () => {
-    if (!window.confirm('Oturumu kapatmak istediğinizden emin misiniz?')) return;
-    await logout();
-    navigate('/login');
+  const handleLogout = () => {
+    showConfirm('Çıkış Yap', 'Oturumu kapatmak istediğinizden emin misiniz?', async () => {
+      await logout();
+      navigate('/login');
+    });
   };
 
-  const handleDeleteAccount = async () => {
-    if (!window.confirm('Hesabınızı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz. Tüm notlarınız ve verileriniz kalıcı olarak silinecektir.')) return;
-    try {
-      await axios.post(`${API}/auth/delete-account/request`, {}, { withCredentials: true });
-      alert('Onay e-postası gönderildi. E-postanızdaki bağlantıya tıklayarak hesabınızı silebilirsiniz.');
-    } catch {
-      alert('Bir hata oluştu. Lütfen tekrar deneyin.');
-    }
+  const handleDeleteAccount = () => {
+    showConfirm(
+      'Hesabı Sil',
+      'Hesabınızı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz. Tüm notlarınız ve verileriniz kalıcı olarak silinecektir.',
+      async () => {
+        try {
+          await axios.post(`${API}/auth/delete-account/request`, {}, { withCredentials: true });
+          showToast('Onay e-postası gönderildi. E-postanızdaki bağlantıya tıklayın.', 'info');
+        } catch {
+          showToast('Bir hata oluştu. Lütfen tekrar deneyin.', 'error');
+        }
+      },
+      true // danger
+    );
   };
 
   const visibleNotes = [...notes.filter(n => !n.notebook_id && (!searchQuery || n.content.toLowerCase().includes(searchQuery.toLowerCase())))]
@@ -1111,7 +1130,7 @@ Devam etmek istiyor musunuz?`;
                                 await axios.post(`${API}/auth/change-email/request`, { new_email: newEmail }, { withCredentials: true });
                                 setEmailSent(true);
                               } catch (err) {
-                                alert(err.response?.data?.detail || 'Bir hata oluştu');
+                                showToast(err.response?.data?.detail || 'Bir hata oluştu', 'error');
                               }
                               setEmailSending(false);
                             }}
@@ -1143,9 +1162,9 @@ Devam etmek istiyor musunuz?`;
                           if (updateUser) updateUser({ ...user, name: editName, picture: pictureUrl });
                           setProfilePhoto(null);
                           setProfilePhotoPreview(null);
-                          alert('Profil güncellendi!');
+                          showToast('Profil güncellendi!', 'success');
                         } catch {
-                          alert('Güncelleme başarısız');
+                          showToast('Güncelleme başarısız', 'error');
                         }
                         setUploadingPhoto(false);
                       }}
@@ -2042,6 +2061,63 @@ Devam etmek istiyor musunuz?`;
                 style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
               >
                 {t('yesDelete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast Notification */}
+      {toast && (
+        <div
+          className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-xl text-sm font-medium animate-fadeIn flex items-center gap-2 shadow-lg"
+          style={{
+            background: toast.type === 'success' ? 'rgba(34,197,94,0.15)' : toast.type === 'error' ? 'rgba(239,68,68,0.15)' : 'rgba(76,168,173,0.15)',
+            border: `1px solid ${toast.type === 'success' ? 'rgba(34,197,94,0.5)' : toast.type === 'error' ? 'rgba(239,68,68,0.5)' : 'rgba(76,168,173,0.5)'}`,
+            color: toast.type === 'success' ? '#22c55e' : toast.type === 'error' ? '#ef4444' : '#4ca8ad',
+            backdropFilter: 'blur(10px)',
+            maxWidth: 360,
+          }}
+        >
+          <span>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ'}</span>
+          <span style={{ color: 'var(--zet-text)' }}>{toast.msg}</span>
+          <button onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100"><X className="h-3.5 w-3.5" /></button>
+        </div>
+      )}
+
+      {/* Confirm Modal */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[99] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmModal(null)}>
+          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
+            style={{ border: `1px solid ${confirmModal.danger ? 'rgba(239,68,68,0.4)' : 'rgba(76,168,173,0.3)'}` }}>
+            <div className="flex items-start gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
+                style={{ background: confirmModal.danger ? 'rgba(239,68,68,0.15)' : 'rgba(76,168,173,0.15)' }}>
+                {confirmModal.danger
+                  ? <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
+                  : <Check className="h-5 w-5" style={{ color: '#4ca8ad' }} />}
+              </div>
+              <div>
+                <p className="font-semibold mb-1" style={{ color: 'var(--zet-text)' }}>{confirmModal.title}</p>
+                <p className="text-sm whitespace-pre-line" style={{ color: 'var(--zet-text-muted)' }}>{confirmModal.msg}</p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
+                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
+              >
+                İptal
+              </button>
+              <button
+                onClick={() => { const fn = confirmModal.onConfirm; setConfirmModal(null); fn(); }}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                style={confirmModal.danger
+                  ? { background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }
+                  : { background: 'rgba(76,168,173,0.2)', border: '1px solid rgba(76,168,173,0.5)', color: '#4ca8ad' }}
+              >
+                Onayla
               </button>
             </div>
           </div>
