@@ -4,6 +4,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import axios from 'axios';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
+import ironRankImg from '../assets/rank-iron.svg';
+import silverRankImg from '../assets/rank-silver.svg';
+import goldRankImg from '../assets/rank-gold.svg';
 import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
@@ -158,6 +161,13 @@ const Dashboard = () => {
   const rankProgress = nextRank
     ? Math.min(100, Math.round(((userSP - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
     : 100;
+
+  const RANK_LOGOS = { 'Demir': ironRankImg, 'Gümüş': silverRankImg, 'Altın': goldRankImg };
+  const RankIcon = ({ rank, size = 16, className = '' }) => {
+    const src = RANK_LOGOS[rank?.name];
+    if (src) return <img src={src} alt={rank.name} style={{ height: size, width: 'auto', display: 'inline-block', verticalAlign: 'middle' }} className={className} />;
+    return <Award style={{ width: size, height: size, color: rank?.color }} className={className} />;
+  };
 
   // Fast select limits based on subscription
   const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, ultra: 8 };
@@ -980,7 +990,7 @@ MATCHES:[1,3,5]`;
           <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
           {showRankBadge && (
             <span className="hidden sm:flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium" style={{ background: `${currentRank.color}25`, color: currentRank.color, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
-              <Award className="h-3 w-3" /> {currentRank.name}
+              <RankIcon rank={currentRank} size={14} /> {currentRank.name}
             </span>
           )}
           {user?.name && (
@@ -1030,7 +1040,7 @@ MATCHES:[1,3,5]`;
                 { id: 'general',      icon: <User className="h-4 w-4" />,       label: t('general') },
                 { id: 'profile',      icon: <UserCheck className="h-4 w-4" />,  label: t('profile') },
                 { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
-                { id: 'ranks',        icon: <Award className="h-4 w-4" />,      label: t('ranks'),         color: '#f59e0b' },
+                { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
                 { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('questMap'),      color: '#4ca8ad' },
                 { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: t('subscription'),  color: 'var(--zet-primary-light)' },
                 { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
@@ -1325,7 +1335,7 @@ MATCHES:[1,3,5]`;
                       className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all"
                       style={{ background: showRankBadge ? `${currentRank.color}20` : 'rgba(255,255,255,0.06)', color: showRankBadge ? currentRank.color : 'var(--zet-text-muted)', border: `1px solid ${showRankBadge ? currentRank.color + '40' : 'transparent'}` }}
                     >
-                      <Award className="h-3 w-3" />
+                      <RankIcon rank={currentRank} size={12} />
                       {showRankBadge ? 'Profilde göster' : 'Profilde gizle'}
                     </button>
                   </div>
@@ -2856,7 +2866,7 @@ MATCHES:[1,3,5]`;
             
             {/* Current Rank */}
             <div className="p-4 rounded-xl mb-6 text-center" style={{ background: `linear-gradient(135deg, ${currentRank.color}33 0%, rgba(139,92,246,0.2) 100%)`, border: `1px solid ${currentRank.color}50` }}>
-              <Award className="h-12 w-12 mx-auto mb-2" style={{ color: currentRank.color }} />
+              <div className="flex justify-center mb-2"><RankIcon rank={currentRank} size={72} /></div>
               <h3 className="text-lg font-bold" style={{ color: currentRank.color }}>{currentRank.name}</h3>
               <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
                 Seviye {currentRank.level} • {userSP.toLocaleString()} XP {nextRank ? `/ ${nextRank.xp.toLocaleString()} XP` : '(Maksimum)'}
@@ -2875,7 +2885,7 @@ MATCHES:[1,3,5]`;
                   return (
                     <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isCurrent ? 'ring-2' : ''}`} style={{ background: isCurrent ? `${rank.color}1a` : 'var(--zet-bg)', outline: isCurrent ? `2px solid ${rank.color}` : undefined }}>
                       <div className="flex items-center gap-2">
-                        <Award className="h-4 w-4" style={{ color: rank.color }} />
+                        <RankIcon rank={rank} size={20} />
                         <span className="text-sm" style={{ color: isCurrent ? rank.color : 'var(--zet-text)' }}>{rank.name}</span>
                         {isCurrent && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${rank.color}33`, color: rank.color }}>Mevcut</span>}
                       </div>
