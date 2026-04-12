@@ -57,6 +57,7 @@ const Dashboard = () => {
   const [noteReminder, setNoteReminder] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
+  const [mobileSettingsSidebar, setMobileSettingsSidebar] = useState(true);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
   const [newDocTitle, setNewDocTitle] = useState('');
@@ -1001,7 +1002,7 @@ MATCHES:[1,3,5]`;
         </div>
         <div className="flex items-center gap-2">
           <button 
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => { setShowSettings(!showSettings); setMobileSettingsSidebar(true); }}
             className="tool-btn"
             data-testid="settings-btn"
           >
@@ -1023,8 +1024,8 @@ MATCHES:[1,3,5]`;
 
           {/* Body: sidebar + content */}
           <div className="flex flex-1 min-h-0">
-            {/* Left sidebar */}
-            <div className="w-56 flex-shrink-0 border-r overflow-y-auto py-4 px-3" style={{ borderColor: 'var(--zet-border)' }}>
+            {/* Left sidebar - full screen on mobile when sidebar open, hidden when content shown */}
+            <div className={`${mobileSettingsSidebar ? 'flex flex-col' : 'hidden'} md:flex md:flex-col w-full md:w-56 flex-shrink-0 border-r overflow-y-auto py-4 px-3`} style={{ borderColor: 'var(--zet-border)' }}>
               {/* Profil özeti */}
               <div className="flex items-center gap-3 px-3 pb-4 mb-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
                 <img src={user?.picture || 'https://via.placeholder.com/36'} alt="" className="w-9 h-9 rounded-full flex-shrink-0" />
@@ -1049,7 +1050,7 @@ MATCHES:[1,3,5]`;
               ].map(item => (
                 <button
                   key={item.id}
-                  onClick={() => { if (item.id === 'quests') { navigate('/quest-map'); setShowSettings(false); } else setSettingsTab(item.id); }}
+                  onClick={() => { if (item.id === 'quests') { navigate('/quest-map'); setShowSettings(false); } else { setSettingsTab(item.id); setMobileSettingsSidebar(false); } }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mb-0.5 transition-all"
                   style={{
                     background: settingsTab === item.id ? 'rgba(255,255,255,0.08)' : 'transparent',
@@ -1072,8 +1073,16 @@ MATCHES:[1,3,5]`;
               </div>
             </div>
 
-            {/* Right content */}
-            <div className="flex-1 overflow-y-auto p-8">
+            {/* Right content - hidden on mobile when sidebar shown */}
+            <div className={`${mobileSettingsSidebar ? 'hidden' : 'flex flex-col'} md:flex md:flex-col flex-1 overflow-y-auto p-4 md:p-8`}>
+              {/* Mobile back button */}
+              <button
+                className="md:hidden flex items-center gap-2 mb-4 text-sm font-medium"
+                style={{ color: 'var(--zet-text-muted)' }}
+                onClick={() => setMobileSettingsSidebar(true)}
+              >
+                <ChevronLeft className="h-4 w-4" /> Geri
+              </button>
 
               {settingsTab === 'general' && (
                 <div className="max-w-lg">
@@ -1367,7 +1376,7 @@ MATCHES:[1,3,5]`;
                         <div key={r.name} className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: isCurrent ? `1px solid ${r.color}60` : '1px solid transparent' }}>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-3">
-                              <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                              <RankIcon rank={r} size={22} />
                               <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
                               {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                             </div>
@@ -1411,7 +1420,7 @@ MATCHES:[1,3,5]`;
                         return (
                         <div key={r.name} className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)', border: isCurrent ? `1px solid ${r.color}60` : '1px solid transparent' }}>
                           <div className="flex items-center gap-3">
-                            <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ background: r.color }} />
+                            <RankIcon rank={r} size={22} />
                             <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
                             {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                           </div>
