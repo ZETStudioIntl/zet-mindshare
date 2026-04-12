@@ -589,6 +589,15 @@ const Editor = () => {
     });
   };
 
+  const handleUpdateSettings = (updates) => {
+    if (updates.zetaMood !== undefined) setZetaMood(updates.zetaMood);
+    if (updates.zetaEmoji !== undefined) setZetaEmoji(updates.zetaEmoji);
+  };
+
+  const handleZetaTakeNote = async (content) => {
+    // Note already saved by RightPanel; this can trigger a UI refresh if needed
+  };
+
   const handleAutoWriteContent = (pages, pageCount) => {
     if (!pages || pages.length === 0) return;
     const ml = marginLeft || 40;
@@ -3618,7 +3627,8 @@ const Editor = () => {
                 onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
                 onShowChatSettings={() => setShowChatSettings(true)}
                 zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
-                onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits} />
+                onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
+                onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote} />
             </div>
           </div>
         )}
@@ -3793,7 +3803,8 @@ const Editor = () => {
           onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
           onShowChatSettings={() => setShowChatSettings(true)}
           zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
-          onAutoWriteContent={handleAutoWriteContent} />
+          onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
+          onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote} />
       </div>
 
       {showVoice && (

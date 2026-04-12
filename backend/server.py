@@ -1324,6 +1324,26 @@ async def clear_chat_history(doc_id: str, ai_type: str = "zeta", user: User = De
     await collection.delete_many({"user_id": user.user_id, "doc_id": doc_id})
     return {"message": "Chat history cleared"}
 
+# ============ ZETA MEMORY ROUTES ============
+
+@api_router.get("/zeta/memory")
+async def get_zeta_memories(user: User = Depends(get_current_user)):
+    memories = await db.zeta_memories.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
+    return memories
+
+@api_router.post("/zeta/memory")
+async def save_zeta_memory(content: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    memory_id = f"mem_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc)
+    doc = {"memory_id": memory_id, "user_id": user.user_id, "content": content, "created_at": now.isoformat()}
+    await db.zeta_memories.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api_router.delete("/zeta/memory/{memory_id}")
+async def delete_zeta_memory(memory_id: str, user: User = Depends(get_current_user)):
+    result = await db.zeta_memories.delete_one({"memory_id": memory_id, "user_id": user.user_id})
+    return {"deleted": result.deleted_count > 0}
+
 # ============ ZETA AI ROUTES ============
 
 @api_router.get("/gemini/models")
@@ -1781,7 +1801,10 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     zeta_char_limit = limits.get('zeta_chars', 250)
     if zeta_char_limit < 99999 and len(req.message) > zeta_char_limit:
         return {"response": f"Mesaj çok uzun! {user_plan.upper()} planında ZETA'ya maksimum {zeta_char_limit} karakter gönderebilirsiniz. Daha uzun mesajlar için planınızı yükseltin.", "session_id": None, "char_limit_exceeded": True}
-    
+
+    # Load user's Zeta memories
+    memories = await db.zeta_memories.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(30)
+
     # Build personality based on mood setting
     mood_instructions = {
         'cheerful': '🎉 Neşeli, pozitif ve enerjik ol! Her şeyde güzel tarafı gör. Motivasyonlu cümleler kur.',
@@ -1988,9 +2011,34 @@ CEVAP UZUNLUĞU KURALI:
 - Liste istekleri → en fazla 5 madde
 - Uzun içerik sadece kullanıcı açıkça istediğinde
 
+🎮 EYLEM SİSTEMİ (KRİTİK):
+Kullanıcı senden ayarlarını değiştirmeni, bir şeyi hatırlamanı veya not almasını istediğinde, cevabının EN BAŞINA bu özel etiketleri ekle. Bu etiketler kullanıcıya gösterilmez, sisteme gönderilir:
+- Emoji seviyesini değiştir: [ACTION:EMOJI:none] veya [ACTION:EMOJI:low] veya [ACTION:EMOJI:medium] veya [ACTION:EMOJI:high]
+- Kişiliği değiştir: [ACTION:MOOD:professional] veya [ACTION:MOOD:cheerful] veya [ACTION:MOOD:curious]
+- Belleğe kaydet: [ACTION:MEMORY:hatırlanacak içerik]
+- Not al: [ACTION:NOTE:not içeriği]
+
+Örnekler:
+- "az emoji kullan" → "[ACTION:EMOJI:low]Tamam, artık daha az emoji kullanacağım."
+- "emoji kullanma" → "[ACTION:EMOJI:none]Anlaşıldı, emoji kullanmayacağım."
+- "daha neşeli ol" → "[ACTION:MOOD:cheerful]Hemen değiştiriyorum!"
+- "bunu hatırla: toplantı cuma 14:00" → "[ACTION:MEMORY:toplantı cuma 14:00]Belleğime kaydettim!"
+- "not al: pazarlama fikirleri - sosyal medya..." → "[ACTION:NOTE:pazarlama fikirleri - sosyal medya...]Not alındı!"
+- Birden fazla: "[ACTION:MOOD:cheerful][ACTION:EMOJI:high]Hazırım!"
+
 Kullanıcının dilinde yanıt ver!
 """
     
+    # Inject memories into system prompt
+    if memories:
+        memory_lines = "\n".join(f"- {m['content']}" for m in memories)
+        system_message += f"""
+
+🧠 BELLEĞİNDE KAYITLI BİLGİLER (kullanıcı senden bunları hatırlamanı istedi):
+{memory_lines}
+Bu bilgileri konuşmaya uygun yerlerde kullan ve başvur.
+"""
+
     # If document content is provided, add it to the context
     if req.document_content:
         system_message += f"""
@@ -2001,7 +2049,7 @@ CURRENT DOCUMENT CONTENT:
 ---
 The user may ask questions about this document. Use this content to provide relevant answers.
 """
-    
+
     # Load chat history for this session
     history_docs = await db.zeta_chats.find(
         {"session_id": session_id}, {"_id": 0}
@@ -2028,6 +2076,14 @@ The user may ask questions about this document. Use this content to provide rele
         logging.error(f"Zeta chat Gemini error: {e}")
         return {"response": f"AI hatası: {str(e)}", "session_id": session_id}
 
+    # Parse and strip ACTION tags from response
+    import re as _re
+    actions = []
+    action_pattern = _re.compile(r'\[ACTION:([A-Z]+):([^\]]*)\]')
+    for match in action_pattern.finditer(response):
+        actions.append({"type": match.group(1), "value": match.group(2).strip()})
+    clean_response = action_pattern.sub('', response).lstrip()
+
     # Track chat usage (free but must be counted)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await db.usage.update_one(
@@ -2036,17 +2092,17 @@ The user may ask questions about this document. Use this content to provide rele
         upsert=True
     )
 
-    # Save chat history
+    # Save chat history (save clean response without action tags)
     await db.zeta_chats.insert_one({
         "user_id": user.user_id,
         "session_id": session_id,
         "doc_id": req.doc_id,
         "user_message": req.message,
-        "ai_response": response,
+        "ai_response": clean_response,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    return {"response": response, "session_id": session_id}
+    return {"response": clean_response, "session_id": session_id, "actions": actions}
 
 @api_router.post("/zeta/generate-image")
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):
