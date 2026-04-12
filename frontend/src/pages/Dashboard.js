@@ -7,7 +7,7 @@ import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
-  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck
+  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -249,7 +249,7 @@ const Dashboard = () => {
       };
     } else {
       // Fallback to alert
-      alert(`🔔 ${title}\n${message}`);
+      alert(`${title}\n${message}`);
     }
   }, []);
 
@@ -329,7 +329,7 @@ const Dashboard = () => {
       setNotes(prev => prev.map(note => note.note_id === n.note_id ? { ...note, reminder_sent: true } : note));
       axios.put(`${API}/notes/${n.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
       // Browser / in-app notification
-      showNotification('🔔 ZET Hatırlatıcı', n.content?.slice(0, 100) || 'Bir hatırlatıcınız var');
+      showNotification('ZET Hatırlatıcı', n.content?.slice(0, 100) || 'Bir hatırlatıcınız var');
     });
   }, [notes, alarmTick]);
 
@@ -440,14 +440,14 @@ const Dashboard = () => {
     const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === userSubscription);
     const featuresList = currentPlan ? currentPlan.features.slice(0, 4).join(', ') : '';
     showConfirm(
-      '⚠️ Abonelik İptali',
+      'Abonelik İptali',
       `${currentPlan?.name || userSubscription.toUpperCase()} planını iptal etmek istediğinizden emin misiniz?\n\nKaybedecekleriniz: ${featuresList}\n\nOnayladığınızda e-posta adresinize iptal onay linki gönderilecektir.`,
       async () => {
         setSubscribing(true);
         try {
           const res = await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
           if (res.data.cancel_pending) {
-            showToast('📧 İptal onay e-postası gönderildi! E-postanızdaki linke tıklayın.', 'info');
+            showToast('İptal onay e-postası gönderildi. E-postanızdaki linke tıklayın.', 'info');
           } else {
             setUserSubscription('free');
             const newTools = fastSelectTools.slice(0, 3);
@@ -987,7 +987,7 @@ MATCHES:[1,3,5]`;
           )}
           {user?.name && (
             <span className="hidden sm:block" style={{ fontFamily: "'Caveat', cursive", fontSize: '1.25rem', fontWeight: 700, color: '#4ca8ad', letterSpacing: '0.01em' }}>
-              Merhaba, {user.name.split(' ')[0]} 👋
+              Merhaba, {user.name.split(' ')[0]}
             </span>
           )}
         </div>
@@ -1176,7 +1176,7 @@ MATCHES:[1,3,5]`;
                         <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(76,168,173,0.15)', color: '#4ca8ad' }}>Mevcut: {user?.email}</span>
                       </div>
                       {emailSent ? (
-                        <p className="text-sm text-green-400">✅ Onay e-postası gönderildi. Gelen kutunuzu kontrol edin.</p>
+                        <p className="text-sm text-green-400">Onay e-postası gönderildi. Gelen kutunuzu kontrol edin.</p>
                       ) : (
                         <>
                           <input
@@ -1254,10 +1254,10 @@ MATCHES:[1,3,5]`;
                         <div>
                           <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
                           <select value={zetaMood} onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }} className="zet-input text-sm w-full">
-                            <option value="cheerful">🎉 Neşeli</option>
-                            <option value="professional">💼 Profesyonel</option>
-                            <option value="curious">🔍 Meraklı</option>
-                            <option value="custom">✨ Özel</option>
+                            <option value="cheerful">Neşeli</option>
+                            <option value="professional">Profesyonel</option>
+                            <option value="curious">Meraklı</option>
+                            <option value="custom">Özel</option>
                           </select>
                         </div>
                         {zetaMood === 'custom' && (
@@ -1269,10 +1269,10 @@ MATCHES:[1,3,5]`;
                         <div>
                           <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
                           <select value={zetaEmoji} onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }} className="zet-input text-sm w-full">
-                            <option value="none">❌ Kullanma</option>
-                            <option value="low">📍 Az Kullan</option>
-                            <option value="medium">📌 Orta</option>
-                            <option value="high">🎯 Çok Kullan</option>
+                            <option value="none">Kullanma</option>
+                            <option value="low">Az Kullan</option>
+                            <option value="medium">Orta</option>
+                            <option value="high">Çok Kullan</option>
                           </select>
                         </div>
                       </div>
@@ -1285,11 +1285,11 @@ MATCHES:[1,3,5]`;
                       <div>
                         <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
                         <select value={judgeMood} onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }} className="zet-input text-sm w-full">
-                          <option value="normal">⚖️ Normal (Yapıcı eleştiri)</option>
-                          <option value="harsh">🔥 Sert (Esprili dalga geçme)</option>
+                          <option value="normal">Normal (Yapıcı eleştiri)</option>
+                          <option value="harsh">Sert (Esprili dalga geçme)</option>
                         </select>
                         <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
-                          {judgeMood === 'harsh' ? '😈 Judge sizi esprilerle "kavuracak"!' : '🤝 Judge yapıcı ve profesyonel olacak.'}
+                          {judgeMood === 'harsh' ? 'Judge sizi esprilerle "kavuracak"!' : 'Judge yapıcı ve profesyonel olacak.'}
                         </p>
                       </div>
                     </div>
@@ -1328,7 +1328,7 @@ MATCHES:[1,3,5]`;
                       style={{ background: showRankBadge ? `${currentRank.color}20` : 'rgba(255,255,255,0.06)', color: showRankBadge ? currentRank.color : 'var(--zet-text-muted)', border: `1px solid ${showRankBadge ? currentRank.color + '40' : 'transparent'}` }}
                     >
                       <Award className="h-3 w-3" />
-                      {showRankBadge ? 'Profilde göster ✓' : 'Profilde gizle'}
+                      {showRankBadge ? 'Profilde göster' : 'Profilde gizle'}
                     </button>
                   </div>
 
@@ -1369,7 +1369,7 @@ MATCHES:[1,3,5]`;
                             <div className="mt-2 space-y-1.5">
                               <div>
                                 <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                  <span>⏱ {Math.floor(activeHours)}h / {req.hours}h</span>
+                                  <span>{Math.floor(activeHours)}h / {req.hours}h</span>
                                   <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
                                 </div>
                                 <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
@@ -1378,7 +1378,7 @@ MATCHES:[1,3,5]`;
                               </div>
                               <div>
                                 <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                  <span>🎯 {completedQuestCount} / {req.quests} {t('questMap')}</span>
+                                  <span>{completedQuestCount} / {req.quests} {t('questMap')}</span>
                                   <span>{Math.min(100, Math.round((completedQuestCount / req.quests) * 100))}%</span>
                                 </div>
                                 <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
@@ -1395,7 +1395,7 @@ MATCHES:[1,3,5]`;
                   ) : (
                     <div className="space-y-3">
                       <div className="p-3 rounded-xl text-xs mb-2" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)', color: 'var(--zet-text-muted)' }}>
-                        🏆 Ödüller <strong style={{ color: 'var(--zet-text)' }}>sezon sonunda</strong> verilir. Sezon bittiğinde hangi rankta olursan o rankın ödülünü alırsın. Rank kredileri <strong style={{ color: 'var(--zet-text)' }}>1 ay</strong> boyunca geçerlidir.
+                        Ödüller <strong style={{ color: 'var(--zet-text)' }}>sezon sonunda</strong> verilir. Sezon bittiğinde hangi rankta olursan o rankın ödülünü alırsın. Rank kredileri <strong style={{ color: 'var(--zet-text)' }}>1 ay</strong> boyunca geçerlidir.
                       </div>
                       {RANKS.map(r => {
                         const reward = RANK_REWARDS[r.name];
@@ -1852,9 +1852,9 @@ MATCHES:[1,3,5]`;
               >
                 <ChevronLeft className="h-5 w-5" />
               </button>
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center text-base"
+              <div className="w-8 h-8 rounded-lg flex items-center justify-center"
                 style={{ background: `${activeNotebook.color}25`, border: `1px solid ${activeNotebook.color}50` }}>
-                📓
+                <BookOpen className="h-4 w-4" style={{ color: activeNotebook.color }} />
               </div>
               <span className="font-semibold text-lg truncate" style={{ color: 'var(--zet-text)' }}>{activeNotebook.name}</span>
             </div>
@@ -1946,7 +1946,7 @@ MATCHES:[1,3,5]`;
                   style={{ background: showNewNotebook ? 'var(--zet-primary)' : 'rgba(41,47,145,0.3)', border: '1px solid rgba(41,47,145,0.6)', color: 'var(--zet-text)' }}
                   data-testid="new-notebook-btn"
                 >
-                  <span>📓</span>
+                  <BookOpen className="h-3.5 w-3.5" />
                   <span>{t('newNotebook')}</span>
                 </button>
               </div>
@@ -1984,9 +1984,9 @@ MATCHES:[1,3,5]`;
                   data-testid={`notebook-card-${nb.notebook_id}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center text-lg flex-shrink-0"
+                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
                       style={{ background: `${nb.color || '#292F91'}25`, border: `1px solid ${nb.color || '#292F91'}50` }}>
-                      📓
+                      <BookOpen className="h-4 w-4" style={{ color: nb.color || '#292F91' }} />
                     </div>
                     <div>
                       <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{nb.name}</p>
@@ -2179,7 +2179,7 @@ MATCHES:[1,3,5]`;
             maxWidth: 360,
           }}
         >
-          <span>{toast.type === 'success' ? '✓' : toast.type === 'error' ? '✕' : 'ℹ'}</span>
+          <span>{toast.type === 'success' ? <Check className="h-4 w-4" /> : toast.type === 'error' ? <X className="h-4 w-4" /> : <Bell className="h-4 w-4" />}</span>
           <span style={{ color: 'var(--zet-text)' }}>{toast.msg}</span>
           <button onClick={() => setToast(null)} className="ml-2 opacity-60 hover:opacity-100"><X className="h-3.5 w-3.5" /></button>
         </div>
@@ -2716,10 +2716,10 @@ MATCHES:[1,3,5]`;
                       onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }}
                       className="zet-input text-sm w-full"
                     >
-                      <option value="cheerful">🎉 Neşeli</option>
-                      <option value="professional">💼 Profesyonel</option>
-                      <option value="curious">🔍 Meraklı</option>
-                      <option value="custom">✨ Özel</option>
+                      <option value="cheerful">Neşeli</option>
+                      <option value="professional">Profesyonel</option>
+                      <option value="curious">Meraklı</option>
+                      <option value="custom">Özel</option>
                     </select>
                   </div>
                   {zetaMood === 'custom' && (
@@ -2740,10 +2740,10 @@ MATCHES:[1,3,5]`;
                       onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }}
                       className="zet-input text-sm w-full"
                     >
-                      <option value="none">❌ Kullanma</option>
-                      <option value="low">📍 Az Kullan</option>
-                      <option value="medium">📌 Orta</option>
-                      <option value="high">🎯 Çok Kullan</option>
+                      <option value="none">Kullanma</option>
+                      <option value="low">Az Kullan</option>
+                      <option value="medium">Orta</option>
+                      <option value="high">Çok Kullan</option>
                     </select>
                   </div>
                 </div>
@@ -2762,11 +2762,11 @@ MATCHES:[1,3,5]`;
                     onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }}
                     className="zet-input text-sm w-full"
                   >
-                    <option value="normal">⚖️ Normal (Yapıcı eleştiri)</option>
-                    <option value="harsh">🔥 Sert (Esprili dalga geçme)</option>
+                    <option value="normal">Normal (Yapıcı eleştiri)</option>
+                    <option value="harsh">Sert (Esprili dalga geçme)</option>
                   </select>
                   <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
-                    {judgeMood === 'harsh' ? '😈 Judge sizi esprilerle "kavuracak"!' : '🤝 Judge yapıcı ve profesyonel olacak.'}
+                    {judgeMood === 'harsh' ? 'Judge sizi esprilerle "kavuracak"!' : 'Judge yapıcı ve profesyonel olacak.'}
                   </p>
                 </div>
               </div>
