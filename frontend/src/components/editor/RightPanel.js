@@ -98,10 +98,6 @@ export const RightPanel = ({
   const [deepResult, setDeepResult] = useState(null);
   const [deepError, setDeepError] = useState('');
 
-  // Memory state
-  const [zetaMemories, setZetaMemories] = useState([]);
-  const [showMemories, setShowMemories] = useState(false);
-
   useEffect(() => {
     if (docId) {
       // Reset messages when switching documents
@@ -112,22 +108,6 @@ export const RightPanel = ({
       loadChatHistory();
     }
   }, [docId]);
-
-  useEffect(() => { loadMemories(); }, []);
-
-  const loadMemories = async () => {
-    try {
-      const res = await axios.get(`${API}/zeta/memory`, { withCredentials: true });
-      setZetaMemories(res.data || []);
-    } catch {}
-  };
-
-  const deleteMemory = async (memoryId) => {
-    try {
-      await axios.delete(`${API}/zeta/memory/${memoryId}`, { withCredentials: true });
-      setZetaMemories(prev => prev.filter(m => m.memory_id !== memoryId));
-    } catch {}
-  };
 
   const executeActions = async (actions) => {
     if (!actions || actions.length === 0) return;
@@ -141,8 +121,7 @@ export const RightPanel = ({
         localStorage.setItem('zet_zeta_mood', action.value);
       } else if (action.type === 'MEMORY') {
         try {
-          const res = await axios.post(`${API}/zeta/memory`, { content: action.value }, { withCredentials: true });
-          setZetaMemories(prev => [res.data, ...prev]);
+          await axios.post(`${API}/zeta/memory`, { content: action.value }, { withCredentials: true });
         } catch {}
       } else if (action.type === 'NOTE') {
         try {
@@ -332,7 +311,7 @@ export const RightPanel = ({
     setConsoleLines(prev => [...prev, { type, text }]);
 
   // All known commands (used for autocomplete)
-  const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
+  const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/', '/ceo/mod/on/', '/ceo/mod/off/'];
   const ADMIN_COMMANDS = ['/delete/admin/', '/(number)/credits/', '/(number)/sp/'];
   const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
   const getConsoleSuggestions = (input) => {
@@ -364,6 +343,14 @@ export const RightPanel = ({
       setConsoleStage('admin_login');
     } else if (normalized === '/clear/') {
       setConsoleLines([{ type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' }, { type: 'system', text: '' }]);
+    } else if (normalized === '/ceo/mod/on/') {
+      localStorage.setItem('zet_ceo_mode', 'true');
+      setIsCEO(true);
+      addConsoleLine('🔓 Admin modu aktif. Hoş geldin Efendim.', 'success');
+    } else if (normalized === '/ceo/mod/off/') {
+      localStorage.removeItem('zet_ceo_mode');
+      setIsCEO(false);
+      addConsoleLine('🔒 Admin modu kapatıldı.', 'output');
     } else if (normalized === '/delete/admin/') {
       if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
       localStorage.removeItem('zet_ceo_mode');
@@ -549,49 +536,12 @@ export const RightPanel = ({
             <Scale className="h-3.5 w-3.5" style={{ color: '#c8005a' }} />
             <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>Judge Mini</span>
           </button>
-          <button
-            onClick={() => setShowMemories(v => !v)}
-            className="p-2 hover:bg-white/10 rounded transition-all relative"
-            title="Zeta Belleği"
-            style={{ color: showMemories ? '#4ca8ad' : 'var(--zet-text-muted)' }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18"/>
-            </svg>
-            {zetaMemories.length > 0 && (
-              <span className="absolute -top-0.5 -right-0.5 w-3.5 h-3.5 rounded-full text-[9px] flex items-center justify-center font-bold" style={{ background: '#4ca8ad', color: '#fff' }}>{zetaMemories.length}</span>
-            )}
-          </button>
           {onShowChatSettings && (
             <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-2 hover:bg-white/10 rounded transition-all" title="Chat Ayarlari">
               <Settings className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
             </button>
           )}
         </div>
-
-        {/* ===== MEMORY PANEL ===== */}
-        {showMemories && (
-          <div className="border-b flex flex-col" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)', maxHeight: 200 }}>
-            <div className="flex items-center justify-between px-3 py-2">
-              <span className="text-xs font-semibold" style={{ color: '#4ca8ad' }}>Zeta Belleği</span>
-              <span className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{zetaMemories.length} kayıt</span>
-            </div>
-            {zetaMemories.length === 0 ? (
-              <p className="text-[11px] px-3 pb-3" style={{ color: 'var(--zet-text-muted)' }}>Henüz bir şey kaydedilmedi. Sohbette "bunu hatırla: ..." diyebilirsin.</p>
-            ) : (
-              <div className="overflow-y-auto px-2 pb-2 space-y-1">
-                {zetaMemories.map(m => (
-                  <div key={m.memory_id} className="flex items-start justify-between gap-1 p-2 rounded-lg text-[11px]" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
-                    <span style={{ color: 'var(--zet-text)', flex: 1 }}>{m.content}</span>
-                    <button onClick={() => deleteMemory(m.memory_id)} className="flex-shrink-0 mt-0.5 hover:text-red-400 transition-colors" style={{ color: 'var(--zet-text-muted)' }}>
-                      <X className="h-3 w-3" />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
 
         {/* ===== ZETA TAB ===== */}
         {activeAI === 'zeta' && (

@@ -11,7 +11,7 @@ import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
-  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen
+  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -114,6 +114,24 @@ const Dashboard = () => {
   const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
   const [confirmDeleteNotebookId, setConfirmDeleteNotebookId] = useState(null);
+  // Notebook three-dot menu
+  const [openMenuNotebookId, setOpenMenuNotebookId] = useState(null);
+  const [notebookMenuPos, setNotebookMenuPos] = useState({ top: 0, right: 0 });
+  const [renamingNotebookId, setRenamingNotebookId] = useState(null);
+  const [renamingNotebookName, setRenamingNotebookName] = useState('');
+  // Notebook password system
+  const [notebookPasswordModal, setNotebookPasswordModal] = useState(null); // { mode: 'set'|'remove'|'unlock', notebookId, notebookName }
+  const [nbPwInput, setNbPwInput] = useState('');
+  const [nbPwConfirm, setNbPwConfirm] = useState('');
+  const [nbPwError, setNbPwError] = useState('');
+  const [nbPwLoading, setNbPwLoading] = useState(false);
+  const [unlockedNotebooks, setUnlockedNotebooks] = useState({}); // notebookId -> true
+  const [nbFailedAttempts, setNbFailedAttempts] = useState({}); // notebookId -> count
+  const [nbLockoutUntil, setNbLockoutUntil] = useState({}); // notebookId -> timestamp ms
+  const [nbLockoutTick, setNbLockoutTick] = useState(0);
+  // AI Memories in settings
+  const [zetaMemories, setZetaMemories] = useState([]);
+  const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [renamingDocTitle, setRenamingDocTitle] = useState('');
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
@@ -381,6 +399,9 @@ const Dashboard = () => {
     if (showSettings && settingsTab === 'credits' && creditPackages.length === 0) {
       fetchCreditPackages();
     }
+    if (showSettings && settingsTab === 'ai') {
+      loadZetaMemories();
+    }
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fetchCreditPackages = async () => {
@@ -511,7 +532,9 @@ const Dashboard = () => {
     }
     try {
       const notebooksRes = await axios.get(`${API}/notebooks`, { withCredentials: true });
-      setNotebooks(notebooksRes.data);
+      // Mark password-protected notebooks (backend returns password_hash field)
+      const nbs = notebooksRes.data.map(nb => ({ ...nb, has_password: !!nb.password_hash }));
+      setNotebooks(nbs);
     } catch (error) {
       console.error('Error fetching notebooks:', error);
     }
@@ -539,6 +562,159 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error deleting notebook:', error);
     }
+  };
+
+  const pinNotebook = async (nb) => {
+    const newPinned = !nb.pinned;
+    try {
+      await axios.put(`${API}/notebooks/${nb.notebook_id}`, { pinned: newPinned }, { withCredentials: true });
+      setNotebooks(prev => {
+        const updated = prev.map(n => n.notebook_id === nb.notebook_id ? { ...n, pinned: newPinned } : n);
+        return sortNotebooks(updated);
+      });
+    } catch {}
+    setOpenMenuNotebookId(null);
+  };
+
+  const sortNotebooks = (arr) => {
+    const pinned = arr.filter(n => n.pinned).sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+    const normal = arr.filter(n => !n.pinned).sort((a, b) => (a.order ?? 9999) - (b.order ?? 9999));
+    return [...pinned, ...normal];
+  };
+
+  const moveNotebook = async (notebookId, direction) => {
+    setNotebooks(prev => {
+      const arr = [...prev];
+      const idx = arr.findIndex(n => n.notebook_id === notebookId);
+      if (idx === -1) return prev;
+      const item = arr[idx];
+      const isPinned = item.pinned;
+      // Only move within same pinned group
+      const groupIndices = arr.reduce((acc, n, i) => { if (!!n.pinned === isPinned) acc.push(i); return acc; }, []);
+      const posInGroup = groupIndices.indexOf(idx);
+      if (direction === 'up' && posInGroup === 0) return prev;
+      if (direction === 'down' && posInGroup === groupIndices.length - 1) return prev;
+      const swapIdx = direction === 'up' ? groupIndices[posInGroup - 1] : groupIndices[posInGroup + 1];
+      [arr[idx], arr[swapIdx]] = [arr[swapIdx], arr[idx]];
+      // Persist new order for both swapped items
+      const newOrder = idx + 1;
+      const swapOrder = swapIdx + 1;
+      axios.put(`${API}/notebooks/${arr[idx].notebook_id}`, { order: newOrder }, { withCredentials: true }).catch(() => {});
+      axios.put(`${API}/notebooks/${arr[swapIdx].notebook_id}`, { order: swapOrder }, { withCredentials: true }).catch(() => {});
+      return arr;
+    });
+    setOpenMenuNotebookId(null);
+  };
+
+  const renameNotebook = async (notebookId, newName) => {
+    if (!newName.trim()) return;
+    try {
+      await axios.put(`${API}/notebooks/${notebookId}`, { name: newName.trim() }, { withCredentials: true });
+      setNotebooks(prev => prev.map(n => n.notebook_id === notebookId ? { ...n, name: newName.trim() } : n));
+      if (activeNotebook?.notebook_id === notebookId) setActiveNotebook(prev => ({ ...prev, name: newName.trim() }));
+    } catch {}
+    setRenamingNotebookId(null);
+    setRenamingNotebookName('');
+  };
+
+  const getLockoutTime = (failed) => {
+    if (failed < 3) return 0;
+    return 30 * Math.pow(2, failed - 3);
+  };
+
+  const handleNotebookPasswordSubmit = async () => {
+    if (!notebookPasswordModal) return;
+    const { mode, notebookId } = notebookPasswordModal;
+    setNbPwError('');
+
+    // Check lockout
+    const lockUntil = nbLockoutUntil[notebookId] || 0;
+    if (Date.now() < lockUntil) {
+      setNbPwError(`Lütfen bekleyin...`);
+      return;
+    }
+
+    if (mode === 'set') {
+      if (nbPwInput.length < 4) { setNbPwError('Şifre en az 4 karakter olmalı'); return; }
+      if (nbPwInput !== nbPwConfirm) { setNbPwError('Şifreler eşleşmiyor'); return; }
+      setNbPwLoading(true);
+      try {
+        await axios.post(`${API}/notebooks/${notebookId}/set-password`, { password: nbPwInput }, { withCredentials: true });
+        setNotebooks(prev => prev.map(n => n.notebook_id === notebookId ? { ...n, has_password: true } : n));
+        showToast('Şifre başarıyla eklendi', 'success');
+        setNotebookPasswordModal(null);
+        setNbPwInput(''); setNbPwConfirm('');
+      } catch { setNbPwError('Bir hata oluştu'); }
+      setNbPwLoading(false);
+    } else if (mode === 'remove') {
+      setNbPwLoading(true);
+      try {
+        await axios.post(`${API}/notebooks/${notebookId}/remove-password`, { password: nbPwInput }, { withCredentials: true });
+        setNotebooks(prev => prev.map(n => n.notebook_id === notebookId ? { ...n, has_password: false, password_hash: undefined } : n));
+        showToast('Şifre kaldırıldı', 'success');
+        setNotebookPasswordModal(null);
+        setNbPwInput('');
+        setNbFailedAttempts(prev => ({ ...prev, [notebookId]: 0 }));
+      } catch (err) {
+        const failed = (nbFailedAttempts[notebookId] || 0) + 1;
+        setNbFailedAttempts(prev => ({ ...prev, [notebookId]: failed }));
+        const wait = getLockoutTime(failed);
+        if (wait > 0) setNbLockoutUntil(prev => ({ ...prev, [notebookId]: Date.now() + wait * 1000 }));
+        setNbPwError(err.response?.data?.detail === 'Wrong password' ? 'Yanlış şifre' : 'Bir hata oluştu');
+      }
+      setNbPwLoading(false);
+    } else if (mode === 'unlock') {
+      setNbPwLoading(true);
+      try {
+        await axios.post(`${API}/notebooks/${notebookId}/unlock`, { password: nbPwInput }, { withCredentials: true });
+        setUnlockedNotebooks(prev => ({ ...prev, [notebookId]: true }));
+        setNbFailedAttempts(prev => ({ ...prev, [notebookId]: 0 }));
+        setNotebookPasswordModal(null);
+        setNbPwInput('');
+        // Open notebook after unlock
+        const nb = notebooks.find(n => n.notebook_id === notebookId);
+        if (nb) setActiveNotebook(nb);
+      } catch (err) {
+        const failed = (nbFailedAttempts[notebookId] || 0) + 1;
+        setNbFailedAttempts(prev => ({ ...prev, [notebookId]: failed }));
+        const wait = getLockoutTime(failed);
+        if (wait > 0) setNbLockoutUntil(prev => ({ ...prev, [notebookId]: Date.now() + wait * 1000 }));
+        setNbPwError(err.response?.data?.detail === 'Wrong password' ? 'Yanlış şifre' : 'Bir hata oluştu');
+      }
+      setNbPwLoading(false);
+    }
+  };
+
+  // Lockout countdown tick
+  useEffect(() => {
+    const i = setInterval(() => setNbLockoutTick(t => t + 1), 1000);
+    return () => clearInterval(i);
+  }, []);
+
+  const loadZetaMemories = async () => {
+    setMemoriesLoading(true);
+    try {
+      const res = await axios.get(`${API}/zeta/memory`, { withCredentials: true });
+      setZetaMemories(res.data || []);
+    } catch {}
+    setMemoriesLoading(false);
+  };
+
+  const deleteZetaMemory = async (memoryId) => {
+    try {
+      await axios.delete(`${API}/zeta/memory/${memoryId}`, { withCredentials: true });
+      setZetaMemories(prev => prev.filter(m => m.memory_id !== memoryId));
+    } catch {}
+  };
+
+  const deleteAllZetaMemories = async () => {
+    showConfirm('Tüm Bellekleri Sil', 'Zeta\'nın tüm belleklerini silmek istediğinizden emin misiniz?', async () => {
+      try {
+        await Promise.all(zetaMemories.map(m => axios.delete(`${API}/zeta/memory/${m.memory_id}`, { withCredentials: true })));
+        setZetaMemories([]);
+        showToast('Tüm bellekler silindi', 'success');
+      } catch { showToast('Hata oluştu', 'error'); }
+    }, true);
   };
 
   const pinNote = async (note) => {
@@ -858,6 +1034,25 @@ MATCHES:[1,3,5]`;
 
   const visibleNotes = [...notes.filter(n => !n.notebook_id && (!searchQuery || n.content.toLowerCase().includes(searchQuery.toLowerCase())))]
     .sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));
+
+  const NOTEBOOK_MENU = (nb) => {
+    const arr = notebooks.filter(n => !searchQuery || n.name.toLowerCase().includes(searchQuery.toLowerCase()));
+    const idx = arr.findIndex(n => n.notebook_id === nb.notebook_id);
+    const isPinned = nb.pinned;
+    const group = arr.filter(n => !!n.pinned === isPinned);
+    const posInGroup = group.findIndex(n => n.notebook_id === nb.notebook_id);
+    const isFirst = posInGroup === 0;
+    const isLast = posInGroup === group.length - 1;
+    const hasPassword = !!(nb.password_hash || nb.has_password);
+    return [
+      { icon: <ArrowUp className="h-4 w-4" />, label: 'Yukarı Taşı', disabled: isFirst, action: () => moveNotebook(nb.notebook_id, 'up') },
+      { icon: <ArrowDown className="h-4 w-4" />, label: 'Aşağı Taşı', disabled: isLast, action: () => moveNotebook(nb.notebook_id, 'down') },
+      { icon: <Pin className="h-4 w-4" style={{ color: isPinned ? '#f59e0b' : 'inherit' }} />, label: isPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle', action: () => pinNotebook(nb) },
+      { icon: <FileEdit className="h-4 w-4" />, label: 'İsim Değiştir', action: () => { setRenamingNotebookId(nb.notebook_id); setRenamingNotebookName(nb.name); setOpenMenuNotebookId(null); } },
+      { icon: <Lock className="h-4 w-4" />, label: hasPassword ? 'Şifre Kaldır' : 'Şifre Koy', action: () => { setNotebookPasswordModal({ mode: hasPassword ? 'remove' : 'set', notebookId: nb.notebook_id, notebookName: nb.name }); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); setOpenMenuNotebookId(null); } },
+      { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { setConfirmDeleteNotebookId(nb.notebook_id); setOpenMenuNotebookId(null); } },
+    ];
+  };
 
   const NOTE_MENU = (note) => {
     const idx = visibleNotes.findIndex(n => n.note_id === note.note_id);
@@ -1309,6 +1504,45 @@ MATCHES:[1,3,5]`;
                           {judgeMood === 'harsh' ? 'Judge sizi esprilerle "kavuracak"!' : 'Judge yapıcı ve profesyonel olacak.'}
                         </p>
                       </div>
+                    </div>
+
+                    {/* AI Memories */}
+                    <div className="p-4 rounded-xl" style={{ background: 'rgba(76, 168, 173, 0.06)', border: '1px solid rgba(76, 168, 173, 0.2)' }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <Brain className="h-5 w-5" style={{ color: '#4ca8ad' }} />
+                          <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>Zeta Bellekleri</h3>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(76,168,173,0.2)', color: '#4ca8ad' }}>{zetaMemories.length}</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button onClick={loadZetaMemories} className="text-xs px-2 py-1 rounded-lg hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }}>
+                            Yenile
+                          </button>
+                          {zetaMemories.length > 0 && (
+                            <button onClick={deleteAllZetaMemories} className="text-xs px-2 py-1 rounded-lg transition-all" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.1)' }}>
+                              Tümünü Sil
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                      {memoriesLoading ? (
+                        <p className="text-xs text-center py-4" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</p>
+                      ) : zetaMemories.length === 0 ? (
+                        <p className="text-xs py-2" style={{ color: 'var(--zet-text-muted)' }}>
+                          Henüz bellek yok. Zeta sohbette "bunu hatırla: ..." yazarak hatırlayabileceği şeyler kaydeder.
+                        </p>
+                      ) : (
+                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                          {zetaMemories.map(m => (
+                            <div key={m.memory_id} className="flex items-start justify-between gap-2 p-2.5 rounded-lg" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
+                              <p className="text-sm flex-1" style={{ color: 'var(--zet-text)' }}>{m.content}</p>
+                              <button onClick={() => deleteZetaMemory(m.memory_id)} className="flex-shrink-0 mt-0.5 p-1 rounded hover:bg-red-500/20 transition-colors" style={{ color: 'var(--zet-text-muted)' }}>
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1987,37 +2221,101 @@ MATCHES:[1,3,5]`;
 
             <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 420px)' }}>
               {/* Defterler */}
-              {notebooks.filter(nb => !searchQuery || nb.name.toLowerCase().includes(searchQuery.toLowerCase())).map(nb => (
-                <div
-                  key={nb.notebook_id}
-                  className="zet-card p-4 flex items-center justify-between group cursor-pointer hover:bg-white/5 transition-all"
-                  onClick={() => setActiveNotebook(nb)}
-                  data-testid={`notebook-card-${nb.notebook_id}`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: `${nb.color || '#292F91'}25`, border: `1px solid ${nb.color || '#292F91'}50` }}>
-                      <BookOpen className="h-4 w-4" style={{ color: nb.color || '#292F91' }} />
+              {notebooks.filter(nb => !searchQuery || nb.name.toLowerCase().includes(searchQuery.toLowerCase())).map(nb => {
+                const hasPassword = !!(nb.password_hash || nb.has_password);
+                const isUnlocked = unlockedNotebooks[nb.notebook_id];
+                const isLocked = hasPassword && !isUnlocked;
+                const lockUntil = nbLockoutUntil[nb.notebook_id] || 0;
+                const lockRemaining = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+                return (
+                <div key={nb.notebook_id} className="relative">
+                  {renamingNotebookId === nb.notebook_id ? (
+                    <div className="zet-card p-3 flex items-center gap-2" style={{ border: '1px solid var(--zet-primary)' }}>
+                      <input
+                        className="zet-input flex-1 text-sm"
+                        value={renamingNotebookName}
+                        onChange={e => setRenamingNotebookName(e.target.value)}
+                        onKeyDown={e => { if (e.key === 'Enter') renameNotebook(nb.notebook_id, renamingNotebookName); if (e.key === 'Escape') { setRenamingNotebookId(null); setRenamingNotebookName(''); } }}
+                        autoFocus
+                      />
+                      <button onClick={() => renameNotebook(nb.notebook_id, renamingNotebookName)} className="p-1 rounded hover:bg-white/10">
+                        <Check className="h-4 w-4" style={{ color: '#22c55e' }} />
+                      </button>
+                      <button onClick={() => { setRenamingNotebookId(null); setRenamingNotebookName(''); }} className="p-1 rounded hover:bg-white/10">
+                        <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                      </button>
                     </div>
-                    <div>
-                      <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{nb.name}</p>
-                      <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                        {notes.filter(n => n.notebook_id === nb.notebook_id).length} {t('notesCount')}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteNotebookId(nb.notebook_id); }}
-                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1 hover:bg-red-500/20 rounded"
-                      data-testid={`delete-notebook-${nb.notebook_id}`}
+                  ) : (
+                    <div
+                      className="zet-card p-4 flex items-center justify-between group cursor-pointer hover:bg-white/5 transition-all"
+                      style={{ border: nb.pinned ? '1px solid rgba(245,158,11,0.4)' : undefined, opacity: isLocked ? 0.75 : 1 }}
+                      onClick={() => {
+                        if (isLocked) {
+                          if (lockRemaining > 0) { showToast(`${lockRemaining} saniye bekleyin`, 'error'); return; }
+                          setNotebookPasswordModal({ mode: 'unlock', notebookId: nb.notebook_id, notebookName: nb.name });
+                          setNbPwInput(''); setNbPwError('');
+                        } else {
+                          setActiveNotebook(nb);
+                        }
+                      }}
+                      data-testid={`notebook-card-${nb.notebook_id}`}
                     >
-                      <Trash2 className="h-4 w-4 text-red-400" />
-                    </button>
-                  </div>
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 relative"
+                          style={{ background: `${nb.color || '#292F91'}25`, border: `1px solid ${nb.color || '#292F91'}50` }}>
+                          <BookOpen className="h-4 w-4" style={{ color: nb.color || '#292F91' }} />
+                          {hasPassword && (
+                            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full flex items-center justify-center" style={{ background: isLocked ? '#ef4444' : '#22c55e', fontSize: 9 }}>
+                              {isLocked ? '🔒' : '🔓'}
+                            </span>
+                          )}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-1.5">
+                            <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{nb.name}</p>
+                            {nb.pinned && <Pin className="h-3 w-3" style={{ color: '#f59e0b' }} />}
+                          </div>
+                          <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                            {isLocked ? (lockRemaining > 0 ? `🔒 ${lockRemaining}s bekle` : '🔒 Şifreli') : `${notes.filter(n => n.notebook_id === nb.notebook_id).length} ${t('notesCount')}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
+                        <button
+                          onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setNotebookMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuNotebookId(openMenuNotebookId === nb.notebook_id ? null : nb.notebook_id); }}
+                          className="p-1 rounded hover:bg-white/10 transition-all"
+                          style={{ color: 'var(--zet-text-muted)' }}
+                          data-testid={`notebook-menu-${nb.notebook_id}`}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  {/* Notebook dropdown menu */}
+                  {openMenuNotebookId === nb.notebook_id && (
+                    <div
+                      className="fixed z-50 py-1 rounded-xl min-w-[180px] animate-fadeIn"
+                      style={{ top: notebookMenuPos.top, right: notebookMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+                      onClick={e => e.stopPropagation()}
+                    >
+                      {NOTEBOOK_MENU(nb).map(item => (
+                        <button
+                          key={item.label}
+                          onClick={item.action}
+                          disabled={item.disabled}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5"
+                          style={{ color: item.disabled ? 'var(--zet-text-muted)' : (item.color || 'var(--zet-text)'), opacity: item.disabled ? 0.4 : 1, cursor: item.disabled ? 'not-allowed' : 'pointer' }}
+                        >
+                          {item.icon}{item.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
 
               {/* Düz notlar (notebook_id yok) — sabitliler önce */}
               {visibleNotes.map(note => renderNoteCard(note))}
@@ -2106,8 +2404,8 @@ MATCHES:[1,3,5]`;
       )}
 
       {/* Backdrop to close floating menus */}
-      {(openMenuNoteId || openMenuDocId) && (
-        <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuNoteId(null); setOpenMenuDocId(null); }} />
+      {(openMenuNoteId || openMenuDocId || openMenuNotebookId) && (
+        <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuNoteId(null); setOpenMenuDocId(null); setOpenMenuNotebookId(null); }} />
       )}
 
       {/* Delete Document Confirmation */}
@@ -2138,6 +2436,87 @@ MATCHES:[1,3,5]`;
                 style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
               >
                 {t('yesDelete')}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notebook Password Modal */}
+      {notebookPasswordModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setNotebookPasswordModal(null); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); }}>
+          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()} style={{ border: '1px solid rgba(76,168,173,0.4)' }}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(76,168,173,0.15)' }}>
+                <Lock className="h-5 w-5" style={{ color: '#4ca8ad' }} />
+              </div>
+              <div>
+                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>
+                  {notebookPasswordModal.mode === 'set' ? 'Şifre Koy' : notebookPasswordModal.mode === 'remove' ? 'Şifre Kaldır' : 'Defter Kilidi'}
+                </p>
+                <p className="text-xs truncate" style={{ color: 'var(--zet-text-muted)' }}>{notebookPasswordModal.notebookName}</p>
+              </div>
+            </div>
+            {notebookPasswordModal.mode === 'unlock' && (() => {
+              const lockUntil = nbLockoutUntil[notebookPasswordModal.notebookId] || 0;
+              const remaining = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+              const failed = nbFailedAttempts[notebookPasswordModal.notebookId] || 0;
+              return (
+                <>
+                  {remaining > 0 && (
+                    <div className="mb-3 p-3 rounded-lg text-sm text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
+                      {remaining} saniye bekleyin...
+                    </div>
+                  )}
+                  {failed >= 3 && remaining === 0 && (
+                    <p className="text-xs mb-2 text-center" style={{ color: '#f59e0b' }}>{failed} başarısız deneme</p>
+                  )}
+                </>
+              );
+            })()}
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                  {notebookPasswordModal.mode === 'unlock' ? 'Şifre' : notebookPasswordModal.mode === 'set' ? 'Yeni Şifre (min. 4 karakter)' : 'Mevcut Şifre'}
+                </label>
+                <input
+                  type="password"
+                  value={nbPwInput}
+                  onChange={e => { setNbPwInput(e.target.value); setNbPwError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && (notebookPasswordModal.mode === 'set' ? document.getElementById('nb-pw-confirm')?.focus() : handleNotebookPasswordSubmit())}
+                  className="zet-input w-full"
+                  placeholder="••••"
+                  autoFocus
+                  disabled={nbLockoutUntil[notebookPasswordModal.notebookId] > Date.now()}
+                />
+              </div>
+              {notebookPasswordModal.mode === 'set' && (
+                <div>
+                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Şifre Tekrar</label>
+                  <input
+                    id="nb-pw-confirm"
+                    type="password"
+                    value={nbPwConfirm}
+                    onChange={e => { setNbPwConfirm(e.target.value); setNbPwError(''); }}
+                    onKeyDown={e => e.key === 'Enter' && handleNotebookPasswordSubmit()}
+                    className="zet-input w-full"
+                    placeholder="••••"
+                  />
+                </div>
+              )}
+              {nbPwError && <p className="text-xs" style={{ color: '#ef4444' }}>{nbPwError}</p>}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => { setNotebookPasswordModal(null); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); }} className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
+                İptal
+              </button>
+              <button
+                onClick={handleNotebookPasswordSubmit}
+                disabled={nbPwLoading || nbLockoutUntil[notebookPasswordModal.notebookId] > Date.now()}
+                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{ background: 'rgba(76,168,173,0.2)', border: '1px solid rgba(76,168,173,0.5)', color: '#4ca8ad' }}
+              >
+                {nbPwLoading ? '...' : notebookPasswordModal.mode === 'unlock' ? 'Aç' : notebookPasswordModal.mode === 'set' ? 'Kaydet' : 'Kaldır'}
               </button>
             </div>
           </div>
@@ -2694,7 +3073,7 @@ MATCHES:[1,3,5]`;
             </div>
             
             <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>
-              {t('subscriptionNote') || 'Tüm planlar 7 gunluk ücretsiz deneme içerir. Istediginiz zaman iptal edebilirsiniz.'}
+              {t('subscriptionNote') || ''}
             </p>
           </div>
         </div>

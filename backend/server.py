@@ -94,6 +94,14 @@ class NotebookCreate(BaseModel):
 class NotebookUpdate(BaseModel):
     name: Optional[str] = None
     color: Optional[str] = None
+    pinned: Optional[bool] = None
+    order: Optional[int] = None
+
+class NotebookSetPassword(BaseModel):
+    password: str
+
+class NotebookVerifyPassword(BaseModel):
+    password: str
 
 class ChatMessage(BaseModel):
     role: str
@@ -300,7 +308,7 @@ async def google_auth_init():
 async def google_auth_callback(request: Request, response: Response, code: str = Query(None), state: str = Query(None), error: str = Query(None)):
     """Handle Google OAuth2 callback — token exchange, session oluştur, frontend'e yönlendir."""
     from requests_oauthlib import OAuth2Session
-    from fastapi.responses import RedirectResponse
+    from fastapi.responses import RedirectResponse, HTMLResponse
     import requests as pyrequests
 
     # Allow insecure transport only in non-production environments
@@ -337,6 +345,11 @@ async def google_auth_callback(request: Request, response: Response, code: str =
 
         if not email:
             return RedirectResponse(f"{frontend_url}/?error=no_email")
+
+        # Admin console popup flow — skip session creation, postMessage result back
+        if state == "admin_console":
+            verified = "true" if email == CEO_EMAIL else "false"
+            return HTMLResponse(f'<script>window.opener&&window.opener.postMessage({{ceoVerified:{verified}}},"*");window.close();</script>')
 
         existing_user = await db.users.find_one({"email": email}, {"_id": 0})
         if existing_user:
@@ -381,13 +394,15 @@ async def admin_console_auth():
     from fastapi.responses import RedirectResponse
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     backend_url = os.getenv("REACT_APP_BACKEND_URL", "http://localhost:8001")
-    redirect_uri = f"{backend_url}/api/auth/admin-console/callback"
+    # Reuse the already-registered callback URI, distinguish via state param
+    redirect_uri = f"{backend_url}/api/auth/google/callback"
     scopes = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
     oauth = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri, scope=scopes)
     auth_url, _ = oauth.authorization_url(
         "https://accounts.google.com/o/oauth2/auth",
         access_type="offline",
-        prompt="select_account"
+        prompt="select_account",
+        state="admin_console"
     )
     return RedirectResponse(auth_url)
 
@@ -845,7 +860,11 @@ async def delete_document(doc_id: str, user: User = Depends(get_current_user)):
 
 @api_router.get("/notebooks", response_model=List[dict])
 async def get_notebooks(user: User = Depends(get_current_user)):
-    notebooks = await db.notebooks.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    notebooks = await db.notebooks.find({"user_id": user.user_id}, {"_id": 0}).to_list(200)
+    # Sort: pinned first (by order asc), then normal (by order asc), both fallback to created_at
+    def nb_sort_key(nb):
+        return (0 if nb.get("pinned") else 1, nb.get("order", 9999), nb.get("created_at", ""))
+    notebooks.sort(key=nb_sort_key)
     return notebooks
 
 @api_router.post("/notebooks")
@@ -870,6 +889,10 @@ async def update_notebook(notebook_id: str, update: NotebookUpdate, user: User =
         set_data["name"] = update.name
     if update.color is not None:
         set_data["color"] = update.color
+    if update.pinned is not None:
+        set_data["pinned"] = update.pinned
+    if update.order is not None:
+        set_data["order"] = update.order
     if not set_data:
         raise HTTPException(status_code=400, detail="No fields to update")
     set_data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -888,6 +911,44 @@ async def delete_notebook(notebook_id: str, user: User = Depends(get_current_use
         raise HTTPException(status_code=404, detail="Notebook not found")
     await db.quick_notes.delete_many({"notebook_id": notebook_id, "user_id": user.user_id})
     return {"message": "Notebook and its notes deleted"}
+
+@api_router.post("/notebooks/{notebook_id}/set-password")
+async def set_notebook_password(notebook_id: str, body: NotebookSetPassword, user: User = Depends(get_current_user)):
+    import hashlib
+    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    result = await db.notebooks.update_one(
+        {"notebook_id": notebook_id, "user_id": user.user_id},
+        {"$set": {"password_hash": pw_hash, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    return {"message": "Password set"}
+
+@api_router.post("/notebooks/{notebook_id}/remove-password")
+async def remove_notebook_password(notebook_id: str, body: NotebookVerifyPassword, user: User = Depends(get_current_user)):
+    import hashlib
+    nb = await db.notebooks.find_one({"notebook_id": notebook_id, "user_id": user.user_id})
+    if not nb:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    if nb.get("password_hash") != pw_hash:
+        raise HTTPException(status_code=403, detail="Wrong password")
+    await db.notebooks.update_one(
+        {"notebook_id": notebook_id, "user_id": user.user_id},
+        {"$unset": {"password_hash": ""}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"message": "Password removed"}
+
+@api_router.post("/notebooks/{notebook_id}/unlock")
+async def unlock_notebook(notebook_id: str, body: NotebookVerifyPassword, user: User = Depends(get_current_user)):
+    import hashlib
+    nb = await db.notebooks.find_one({"notebook_id": notebook_id, "user_id": user.user_id})
+    if not nb:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    if nb.get("password_hash") != pw_hash:
+        raise HTTPException(status_code=403, detail="Wrong password")
+    return {"message": "Unlocked"}
 
 # ============ QUICK NOTES ROUTES ============
 
