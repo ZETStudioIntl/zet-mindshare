@@ -346,10 +346,16 @@ export const RightPanel = ({
     } else if (normalized === '/ceo/mod/on/') {
       localStorage.setItem('zet_ceo_mode', 'true');
       setIsCEO(true);
+      // Clear sessions so AI picks up fresh CEO context on next message
+      setZetaSessionId(null);
+      setJudgeSessionId(null);
       addConsoleLine('🔓 Admin modu aktif. Hoş geldin Efendim.', 'success');
+      addConsoleLine('Zeta ve Judge oturumları sıfırlandı — yeni mesajda CEO olarak tanıyacaklar.', 'output');
     } else if (normalized === '/ceo/mod/off/') {
       localStorage.removeItem('zet_ceo_mode');
       setIsCEO(false);
+      setZetaSessionId(null);
+      setJudgeSessionId(null);
       addConsoleLine('🔒 Admin modu kapatıldı.', 'output');
     } else if (normalized === '/delete/admin/') {
       if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
@@ -542,6 +548,13 @@ export const RightPanel = ({
             </button>
           )}
         </div>
+
+        {/* CEO mode banner */}
+        {isCEO && (
+          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+            👑 CEO MODU AKTİF
+          </div>
+        )}
 
         {/* ===== ZETA TAB ===== */}
         {activeAI === 'zeta' && (

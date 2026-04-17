@@ -132,6 +132,7 @@ const Dashboard = () => {
   // AI Memories in settings
   const [zetaMemories, setZetaMemories] = useState([]);
   const [memoriesLoading, setMemoriesLoading] = useState(false);
+  const [newMemoryInput, setNewMemoryInput] = useState('');
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [renamingDocTitle, setRenamingDocTitle] = useState('');
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
@@ -164,10 +165,10 @@ const Dashboard = () => {
   // Rank system
   const RANKS = [
     { name: 'Demir',   xp: 0,     color: '#9ca3af', level: 1, next: 100   },
-    { name: 'Gümüş',  xp: 100,   color: '#22c55e', level: 2, next: 500   },
-    { name: 'Altın',  xp: 500,   color: '#3b82f6', level: 3, next: 1500  },
-    { name: 'Elmas',  xp: 1500,  color: '#8b5cf6', level: 4, next: 5000  },
-    { name: 'Zümrüt', xp: 5000,  color: '#f59e0b', level: 5, next: 15000 },
+    { name: 'Gümüş',  xp: 100,   color: '#cdd2d6', level: 2, next: 500   },
+    { name: 'Altın',  xp: 500,   color: '#ecca66', level: 3, next: 1500  },
+    { name: 'Elmas',  xp: 1500,  color: '#250b62', level: 4, next: 5000  },
+    { name: 'Zümrüt', xp: 5000,  color: '#065a10', level: 5, next: 15000 },
     { name: 'Endless', xp: 15000, color: '#ef4444', level: 6, next: null  },
   ];
   const getCurrentRank = (xp) => {
@@ -715,6 +716,16 @@ const Dashboard = () => {
         showToast('Tüm bellekler silindi', 'success');
       } catch { showToast('Hata oluştu', 'error'); }
     }, true);
+  };
+
+  const addZetaMemory = async () => {
+    if (!newMemoryInput.trim()) return;
+    try {
+      const res = await axios.post(`${API}/zeta/memory`, { content: newMemoryInput.trim() }, { withCredentials: true });
+      setZetaMemories(prev => [res.data, ...prev]);
+      setNewMemoryInput('');
+      showToast('Bellek eklendi', 'success');
+    } catch { showToast('Bellek eklenemedi', 'error'); }
   };
 
   const pinNote = async (note) => {
@@ -1525,14 +1536,33 @@ MATCHES:[1,3,5]`;
                           )}
                         </div>
                       </div>
+                      {/* Manuel bellek ekle */}
+                      <div className="flex gap-2 mb-3">
+                        <input
+                          type="text"
+                          value={newMemoryInput}
+                          onChange={e => setNewMemoryInput(e.target.value)}
+                          onKeyDown={e => e.key === 'Enter' && addZetaMemory()}
+                          placeholder="Yeni bellek ekle..."
+                          className="zet-input flex-1 text-sm"
+                        />
+                        <button
+                          onClick={addZetaMemory}
+                          disabled={!newMemoryInput.trim()}
+                          className="px-3 py-1.5 rounded-lg text-sm font-medium transition-all flex-shrink-0"
+                          style={{ background: 'rgba(76,168,173,0.2)', border: '1px solid rgba(76,168,173,0.4)', color: '#4ca8ad', opacity: newMemoryInput.trim() ? 1 : 0.4 }}
+                        >
+                          <Plus className="h-4 w-4" />
+                        </button>
+                      </div>
                       {memoriesLoading ? (
                         <p className="text-xs text-center py-4" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</p>
                       ) : zetaMemories.length === 0 ? (
                         <p className="text-xs py-2" style={{ color: 'var(--zet-text-muted)' }}>
-                          Henüz bellek yok. Zeta sohbette "bunu hatırla: ..." yazarak hatırlayabileceği şeyler kaydeder.
+                          Henüz bellek yok. Yukarıdan ekleyebilir veya sohbette "bunu hatırla: ..." yazabilirsin.
                         </p>
                       ) : (
-                        <div className="space-y-2 max-h-64 overflow-y-auto">
+                        <div className="space-y-2 max-h-52 overflow-y-auto">
                           {zetaMemories.map(m => (
                             <div key={m.memory_id} className="flex items-start justify-between gap-2 p-2.5 rounded-lg" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
                               <p className="text-sm flex-1" style={{ color: 'var(--zet-text)' }}>{m.content}</p>
@@ -1565,6 +1595,13 @@ MATCHES:[1,3,5]`;
                   'Endless': { credits: 2000, sp: 3000 },
                 };
                 const activeHours = activeTimeSeconds / 3600;
+                const formatActiveTime = (seconds) => {
+                  const h = Math.floor(seconds / 3600);
+                  const m = Math.floor((seconds % 3600) / 60);
+                  if (h === 0) return `${m} dk`;
+                  if (m === 0) return `${h} sa`;
+                  return `${h} sa ${m} dk`;
+                };
                 return (
                 <div className="max-w-lg">
                   <div className="flex items-center justify-between mb-4">
@@ -1620,7 +1657,7 @@ MATCHES:[1,3,5]`;
                             <div className="mt-2 space-y-1.5">
                               <div>
                                 <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                  <span>{Math.floor(activeHours)}h / {req.hours}h</span>
+                                  <span>{formatActiveTime(activeTimeSeconds)} / {req.hours} sa</span>
                                   <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
                                 </div>
                                 <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
