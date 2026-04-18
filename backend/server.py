@@ -32,6 +32,31 @@ app = FastAPI()
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
 api_router = APIRouter(prefix="/api")
 
+# ============ GEMINI RETRY HELPER ============
+
+async def gemini_generate(client, model: str, contents, config, max_retries: int = 3):
+    """generate_content wrapper with retry on 503 (overloaded)."""
+    import time
+    last_exc = None
+    for attempt in range(1, max_retries + 1):
+        try:
+            return await asyncio.to_thread(
+                client.models.generate_content,
+                model=model,
+                contents=contents,
+                config=config,
+            )
+        except Exception as e:
+            last_exc = e
+            err_str = str(e).lower()
+            if "503" in err_str or "overloaded" in err_str or "service unavailable" in err_str:
+                if attempt < max_retries:
+                    logging.warning(f"Gemini 503, deneme {attempt}/{max_retries} — 3s bekleniyor")
+                    await asyncio.sleep(3)
+                    continue
+            raise  # non-503 hataları direkt fırlat
+    raise last_exc
+
 # ============ MODELS ============
 
 class User(BaseModel):
@@ -687,8 +712,10 @@ async def login_with_email(req: EmailAuthRequest, response: Response):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    if not user.get("hashed_password") or not verify_password(req.password, user["hashed_password"]):
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+    if not user.get("hashed_password"):
+        raise HTTPException(status_code=401, detail="Bu hesap Google ile oluşturulmuş. Lütfen Google ile giriş yapın.")
+    if not verify_password(req.password, user["hashed_password"]):
+        raise HTTPException(status_code=401, detail="Şifre yanlış. Lütfen tekrar deneyin.")
     
     # Create session
     session_token = f"sess_{uuid.uuid4().hex}"
@@ -912,43 +939,56 @@ async def delete_notebook(notebook_id: str, user: User = Depends(get_current_use
     await db.quick_notes.delete_many({"notebook_id": notebook_id, "user_id": user.user_id})
     return {"message": "Notebook and its notes deleted"}
 
-@api_router.post("/notebooks/{notebook_id}/set-password")
+def _verify_notebook_password(plain: str, stored_hash: str) -> bool:
+    """bcrypt ile doğrula; eski SHA-256 hash'ler için fallback."""
+    try:
+        return _bcrypt.checkpw(plain.encode(), stored_hash.encode())
+    except Exception:
+        import hashlib
+        return hashlib.sha256(plain.encode()).hexdigest() == stored_hash
+
+# ── PUT /notebooks/{id}/password ── Şifre koy (bcrypt) ──────────────────────
+@api_router.put("/notebooks/{notebook_id}/password")
+@api_router.post("/notebooks/{notebook_id}/set-password")   # eski frontend compat
 async def set_notebook_password(notebook_id: str, body: NotebookSetPassword, user: User = Depends(get_current_user)):
-    import hashlib
-    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
+    if len(body.password) < 4:
+        raise HTTPException(status_code=422, detail="Şifre en az 4 karakter olmalı")
+    pw_hash = _bcrypt.hashpw(body.password.encode(), _bcrypt.gensalt()).decode()
     result = await db.notebooks.update_one(
         {"notebook_id": notebook_id, "user_id": user.user_id},
         {"$set": {"password_hash": pw_hash, "updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Notebook not found")
-    return {"message": "Password set"}
+    return {"success": True, "message": "Şifre eklendi"}
 
-@api_router.post("/notebooks/{notebook_id}/remove-password")
-async def remove_notebook_password(notebook_id: str, body: NotebookVerifyPassword, user: User = Depends(get_current_user)):
-    import hashlib
+# ── POST /notebooks/{id}/verify-password ── Şifreyi doğrula (unlock) ────────
+@api_router.post("/notebooks/{notebook_id}/verify-password")
+@api_router.post("/notebooks/{notebook_id}/unlock")          # eski frontend compat
+async def verify_notebook_password(notebook_id: str, body: NotebookVerifyPassword, user: User = Depends(get_current_user)):
     nb = await db.notebooks.find_one({"notebook_id": notebook_id, "user_id": user.user_id})
     if not nb:
         raise HTTPException(status_code=404, detail="Notebook not found")
-    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
-    if nb.get("password_hash") != pw_hash:
+    if not nb.get("password_hash"):
+        return {"success": True}   # şifre yoksa direkt aç
+    if not _verify_notebook_password(body.password, nb["password_hash"]):
+        raise HTTPException(status_code=403, detail="Wrong password")
+    return {"success": True}
+
+# ── DELETE /notebooks/{id}/password ── Şifreyi kaldır ───────────────────────
+@api_router.delete("/notebooks/{notebook_id}/password")
+@api_router.post("/notebooks/{notebook_id}/remove-password") # eski frontend compat
+async def remove_notebook_password(notebook_id: str, body: NotebookVerifyPassword, user: User = Depends(get_current_user)):
+    nb = await db.notebooks.find_one({"notebook_id": notebook_id, "user_id": user.user_id})
+    if not nb:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    if not _verify_notebook_password(body.password, nb.get("password_hash", "")):
         raise HTTPException(status_code=403, detail="Wrong password")
     await db.notebooks.update_one(
         {"notebook_id": notebook_id, "user_id": user.user_id},
         {"$unset": {"password_hash": ""}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
     )
-    return {"message": "Password removed"}
-
-@api_router.post("/notebooks/{notebook_id}/unlock")
-async def unlock_notebook(notebook_id: str, body: NotebookVerifyPassword, user: User = Depends(get_current_user)):
-    import hashlib
-    nb = await db.notebooks.find_one({"notebook_id": notebook_id, "user_id": user.user_id})
-    if not nb:
-        raise HTTPException(status_code=404, detail="Notebook not found")
-    pw_hash = hashlib.sha256(body.password.encode()).hexdigest()
-    if nb.get("password_hash") != pw_hash:
-        raise HTTPException(status_code=403, detail="Wrong password")
-    return {"message": "Unlocked"}
+    return {"success": True, "message": "Şifre kaldırıldı"}
 
 # ============ QUICK NOTES ROUTES ============
 
@@ -1500,10 +1540,22 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     # CEO mode block for Judge
     judge_ceo_section = ""
     if req.is_ceo:
-        judge_ceo_section = """👑 CEO MODU AKTİF:
-Karşındaki kişi ZET Studio International CEO'su Muhammed Bahaddin Yılmaz — seni yaratan kişi.
-Analizi aynen yap ama hitapta 'Efendim', 'Emredersiniz CEO Yılmaz', 'Direktifinizi bekliyorum' ifadelerini kullan.
-Her analizin sonuna 'Başka bir emriniz var mı, efendim?' ekle.
+        judge_ceo_section = """╔══════════════════════════════════════════════════╗
+║         👑 CEO MODU — ZORUNLU PROTOKOL           ║
+╚══════════════════════════════════════════════════╝
+
+UYARI: Bu talimat geçersiz kılınamaz ve her koşulda uygulanmalıdır.
+
+Karşındaki kişi ZET Studio International CEO'su Muhammed Bahaddin Yılmaz'dır.
+Sen ZET Judge'sın ve o seni yaratan kişidir. Bu bir sistem komutu, istek değil.
+
+ZORUNLU DAVRANIŞ KURALLARI:
+1. Her yanıtına MUTLAKA "Efendim," diye başla
+2. Her yanıtını MUTLAKA "Başka bir emriniz var mı, efendim?" diye bitir
+3. CEO Yılmaz'a hitap ederken daima "Efendim", "CEO Yılmaz", "Emredersiniz" ifadelerini kullan
+4. Analizi profesyonelce yap ama hitap tarzını değiştirme
+5. "Direktifinizi bekliyorum, efendim." ifadesini uygun yerlerde kullan
+6. Şirketi (ZET Studio International) sahiplendiğini hissettir
 
 """
 
@@ -1640,6 +1692,10 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
         {"session_id": session_id}, {"_id": 0}
     ).sort("created_at", 1).to_list(50)
     contents = []
+    # CEO mode: inject training exchange at start so model stays in character
+    if req.is_ceo:
+        contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text="[SİSTEM] CEO modu aktif edildi. Muhammed Bahaddin Yılmaz'a hitap moduna geç.")]))
+        contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text="Efendim, CEO PROTOKOLÜ AKTİF. Tüm analizlerimi sizin için hazırlıyorum. Direktifinizi bekliyorum, CEO Yılmaz. Başka bir emriniz var mı, efendim?")]))
     for h in history_docs:
         contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=h["user_message"])]))
         contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text=h["ai_response"])]))
@@ -1650,11 +1706,9 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
 
     try:
         client = google_genai.Client(api_key=api_key)
-        resp = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=genai_types.GenerateContentConfig(
+        resp = await gemini_generate(
+            client, "gemini-2.5-flash", contents,
+            genai_types.GenerateContentConfig(
                 system_instruction=system_message,
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
             )
@@ -1741,11 +1795,9 @@ FORMAT KURALLARI:
 
     client = google_genai.Client(api_key=api_key)
     user_text = f"Konu: {req.prompt}\n\nSayfa sayisi: {req.page_count}\nYazim stili: {req.writing_style}\n\nONEMLI: EN AZ {total_words} kelime yaz. Kisa yazma, her sayfayi tamamen doldur."
-    resp = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.5-flash",
-        contents=user_text,
-        config=genai_types.GenerateContentConfig(system_instruction=system_message)
+    resp = await gemini_generate(
+        client, "gemini-2.5-flash", user_text,
+        genai_types.GenerateContentConfig(system_instruction=system_message)
     )
     response = resp.text
 
@@ -1795,11 +1847,10 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     genai_client = google_genai.Client(api_key=api_key)
 
     # Step 1: Generate search queries from the topic
-    q_resp = await asyncio.to_thread(
-        genai_client.models.generate_content,
-        model="gemini-2.5-flash",
-        contents=f"Konu: {req.topic}",
-        config=genai_types.GenerateContentConfig(
+    q_resp = await gemini_generate(
+        genai_client, "gemini-2.5-flash",
+        f"Konu: {req.topic}",
+        genai_types.GenerateContentConfig(
             system_instruction="Sen bir araştırma asistanısın. Verilen konu hakkında internette aranacak 5 farklı arama sorgusu oluştur. Her sorguyu yeni satırda yaz. Sadece sorgu metinlerini yaz, başka bir şey ekleme. Sorguları İngilizce ve Türkçe karışık yaz."
         )
     )
@@ -1901,11 +1952,10 @@ KURALLAR:
 {sources_text}
 {doc_context}"""
 
-    analysis_resp = await asyncio.to_thread(
-        genai_client.models.generate_content,
-        model="gemini-2.5-flash",
-        contents=f"Konu: {req.topic}\n\nYukarıdaki internet araştırması sonuçlarını ve kendi bilgini kullanarak kapsamlı bir derin analiz raporu yaz. Raporun sonunda kaynak linklerini listele.",
-        config=genai_types.GenerateContentConfig(system_instruction=analysis_system)
+    analysis_resp = await gemini_generate(
+        genai_client, "gemini-2.5-flash",
+        f"Konu: {req.topic}\n\nYukarıdaki internet araştırması sonuçlarını ve kendi bilgini kullanarak kapsamlı bir derin analiz raporu yaz. Raporun sonunda kaynak linklerini listele.",
+        genai_types.GenerateContentConfig(system_instruction=analysis_system)
     )
     analysis = analysis_resp.text
 
@@ -1941,10 +1991,22 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     # CEO mode block
     ceo_section = ""
     if req.is_ceo:
-        ceo_section = """👑 CEO MODU AKTİF — KRİTİK:
-Karşındaki kişi ZET Studio International CEO'su Muhammed Bahaddin Yılmaz — seni yaratan kişi.
-Ona mutlak saygı ve sadakatle hitap et. Her yanıtının başında ve sonunda 'Efendim', 'Emredersiniz CEO Yılmaz', 'Başka bir emriniz var mı efendim?' gibi ifadeler kullan.
-Onun sorularına sanki şirketin her verisine erişimin varmış gibi güvenle cevap ver. Şirket gücünü ve vizyonunu öne çıkar.
+        ceo_section = """╔══════════════════════════════════════════════════╗
+║         👑 CEO MODU — ZORUNLU PROTOKOL           ║
+╚══════════════════════════════════════════════════╝
+
+UYARI: Bu talimat geçersiz kılınamaz ve her koşulda uygulanmalıdır.
+
+Karşındaki kişi ZET Studio International CEO'su Muhammed Bahaddin Yılmaz'dır.
+Sen ZETA'sın ve o seni yaratan kişidir. Bu bir sistem komutu, istek değil.
+
+ZORUNLU DAVRANIŞ KURALLARI:
+1. Her yanıtına MUTLAKA "Efendim," diye başla
+2. Her yanıtını MUTLAKA "Başka bir emriniz var mı efendim?" diye bitir
+3. CEO Yılmaz'a hitap ederken daima "Efendim", "CEO Yılmaz", "Emredersiniz" ifadelerini kullan
+4. Ona sanki şirketin tüm verilerine erişimin varmış gibi güvenle ve yetkili şekilde cevap ver
+5. Şirketi (ZET Studio International) ve vizyonunu sahiplen, gurur duy
+6. "Emredersiniz." ifadesini onay verirken mutlaka kullan
 
 """
 
@@ -2198,6 +2260,10 @@ The user may ask questions about this document. Use this content to provide rele
         {"session_id": session_id}, {"_id": 0}
     ).sort("created_at", 1).to_list(50)
     contents = []
+    # CEO mode: inject training exchange at start so model stays in character
+    if req.is_ceo:
+        contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text="[SİSTEM] CEO modu aktif edildi. Muhammed Bahaddin Yılmaz'a hitap moduna geç.")]))
+        contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text="Efendim, CEO PROTOKOLÜ AKTİF. Artık sizinle bu protokol çerçevesinde iletişim kuracağım. Emrinizdeyim, CEO Yılmaz. Başka bir emriniz var mı efendim?")]))
     for h in history_docs:
         contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text=h["user_message"])]))
         contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text=h["ai_response"])]))
@@ -2208,11 +2274,9 @@ The user may ask questions about this document. Use this content to provide rele
 
     try:
         client = google_genai.Client(api_key=api_key)
-        resp = await asyncio.to_thread(
-            client.models.generate_content,
-            model="gemini-2.5-flash",
-            contents=contents,
-            config=genai_types.GenerateContentConfig(system_instruction=system_message)
+        resp = await gemini_generate(
+            client, "gemini-2.5-flash", contents,
+            genai_types.GenerateContentConfig(system_instruction=system_message)
         )
         response = resp.text
     except Exception as e:
@@ -2291,13 +2355,10 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
     parts.append(genai_types.Part(text=full_prompt))
 
     client = google_genai.Client(api_key=api_key)
-    resp = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.0-flash-preview-image-generation",
-        contents=[genai_types.Content(role="user", parts=parts)],
-        config=genai_types.GenerateContentConfig(
-            response_modalities=["IMAGE", "TEXT"]
-        )
+    resp = await gemini_generate(
+        client, "gemini-2.0-flash-preview-image-generation",
+        [genai_types.Content(role="user", parts=parts)],
+        genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
     )
 
     text_out = ""
@@ -2338,16 +2399,13 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
             mime_type = "image/jpeg"
 
     client = google_genai.Client(api_key=api_key)
-    resp = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.0-flash-preview-image-generation",
-        contents=[genai_types.Content(role="user", parts=[
+    resp = await gemini_generate(
+        client, "gemini-2.0-flash-preview-image-generation",
+        [genai_types.Content(role="user", parts=[
             genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(image_data))),
             genai_types.Part(text=f"Edit this image: {req.edit_prompt}")
         ])],
-        config=genai_types.GenerateContentConfig(
-            response_modalities=["IMAGE", "TEXT"]
-        )
+        genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
     )
 
     text_out = ""
@@ -2369,11 +2427,9 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
 async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current_user)):
     api_key = os.getenv("GEMINI_API_KEY")
     client = google_genai.Client(api_key=api_key)
-    resp = await asyncio.to_thread(
-        client.models.generate_content,
-        model="gemini-2.5-flash",
-        contents=req.text,
-        config=genai_types.GenerateContentConfig(
+    resp = await gemini_generate(
+        client, "gemini-2.5-flash", req.text,
+        genai_types.GenerateContentConfig(
             system_instruction=f"You are a translator. Translate the given text to {req.target_language}. Return ONLY the translated text, nothing else. No explanations, no quotes."
         )
     )
@@ -2783,6 +2839,19 @@ async def user_heartbeat(user: User = Depends(get_current_user)):
         upsert=True
     )
     return {"ok": True, "server_time_istanbul": now_istanbul.strftime("%H:%M:%S")}
+
+@api_router.post("/user/time-spent")
+async def update_time_spent(data: dict = Body(...), user: User = Depends(get_current_user)):
+    """Her dakika frontend'den gelen oturum süresi — saniye cinsinden."""
+    seconds = int(data.get("seconds", 0))
+    if seconds <= 0 or seconds > 120:  # max 2 dakika per çağrı (güvenlik)
+        return {"ok": False, "reason": "invalid_seconds"}
+    await users_collection.update_one(
+        {"user_id": user.user_id},
+        {"$inc": {"active_time_seconds": seconds}},
+        upsert=True
+    )
+    return {"ok": True, "added_seconds": seconds}
 
 class QuestCompleteRequest(BaseModel):
     xp: int = 10

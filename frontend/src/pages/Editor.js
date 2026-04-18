@@ -3517,22 +3517,27 @@ const Editor = () => {
   // =============================
   if (isMobile) {
     return (
-      <div data-testid="editor-page" className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
+      <div data-testid="editor-page" className="flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)', height: '100dvh', maxHeight: '100dvh' }}>
         {/* Mobile Header */}
         <header className="h-11 px-2 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
-          <div className="flex items-center gap-1">
-            <button onClick={() => navigate('/dashboard')} className="tool-btn w-8 h-8"><Home className="h-4 w-4" /></button>
-            <input value={document.title} onChange={(e) => setDocument(prev => ({ ...prev, title: e.target.value }))} className="bg-transparent font-medium px-1 text-sm outline-none w-24" style={{ color: 'var(--zet-text)' }} />
+          <div className="flex items-center gap-1 min-w-0 flex-1">
+            <button onClick={() => navigate('/dashboard')} className="tool-btn w-8 h-8 flex-shrink-0"><Home className="h-4 w-4" /></button>
+            <input value={document.title} onChange={(e) => setDocument(prev => ({ ...prev, title: e.target.value }))} className="bg-transparent font-medium px-1 text-sm outline-none min-w-0 flex-1 truncate" style={{ color: 'var(--zet-text)' }} />
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={handleUndo} disabled={!history.canUndo} className={`tool-btn w-7 h-7 ${!history.canUndo ? 'opacity-30' : ''}`}><Undo className="h-3.5 w-3.5" /></button>
             <button onClick={handleRedo} disabled={!history.canRedo} className={`tool-btn w-7 h-7 ${!history.canRedo ? 'opacity-30' : ''}`}><Redo className="h-3.5 w-3.5" /></button>
-            <button onClick={() => saveDocument()} className="zet-btn px-2 py-1 text-xs"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
+            {/* Credits badge */}
+            <div onClick={() => { fetchCreditPackages(); setShowCreditModal(true); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs cursor-pointer flex-shrink-0" style={{ background: creditsRemaining > 0 ? 'rgba(76,168,173,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76,168,173,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
+              <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
+              <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
+            </div>
+            <button onClick={() => saveDocument()} className="zet-btn px-2 py-1 text-xs flex-shrink-0"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           </div>
         </header>
 
-        {/* Mobile Canvas - with touch scroll fix */}
-        <div className="flex-1 overflow-hidden relative" style={{ touchAction: 'pan-x pan-y' }}>
+        {/* Mobile Canvas */}
+        <div className="flex-1 overflow-hidden relative" style={{ touchAction: 'none', minHeight: 0 }}>
           <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
             canvasElements={canvasElements} setCanvasElements={setCanvasElements}
             drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
@@ -3555,34 +3560,68 @@ const Editor = () => {
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
         </div>
 
+        {/* Fast Select Bar */}
+        {fastSelectTools.length > 0 && (
+          <div className="flex-shrink-0 border-t px-2 py-1 flex items-center gap-1 overflow-x-auto" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
+            <Zap className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
+            {fastSelectTools.map(toolId => {
+              const tool = TOOLS.find(t => t.id === toolId);
+              if (!tool) return null;
+              return (
+                <button
+                  key={toolId}
+                  onClick={() => handleToolSelect(toolId)}
+                  className={`tool-btn w-8 h-8 flex-shrink-0 ${activeTool === toolId ? 'active ring-1 ring-blue-500' : ''}`}
+                  title={t(tool.nameKey) || tool.nameKey}
+                >
+                  <tool.icon className="h-4 w-4" style={{ color: activeTool === toolId ? 'var(--zet-primary-light)' : 'var(--zet-text)' }} />
+                </button>
+              );
+            })}
+            {/* Page indicator */}
+            <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+              <span>{currentPage + 1}/{document.pages?.length || 1}</span>
+            </div>
+          </div>
+        )}
+
         {/* Mobile Bottom Navigation Bar */}
-        <div className="border-t flex-shrink-0 safe-area-bottom" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
-          <div className="flex items-center justify-around py-2 px-2">
+        <div className="border-t flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
+          <div className="flex items-center justify-around py-1.5 px-1">
             {/* Toolbox Button */}
-            <button 
+            <button
               onClick={() => setMobilePanel(mobilePanel === 'tools' ? null : 'tools')}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all ${mobilePanel === 'tools' ? 'bg-white/10' : ''}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${mobilePanel === 'tools' ? 'bg-white/10' : ''}`}
             >
               <Menu className="h-5 w-5" style={{ color: mobilePanel === 'tools' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }} />
-              <span className="text-xs" style={{ color: mobilePanel === 'tools' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>Tools</span>
+              <span className="text-[10px]" style={{ color: mobilePanel === 'tools' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>Araçlar</span>
             </button>
-            
+
             {/* Pages Button */}
-            <button 
+            <button
               onClick={() => setMobilePanel(mobilePanel === 'pages' ? null : 'pages')}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all ${mobilePanel === 'pages' ? 'bg-white/10' : ''}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${mobilePanel === 'pages' ? 'bg-white/10' : ''}`}
             >
               <Layers className="h-5 w-5" style={{ color: mobilePanel === 'pages' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }} />
-              <span className="text-xs" style={{ color: mobilePanel === 'pages' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>Pages</span>
+              <span className="text-[10px]" style={{ color: mobilePanel === 'pages' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>Sayfalar</span>
             </button>
-            
+
+            {/* Export Button */}
+            <button
+              onClick={() => setShowExport(true)}
+              className="flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all"
+            >
+              <Download className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
+              <span className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Dışa Aktar</span>
+            </button>
+
             {/* ZETA Chat Button */}
-            <button 
+            <button
               onClick={() => setMobilePanel(mobilePanel === 'zeta' ? null : 'zeta')}
-              className={`flex flex-col items-center gap-0.5 px-4 py-1 rounded-lg transition-all ${mobilePanel === 'zeta' ? 'bg-white/10' : ''}`}
+              className={`flex flex-col items-center gap-0.5 px-3 py-1 rounded-lg transition-all ${mobilePanel === 'zeta' ? 'bg-white/10' : ''}`}
             >
               <Sparkles className="h-5 w-5" style={{ color: mobilePanel === 'zeta' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }} />
-              <span className="text-xs" style={{ color: mobilePanel === 'zeta' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>AI Chat</span>
+              <span className="text-[10px]" style={{ color: mobilePanel === 'zeta' ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>AI Chat</span>
             </button>
           </div>
         </div>
@@ -3591,17 +3630,17 @@ const Editor = () => {
         {mobilePanel === 'tools' && (
           <div className="fixed inset-0 z-50 flex flex-col" onClick={(e) => e.target === e.currentTarget && setMobilePanel(null)}>
             <div className="flex-1" onClick={() => setMobilePanel(null)} />
-            <div className="rounded-t-2xl max-h-[60vh] overflow-y-auto" style={{ background: 'var(--zet-bg-card)' }}>
+            <div className="rounded-t-2xl max-h-[65vh] overflow-y-auto" style={{ background: 'var(--zet-bg-card)' }}>
               <div className="sticky top-0 p-3 border-b flex items-center justify-between" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
-                <span className="font-medium" style={{ color: 'var(--zet-text)' }}>Tools</span>
+                <span className="font-medium" style={{ color: 'var(--zet-text)' }}>Araçlar</span>
                 <button onClick={() => setMobilePanel(null)} className="p-1 rounded hover:bg-white/10">
                   <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
                 </button>
               </div>
               <div className="grid grid-cols-5 gap-2 p-3">
                 {TOOLS.map(tool => (
-                  <button 
-                    key={tool.id} 
+                  <button
+                    key={tool.id}
                     onClick={() => { handleToolSelect(tool.id); if (!['text', 'draw', 'pen', 'marking', 'eraser', 'select'].includes(tool.id)) setMobilePanel(null); }}
                     className={`flex flex-col items-center gap-1 p-2 rounded-lg transition-all ${activeTool === tool.id ? 'bg-white/10 ring-1 ring-blue-500' : 'hover:bg-white/5'}`}
                   >

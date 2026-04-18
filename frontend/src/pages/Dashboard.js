@@ -87,6 +87,7 @@ const Dashboard = () => {
   const [subscribing, setSubscribing] = useState(false);
   const [userSP, setUserSP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
+  const [sessionSeconds, setSessionSeconds] = useState(0); // mevcut oturum süresi (yerel)
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
   const [showRankBadge, setShowRankBadge] = useState(() => localStorage.getItem('zet_show_rank') !== 'false');
   
@@ -333,16 +334,23 @@ const Dashboard = () => {
     return () => clearInterval(i);
   }, []);
 
-  // Heartbeat global olarak App.js'de yönetilir.
-  // activeTimeSeconds her 60sn'de sunucudan çekilir (canlı saat için)
+  // Her 60sn'de sunucudan doğru active_time_seconds çek
   useEffect(() => {
-    const refresh = () => {
+    const tick = () => {
+      if (document.hidden) return;
       axios.get(`${API}/quests/progress`, { withCredentials: true })
-        .then(res => {
-          setActiveTimeSeconds(res.data.active_time_seconds || 0);
-        }).catch(() => {});
+        .then(res => { setActiveTimeSeconds(res.data.active_time_seconds || 0); })
+        .catch(() => {});
     };
-    const id = setInterval(refresh, 60000);
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Yerel session sayacı — her saniye +1, rank barı anlık güncellenir
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (!document.hidden) setSessionSeconds(prev => prev + 1);
+    }, 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -573,7 +581,9 @@ const Dashboard = () => {
         const updated = prev.map(n => n.notebook_id === nb.notebook_id ? { ...n, pinned: newPinned } : n);
         return sortNotebooks(updated);
       });
-    } catch {}
+    } catch (err) {
+      console.error('Sabitleme hatası:', err?.response?.data?.detail || err.message);
+    }
     setOpenMenuNotebookId(null);
   };
 
@@ -635,22 +645,32 @@ const Dashboard = () => {
       return;
     }
 
+    const getErrorMsg = (err) => {
+      const detail = err.response?.data?.detail;
+      console.error('[NB-PW] Hata:', err.response?.status, detail, err.message);
+      if (!err.response) return 'Sunucuya ulaşılamıyor. Backend çalışıyor mu?';
+      if (err.response.status === 401) return 'Oturum süresi dolmuş. Sayfayı yenile.';
+      if (err.response.status === 404) return 'Defter bulunamadı (404).';
+      if (err.response.status === 403) return detail === 'Wrong password' ? 'Yanlış şifre' : `Erişim reddedildi: ${detail || ''}`;
+      return detail ? `Hata: ${detail}` : `Sunucu hatası (${err.response.status})`;
+    };
+
     if (mode === 'set') {
       if (nbPwInput.length < 4) { setNbPwError('Şifre en az 4 karakter olmalı'); return; }
       if (nbPwInput !== nbPwConfirm) { setNbPwError('Şifreler eşleşmiyor'); return; }
       setNbPwLoading(true);
       try {
-        await axios.post(`${API}/notebooks/${notebookId}/set-password`, { password: nbPwInput }, { withCredentials: true });
+        await axios.put(`${API}/notebooks/${notebookId}/password`, { password: nbPwInput }, { withCredentials: true });
         setNotebooks(prev => prev.map(n => n.notebook_id === notebookId ? { ...n, has_password: true } : n));
         showToast('Şifre başarıyla eklendi', 'success');
         setNotebookPasswordModal(null);
         setNbPwInput(''); setNbPwConfirm('');
-      } catch { setNbPwError('Bir hata oluştu'); }
+      } catch (err) { setNbPwError(getErrorMsg(err)); }
       setNbPwLoading(false);
     } else if (mode === 'remove') {
       setNbPwLoading(true);
       try {
-        await axios.post(`${API}/notebooks/${notebookId}/remove-password`, { password: nbPwInput }, { withCredentials: true });
+        await axios.delete(`${API}/notebooks/${notebookId}/password`, { data: { password: nbPwInput }, withCredentials: true });
         setNotebooks(prev => prev.map(n => n.notebook_id === notebookId ? { ...n, has_password: false, password_hash: undefined } : n));
         showToast('Şifre kaldırıldı', 'success');
         setNotebookPasswordModal(null);
@@ -661,13 +681,13 @@ const Dashboard = () => {
         setNbFailedAttempts(prev => ({ ...prev, [notebookId]: failed }));
         const wait = getLockoutTime(failed);
         if (wait > 0) setNbLockoutUntil(prev => ({ ...prev, [notebookId]: Date.now() + wait * 1000 }));
-        setNbPwError(err.response?.data?.detail === 'Wrong password' ? 'Yanlış şifre' : 'Bir hata oluştu');
+        setNbPwError(getErrorMsg(err));
       }
       setNbPwLoading(false);
     } else if (mode === 'unlock') {
       setNbPwLoading(true);
       try {
-        await axios.post(`${API}/notebooks/${notebookId}/unlock`, { password: nbPwInput }, { withCredentials: true });
+        await axios.post(`${API}/notebooks/${notebookId}/verify-password`, { password: nbPwInput }, { withCredentials: true });
         setUnlockedNotebooks(prev => ({ ...prev, [notebookId]: true }));
         setNbFailedAttempts(prev => ({ ...prev, [notebookId]: 0 }));
         setNotebookPasswordModal(null);
@@ -680,7 +700,7 @@ const Dashboard = () => {
         setNbFailedAttempts(prev => ({ ...prev, [notebookId]: failed }));
         const wait = getLockoutTime(failed);
         if (wait > 0) setNbLockoutUntil(prev => ({ ...prev, [notebookId]: Date.now() + wait * 1000 }));
-        setNbPwError(err.response?.data?.detail === 'Wrong password' ? 'Yanlış şifre' : 'Bir hata oluştu');
+        setNbPwError(getErrorMsg(err));
       }
       setNbPwLoading(false);
     }
@@ -1594,7 +1614,8 @@ MATCHES:[1,3,5]`;
                   'Zümrüt':  { credits: 1000, sp: 2400 },
                   'Endless': { credits: 2000, sp: 3000 },
                 };
-                const activeHours = activeTimeSeconds / 3600;
+                const totalActiveSeconds = activeTimeSeconds + sessionSeconds;
+                const activeHours = totalActiveSeconds / 3600;
                 const formatActiveTime = (seconds) => {
                   const h = Math.floor(seconds / 3600);
                   const m = Math.floor((seconds % 3600) / 60);
@@ -1657,7 +1678,7 @@ MATCHES:[1,3,5]`;
                             <div className="mt-2 space-y-1.5">
                               <div>
                                 <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                  <span>{formatActiveTime(activeTimeSeconds)} / {req.hours} sa</span>
+                                  <span>{formatActiveTime(totalActiveSeconds)} / {req.hours} sa</span>
                                   <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
                                 </div>
                                 <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
