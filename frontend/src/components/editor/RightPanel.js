@@ -51,7 +51,7 @@ export const RightPanel = ({
     { type: 'system', text: '' },
   ]);
   const [consoleInput, setConsoleInput] = useState('');
-  const [consoleStage, setConsoleStage] = useState('main'); // 'main' | 'admin_login'
+  const [consoleStage, setConsoleStage] = useState('main'); // 'main' | 'admin_login' | 'admin_pin'
   const consoleEndRef = useRef(null);
   const consoleInputRef = useRef(null);
   const showPages = forceSection ? forceSection === 'pages' : true;
@@ -307,12 +307,30 @@ export const RightPanel = ({
   useEffect(() => { consoleEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [consoleLines]);
   useEffect(() => { if (showConsole) setTimeout(() => consoleInputRef.current?.focus(), 80); }, [showConsole]);
 
+  // Google auth sonrası PIN adımını otomatik başlat
+  useEffect(() => {
+    if (localStorage.getItem('zet_ceo_pending') === 'true') {
+      setShowConsole(true);
+      setConsoleStage('admin_pin');
+      setConsoleLines([
+        { type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' },
+        { type: 'system', text: '' },
+        { type: 'success', text: '✓ Google kimlik doğrulaması başarılı.' },
+        { type: 'output', text: '' },
+        { type: 'output', text: '╔═══════════════════════════════╗' },
+        { type: 'output', text: '║  İKİNCİ FAKTÖR: PIN           ║' },
+        { type: 'output', text: '╚═══════════════════════════════╝' },
+        { type: 'output', text: 'Admin PIN\'inizi girin:' },
+      ]);
+    }
+  }, []);
+
   const addConsoleLine = (text, type = 'output') =>
     setConsoleLines(prev => [...prev, { type, text }]);
 
   // All known commands (used for autocomplete)
   const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
-  const ADMIN_COMMANDS = ['/delete/admin/', '/(number)/credits/', '/(number)/sp/'];
+  const ADMIN_COMMANDS = ['/delete/admin/', '/logout/admin/', '/(number)/credits/', '/(number)/sp/'];
   const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
   const getConsoleSuggestions = (input) => {
     if (!input) return [];
@@ -324,6 +342,34 @@ export const RightPanel = ({
     const cmd = consoleInput.trim();
     if (!cmd) return;
     setConsoleInput('');
+
+    // PIN adımı — şifre maskelendi, log'a yazmıyoruz
+    if (consoleStage === 'admin_pin') {
+      addConsoleLine('> ••••••••', 'input');
+      try {
+        await axios.post(`${API}/auth/admin-verify-pin`, { pin: cmd }, { withCredentials: true });
+        localStorage.removeItem('zet_ceo_pending');
+        localStorage.setItem('zet_ceo_mode', 'true');
+        setIsCEO(true);
+        setConsoleStage('main');
+        addConsoleLine('', 'output');
+        addConsoleLine('╔═══════════════════════════════╗', 'success');
+        addConsoleLine('║  CEO MODU AKTİF               ║', 'success');
+        addConsoleLine('╚═══════════════════════════════╝', 'success');
+        addConsoleLine('Hoş geldiniz.', 'success');
+      } catch (err) {
+        const detail = err.response?.data?.detail || 'Yanlış PIN.';
+        addConsoleLine(`✗ ${detail}`, 'error');
+        if (err.response?.status === 403) {
+          localStorage.removeItem('zet_ceo_pending');
+          setConsoleStage('main');
+          addConsoleLine('Kimlik doğrulama başarısız. Konsoldan çıkılıyor.', 'error');
+          setTimeout(() => { setShowConsole(false); }, 2000);
+        }
+      }
+      return;
+    }
+
     addConsoleLine(`> ${cmd}`, 'input');
     const normalized = cmd.toLowerCase().replace(/\s+/g, '');
 
@@ -343,27 +389,32 @@ export const RightPanel = ({
       setConsoleStage('admin_login');
     } else if (normalized === '/clear/') {
       setConsoleLines([{ type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' }, { type: 'system', text: '' }]);
-    } else if (normalized === '/delete/admin/') {
+    } else if (normalized === '/delete/admin/' || normalized === '/logout/admin/') {
       if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
       localStorage.removeItem('zet_ceo_mode');
+      localStorage.removeItem('zet_ceo_pending');
       setIsCEO(false);
-      addConsoleLine('Admin mode deactivated. Returned to standard user.', 'output');
+      addConsoleLine('Admin modu devre dışı bırakıldı. Standart kullanıcıya dönüldü.', 'output');
     } else if (creditMatch) {
       if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
       const amount = parseInt(creditMatch[1]);
       addConsoleLine(`Adding ${amount} credits...`, 'output');
       try {
         const res = await axios.post(`${API}/admin/add-credits`, { amount }, { withCredentials: true });
-        addConsoleLine(`✓ ${amount} credits added. Total: ${res.data.total}`, 'success');
-      } catch { addConsoleLine('Error: could not add credits.', 'error'); }
+        addConsoleLine(`✓ ${amount} kredi eklendi. Toplam: ${res.data.total}`, 'success');
+      } catch (err) {
+        addConsoleLine(`✗ ${err.response?.data?.detail || 'Kredi eklenemedi.'}`, 'error');
+      }
     } else if (spMatch) {
       if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
       const amount = parseInt(spMatch[1]);
-      addConsoleLine(`Adding ${amount} SP...`, 'output');
+      addConsoleLine(`${amount} SP ekleniyor...`, 'output');
       try {
         const res = await axios.post(`${API}/admin/add-sp`, { amount }, { withCredentials: true });
-        addConsoleLine(`✓ ${amount} SP added. Total: ${res.data.total}`, 'success');
-      } catch { addConsoleLine('Error: could not add SP.', 'error'); }
+        addConsoleLine(`✓ ${amount} SP eklendi. Toplam: ${res.data.total}`, 'success');
+      } catch (err) {
+        addConsoleLine(`✗ ${err.response?.data?.detail || 'SP eklenemedi.'}`, 'error');
+      }
     } else if (normalized === 'exit' || normalized === 'close') {
       setShowConsole(false); setConsoleStage('main');
     } else {
@@ -1064,6 +1115,7 @@ export const RightPanel = ({
               <span className="text-xs" style={{ color: '#00e050' }}>{'>'}</span>
               <input
                 ref={consoleInputRef}
+                type={consoleStage === 'admin_pin' ? 'password' : 'text'}
                 value={consoleInput}
                 onChange={e => setConsoleInput(e.target.value)}
                 onKeyDown={e => {
@@ -1076,7 +1128,7 @@ export const RightPanel = ({
                 }}
                 className="flex-1 bg-transparent text-xs outline-none"
                 style={{ color: '#fff', caretColor: '#00e050' }}
-                placeholder="enter command..."
+                placeholder={consoleStage === 'admin_pin' ? 'PIN girin...' : 'komut girin...'}
                 autoComplete="off"
                 spellCheck={false}
               />

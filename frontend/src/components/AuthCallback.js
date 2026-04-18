@@ -28,9 +28,12 @@ const AuthCallback = () => {
         if (ceoTokenMatch) {
           try {
             await axios.get(`${API}/auth/admin-verify?token=${ceoTokenMatch[1]}`, { withCredentials: true });
-            localStorage.setItem('zet_ceo_mode', 'true');
+            // Token doğrulandı — PIN adımı için pending işaretle, henüz CEO modu aktif değil
+            localStorage.setItem('zet_ceo_pending', 'true');
+            localStorage.removeItem('zet_ceo_mode');
           } catch {
             localStorage.removeItem('zet_ceo_mode');
+            localStorage.removeItem('zet_ceo_pending');
           }
         }
         navigate(savedDoc ? `/editor/${savedDoc}` : '/dashboard', { replace: true });

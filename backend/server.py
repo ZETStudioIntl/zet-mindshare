@@ -485,6 +485,19 @@ async def admin_verify_token(token: str = Query(...)):
     await db.ceo_tokens.delete_one({"token": token})  # tek kullanımlık
     return {"success": True, "email": record["email"]}
 
+class AdminPinRequest(BaseModel):
+    pin: str
+
+@api_router.post("/auth/admin-verify-pin")
+async def admin_verify_pin(body: AdminPinRequest):
+    """İkinci faktör — PIN doğrulama. CEO_PIN env var ile karşılaştırılır."""
+    ceo_pin = os.environ.get("CEO_PIN", "")
+    if not ceo_pin:
+        raise HTTPException(status_code=503, detail="PIN sistemi yapılandırılmamış.")
+    if body.pin != ceo_pin:
+        raise HTTPException(status_code=403, detail="Yanlış PIN.")
+    return {"success": True}
+
 @api_router.get("/auth/admin-console")
 async def admin_console_auth():
     """Eski popup akışı — geriye dönük uyumluluk için tutuldu, artık kullanılmıyor."""
@@ -1214,7 +1227,8 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
             {"$set": {"cancel_token": cancel_token, "cancel_pending": True, "cancel_requested_at": datetime.now(timezone.utc).isoformat()}}
         )
         # Send cancellation confirmation email
-        cancel_link = f"{os.environ.get('FRONTEND_URL', os.environ.get('REACT_APP_BACKEND_URL', ''))}/api/subscription/confirm-cancel?token={cancel_token}"
+        backend_url = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001")
+        cancel_link = f"{backend_url}/api/subscription/confirm-cancel?token={cancel_token}"
         html_content = f"""
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
             <h2 style="color: #f59e0b; margin-bottom: 20px;">⚠️ Abonelik İptal Onayı</h2>
@@ -1255,11 +1269,30 @@ async def confirm_cancellation(token: str):
     """
     await send_email(user["email"], "ZET Mindshare Aboneliğiniz İptal Edildi", html_content)
     
-    # Return HTML page
-    return JSONResponse(content={
-        "success": True,
-        "message": "Aboneliğiniz başarıyla iptal edildi. FREE plana düştünüz."
-    })
+    # Return HTML page so the email button shows a user-friendly confirmation
+    from fastapi.responses import HTMLResponse
+    frontend_url = os.environ.get("FRONTEND_URL", "https://zetmindshare.com")
+    return HTMLResponse(content=f"""<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Abonelik İptal Edildi — ZET Mindshare</title>
+<style>
+  body {{ margin:0; font-family: Arial, sans-serif; background: linear-gradient(135deg,#1a1a2e 0%,#16213e 100%); min-height:100vh; display:flex; align-items:center; justify-content:center; }}
+  .card {{ max-width:500px; width:90%; padding:40px; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); border-radius:16px; text-align:center; color:#fff; }}
+  h1 {{ color:#4ca8ad; margin-bottom:16px; font-size:24px; }}
+  p {{ color:#ccc; line-height:1.6; margin-bottom:24px; }}
+  a {{ display:inline-block; background:#4ca8ad; color:#fff; padding:12px 28px; border-radius:8px; text-decoration:none; font-weight:bold; }}
+  a:hover {{ background:#3d9499; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>✓ Aboneliğiniz İptal Edildi</h1>
+  <p>Aboneliğiniz başarıyla iptal edildi ve ücretsiz plana geçiş yapıldı.<br>Bizi tercih ettiğiniz için teşekkür ederiz.</p>
+  <a href="{frontend_url}">ZET Mindshare'e Dön</a>
+</div>
+</body>
+</html>""", status_code=200)
 
 # ── Yeni abonelik oluştur (ödeme sonrası çağrılır) ────────────────────────────
 @api_router.post("/subscription/create")
