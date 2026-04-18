@@ -2493,33 +2493,36 @@ The user may ask questions about this document. Use this content to provide rele
 
 @api_router.post("/zeta/generate-image")
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):
-    
+
     # Determine credit action
     credit_action = "nano_banana_pro" if req.pro else "nano_banana"
-    
+
     # Check plan allows pro
     user_data = await db.users.find_one({"user_id": user.user_id})
-    plan = user_data.get("subscription", "free") if user_data else "free"
+    plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
-    
+
     if req.pro and not limits.get('nano_pro', False):
         raise HTTPException(status_code=403, detail="Nano Banana Pro, Pro veya Ultra planda kullanılabilir.")
-    
+
     # Check aspect ratio allowed
-    if req.aspect_ratio and req.aspect_ratio not in limits.get('custom_image_sizes', ['16:9']):
+    allowed_sizes = limits.get('custom_image_sizes', ['16:9'])
+    if req.aspect_ratio and req.aspect_ratio not in allowed_sizes:
         raise HTTPException(status_code=403, detail=f"Bu görüntü boyutu ({req.aspect_ratio}) planınızda kullanılamaz.")
-    
+
     # Spend credits
     credit_result = await spend_credits(user.user_id, credit_action)
     if not credit_result['success']:
         raise HTTPException(status_code=429, detail=credit_result['message'])
-    
-    api_key = os.getenv("GEMINI_API_KEY")
 
-    # Build prompt with aspect ratio hint
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
+
+    # Build prompt
     aspect_prompt = f"({req.aspect_ratio} aspect ratio) " if req.aspect_ratio else ""
-    quality_prompt = "high quality, professional, detailed" if req.pro else ""
-    full_prompt = f"{aspect_prompt}{quality_prompt} {req.prompt}".strip()
+    quality_prompt = "high quality, professional, detailed, " if req.pro else ""
+    full_prompt = f"{aspect_prompt}{quality_prompt}{req.prompt}".strip()
 
     parts = []
     if req.reference_image:
@@ -2534,12 +2537,23 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
         ))
     parts.append(genai_types.Part(text=full_prompt))
 
-    client = google_genai.Client(api_key=api_key)
-    resp = await gemini_generate(
-        client, "gemini-2.0-flash-preview-image-generation",
-        [genai_types.Content(role="user", parts=parts)],
-        genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
-    )
+    try:
+        client = google_genai.Client(api_key=api_key)
+        resp = await gemini_generate(
+            client, "gemini-2.0-flash-preview-image-generation",
+            [genai_types.Content(role="user", parts=parts)],
+            genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
+        )
+    except Exception as e:
+        logging.error(f"Image generation error: {e}")
+        # Krediyi iade et
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db.usage.update_one(
+            {"user_id": user.user_id, "date": today},
+            {"$inc": {"credits_used": -credit_result['cost']}},
+            upsert=True
+        )
+        raise HTTPException(status_code=500, detail=f"Görsel oluşturma hatası: {str(e)}")
 
     text_out = ""
     images = []
@@ -2551,6 +2565,16 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 "mime_type": part.inline_data.mime_type,
                 "data": base64.b64encode(part.inline_data.data).decode()
             })
+
+    if not images:
+        # Görsel gelmedi — krediyi iade et
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db.usage.update_one(
+            {"user_id": user.user_id, "date": today},
+            {"$inc": {"credits_used": -credit_result['cost']}},
+            upsert=True
+        )
+        raise HTTPException(status_code=500, detail="Görsel oluşturulamadı, kredi iade edildi. Tekrar deneyin.")
 
     return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
 

@@ -2101,9 +2101,12 @@ const Editor = () => {
         }
       }
     } catch (err) {
-      if (err.response?.status === 429) {
-        setUpgradeReason(err.response.data?.detail || 'Yetersiz kredi!');
+      const detail = err.response?.data?.detail || 'Görsel oluşturulamadı, tekrar deneyin.';
+      if (err.response?.status === 429 || err.response?.status === 402) {
+        setUpgradeReason(detail);
         setShowUpgradeModal(true);
+      } else {
+        alert(detail);
       }
     }
     setAiGenerating(false); setAiPrompt('');
