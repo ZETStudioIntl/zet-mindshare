@@ -311,7 +311,7 @@ export const RightPanel = ({
     setConsoleLines(prev => [...prev, { type, text }]);
 
   // All known commands (used for autocomplete)
-  const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/', '/ceo/mod/on/', '/ceo/mod/off/'];
+  const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
   const ADMIN_COMMANDS = ['/delete/admin/', '/(number)/credits/', '/(number)/sp/'];
   const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
   const getConsoleSuggestions = (input) => {
@@ -343,20 +343,6 @@ export const RightPanel = ({
       setConsoleStage('admin_login');
     } else if (normalized === '/clear/') {
       setConsoleLines([{ type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' }, { type: 'system', text: '' }]);
-    } else if (normalized === '/ceo/mod/on/') {
-      localStorage.setItem('zet_ceo_mode', 'true');
-      setIsCEO(true);
-      // Clear sessions so AI picks up fresh CEO context on next message
-      setZetaSessionId(null);
-      setJudgeSessionId(null);
-      addConsoleLine('🔓 Admin modu aktif. Hoş geldin Efendim.', 'success');
-      addConsoleLine('Zeta ve Judge oturumları sıfırlandı — yeni mesajda CEO olarak tanıyacaklar.', 'output');
-    } else if (normalized === '/ceo/mod/off/') {
-      localStorage.removeItem('zet_ceo_mode');
-      setIsCEO(false);
-      setZetaSessionId(null);
-      setJudgeSessionId(null);
-      addConsoleLine('🔒 Admin modu kapatıldı.', 'output');
     } else if (normalized === '/delete/admin/') {
       if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
       localStorage.removeItem('zet_ceo_mode');
@@ -386,32 +372,11 @@ export const RightPanel = ({
   };
 
   const handleAdminGoogleAuth = () => {
-    const backendUrl = process.env.REACT_APP_BACKEND_URL || '';
-    const popup = window.open(`${backendUrl}/api/auth/admin-console`, 'AdminConsole', 'width=480,height=600,scrollbars=yes');
-    const onMessage = (e) => {
-      if (e.data && typeof e.data.ceoVerified !== 'undefined') {
-        window.removeEventListener('message', onMessage);
-        if (popup && !popup.closed) popup.close();
-        setConsoleStage('main');
-        if (e.data.ceoVerified) {
-          localStorage.setItem('zet_ceo_mode', 'true');
-          setIsCEO(true);
-          addConsoleLine('', 'output');
-          addConsoleLine('✓ IDENTITY VERIFIED', 'success');
-          addConsoleLine('Welcome, CEO. Admin mode activated.', 'success');
-          addConsoleLine('', 'output');
-        } else {
-          addConsoleLine('', 'output');
-          addConsoleLine('✗ ACCESS DENIED', 'error');
-          addConsoleLine('This session has been logged.', 'error');
-        }
-      }
-    };
-    window.addEventListener('message', onMessage);
-    // Cleanup if popup closed manually
-    const timer = setInterval(() => {
-      if (popup && popup.closed) { window.removeEventListener('message', onMessage); clearInterval(timer); setConsoleStage('main'); }
-    }, 500);
+    // Save current doc to return after auth
+    if (doc?.doc_id) localStorage.setItem('zet_admin_auth_doc', doc.doc_id);
+    localStorage.setItem('zet_admin_auth_pending', 'true');
+    // Use same redirect flow as login page
+    window.location.href = `${process.env.REACT_APP_BACKEND_URL}/api/auth/admin-google`;
   };
   // ─────────────────────────────────────────────────────────────
 

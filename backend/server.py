@@ -404,10 +404,18 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         if not email:
             return RedirectResponse(f"{frontend_url}/?error=no_email")
 
-        # Admin console popup flow — skip session creation, postMessage result back
+        # Admin panel redirect flow
         if state == "admin_console":
-            verified = "true" if email == CEO_EMAIL else "false"
-            return HTMLResponse(f'<script>window.opener&&window.opener.postMessage({{ceoVerified:{verified}}},"*");window.close();</script>')
+            if email == CEO_EMAIL:
+                ceo_token = f"ceo_{uuid.uuid4().hex}"
+                await db.ceo_tokens.insert_one({
+                    "token": ceo_token,
+                    "email": email,
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+                })
+                return RedirectResponse(f"{frontend_url}/auth-callback#ceo_token={ceo_token}")
+            else:
+                return RedirectResponse(f"{frontend_url}/auth-callback#ceo_error=access_denied")
 
         existing_user = await db.users.find_one({"email": email}, {"_id": 0})
         if existing_user:
@@ -445,14 +453,13 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         logging.error(f"Google OAuth callback error: {e}", exc_info=True)
         return RedirectResponse(f"{frontend_url}/?error=google_auth_failed")
 
-@api_router.get("/auth/admin-console")
-async def admin_console_auth():
-    """Admin console için popup Google OAuth — hesap seçici gösterir."""
+@api_router.get("/auth/admin-google")
+async def admin_google_auth():
+    """Admin panel login — login sayfasıyla aynı redirect akışını kullanır, state=admin_console."""
     from requests_oauthlib import OAuth2Session
     from fastapi.responses import RedirectResponse
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     backend_url = os.getenv("REACT_APP_BACKEND_URL", "http://localhost:8001")
-    # Reuse the already-registered callback URI, distinguish via state param
     redirect_uri = f"{backend_url}/api/auth/google/callback"
     scopes = ["openid", "https://www.googleapis.com/auth/userinfo.email", "https://www.googleapis.com/auth/userinfo.profile"]
     oauth = OAuth2Session(client_id=client_id, redirect_uri=redirect_uri, scope=scopes)
@@ -463,6 +470,25 @@ async def admin_console_auth():
         state="admin_console"
     )
     return RedirectResponse(auth_url)
+
+@api_router.get("/auth/admin-verify")
+async def admin_verify_token(token: str = Query(...)):
+    """CEO token doğrulama — tek kullanımlık, 5 dakika geçerliliği var."""
+    now = datetime.now(timezone.utc)
+    record = await db.ceo_tokens.find_one({"token": token})
+    if not record:
+        raise HTTPException(status_code=403, detail="Geçersiz token")
+    exp = datetime.fromisoformat(record["expires_at"].replace("Z", "+00:00"))
+    if now > exp:
+        await db.ceo_tokens.delete_one({"token": token})
+        raise HTTPException(status_code=403, detail="Token süresi dolmuş")
+    await db.ceo_tokens.delete_one({"token": token})  # tek kullanımlık
+    return {"success": True, "email": record["email"]}
+
+@api_router.get("/auth/admin-console")
+async def admin_console_auth():
+    """Eski popup akışı — geriye dönük uyumluluk için tutuldu, artık kullanılmıyor."""
+    return RedirectResponse(f"/api/auth/admin-google")
 
 @api_router.get("/auth/admin-console/callback")
 async def admin_console_callback(request: Request, code: str = Query(None), state: str = Query(None), error: str = Query(None)):

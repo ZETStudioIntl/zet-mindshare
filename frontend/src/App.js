@@ -16,17 +16,15 @@ import axios from "axios";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-// Global heartbeat — tüm sayfalarda çalışır, sunucu saatine göre rate-limited
+// Global heartbeat — tüm sayfalarda çalışır, online status için
 const GlobalHeartbeat = () => {
   const { user } = useAuth();
   const lastActivityRef = useRef(Date.now());
-  const lastTimeSentRef = useRef(Date.now());
 
   useEffect(() => {
     if (!user) return;
 
-    const INTERVAL = 30000;          // heartbeat her 30 saniye
-    const TIME_INTERVAL = 60000;     // süre kaydı her 60 saniye
+    const INTERVAL = 30000;
     const INACTIVE_LIMIT = 5 * 60 * 1000;
 
     const onActivity = () => { lastActivityRef.current = Date.now(); };
@@ -35,7 +33,6 @@ const GlobalHeartbeat = () => {
     document.addEventListener('click', onActivity, { passive: true });
     document.addEventListener('scroll', onActivity, { passive: true });
 
-    // Heartbeat: sunucu tarafında süre takibi
     const sendHeartbeat = () => {
       if (document.hidden) return;
       const isActive = Date.now() - lastActivityRef.current < INACTIVE_LIMIT;
@@ -43,39 +40,10 @@ const GlobalHeartbeat = () => {
       axios.post(`${API}/users/heartbeat`, {}, { withCredentials: true }).catch(() => {});
     };
 
-    // Session timer: her dakika geçen gerçek süreyi backend'e kaydet
-    const sendTimeSpent = () => {
-      if (document.hidden) return;
-      const isActive = Date.now() - lastActivityRef.current < INACTIVE_LIMIT;
-      if (!isActive) return;
-      const now = Date.now();
-      const seconds = Math.round((now - lastTimeSentRef.current) / 1000);
-      lastTimeSentRef.current = now;
-      if (seconds > 0 && seconds <= 120) {
-        axios.post(`${API}/user/time-spent`, { seconds }, { withCredentials: true }).catch(() => {});
-        console.debug(`[Timer] ${seconds}sn kaydedildi`);
-      }
-    };
-
-    // Sayfa kapanmadan önce kalan süreyi kaydet (sendBeacon kullan — async)
-    const handleUnload = () => {
-      const isActive = Date.now() - lastActivityRef.current < INACTIVE_LIMIT;
-      if (!isActive) return;
-      const seconds = Math.round((Date.now() - lastTimeSentRef.current) / 1000);
-      if (seconds > 0 && seconds <= 120) {
-        const blob = new Blob([JSON.stringify({ seconds })], { type: 'application/json' });
-      navigator.sendBeacon(`${API}/user/time-spent`, blob);
-      }
-    };
-    window.addEventListener('beforeunload', handleUnload);
-
     const heartbeatId = setInterval(sendHeartbeat, INTERVAL);
-    const timerId = setInterval(sendTimeSpent, TIME_INTERVAL);
 
     return () => {
       clearInterval(heartbeatId);
-      clearInterval(timerId);
-      window.removeEventListener('beforeunload', handleUnload);
       document.removeEventListener('mousemove', onActivity);
       document.removeEventListener('keydown', onActivity);
       document.removeEventListener('click', onActivity);

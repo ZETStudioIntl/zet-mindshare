@@ -482,6 +482,53 @@ const Editor = () => {
   };
   useEffect(() => { refreshCredits(); }, []);
 
+  // === CANVAS TIME TRACKING — sadece editörde geçen aktif süreyi say ===
+  useEffect(() => {
+    const INACTIVE_LIMIT = 5 * 60 * 1000;
+    const TIME_INTERVAL = 60000;
+    const lastActivityRef = { current: Date.now() };
+    const lastTimeSentRef = { current: Date.now() };
+
+    const onActivity = () => { lastActivityRef.current = Date.now(); };
+    document.addEventListener('mousemove', onActivity, { passive: true });
+    document.addEventListener('keydown', onActivity, { passive: true });
+    document.addEventListener('click', onActivity, { passive: true });
+
+    const sendTimeSpent = () => {
+      if (document.hidden) return;
+      if (Date.now() - lastActivityRef.current >= INACTIVE_LIMIT) return;
+      const now = Date.now();
+      const seconds = Math.round((now - lastTimeSentRef.current) / 1000);
+      lastTimeSentRef.current = now;
+      if (seconds > 0 && seconds <= 120) {
+        axios.post(`${API}/user/time-spent`, { seconds }, { withCredentials: true }).catch(() => {});
+      }
+    };
+
+    const handleUnload = () => {
+      if (Date.now() - lastActivityRef.current >= INACTIVE_LIMIT) return;
+      const seconds = Math.round((Date.now() - lastTimeSentRef.current) / 1000);
+      if (seconds > 0 && seconds <= 120) {
+        const blob = new Blob([JSON.stringify({ seconds })], { type: 'application/json' });
+        navigator.sendBeacon(`${API}/user/time-spent`, blob);
+      }
+    };
+
+    window.addEventListener('beforeunload', handleUnload);
+    const timerId = setInterval(sendTimeSpent, TIME_INTERVAL);
+
+    return () => {
+      clearInterval(timerId);
+      window.removeEventListener('beforeunload', handleUnload);
+      document.removeEventListener('mousemove', onActivity);
+      document.removeEventListener('keydown', onActivity);
+      document.removeEventListener('click', onActivity);
+      // Son kalan süreyi kaydet
+      sendTimeSpent();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastLoadedPageRef = useRef(null);
   useEffect(() => {
