@@ -92,6 +92,12 @@ class SubscriptionUpdate(BaseModel):
     plan: str  # 'free', 'plus', 'pro', 'ultra'
     action: str  # 'subscribe' or 'cancel'
 
+class SubscriptionCreate(BaseModel):
+    plan: str                       # pro, ultra, creative_station, entertainment_pocket
+    billing_cycle: str = "monthly"  # monthly, yearly
+    payment_provider: str           # lemonsqueezy, stripe
+    external_subscription_id: str
+
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     content: Optional[dict] = None
@@ -240,7 +246,7 @@ collab_manager = CollaborationManager()
 # ============ EMAIL HELPER ============
 
 resend.api_key = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "info@zetstudiointl.com")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <info@zetstudiointl.com>")
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     """Send email using Resend API"""
@@ -257,6 +263,33 @@ async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     except Exception as e:
         logging.error(f"Failed to send email to {to_email}: {str(e)}")
         return {"success": False, "error": str(e)}
+
+# ============ SUBSCRIPTION HELPERS ============
+
+def is_active_subscriber(user_data: dict) -> bool:
+    """Kullanıcının aktif ücretli aboneliği var mı?
+    Hem eski (string) hem yeni (dict) subscription formatını destekler."""
+    if not user_data:
+        return False
+    sub = user_data.get("subscription")
+    if not sub:
+        return False
+    # Yeni format: subscription bir dict, status alanı var
+    if isinstance(sub, dict):
+        plan = sub.get("plan", "free")
+        status = sub.get("status", "inactive")
+        return plan != "free" and status == "active"
+    # Eski format: subscription bir string (plan adı)
+    return sub != "free"
+
+def get_plan_name(user_data: dict) -> str:
+    """Her iki formattan plan adını döndür."""
+    if not user_data:
+        return "free"
+    sub = user_data.get("subscription", "free")
+    if isinstance(sub, dict):
+        return sub.get("plan", "free")
+    return sub if sub else "free"
 
 # ============ AUTH HELPERS ============
 
@@ -685,18 +718,34 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
     }
     
     await db.users.insert_one(user_data)
-    
+
+    # Hoş geldin maili
+    welcome_html = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+        <h2 style="color: #4ca8ad; margin-bottom: 16px;">ZET Mindshare'e Hoş Geldiniz! 🎉</h2>
+        <p style="font-size: 16px; line-height: 1.6;">Merhaba <strong>{user_data['name']}</strong>,</p>
+        <p style="font-size: 15px; line-height: 1.6;">Hesabınız başarıyla oluşturuldu. Artık yapay zeka destekli not alma, belge oluşturma ve daha fazlasından yararlanabilirsiniz.</p>
+        <div style="background: rgba(76,168,173,0.15); border: 1px solid rgba(76,168,173,0.3); padding: 16px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 4px 0; font-size: 14px;">✅ Ücretsiz plan: Günlük 20 kredi</p>
+            <p style="margin: 4px 0; font-size: 14px;">✅ Sınırsız belge</p>
+            <p style="margin: 4px 0; font-size: 14px;">✅ AI sohbet (ZETA)</p>
+        </div>
+        <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Hemen Başla</a>
+        <p style="color: #666; font-size: 12px; margin-top: 20px;">Sorunuz mu var? <a href="mailto:support@zetstudiointl.com" style="color: #4ca8ad;">support@zetstudiointl.com</a></p>
+    </div>
+    """
+    asyncio.create_task(send_email(req.email, "ZET Mindshare'e Hoş Geldiniz! 🎉", welcome_html))
+
     # Create session
     session_token = f"sess_{uuid.uuid4().hex}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    
+
     await db.user_sessions.insert_one({
         "session_token": session_token,
         "user_id": user_id,
         "expires_at": expires_at.isoformat()
     })
 
-    is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
         httponly=True, secure=True,
@@ -1094,10 +1143,21 @@ async def delete_note(note_id: str, user: User = Depends(get_current_user)):
 @api_router.get("/subscription")
 async def get_subscription(user: User = Depends(get_current_user)):
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    sub = user_data.get("subscription") if user_data else None
+    # Yeni format (dict) ise direkt döndür
+    if isinstance(sub, dict):
+        return sub
+    # Eski format (string) — geriye dönük uyumluluk
+    plan = sub if sub else "free"
     return {
-        "plan": user_data.get("subscription", "free"),
-        "subscription_date": user_data.get("subscription_date"),
-        "cancel_pending": user_data.get("cancel_pending", False)
+        "plan": plan,
+        "status": "active" if plan != "free" else "inactive",
+        "billing_cycle": None,
+        "current_period_start": user_data.get("subscription_date") if user_data else None,
+        "current_period_end": None,
+        "cancel_at_period_end": user_data.get("cancel_pending", False) if user_data else False,
+        "payment_provider": None,
+        "external_subscription_id": None,
     }
 
 @api_router.post("/subscription")
@@ -1175,6 +1235,102 @@ async def confirm_cancellation(token: str):
         "message": "Aboneliğiniz başarıyla iptal edildi. FREE plana düştünüz."
     })
 
+# ── Yeni abonelik oluştur (ödeme sonrası çağrılır) ────────────────────────────
+@api_router.post("/subscription/create")
+async def create_subscription(data: SubscriptionCreate, user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    period_end = now + timedelta(days=30 if data.billing_cycle == "monthly" else 365)
+
+    subscription = {
+        "plan": data.plan,
+        "status": "active",
+        "billing_cycle": data.billing_cycle,
+        "current_period_start": now.isoformat(),
+        "current_period_end": period_end.isoformat(),
+        "cancel_at_period_end": False,
+        "payment_provider": data.payment_provider,
+        "external_subscription_id": data.external_subscription_id,
+        "created_at": now.isoformat(),
+        "updated_at": now.isoformat(),
+    }
+
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"subscription": subscription}}
+    )
+
+    # Hoş geldin maili
+    cycle_label = "Aylık" if data.billing_cycle == "monthly" else "Yıllık"
+    html_content = f"""
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+        <h2 style="color: #4ca8ad; margin-bottom: 20px;">🎉 ZET Mindshare {data.plan.upper()} Planına Hoş Geldiniz!</h2>
+        <p style="font-size: 16px; line-height: 1.6;">Aboneliğiniz başarıyla aktifleştirildi. Tüm premium özelliklerden yararlanabilirsiniz!</p>
+        <div style="background: rgba(255,255,255,0.08); padding: 16px; border-radius: 8px; margin: 20px 0;">
+            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Plan:</strong> {data.plan.upper()}</p>
+            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Dönem:</strong> {cycle_label}</p>
+            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Bitiş:</strong> {period_end.strftime('%d.%m.%Y')}</p>
+        </div>
+        <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">ZET Mindshare'i Aç</a>
+    </div>
+    """
+    await send_email(user.email, f"🎉 ZET Mindshare {data.plan.upper()} Planına Hoş Geldiniz!", html_content)
+
+    return {"success": True, "subscription": subscription}
+
+# ── Abonelik iptal (dönem sonunda) ───────────────────────────────────────────
+@api_router.post("/subscription/cancel")
+async def cancel_subscription_at_period_end(user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {
+            "subscription.cancel_at_period_end": True,
+            "subscription.updated_at": now.isoformat()
+        }}
+    )
+    return {"success": True, "message": "Abonelik dönem sonunda iptal edilecek"}
+
+# ── Abonelik yenileme kontrolü (cron / zamanlanmış çağrı) ────────────────────
+@api_router.post("/subscription/check-renewals")
+async def check_subscription_renewals():
+    """Süresi dolmuş abonelikleri tespit eder ve durumu günceller."""
+    now = datetime.now(timezone.utc)
+    now_iso = now.isoformat()
+
+    expired_users = await db.users.find({
+        "subscription.status": "active",
+        "subscription.current_period_end": {"$lt": now_iso}
+    }).to_list(None)
+
+    expired_count = 0
+    renewed_count = 0
+
+    for u in expired_users:
+        sub = u.get("subscription", {})
+        if sub.get("cancel_at_period_end"):
+            await db.users.update_one(
+                {"user_id": u["user_id"]},
+                {"$set": {
+                    "subscription.status": "expired",
+                    "subscription.updated_at": now_iso
+                }}
+            )
+            expired_count += 1
+            # Sona erdi maili
+            html_content = f"""
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
+                <h2 style="color: #f59e0b; margin-bottom: 20px;">Aboneliğiniz Sona Erdi</h2>
+                <p style="font-size: 16px; line-height: 1.6;">{sub.get('plan', '').upper()} planı aboneliğiniz sona erdi. Dilediğiniz zaman yeniden abone olabilirsiniz.</p>
+                <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 10px;">Yeniden Abone Ol</a>
+            </div>
+            """
+            await send_email(u["email"], "ZET Mindshare Aboneliğiniz Sona Erdi", html_content)
+        else:
+            # Yenileme gerekiyor — ödeme sistemi entegrasyonunda tamamlanacak
+            renewed_count += 1
+
+    return {"checked": len(expired_users), "expired": expired_count, "pending_renewal": renewed_count}
+
 SP_PLAN_COSTS = {
     'plus': 10000,
     'pro': 30000,
@@ -1223,8 +1379,7 @@ class CreditPurchaseRequest(BaseModel):
 @api_router.get("/credits/packages")
 async def get_credit_packages(user: User = Depends(get_current_user)):
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subscription": 1, "bonus_credits": 1})
-    plan = user_data.get("subscription", "free") if user_data else "free"
-    has_discount = plan != "free"
+    has_discount = is_active_subscriber(user_data)
     packages = []
     for p in CREDIT_PACKAGES:
         pkg = {**p}
@@ -1246,8 +1401,7 @@ async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_curre
     if not pkg:
         raise HTTPException(status_code=400, detail="Geçersiz paket")
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subscription": 1, "bonus_credits": 1})
-    plan = user_data.get("subscription", "free") if user_data else "free"
-    has_discount = plan != "free"
+    has_discount = is_active_subscriber(user_data)
     final_price = round(pkg["price"] * (1 - SUBSCRIBER_DISCOUNT), 2) if has_discount else pkg["price"]
     current_bonus = user_data.get("bonus_credits", 0) if user_data else 0
 
@@ -1370,7 +1524,7 @@ CREDIT_COSTS = {
 async def get_user_credits(user_id: str):
     """Get user's current credits for today (daily + package_credits daily reset + rank_credits 1-month)"""
     user_data = await db.users.find_one({"user_id": user_id})
-    plan = user_data.get("subscription", "free") if user_data else "free"
+    plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
     now = datetime.now(timezone.utc)
     today = now.strftime("%Y-%m-%d")
