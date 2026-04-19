@@ -56,6 +56,7 @@ const Dashboard = () => {
   const [documents, setDocuments] = useState([]);
   const [notes, setNotes] = useState([]);
   // Media feed state
+  const [mediaFeedTab, setMediaFeedTab] = useState('feed'); // 'feed' | 'explore'
   const [mediaPosts, setMediaPosts] = useState([]);
   const [mediaLoading, setMediaLoading] = useState(false);
   const [mediaHasMore, setMediaHasMore] = useState(true);
@@ -70,6 +71,7 @@ const Dashboard = () => {
   const [openComments, setOpenComments] = useState(null); // post_id
   const [commentsMap, setCommentsMap] = useState({}); // { post_id: [...] }
   const [commentInput, setCommentInput] = useState('');
+  const [followingMap, setFollowingMap] = useState({}); // { username: bool }
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNote, setQuickNote] = useState('');
   const [noteReminder, setNoteReminder] = useState('');
@@ -444,12 +446,13 @@ const Dashboard = () => {
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Media helpers ────────────────────────────────────────────────────────────
-  const loadPosts = async (reset = false) => {
+  const loadPosts = async (reset = false, tab = mediaFeedTab) => {
     if (mediaLoading) return;
     setMediaLoading(true);
     const skip = reset ? 0 : mediaPosts.length;
+    const endpoint = tab === 'explore' ? 'posts' : 'feed';
     try {
-      const res = await axios.get(`${API}/posts?skip=${skip}&limit=20`, { withCredentials: true });
+      const res = await axios.get(`${API}/${endpoint}?skip=${skip}&limit=20`, { withCredentials: true });
       const fetched = res.data.posts || [];
       setMediaPosts(prev => reset ? fetched : [...prev, ...fetched]);
       setMediaHasMore(fetched.length === 20);
@@ -458,8 +461,22 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (activeTab === 'media' && mediaPosts.length === 0) loadPosts(true);
-  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (activeTab === 'media') loadPosts(true, mediaFeedTab);
+  }, [activeTab, mediaFeedTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleFollow = async (username) => {
+    const isFollowing = followingMap[username];
+    setFollowingMap(prev => ({ ...prev, [username]: !isFollowing }));
+    try {
+      if (isFollowing) {
+        await axios.delete(`${API}/users/${username}/follow`, { withCredentials: true });
+      } else {
+        await axios.post(`${API}/users/${username}/follow`, {}, { withCredentials: true });
+      }
+    } catch {
+      setFollowingMap(prev => ({ ...prev, [username]: isFollowing }));
+    }
+  };
 
   const submitPost = async () => {
     if (postSubmitting) return;
@@ -2185,159 +2202,186 @@ MATCHES:[1,3,5]`;
         </div>
 
         {/* Documents/Notes/Media Grid */}
-        {activeTab === 'media' ? (
-          <div className="flex-1 overflow-y-auto pb-6">
-            {/* Create post button — only privileged */}
-            {isPrivileged && (
-              <div className="mb-4">
-                {!showCreatePost ? (
-                  <button onClick={() => setShowCreatePost(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text-muted)' }}>
-                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
-                      {user?.picture ? <img src={user.picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{(user?.name || 'U')[0]}</span>}
-                    </div>
-                    <span>Bir şeyler paylaş...</span>
-                  </button>
-                ) : (
-                  <div className="rounded-xl p-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-                    {/* Post type selector */}
-                    <div className="flex gap-1.5 mb-3">
-                      {[['text','Yazı'],['image','Görsel'],['video','Video'],['document','Belge']].map(([val, label]) => (
-                        <button key={val} onClick={() => setPostType(val)} className="px-2.5 py-1 rounded-full text-xs font-medium transition-all" style={{ background: postType === val ? 'var(--zet-primary)' : 'var(--zet-bg)', color: postType === val ? '#fff' : 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>{label}</button>
-                      ))}
-                    </div>
-                    {/* Content input */}
-                    <textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="Ne düşünüyorsun?" rows={3} className="w-full text-sm resize-none rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
-                    {/* Type-specific inputs */}
-                    {postType === 'image' && (
-                      <div className="mb-2">
-                        <input type="file" accept="image/*" className="hidden" id="post-img-upload" onChange={e => {
-                          const file = e.target.files?.[0]; if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = ev => setPostMediaData(ev.target.result);
-                          reader.readAsDataURL(file);
-                        }} />
-                        <label htmlFor="post-img-upload" className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer" style={{ background: 'var(--zet-bg)', border: '1px dashed var(--zet-border)', color: 'var(--zet-text-muted)' }}>
-                          <Upload className="h-4 w-4" /> {postMediaData ? 'Görsel seçildi ✓' : 'Görsel seç'}
-                        </label>
-                        {postMediaData && <img src={postMediaData} alt="" className="mt-2 max-h-40 rounded-lg object-cover" />}
-                      </div>
-                    )}
-                    {postType === 'video' && (
-                      <input value={postMediaUrl} onChange={e => setPostMediaUrl(e.target.value)} placeholder="Video URL (YouTube, Vimeo...)" className="w-full text-sm rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
-                    )}
-                    {postType === 'document' && (
-                      <select value={postDocId} onChange={e => { const doc = documents.find(d => d.doc_id === e.target.value); setPostDocId(e.target.value); setPostDocTitle(doc?.title || ''); }} className="w-full text-sm rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
-                        <option value="">Belge seç...</option>
-                        {documents.map(d => <option key={d.doc_id} value={d.doc_id}>{d.title}</option>)}
-                      </select>
-                    )}
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => { setShowCreatePost(false); setPostContent(''); setPostMediaData(null); setPostMediaUrl(''); setPostDocId(''); setPostDocTitle(''); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--zet-text-muted)' }}>İptal</button>
-                      <button onClick={submitPost} disabled={postSubmitting || (!postContent.trim() && !postMediaData && !postMediaUrl && !postDocId)} className="px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
-                        {postSubmitting ? 'Paylaşılıyor...' : 'Paylaş'}
-                      </button>
-                    </div>
-                  </div>
-                )}
+        {activeTab === 'media' ? (() => {
+          const VERIFIED_COLORS = { red: '#ef4444', gold: '#f59e0b', blue: '#3b82f6' };
+          const VerifiedBadge = ({ type }) => {
+            if (!type) return null;
+            return (
+              <svg viewBox="0 0 24 24" fill={VERIFIED_COLORS[type]} style={{ width: 14, height: 14, display: 'inline', flexShrink: 0 }}>
+                <path d="M22.5 12.5c0-1.58-.875-2.95-2.148-3.6.154-.435.238-.905.238-1.4 0-2.21-1.71-3.998-3.818-3.998-.47 0-.92.084-1.336.25C14.818 2.415 13.51 1.5 12 1.5s-2.816.917-3.437 2.25c-.415-.165-.866-.25-1.336-.25-2.11 0-3.818 1.79-3.818 4 0 .494.083.964.237 1.4-1.272.65-2.147 2.018-2.147 3.6 0 1.495.782 2.798 1.942 3.486-.02.17-.032.34-.032.514 0 2.21 1.708 4 3.818 4 .47 0 .92-.086 1.335-.25.62 1.334 1.926 2.25 3.437 2.25 1.512 0 2.818-.916 3.437-2.25.415.163.865.248 1.336.248 2.11 0 3.818-1.79 3.818-4 0-.174-.012-.344-.033-.513 1.158-.687 1.943-1.99 1.943-3.484zm-6.616-3.334l-4.334 6.5c-.145.217-.382.334-.625.334-.143 0-.288-.04-.416-.126l-.115-.094-2.415-2.415c-.293-.293-.293-.768 0-1.06s.768-.294 1.06 0l1.77 1.767 3.825-5.74c.23-.345.696-.436 1.04-.207.346.23.44.696.21 1.04z"/>
+              </svg>
+            );
+          };
+          return (
+            <div className="flex-1 overflow-y-auto pb-6">
+              {/* Feed / Explore tabs */}
+              <div className="flex gap-1 mb-4 p-1 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                {[['feed','Feed'],['explore','Keşfet']].map(([val, label]) => (
+                  <button key={val} onClick={() => setMediaFeedTab(val)} className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all" style={{ background: mediaFeedTab === val ? 'var(--zet-primary)' : 'transparent', color: mediaFeedTab === val ? '#fff' : 'var(--zet-text-muted)' }}>{label}</button>
+                ))}
               </div>
-            )}
-            {/* Posts feed */}
-            {mediaLoading && mediaPosts.length === 0 ? (
-              <div className="flex justify-center py-12"><ZetaTypingIndicator /></div>
-            ) : mediaPosts.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--zet-text-muted)' }}>
-                <Sparkles className="h-10 w-10 mb-3 opacity-30" />
-                <p className="text-sm">Henüz gönderi yok</p>
-              </div>
-            ) : (
-              <div className="space-y-4 max-w-xl mx-auto">
-                {mediaPosts.map(post => (
-                  <div key={post.post_id} className="rounded-xl overflow-hidden" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-                    {/* Post header */}
-                    <div className="flex items-center justify-between px-4 pt-3 pb-2">
-                      <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
-                          {post.author_picture ? <img src={post.author_picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{(post.author_name || 'U')[0]}</span>}
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{post.author_name}</p>
-                          <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{new Date(post.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
-                        </div>
+              {/* Create post — privileged */}
+              {isPrivileged && (
+                <div className="mb-4 max-w-xl mx-auto">
+                  {!showCreatePost ? (
+                    <button onClick={() => setShowCreatePost(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+                      <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
+                        {user?.picture ? <img src={user.picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{(user?.name || 'U')[0]}</span>}
                       </div>
-                      {isPrivileged && (
-                        <button onClick={() => { if (window.confirm('Gönderiyi silmek istediğinize emin misiniz?')) deletePost(post.post_id); }} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
-                          <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
-                        </button>
+                      <span>Bir şeyler paylaş...</span>
+                    </button>
+                  ) : (
+                    <div className="rounded-xl p-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                      <div className="flex gap-1.5 mb-3">
+                        {[['text','Yazı'],['image','Görsel'],['video','Video'],['document','Belge']].map(([val, label]) => (
+                          <button key={val} onClick={() => setPostType(val)} className="px-2.5 py-1 rounded-full text-xs font-medium transition-all" style={{ background: postType === val ? 'var(--zet-primary)' : 'var(--zet-bg)', color: postType === val ? '#fff' : 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>{label}</button>
+                        ))}
+                      </div>
+                      <textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="Ne düşünüyorsun?" rows={3} className="w-full text-sm resize-none rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
+                      {postType === 'image' && (
+                        <div className="mb-2">
+                          <input type="file" accept="image/*" className="hidden" id="post-img-upload" onChange={e => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = ev => setPostMediaData(ev.target.result); reader.readAsDataURL(file); }} />
+                          <label htmlFor="post-img-upload" className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer" style={{ background: 'var(--zet-bg)', border: '1px dashed var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+                            <Upload className="h-4 w-4" /> {postMediaData ? 'Görsel seçildi ✓' : 'Görsel seç'}
+                          </label>
+                          {postMediaData && <img src={postMediaData} alt="" className="mt-2 max-h-40 rounded-lg object-cover" />}
+                        </div>
                       )}
-                    </div>
-                    {/* Post content */}
-                    {post.content && <p className="px-4 pb-2 text-sm whitespace-pre-wrap" style={{ color: 'var(--zet-text)' }}>{post.content}</p>}
-                    {post.type === 'image' && post.media_data && (
-                      <img src={post.media_data} alt="" className="w-full max-h-96 object-cover" />
-                    )}
-                    {post.type === 'video' && post.media_url && (
-                      <div className="px-4 pb-2">
-                        <a href={post.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--zet-bg)', color: 'var(--zet-primary-light)', border: '1px solid var(--zet-border)' }}>
-                          <Globe className="h-4 w-4 flex-shrink-0" /> <span className="truncate">{post.media_url}</span>
-                        </a>
-                      </div>
-                    )}
-                    {post.type === 'document' && post.doc_id && (
-                      <div className="px-4 pb-2">
-                        <button onClick={() => navigate(`/editor/${post.doc_id}`)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
-                          <FileText className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} /> <span className="truncate">{post.doc_title || 'Belge'}</span>
+                      {postType === 'video' && <input value={postMediaUrl} onChange={e => setPostMediaUrl(e.target.value)} placeholder="Video URL (YouTube, Vimeo...)" className="w-full text-sm rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />}
+                      {postType === 'document' && (
+                        <select value={postDocId} onChange={e => { const doc = documents.find(d => d.doc_id === e.target.value); setPostDocId(e.target.value); setPostDocTitle(doc?.title || ''); }} className="w-full text-sm rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
+                          <option value="">Belge seç...</option>
+                          {documents.map(d => <option key={d.doc_id} value={d.doc_id}>{d.title}</option>)}
+                        </select>
+                      )}
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { setShowCreatePost(false); setPostContent(''); setPostMediaData(null); setPostMediaUrl(''); setPostDocId(''); setPostDocTitle(''); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--zet-text-muted)' }}>İptal</button>
+                        <button onClick={submitPost} disabled={postSubmitting || (!postContent.trim() && !postMediaData && !postMediaUrl && !postDocId)} className="px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+                          {postSubmitting ? 'Paylaşılıyor...' : 'Paylaş'}
                         </button>
                       </div>
-                    )}
-                    {/* Actions */}
-                    <div className="flex items-center gap-4 px-4 py-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                      <button onClick={() => togglePostLike(post.post_id)} className="flex items-center gap-1.5 text-xs transition-colors" style={{ color: post.liked_by_me ? '#ef4444' : 'var(--zet-text-muted)' }}>
-                        <svg className="h-4 w-4" fill={post.liked_by_me ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
-                        {post.like_count > 0 && <span>{post.like_count}</span>}
-                      </button>
-                      <button onClick={() => toggleComments(post.post_id)} className="flex items-center gap-1.5 text-xs transition-colors" style={{ color: openComments === post.post_id ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>
-                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
-                        {post.comment_count > 0 && <span>{post.comment_count}</span>}
-                      </button>
                     </div>
-                    {/* Comments */}
-                    {openComments === post.post_id && (
-                      <div className="px-4 pb-3 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                        <div className="space-y-2 pt-2 max-h-48 overflow-y-auto">
-                          {(commentsMap[post.post_id] || []).map(c => (
-                            <div key={c.comment_id} className="flex items-start gap-2">
-                              <div className="w-6 h-6 rounded-full flex-shrink-0 overflow-hidden mt-0.5" style={{ background: 'var(--zet-primary)' }}>
-                                {c.author_picture ? <img src={c.author_picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white" style={{ fontSize: 9 }}>{(c.author_name || 'U')[0]}</span>}
-                              </div>
-                              <div className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5" style={{ background: 'var(--zet-bg)' }}>
-                                <p className="text-xs font-semibold" style={{ color: 'var(--zet-text)' }}>{c.author_name}</p>
-                                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{c.content}</p>
-                              </div>
-                              {(isPrivileged || c.author_id === user?.user_id) && (
-                                <button onClick={() => deleteComment(post.post_id, c.comment_id)} className="mt-1 p-0.5 hover:opacity-70"><X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /></button>
-                              )}
+                  )}
+                </div>
+              )}
+              {/* Posts */}
+              {mediaLoading && mediaPosts.length === 0 ? (
+                <div className="flex justify-center py-12"><ZetaTypingIndicator /></div>
+              ) : mediaPosts.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--zet-text-muted)' }}>
+                  <Sparkles className="h-10 w-10 mb-3 opacity-30" />
+                  <p className="text-sm">{mediaFeedTab === 'feed' ? 'Takip ettiğin kimse gönderi paylaşmamış' : 'Henüz gönderi yok'}</p>
+                </div>
+              ) : (
+                <div className="space-y-4 max-w-xl mx-auto">
+                  {mediaPosts.map(post => {
+                    const author = post.author || {};
+                    const authorName = author.display_name || author.name || post.author_name || 'Kullanıcı';
+                    const authorUsername = author.username;
+                    const authorPic = author.picture || post.author_picture;
+                    const verifiedType = author.verified_type;
+                    const isMe = post.author_id === user?.user_id;
+                    const isFollowingAuthor = authorUsername ? followingMap[authorUsername] : false;
+                    return (
+                      <div key={post.post_id} className="rounded-xl overflow-hidden" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                        {/* Header */}
+                        <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
+                              {authorPic ? <img src={authorPic} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{authorName[0]}</span>}
                             </div>
-                          ))}
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm font-semibold truncate" style={{ color: 'var(--zet-text)' }}>{authorName}</span>
+                                <VerifiedBadge type={verifiedType} />
+                              </div>
+                              <div className="flex items-center gap-1.5">
+                                {authorUsername && <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>@{authorUsername}</span>}
+                                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>· {new Date(post.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {!isMe && authorUsername && (
+                              <button onClick={() => toggleFollow(authorUsername)} className="px-2.5 py-1 rounded-full text-xs font-medium transition-all" style={{ background: isFollowingAuthor ? 'transparent' : 'var(--zet-primary)', color: isFollowingAuthor ? 'var(--zet-text-muted)' : '#fff', border: isFollowingAuthor ? '1px solid var(--zet-border)' : 'none' }}>
+                                {isFollowingAuthor ? 'Takip ediliyor' : 'Takip et'}
+                              </button>
+                            )}
+                            {isPrivileged && (
+                              <button onClick={() => { if (window.confirm('Gönderiyi silmek istediğinize emin misiniz?')) deletePost(post.post_id); }} className="p-1.5 rounded-lg hover:bg-white/10">
+                                <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex gap-2 mt-2">
-                          <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitComment(post.post_id)} placeholder="Yorum yaz..." className="flex-1 text-xs rounded-lg px-3 py-1.5 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
-                          <button onClick={() => submitComment(post.post_id)} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
-                            <Send className="h-3 w-3" />
+                        {/* Content */}
+                        {post.content && <p className="px-4 pb-2 text-sm whitespace-pre-wrap" style={{ color: 'var(--zet-text)' }}>{post.content}</p>}
+                        {post.type === 'image' && post.media_data && <img src={post.media_data} alt="" className="w-full max-h-96 object-cover" />}
+                        {post.type === 'video' && post.media_url && (
+                          <div className="px-4 pb-2">
+                            <a href={post.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--zet-bg)', color: 'var(--zet-primary-light)', border: '1px solid var(--zet-border)' }}>
+                              <Globe className="h-4 w-4 flex-shrink-0" /> <span className="truncate">{post.media_url}</span>
+                            </a>
+                          </div>
+                        )}
+                        {post.type === 'document' && post.doc_id && (
+                          <div className="px-4 pb-2">
+                            <button onClick={() => navigate(`/editor/${post.doc_id}`)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
+                              <FileText className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} /> <span className="truncate">{post.doc_title || 'Belge'}</span>
+                            </button>
+                          </div>
+                        )}
+                        {/* Actions */}
+                        <div className="flex items-center gap-4 px-4 py-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                          <button onClick={() => togglePostLike(post.post_id)} className="flex items-center gap-1.5 text-xs transition-colors" style={{ color: post.liked_by_me ? '#ef4444' : 'var(--zet-text-muted)' }}>
+                            <svg className="h-4 w-4" fill={post.liked_by_me ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                            {post.like_count > 0 && <span>{post.like_count}</span>}
+                          </button>
+                          <button onClick={() => toggleComments(post.post_id)} className="flex items-center gap-1.5 text-xs" style={{ color: openComments === post.post_id ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>
+                            <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                            {post.comment_count > 0 && <span>{post.comment_count}</span>}
                           </button>
                         </div>
+                        {/* Comments */}
+                        {openComments === post.post_id && (
+                          <div className="px-4 pb-3 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                            <div className="space-y-2 pt-2 max-h-48 overflow-y-auto">
+                              {(commentsMap[post.post_id] || []).map(c => (
+                                <div key={c.comment_id} className="flex items-start gap-2">
+                                  <div className="w-6 h-6 rounded-full flex-shrink-0 overflow-hidden mt-0.5" style={{ background: 'var(--zet-primary)' }}>
+                                    {c.author_picture ? <img src={c.author_picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white" style={{ fontSize: 9 }}>{(c.author_name || 'U')[0]}</span>}
+                                  </div>
+                                  <div className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5" style={{ background: 'var(--zet-bg)' }}>
+                                    <p className="text-xs font-semibold" style={{ color: 'var(--zet-text)' }}>{c.author_name}</p>
+                                    <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{c.content}</p>
+                                  </div>
+                                  {(isPrivileged || c.author_id === user?.user_id) && (
+                                    <button onClick={() => deleteComment(post.post_id, c.comment_id)} className="mt-1 p-0.5 hover:opacity-70"><X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                            <div className="flex gap-2 mt-2">
+                              <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitComment(post.post_id)} placeholder="Yorum yaz..." className="flex-1 text-xs rounded-lg px-3 py-1.5 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
+                              <button onClick={() => submitComment(post.post_id)} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+                                <Send className="h-3 w-3" />
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                ))}
-                {mediaHasMore && (
-                  <button onClick={() => loadPosts()} disabled={mediaLoading} className="w-full py-2 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
-                    {mediaLoading ? 'Yükleniyor...' : 'Daha fazla yükle'}
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ) : activeTab === 'documents' ? (
+                    );
+                  })}
+                  {mediaHasMore && (
+                    <button onClick={() => loadPosts()} disabled={mediaLoading} className="w-full py-2 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
+                      {mediaLoading ? 'Yükleniyor...' : 'Daha fazla yükle'}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })() : activeTab === 'documents' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card */}
             <button 

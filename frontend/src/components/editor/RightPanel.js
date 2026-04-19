@@ -332,7 +332,8 @@ export const RightPanel = ({
   // All known commands (used for autocomplete)
   const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
   const ADMIN_COMMANDS = ['/delete/admin/', '/logout/admin/', '/(number)/credits/', '/(number)/sp/', '/freesub/'];
-  const getVisibleCommands = () => (isCEO || isAdmin) ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
+  const CEO_COMMANDS = ['/verify/@username/red/', '/verify/@username/gold/', '/verify/@username/blue/', '/verify/@username/remove/'];
+  const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS, ...CEO_COMMANDS] : (isAdmin ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS);
   const getConsoleSuggestions = (input) => {
     if (!input) return [];
     const lower = input.toLowerCase().replace(/\s/g, '');
@@ -426,6 +427,18 @@ export const RightPanel = ({
         addConsoleLine('✓ Pro abonelik aktive edildi.', 'success');
       } catch (err) {
         addConsoleLine(`✗ ${err.response?.data?.detail || 'Abonelik aktive edilemedi.'}`, 'error');
+      }
+    } else if (/^\/verify\/@[\w]+\/(red|gold|blue|remove)\/$/.test(normalized)) {
+      if (!isCEO) { addConsoleLine('Permission denied. Sadece CEO verified atayabilir.', 'error'); return; }
+      const parts = normalized.split('/');
+      const username = parts[2].replace('@', '');
+      const vtype = parts[3] === 'remove' ? null : parts[3];
+      addConsoleLine(`@${username} için verified güncelleniyor...`, 'output');
+      try {
+        const res = await axios.post(`${API}/admin/set-verified`, { username, verified_type: vtype }, { withCredentials: true });
+        addConsoleLine(`✓ ${res.data.message}`, 'success');
+      } catch (err) {
+        addConsoleLine(`✗ ${err.response?.data?.detail || 'İşlem başarısız.'}`, 'error');
       }
     } else if (normalized === 'exit' || normalized === 'close') {
       setShowConsole(false); setConsoleStage('main');

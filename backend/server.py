@@ -68,6 +68,12 @@ class User(BaseModel):
     subscription: str = "free"  # free, plus, pro, ultra
     subscription_date: Optional[datetime] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    username: Optional[str] = None
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+    verified_type: Optional[str] = None  # None, "red", "gold", "blue"
+    followers_count: int = 0
+    following_count: int = 0
 
 class Document(BaseModel):
     doc_id: str = Field(default_factory=lambda: f"doc_{uuid.uuid4().hex[:12]}")
@@ -430,21 +436,36 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         existing_user = await db.users.find_one({"email": email}, {"_id": 0})
         if existing_user:
             user_id = existing_user["user_id"]
-            # Only overwrite name/picture from Google if user hasn't customized them
             oauth_update = {}
             if not existing_user.get("name_custom"):
                 oauth_update["name"] = name
             if not existing_user.get("picture_custom"):
                 oauth_update["picture"] = picture
+            # Backfill: assign username if missing
+            if not existing_user.get("username"):
+                oauth_update["username"] = await generate_unique_username(email.split("@")[0])
+            # Backfill: CEO gets red verified
+            if email == CEO_EMAIL and not existing_user.get("verified_type"):
+                oauth_update["verified_type"] = "red"
             if oauth_update:
                 await db.users.update_one({"user_id": user_id}, {"$set": oauth_update})
         else:
             user_id = f"user_{uuid.uuid4().hex[:12]}"
+            username = await generate_unique_username(email.split("@")[0])
+            verified_type = "red" if email == CEO_EMAIL else None
             await db.users.insert_one({
                 "user_id": user_id,
                 "email": email,
                 "name": name,
                 "picture": picture,
+                "username": username,
+                "display_name": name,
+                "bio": "",
+                "verified_type": verified_type,
+                "followers": [],
+                "following": [],
+                "followers_count": 0,
+                "following_count": 0,
                 "created_at": datetime.now(timezone.utc).isoformat()
             })
 
@@ -560,6 +581,18 @@ def is_privileged(email: str) -> bool:
     """CEO veya admin mail kontrolü."""
     return email == CEO_EMAIL or email in ADMIN_EMAILS
 
+async def generate_unique_username(base: str) -> str:
+    """E-posta prefix'inden benzersiz username üret."""
+    import re
+    base = re.sub(r'[^a-z0-9_]', '_', base.lower())[:16].strip('_') or 'user'
+    candidate = base
+    for _ in range(20):
+        exists = await db.users.find_one({"username": candidate})
+        if not exists:
+            return candidate
+        candidate = f"{base}_{uuid.uuid4().hex[:4]}"
+    return f"user_{uuid.uuid4().hex[:8]}"
+
 @api_router.post("/admin/add-credits")
 async def admin_add_credits(amount: int = Body(..., embed=True), user: User = Depends(get_current_user)):
     if not is_privileged(user.email):
@@ -598,6 +631,100 @@ async def admin_list_users(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Unauthorized")
     users = await db.users.find({}, {"_id": 0, "email": 1, "name": 1, "created_at": 1}).to_list(length=5000)
     return {"users": users}
+
+# ============ SOCIAL — USERS / FOLLOW ============
+
+class UsernameUpdate(BaseModel):
+    username: str
+    display_name: Optional[str] = None
+    bio: Optional[str] = None
+
+class SetVerifiedRequest(BaseModel):
+    username: str
+    verified_type: Optional[str] = None  # "red", "gold", "blue" veya None (kaldır)
+
+async def enrich_post(post: dict, viewer_id: str) -> dict:
+    """Post'a yazar bilgisi ve liked_by_me ekle."""
+    author = await db.users.find_one({"user_id": post.get("author_id")}, {"_id": 0, "username": 1, "display_name": 1, "name": 1, "picture": 1, "verified_type": 1})
+    post["author"] = author or {}
+    post["liked_by_me"] = viewer_id in (post.get("likes") or [])
+    post.pop("likes", None)
+    return post
+
+@api_router.get("/users/me")
+async def get_me(user: User = Depends(get_current_user)):
+    data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "followers": 0, "following": 0})
+    return data or {}
+
+@api_router.get("/users/{username}")
+async def get_user_profile(username: str, user: User = Depends(get_current_user)):
+    target = await db.users.find_one({"username": username}, {"_id": 0, "email": 0, "followers": 0, "following": 0})
+    if not target:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    target["is_following"] = await db.users.find_one({"user_id": user.user_id, "following": target["user_id"]}) is not None
+    return target
+
+@api_router.patch("/users/me")
+async def update_profile(body: UsernameUpdate, user: User = Depends(get_current_user)):
+    import re
+    update = {}
+    if body.username:
+        uname = body.username.lower().strip()
+        if not re.match(r'^[a-z0-9_]{3,20}$', uname):
+            raise HTTPException(status_code=400, detail="Username 3-20 karakter, sadece harf/rakam/alt çizgi içerebilir.")
+        existing = await db.users.find_one({"username": uname, "user_id": {"$ne": user.user_id}})
+        if existing:
+            raise HTTPException(status_code=409, detail="Bu username zaten kullanılıyor.")
+        # 30-gün kısıtlaması
+        me = await db.users.find_one({"user_id": user.user_id}, {"username_changed_at": 1})
+        last_change = me.get("username_changed_at") if me else None
+        if last_change:
+            delta = datetime.now(timezone.utc) - datetime.fromisoformat(last_change.replace("Z", "+00:00"))
+            if delta.days < 30:
+                raise HTTPException(status_code=429, detail=f"Username değişikliği {30 - delta.days} gün sonra yapılabilir.")
+        update["username"] = uname
+        update["username_changed_at"] = datetime.now(timezone.utc).isoformat()
+    if body.display_name is not None:
+        update["display_name"] = body.display_name[:50]
+    if body.bio is not None:
+        update["bio"] = body.bio[:160]
+    if update:
+        await db.users.update_one({"user_id": user.user_id}, {"$set": update})
+    return {"success": True}
+
+@api_router.post("/users/{username}/follow")
+async def follow_user(username: str, user: User = Depends(get_current_user)):
+    target = await db.users.find_one({"username": username})
+    if not target:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    if target["user_id"] == user.user_id:
+        raise HTTPException(status_code=400, detail="Kendini takip edemezsin")
+    already = await db.users.find_one({"user_id": user.user_id, "following": target["user_id"]})
+    if already:
+        return {"success": True, "following": True}
+    await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"following": target["user_id"]}, "$inc": {"following_count": 1}})
+    await db.users.update_one({"user_id": target["user_id"]}, {"$addToSet": {"followers": user.user_id}, "$inc": {"followers_count": 1}})
+    return {"success": True, "following": True}
+
+@api_router.delete("/users/{username}/follow")
+async def unfollow_user(username: str, user: User = Depends(get_current_user)):
+    target = await db.users.find_one({"username": username})
+    if not target:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    await db.users.update_one({"user_id": user.user_id}, {"$pull": {"following": target["user_id"]}, "$inc": {"following_count": -1}})
+    await db.users.update_one({"user_id": target["user_id"]}, {"$pull": {"followers": user.user_id}, "$inc": {"followers_count": -1}})
+    return {"success": True, "following": False}
+
+@api_router.post("/admin/set-verified")
+async def set_verified(body: SetVerifiedRequest, user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Sadece CEO bu işlemi yapabilir.")
+    target = await db.users.find_one({"username": body.username})
+    if not target:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    await db.users.update_one({"user_id": target["user_id"]}, {"$set": {"verified_type": body.verified_type}})
+    label = body.verified_type or "kaldırıldı"
+    return {"success": True, "message": f"@{body.username} için verified: {label}"}
 
 # ============ MEDIA / POSTS ============
 
@@ -641,12 +768,33 @@ async def create_post(body: PostCreate, user: User = Depends(get_current_user)):
 
 @api_router.get("/posts")
 async def list_posts(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
-    """Gönderi akışı — tüm kullanıcılar görebilir."""
+    """Keşfet — tüm gönderiler."""
     posts = await db.posts.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
-    uid = user.user_id
     for p in posts:
-        p["liked_by_me"] = uid in (p.get("likes") or [])
-        p.pop("likes", None)  # don't send full likes array to client
+        await enrich_post(p, user.user_id)
+    return {"posts": posts}
+
+@api_router.get("/feed")
+async def get_feed(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
+    """Feed — takip edilenlerin + kendi gönderileri; yoksa tüm gönderiler."""
+    me = await db.users.find_one({"user_id": user.user_id}, {"following": 1})
+    following = list(me.get("following", [])) if me else []
+    following.append(user.user_id)
+    query = {"author_id": {"$in": following}} if len(following) > 1 else {}
+    posts = await db.posts.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    for p in posts:
+        await enrich_post(p, user.user_id)
+    return {"posts": posts}
+
+@api_router.get("/users/{username}/posts")
+async def get_user_posts(username: str, skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
+    """Belirli kullanıcının gönderileri."""
+    target = await db.users.find_one({"username": username})
+    if not target:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    posts = await db.posts.find({"author_id": target["user_id"]}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    for p in posts:
+        await enrich_post(p, user.user_id)
     return {"posts": posts}
 
 @api_router.post("/posts/{post_id}/like")
