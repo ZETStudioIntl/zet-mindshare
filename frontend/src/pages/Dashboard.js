@@ -88,6 +88,12 @@ const Dashboard = () => {
   const [obDisplayName, setObDisplayName] = useState('');
   const [obSubmitting, setObSubmitting] = useState(false);
   const [obError, setObError] = useState('');
+  // Boost
+  const [showBoostModal, setShowBoostModal] = useState(false);
+  const [boostTargetPostId, setBoostTargetPostId] = useState(null);
+  const [boostPackages, setBoostPackages] = useState([]);
+  const [boostingTier, setBoostingTier] = useState(null);
+  const [boostError, setBoostError] = useState('');
   const [mobileSettingsSidebar, setMobileSettingsSidebar] = useState(true);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
@@ -181,6 +187,8 @@ const Dashboard = () => {
   const [docSearchLoading, setDocSearchLoading] = useState(false);
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
   const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editBio, setEditBio] = useState('');
   const [profilePhoto, setProfilePhoto] = useState(null);
   const [profilePhotoPreview, setProfilePhotoPreview] = useState(null);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
@@ -580,6 +588,33 @@ const Dashboard = () => {
       setMediaPosts(prev => prev.map(p => p.post_id === postId ? { ...p, comment_count: Math.max(0, (p.comment_count || 1) - 1) } : p));
     } catch {}
   };
+  const openBoostModal = async (postId) => {
+    setBoostTargetPostId(postId);
+    setBoostError('');
+    setBoostingTier(null);
+    if (boostPackages.length === 0) {
+      try {
+        const res = await axios.get(`${API}/boost/packages`);
+        setBoostPackages(res.data.packages || []);
+      } catch {}
+    }
+    setShowBoostModal(true);
+  };
+
+  const purchaseBoost = async (tier) => {
+    setBoostingTier(tier);
+    setBoostError('');
+    try {
+      const res = await axios.post(`${API}/posts/${boostTargetPostId}/boost`, { tier }, { withCredentials: true });
+      setMediaPosts(prev => prev.map(p => p.post_id === boostTargetPostId ? { ...p, boost: { active: true, tier, expires_at: res.data.expires_at } } : p));
+      setShowBoostModal(false);
+      showToast('🚀 Gönderin öne çıkarıldı!', 'success');
+    } catch (err) {
+      setBoostError(err.response?.data?.detail || 'Boost satın alınamadı.');
+    }
+    setBoostingTier(null);
+  };
+
   // ─────────────────────────────────────────────────────────────────────────────
 
   const fetchCreditPackages = async () => {
@@ -1429,6 +1464,44 @@ MATCHES:[1,3,5]`;
           </div>
         </div>
       )}
+
+      {/* Boost Modal */}
+      {showBoostModal && (
+        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}>
+          <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--zet-text)' }}>🚀 Gönderiyi Öne Çıkar</h3>
+                <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>ZET kredisiyle daha fazla kişiye ulaş</p>
+              </div>
+              <button onClick={() => setShowBoostModal(false)} className="p-1.5 rounded-lg hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+            </div>
+            <div className="space-y-2.5">
+              {boostPackages.map(pkg => (
+                <button
+                  key={pkg.tier}
+                  onClick={() => purchaseBoost(pkg.tier)}
+                  disabled={!!boostingTier}
+                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-all hover:scale-[1.02] disabled:opacity-60"
+                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
+                >
+                  <div className="text-left">
+                    <p className="font-semibold">{pkg.label}</p>
+                    <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{pkg.duration_hours < 24 ? `${pkg.duration_hours} saat` : `${pkg.duration_hours / 24} gün`}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-bold" style={{ color: '#f59e0b' }}>{pkg.credits} kredi</p>
+                    <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>≈ ₺{pkg.price_try}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            {boostError && <p className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: '#ef444420', color: '#ef4444' }}>{boostError}</p>}
+            {boostingTier && <p className="mt-3 text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>İşleniyor...</p>}
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-3">
@@ -1548,7 +1621,7 @@ MATCHES:[1,3,5]`;
                         <p className="text-sm truncate" style={{ color: 'var(--zet-text-muted)' }}>{user?.email}</p>
                       </div>
                       <button
-                        onClick={() => { setEditName(user?.name || ''); setSettingsTab('profile'); }}
+                        onClick={() => { setEditName(user?.name || ''); setEditUsername(user?.username || ''); setEditBio(user?.bio || ''); setSettingsTab('profile'); }}
                         className="px-4 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-all flex-shrink-0"
                         style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text)' }}
                         data-testid="profile-edit-btn"
@@ -1625,9 +1698,9 @@ MATCHES:[1,3,5]`;
                       </div>
                       <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Fotoğrafı değiştirmek için tıklayın</span>
                     </div>
-                    {/* İsim */}
+                    {/* Görünen İsim */}
                     <div>
-                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>İsim</label>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Görünen İsim</label>
                       <input
                         type="text"
                         value={editName}
@@ -1635,6 +1708,34 @@ MATCHES:[1,3,5]`;
                         className="zet-input w-full"
                         placeholder="Adınız"
                       />
+                    </div>
+                    {/* Kullanıcı Adı */}
+                    <div>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Kullanıcı Adı</label>
+                      <div className="flex items-center rounded-xl px-3 py-2.5" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
+                        <span className="text-sm mr-1" style={{ color: 'var(--zet-text-muted)' }}>@</span>
+                        <input
+                          type="text"
+                          value={editUsername}
+                          onChange={e => setEditUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20))}
+                          className="flex-1 bg-transparent text-sm outline-none"
+                          style={{ color: 'var(--zet-text)' }}
+                          placeholder="kullanici_adi"
+                        />
+                      </div>
+                      <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>30 günde bir değiştirilebilir · 3-20 karakter</p>
+                    </div>
+                    {/* Bio */}
+                    <div>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Biyografi</label>
+                      <textarea
+                        value={editBio}
+                        onChange={e => setEditBio(e.target.value.slice(0, 160))}
+                        className="zet-input w-full resize-none"
+                        rows={3}
+                        placeholder="Kendinizi kısaca tanıtın..."
+                      />
+                      <p className="text-xs mt-1 text-right" style={{ color: 'var(--zet-text-muted)' }}>{editBio.length}/160</p>
                     </div>
                     {/* E-posta değiştir */}
                     <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -1690,7 +1791,10 @@ MATCHES:[1,3,5]`;
                             pictureUrl = photoRes.data.picture_url;
                           }
                           await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
-                          if (updateUser) updateUser({ ...user, name: editName, picture: pictureUrl });
+                          if (editUsername !== user?.username || editBio !== (user?.bio || '')) {
+                            await axios.patch(`${API}/users/me`, { username: editUsername, display_name: editName, bio: editBio }, { withCredentials: true });
+                          }
+                          if (updateUser) updateUser({ ...user, name: editName, username: editUsername, bio: editBio, picture: pictureUrl });
                           setProfilePhoto(null);
                           setProfilePhotoPreview(null);
                           showToast('Profil güncellendi!', 'success');
@@ -2151,28 +2255,70 @@ MATCHES:[1,3,5]`;
               )}
 
               {settingsTab === 'users' && isPrivileged && (
-                <div className="max-w-lg">
+                <div className="max-w-2xl">
                   <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--zet-text)' }}>
                     {isCEO ? '👑 Kayıtlı Kullanıcılar' : '🛡 Kullanıcılar'}
                   </h2>
-                  <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>
-                    {adminUsers.length} kullanıcı kayıtlı
-                  </p>
+                  <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>{adminUsers.length} kullanıcı kayıtlı</p>
                   {adminUsersLoading ? (
                     <div className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</div>
                   ) : (
-                    <div className="space-y-1 max-h-[60vh] overflow-y-auto">
-                      {adminUsers.map((u, i) => (
-                        <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--zet-bg-card)' }}>
-                          <div className="min-w-0">
-                            <p className="font-medium truncate" style={{ color: 'var(--zet-text)' }}>{u.name || '—'}</p>
-                            <p className="text-xs truncate" style={{ color: 'var(--zet-text-muted)' }}>{u.email}</p>
+                    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
+                      {adminUsers.map((u, i) => {
+                        const subPlan = typeof u.subscription === 'object' ? u.subscription?.plan : (u.subscription || 'free');
+                        return (
+                          <div key={i} className="px-3 py-2.5 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                            <div className="flex items-center justify-between gap-2 mb-2">
+                              <div className="min-w-0 flex-1">
+                                <p className="font-medium truncate" style={{ color: 'var(--zet-text)' }}>{u.display_name || u.name || '—'}{u.username && <span className="ml-1 text-xs" style={{ color: 'var(--zet-text-muted)' }}>@{u.username}</span>}</p>
+                                <p className="text-xs truncate" style={{ color: 'var(--zet-text-muted)' }}>{u.email}</p>
+                              </div>
+                              <span className="text-xs flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString('tr-TR') : ''}</span>
+                            </div>
+                            {isCEO && (
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <select
+                                  defaultValue={u.verified_type || ''}
+                                  onChange={async (e) => {
+                                    const val = e.target.value;
+                                    try {
+                                      await axios.patch(`${API}/admin/users/${u.user_id}`, { verified_type: val }, { withCredentials: true });
+                                      setAdminUsers(prev => prev.map((x, j) => j === i ? { ...x, verified_type: val || null } : x));
+                                      showToast('Rozet güncellendi', 'success');
+                                    } catch (err) { showToast(err.response?.data?.detail || 'Hata', 'error'); }
+                                  }}
+                                  className="flex-1 text-xs rounded-lg px-2 py-1.5 outline-none"
+                                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)', minWidth: 120 }}
+                                >
+                                  <option value="">❌ Tik yok</option>
+                                  <option value="red">🔴 Kırmızı</option>
+                                  <option value="gold">🟡 Altın</option>
+                                  <option value="blue">🔵 Mavi</option>
+                                </select>
+                                <select
+                                  defaultValue={subPlan}
+                                  onChange={async (e) => {
+                                    const val = e.target.value;
+                                    try {
+                                      await axios.patch(`${API}/admin/users/${u.user_id}`, { subscription_plan: val }, { withCredentials: true });
+                                      setAdminUsers(prev => prev.map((x, j) => j === i ? { ...x, subscription: val === 'free' ? 'free' : { plan: val, status: 'active' } } : x));
+                                      showToast('Abonelik güncellendi', 'success');
+                                    } catch (err) { showToast(err.response?.data?.detail || 'Hata', 'error'); }
+                                  }}
+                                  className="flex-1 text-xs rounded-lg px-2 py-1.5 outline-none"
+                                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)', minWidth: 140 }}
+                                >
+                                  <option value="free">Free</option>
+                                  <option value="pro">Pro</option>
+                                  <option value="ultra">Ultra</option>
+                                  <option value="creative_station">Creative Station</option>
+                                  <option value="entertainment_pocket">Entertainment Pocket</option>
+                                </select>
+                              </div>
+                            )}
                           </div>
-                          <span className="text-xs flex-shrink-0 ml-2" style={{ color: 'var(--zet-text-muted)' }}>
-                            {u.created_at ? new Date(u.created_at).toLocaleDateString('tr-TR') : ''}
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -2310,8 +2456,8 @@ MATCHES:[1,3,5]`;
                   <button key={val} onClick={() => setMediaFeedTab(val)} className="flex-1 py-1.5 text-sm font-medium rounded-lg transition-all" style={{ background: mediaFeedTab === val ? 'var(--zet-primary)' : 'transparent', color: mediaFeedTab === val ? '#fff' : 'var(--zet-text-muted)' }}>{label}</button>
                 ))}
               </div>
-              {/* Create post — privileged */}
-              {isPrivileged && (
+              {/* Create post */}
+              {user && (
                 <div className="mb-4 max-w-xl mx-auto">
                   {!showCreatePost ? (
                     <button onClick={() => setShowCreatePost(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text-muted)' }}>
@@ -2373,18 +2519,24 @@ MATCHES:[1,3,5]`;
                     const isMe = post.author_id === user?.user_id;
                     const isFollowingAuthor = authorUsername ? followingMap[authorUsername] : false;
                     return (
-                      <div key={post.post_id} className="rounded-xl overflow-hidden" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                      <div key={post.post_id} className="rounded-xl overflow-hidden" style={{ background: 'var(--zet-bg-card)', border: post.boost?.active ? '1px solid #f59e0b60' : '1px solid var(--zet-border)' }}>
+                        {/* Boost badge */}
+                        {post.boost?.active && (
+                          <div className="flex items-center gap-1.5 px-4 pt-2 pb-0">
+                            <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40' }}>🚀 Öne Çıkarılmış</span>
+                          </div>
+                        )}
                         {/* Header */}
                         <div className="flex items-center justify-between px-4 pt-3 pb-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            <div className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
+                            <button onClick={() => authorUsername && navigate(`/profile/${authorUsername}`)} className="w-9 h-9 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
                               {authorPic ? <img src={authorPic} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{authorName[0]}</span>}
-                            </div>
+                            </button>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-1">
+                              <button onClick={() => authorUsername && navigate(`/profile/${authorUsername}`)} className="flex items-center gap-1 hover:underline">
                                 <span className="text-sm font-semibold truncate" style={{ color: 'var(--zet-text)' }}>{authorName}</span>
                                 <VerifiedBadge type={verifiedType} />
-                              </div>
+                              </button>
                               <div className="flex items-center gap-1.5">
                                 <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{new Date(post.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' })}</span>
                               </div>
@@ -2396,7 +2548,12 @@ MATCHES:[1,3,5]`;
                                 {isFollowingAuthor ? 'Takip ediliyor' : 'Takip et'}
                               </button>
                             )}
-                            {isPrivileged && (
+                            {isMe && !post.boost?.active && (
+                              <button onClick={() => openBoostModal(post.post_id)} className="px-2.5 py-1 rounded-full text-xs font-medium transition-all" style={{ background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40' }}>
+                                🚀 Öne Çıkar
+                              </button>
+                            )}
+                            {(isMe || isPrivileged) && (
                               <button onClick={() => { if (window.confirm('Gönderiyi silmek istediğinize emin misiniz?')) deletePost(post.post_id); }} className="p-1.5 rounded-lg hover:bg-white/10">
                                 <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
                               </button>

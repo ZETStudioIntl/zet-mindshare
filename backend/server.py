@@ -629,11 +629,38 @@ async def admin_free_subscription(user: User = Depends(get_current_user)):
 
 @api_router.get("/admin/list-users")
 async def admin_list_users(user: User = Depends(get_current_user)):
-    """CEO'ya tüm kayıtlı kullanıcıların e-posta listesini döner."""
-    if user.email != CEO_EMAIL:
+    """Privileged hesaplara tüm kayıtlı kullanıcıları döner."""
+    if not is_privileged(user.email):
         raise HTTPException(status_code=403, detail="Unauthorized")
-    users = await db.users.find({}, {"_id": 0, "email": 1, "name": 1, "created_at": 1}).to_list(length=5000)
+    users = await db.users.find({}, {
+        "_id": 0, "email": 1, "name": 1, "display_name": 1, "username": 1,
+        "created_at": 1, "verified_type": 1, "subscription": 1, "user_id": 1,
+    }).to_list(length=5000)
     return {"users": users}
+
+class AdminUserUpdate(BaseModel):
+    verified_type: Optional[str] = None   # "red", "gold", "blue", "" = kaldır
+    subscription_plan: Optional[str] = None  # "free", "pro", "ultra", "creative_station", "entertainment_pocket"
+
+@api_router.patch("/admin/users/{user_id}")
+async def admin_update_user(user_id: str, body: AdminUserUpdate, user: User = Depends(get_current_user)):
+    """CEO: kullanıcının verified rozeti veya aboneliğini güncelle."""
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Sadece CEO bu işlemi yapabilir.")
+    update: dict = {}
+    if body.verified_type is not None:
+        update["verified_type"] = body.verified_type if body.verified_type else None
+    if body.subscription_plan is not None:
+        if body.subscription_plan == "free":
+            update["subscription"] = "free"
+        else:
+            update["subscription"] = {"plan": body.subscription_plan, "status": "active", "assigned_by": "CEO"}
+    if not update:
+        return {"success": True}
+    result = await db.users.update_one({"user_id": user_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    return {"success": True}
 
 # ============ SOCIAL — USERS / FOLLOW ============
 
@@ -748,9 +775,10 @@ class CommentCreate(BaseModel):
 
 @api_router.post("/posts")
 async def create_post(body: PostCreate, user: User = Depends(get_current_user)):
-    """Yeni medya gönderisi oluştur — şimdilik sadece ayrıcalıklı hesaplar."""
-    if not is_privileged(user.email):
-        raise HTTPException(status_code=403, detail="Şu an sadece admin hesaplar gönderi paylaşabilir.")
+    """Yeni medya gönderisi oluştur."""
+    me = await db.users.find_one({"user_id": user.user_id}, {"username": 1})
+    if not me or not me.get("username"):
+        raise HTTPException(status_code=400, detail="Gönderi atmak için önce kullanıcı adı belirlemelisin.")
     post_id = f"post_{uuid.uuid4().hex[:16]}"
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -773,22 +801,41 @@ async def create_post(body: PostCreate, user: User = Depends(get_current_user)):
     doc.pop("_id", None)
     return doc
 
+def _boosted_pipeline(match: dict, skip: int, limit: int) -> list:
+    """Boost aktifse üste çıkar, sonra tarih sırası."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    return [
+        {"$match": match},
+        {"$project": {"_id": 0, "doc": "$$ROOT", "boost_score": {
+            "$cond": [{"$and": [
+                {"$eq": ["$boost.active", True]},
+                {"$gt": ["$boost.expires_at", now_iso]},
+            ]}, "$boost.score", 0]
+        }}},
+        {"$replaceRoot": {"newRoot": {"$mergeObjects": ["$doc", {"boost_score": "$boost_score"}]}}},
+        {"$sort": {"boost_score": -1, "created_at": -1}},
+        {"$skip": skip},
+        {"$limit": limit},
+    ]
+
 @api_router.get("/posts")
 async def list_posts(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
-    """Keşfet — tüm gönderiler."""
-    posts = await db.posts.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    """Keşfet — tüm gönderiler, boosted önce."""
+    pipeline = _boosted_pipeline({}, skip, limit)
+    posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
         await enrich_post(p, user.user_id)
     return {"posts": posts}
 
 @api_router.get("/feed")
 async def get_feed(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
-    """Feed — takip edilenlerin + kendi gönderileri; yoksa tüm gönderiler."""
+    """Feed — takip edilenlerin + kendi gönderileri; boosted önce."""
     me = await db.users.find_one({"user_id": user.user_id}, {"following": 1})
     following = list(me.get("following", [])) if me else []
     following.append(user.user_id)
-    query = {"author_id": {"$in": following}} if len(following) > 1 else {}
-    posts = await db.posts.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    match = {"author_id": {"$in": following}} if len(following) > 1 else {}
+    pipeline = _boosted_pipeline(match, skip, limit)
+    posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
         await enrich_post(p, user.user_id)
     return {"posts": posts}
@@ -822,8 +869,11 @@ async def toggle_like(post_id: str, user: User = Depends(get_current_user)):
 
 @api_router.delete("/posts/{post_id}")
 async def delete_post(post_id: str, user: User = Depends(get_current_user)):
-    """Gönderi sil — sadece ayrıcalıklı hesaplar."""
-    if not is_privileged(user.email):
+    """Gönderi sil — kendi gönderisini veya ayrıcalıklı hesaplar."""
+    post = await db.posts.find_one({"post_id": post_id}, {"author_id": 1})
+    if not post:
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
+    if post["author_id"] != user.user_id and not is_privileged(user.email):
         raise HTTPException(status_code=403, detail="Unauthorized")
     result = await db.posts.delete_one({"post_id": post_id})
     if result.deleted_count == 0:
@@ -870,6 +920,48 @@ async def delete_comment(post_id: str, comment_id: str, user: User = Depends(get
     await db.post_comments.delete_one({"comment_id": comment_id})
     await db.posts.update_one({"post_id": post_id}, {"$inc": {"comment_count": -1}})
     return {"deleted": True}
+
+# ============ BOOST ============
+
+BOOST_PACKAGES = {
+    "mini":     {"duration_hours": 1,    "credits": 50,   "score": 100,  "label": "Mini",     "price_try": 15,  "price_usd": 0.99},
+    "standard": {"duration_hours": 6,    "credits": 150,  "score": 250,  "label": "Standart", "price_try": 50,  "price_usd": 2.99},
+    "pro":      {"duration_hours": 24,   "credits": 400,  "score": 500,  "label": "Pro",      "price_try": 150, "price_usd": 7.99},
+    "mega":     {"duration_hours": 24*7, "credits": 1200, "score": 1000, "label": "Mega",     "price_try": 500, "price_usd": 24.99},
+}
+
+class BoostRequest(BaseModel):
+    tier: str  # mini, standard, pro, mega
+
+@api_router.get("/boost/packages")
+async def get_boost_packages():
+    return {"packages": [{"tier": k, **v} for k, v in BOOST_PACKAGES.items()]}
+
+@api_router.post("/posts/{post_id}/boost")
+async def boost_post(post_id: str, body: BoostRequest, user: User = Depends(get_current_user)):
+    if body.tier not in BOOST_PACKAGES:
+        raise HTTPException(status_code=400, detail="Geçersiz boost paketi.")
+    pkg = BOOST_PACKAGES[body.tier]
+    post = await db.posts.find_one({"post_id": post_id})
+    if not post:
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı.")
+    if post["author_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Sadece kendi gönderini öne çıkarabilirsin.")
+    now = datetime.now(timezone.utc)
+    if post.get("boost", {}).get("active") and post["boost"].get("expires_at", "") > now.isoformat():
+        raise HTTPException(status_code=400, detail="Bu gönderide aktif bir boost zaten var.")
+    # Kredi düş
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"bonus_credits": 1})
+    bonus = user_data.get("bonus_credits", 0) if user_data else 0
+    if bonus < pkg["credits"]:
+        raise HTTPException(status_code=402, detail=f"Yetersiz kredi. Gerekli: {pkg['credits']}, Mevcut: {bonus}")
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": -pkg["credits"]}})
+    expires_at = (now + timedelta(hours=pkg["duration_hours"])).isoformat()
+    await db.posts.update_one({"post_id": post_id}, {"$set": {
+        "boost": {"active": True, "tier": body.tier, "score": pkg["score"],
+                  "expires_at": expires_at, "purchased_at": now.isoformat()},
+    }})
+    return {"success": True, "tier": body.tier, "expires_at": expires_at, "credits_spent": pkg["credits"]}
 
 @api_router.post("/auth/exchange")
 async def exchange_token(request: Request, response: Response):
@@ -3789,9 +3881,23 @@ async def send_weekly_report():
         except Exception as e:
             logging.getLogger(__name__).error(f"Weekly report error: {e}")
 
+async def expire_boosts_loop():
+    """Süresi dolan boost'ları saatlik kapat."""
+    while True:
+        await asyncio.sleep(3600)
+        try:
+            now = datetime.now(timezone.utc).isoformat()
+            await db.posts.update_many(
+                {"boost.active": True, "boost.expires_at": {"$lt": now}},
+                {"$set": {"boost.active": False}}
+            )
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Boost expiry error: {e}")
+
 @app.on_event("startup")
-async def start_weekly_report():
+async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
+    asyncio.create_task(expire_boosts_loop())
 
 app.include_router(api_router)
 

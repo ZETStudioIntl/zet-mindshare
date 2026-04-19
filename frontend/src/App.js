@@ -10,6 +10,7 @@ import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
 import QuestMap from "./pages/QuestMap";
 import SharedView from "./pages/SharedView";
+import Profile from "./pages/Profile";
 import ConfirmDelete from "./pages/ConfirmDelete";
 import ConfirmEmailChange from "./pages/ConfirmEmailChange";
 import axios from "axios";
@@ -71,6 +72,11 @@ const AppRouter = () => {
       <Route path="/quest-map" element={
         <ProtectedRoute>
           <QuestMap />
+        </ProtectedRoute>
+      } />
+      <Route path="/profile/:username" element={
+        <ProtectedRoute>
+          <Profile />
         </ProtectedRoute>
       } />
       <Route path="/auth-callback" element={<AuthCallback />} />
