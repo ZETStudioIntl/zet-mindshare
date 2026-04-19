@@ -1,57 +1,36 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg id="katman_2" data-name="katman 2" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 110.76 110.76">
+<svg id="katman_2" data-name="katman 2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40.58 44.68">
   <defs>
     <style>
       .cls-1 {
-        fill: #fff;
+        fill: #a0a1a0;
       }
 
       .cls-2 {
-        fill: none;
-      }
-
-      .cls-3 {
-        clip-path: url(#clippath-1);
-      }
-
-      .cls-4 {
-        clip-path: url(#clippath-3);
-      }
-
-      .cls-5 {
-        clip-path: url(#clippath-2);
-      }
-
-      .cls-6 {
-        clip-path: url(#clippath);
+        fill: #b5b5b5;
       }
     </style>
-    <clipPath id="clippath">
-      <polygon class="cls-2" points="5 105.95 96.78 105.95 5 14.17 5 105.95"/>
-    </clipPath>
-    <clipPath id="clippath-1">
-      <rect class="cls-2" x="0" y="9.17" width="101.78" height="101.78"/>
-    </clipPath>
-    <clipPath id="clippath-2">
-      <polygon class="cls-2" points="105 5.95 15.11 5.95 105 95.84 105 5.95"/>
-    </clipPath>
-    <clipPath id="clippath-3">
-      <rect class="cls-2" x="10.11" y=".95" width="99.89" height="99.89"/>
-    </clipPath>
   </defs>
-  <g id="katman_1" data-name="katman 1">
+  <g id="kare">
     <g>
-      <g class="cls-6">
-        <g class="cls-3">
-          <image width="213" height="213" transform="translate(-.11 9.05) scale(.48)" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANMAAADTCAYAAAAbBybZAAAACXBIWXMAABcRAAAXEQHKJvM/AAAFSklEQVR4nO3dzXHbOgCF0Rs3wFQgd6D+24g7iCqwKlAWL/azHcsWRZDEzzk7YgYcbL4BuMDwx+VyuTw9PeV8Pmeux8fHHA6H2fOgRz9+/fp1uSekF9M05Xg8FlwStOlhSUhJcj6f8/T0VGg50K6HEi8RFBSKKREUFIspERRjKxpTIijGVTymRFCMaZWYEkExntViSgTFWFaNKREU41g9pkRQjGGTmBJB0b/NYkoERd82jSkRFP3aPKZEUPRpl5gSQdGf3WJKBEVfdo0pERT92D2mRFD0oYqYEkHRvmpiSgRF26qKKREU7aoupkRQtKnKmBJB0Z5qY0oERVuqjikRFO2oPqZEULShiZgSQVG/ZmJKBEXdmoopERT1ai6mRFDUqcmYEkFRn2ZjSgRFXZqOKREU9Wg+pkRQ1KGLmBJBsb9uYkoExb66iikRFPvpLqZEUOyjy5gSQbG9bmNKBMW2uo4pERTb6T6mRFBsY4iYEkGxvmFiSgTFuoaKKREU6xkupkRQrGPImBJBUd6wMSWCoqyhY0oERTnDx5QIijLE9JegWEpMbwiKJcT0gaC4l5g+ISjuIaYrBMVcYvqCoJhDTN8QFLcS0w0ExS3EdCNB8R0xzSAoviKmmQTFNWK6g6D4jJjuJCg+EtMCguItMS0kKF6IqQBBkYipGEEhpoIENTYxFSaocYlpBYIak5hWIqjxiGlFghqLmFYmqHGIaQOCGoOYNiKo/olpQ4Lqm5g2Jqh+iWkHguqTmHYiqP6IaUeC6ouYdiaofoipAoLqg5gqIaj2iakigmqbmCojqHaJqUKCapOYKiWo9oipYoJqi5gqJ6h2iKkBgmqDmBohqPqJqSGCqpuYGiOoeompQYKqk5gaJaj6iKlhgqqLmBonqHqIqQOCqoOYOiGo/YmpI4Lal5g6I6j9iKlDgtqHmDolqO2JqWOC2paYOieo7YhpAILahpgGIaj1iWkgglqXmAYjqPWIaUCCWoeYBiWo8sQ0MEGVJabBCaocMSGoQsREEkGVICZeCWoZMfGOoO4nJv4hqPuIiU8Jaj4xcZWg5hETXxLU7cTEtwR1GzFxE0F9T0zcTFBfExOzCOo6MTGboD4nJu4iqH+JibsJ6j0xsYig/icmFhPUf8REEYISEwWNHpSYKGrkoMREcaMGJSZWMWJQYmI1owUlJlY1UlBiYnWjBCUmNjFCUGJiM70HJSY21XNQYmJzvQYlJnbRY1BiYje9BSUmdtVTUGJid70EJSaq0ENQYqIarQclJqrSclBiojqtBiUmqtRiUGKiWq0FJSaq1lJQYqJ6rQQlJprQQlBiohm1ByUmmlJzUGKiObUGJSaaVGNQYqJZtQUlJppWU1Bionm1BCUmulBDUGKiG3sHJSa6smdQYqI7ewUlJrq0R1BioltbByUmurZlUGKie1sFJSaGsEVQYmIYawclJoayZlBiYjhrBSUmhrRGUGJiWKWDEhNDKxmUmBheqaDEBCkTlJjgr6VBiQneWBKUmOCDe4MSE3zinqDEBFfMDUpM8IU5QYkJvnFrUGKCG9wSlJjgRt8FJSaY4augxAQzXQtKTHCH8/mc0+n0bkxMcKffv3/nfD6/PosJFnh73BMTLPRy3BMTLPT8/JxETLDYy3eTmKAQMUEBp9NJTFDC4XAQE5QiJihETLDQ4+NjEjHBYofDIYmYYJGXXSlJHqZp2nEp0K5pml53pSR5OB6PERTMM01Tjsfju7Efl8vlkmz/m3do1bUN6DWmF6fTKc/Pz+/uacDopmnKz58/M03T1ZPcPzF99PE2IYzkq3g++gPy6juv9z6K2AAAAABJRU5ErkJggg=="/>
-        </g>
+      <g>
+        <polygon class="cls-1" points=".25 44.43 37.44 44.43 .25 3.58 .25 44.43"/>
+        <path class="cls-1" d="M37.72,44.56H.12V3.26l37.6,41.3ZM.38,44.31h36.78L.38,3.9v40.4Z"/>
       </g>
-      <g class="cls-5">
-        <g class="cls-4">
-          <image width="209" height="209" transform="translate(9.97 .89) scale(.48)" xlink:href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAANAAAADRCAYAAAC9+DzRAAAACXBIWXMAABcRAAAXEQHKJvM/AAAFYklEQVR4nO3d23XiOhSA4e204alj6COF0keoI66D8zAnGZhwsfFNW/q+p4SwsvzyL2FhSd35fD7HhdPpFJ+fnzEMQ0Cr+r6PX79+Rd/30ff9zfd0Xdd1XwENwxDH43HTi4QM+r6P9/f3H69/B3Q8Ho048MCtiLqu697EA8/d+4T2Jh4YZxiGOJ1OV6+97XQtkNLHx8fV7wKCiS5HIQHBRJejkIBgBgHBC74m3wQELxAQLEBAMIOAYAYBwQwCghkEBDO83VssBDz39v7+fnfFHfDYW0SEiOA13/dAIoLpriYRRATT/JiFExGMd3MaW0Qwzt3vgUQEzz38IlVE8NjTJxFEBPeNepRHRHDb6GfhRAQ/TXqYVERwbfLT2CKCv15aziAi+OPl9UAigpkL6kRE62avSBURLVtkSbeIaNVieyKIiBYtuqmIiGjN4rvyiIiWrLKtlYhoxWr7womIFqy6saKIqN3qO5OKiJptsrWviKjVZntji4gabbq5vIiozeanM4iImuxyvImIqMVu5wOJiBrsesCWiMhu9xPqRERmuwcUISLyKiKgCBGRUzEBRYiIfIoKKEJE5FJcQBEiIo8iA4oQETkUG1CEiChf0QFFiIiyFR9QhIgoV4qAIkREmdIEFCEiypMqoAgRUZZ0AUWIiHKkDChCRJQhbUARImJ/qQOKEBH7Sh9QhIjYTxUBRYiIfVQTUISI2F5VAUWIiG1VF1CEiNhOlQFFiIhtVBtQhIhYX9UBRYiIdVUfUISIWE8TAUWIiHU0E1CEiFheUwFFiIhlNRdQhIhYTpMBRYiIZTQbUISImK/pgCJExDzNBxQhIl4noP+JiFcI6IKImEpA/xARUwjoBhExloDuEBFjCOgBEfGMgJ4QEY8IaAQRcY+ARhIRtwhoAhHxLwFNJCIuCegFIuKLgF4kIiIENIuIENBMImqbgBYgonYJaCEiapOAFiSi9ghoYSJqi4BWIKJ2CGglImqDgFYkovoJaGUiqpuANiCiegloIyKqk4A2JKL6CGhjIqqLgHYgonoIaCciqoOAdiSi/AS0MxHlJqACiCgvARVCRDkJqCAiykdAhRFRLgIqkIjyEFChRJSDgAomovIJqHAiKpuAEhBRuQSUhIjKJKBERFQeASUjorIIKCERlUNASYmoDAJKTET7E1ByItqXgCogov0IqBIi2oeAKiKi7QmoMiLaloAqJKLtCKhSItqGgComovUJqHIiWpeAGiCi9QioESJah4AaIqLlCagxIlqWgBokouUIqFEiWoaAGiai+QTUOBHNIyBENIOAiAgRvUpAfBPRdALiioimERA/iGg8AXGTiMYREHeJ6DkB8ZCIHhMQT4noPgExiohuExCjiegnATGJiK4JiMlE9JeAeImI/hAQLxORgJip9YgExGwtRyQgFtFqRAJiMS1GJCAW1VpEAmJxLUUkIFbRSkQCYjUtRCQgVlV7RAJidTVHJCA2UWtEAmIzNUYkIDZVW0QCYnM1RSQgdlFLRAJiNzVEJCB2lT0iAbG7zBEJiCJkjUhAFCNjRAKiKNkiEhDFyRSRgChSlogERLEyRCQgilZ6RAKieCVHJCBSKDUiAZFGiREJiFRKi0hApFNSRAIipVIiEhBplRCRgEht74gERHp7RiQgqrBXRAKiGntEJCCqsnVEAqI6W0T0+/fviBAQldpqJBIQ1VorosPh8P2zgKjaGhFd/j8BUb0lIzocDgKiPUtE1Pf99+TBFwHRjDkR9X1/de/zpTufz+e5FwaZDMMQx+Nx9PsPh8OPkSciouu6TkA063Q6xefnZwzDcPPvX/c790YtAcGF0+n0MJh/dV3X/QcHg1M4r0SoCgAAAABJRU5ErkJggg=="/>
-        </g>
+      <g>
+        <path class="cls-1" d="M37.72,44.56H.12V3.26l37.6,41.3ZM.38,44.31h36.78L.38,3.9v40.4Z"/>
+        <path class="cls-1" d="M38.01,44.68H0V2.93l38.01,41.75ZM.25,44.43h37.19H.25ZM.5,44.18h36.38L.5,4.22v39.96Z"/>
       </g>
-      <polygon class="cls-1" points="110.76 101.6 105 95.84 15.11 5.95 9.16 0 0 9.16 5 14.17 96.78 105.95 101.6 110.76 110.76 101.6"/>
+    </g>
+    <g>
+      <g>
+        <polygon class="cls-2" points="40.34 .86 40.34 40.09 3.74 .26 40.34 .86"/>
+        <path class="cls-2" d="M40.46,40.41l-.22-.24L3.45.13h.29s36.72.6,36.72.6v39.68ZM4.03.39l36.18,39.38V.98L4.03.39Z"/>
+      </g>
+      <g>
+        <path class="cls-2" d="M40.46,40.41l-.22-.24L3.45.13h.29s36.72.6,36.72.6v39.68ZM4.03.39l36.18,39.38V.98L4.03.39Z"/>
+        <path class="cls-2" d="M40.58,40.73l-.43-.47L3.16,0h.58s36.84.61,36.84.61v40.12ZM11.2,8.38l29.13,31.71V.86L3.74.26h.29s36.3.6,36.3.6v39.23L11.2,8.38ZM4.32.52l35.77,38.93V1.1L4.32.52Z"/>
+      </g>
     </g>
   </g>
 </svg>

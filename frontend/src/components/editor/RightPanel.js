@@ -42,8 +42,9 @@ export const RightPanel = ({
   const [pagesOpen, setPagesOpen] = useState(true);
   const [zetaOpen, setZetaOpen] = useState(true);
 
-  // CEO / console state
+  // CEO / Admin / console state
   const [isCEO, setIsCEO] = useState(() => localStorage.getItem('zet_ceo_mode') === 'true');
+  const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('zet_admin_mode') === 'true');
   const [showConsole, setShowConsole] = useState(false);
   const [consoleLines, setConsoleLines] = useState([
     { type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' },
@@ -330,8 +331,8 @@ export const RightPanel = ({
 
   // All known commands (used for autocomplete)
   const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
-  const ADMIN_COMMANDS = ['/delete/admin/', '/logout/admin/', '/(number)/credits/', '/(number)/sp/'];
-  const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
+  const ADMIN_COMMANDS = ['/delete/admin/', '/logout/admin/', '/(number)/credits/', '/(number)/sp/', '/freesub/'];
+  const getVisibleCommands = () => (isCEO || isAdmin) ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS;
   const getConsoleSuggestions = (input) => {
     if (!input) return [];
     const lower = input.toLowerCase().replace(/\s/g, '');
@@ -390,13 +391,15 @@ export const RightPanel = ({
     } else if (normalized === '/clear/') {
       setConsoleLines([{ type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' }, { type: 'system', text: '' }]);
     } else if (normalized === '/delete/admin/' || normalized === '/logout/admin/') {
-      if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
+      if (!isCEO && !isAdmin) { addConsoleLine('Permission denied.', 'error'); return; }
       localStorage.removeItem('zet_ceo_mode');
       localStorage.removeItem('zet_ceo_pending');
+      localStorage.removeItem('zet_admin_mode');
       setIsCEO(false);
+      setIsAdmin(false);
       addConsoleLine('Admin modu devre dışı bırakıldı. Standart kullanıcıya dönüldü.', 'output');
     } else if (creditMatch) {
-      if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
+      if (!isCEO && !isAdmin) { addConsoleLine('Permission denied.', 'error'); return; }
       const amount = parseInt(creditMatch[1]);
       addConsoleLine(`Adding ${amount} credits...`, 'output');
       try {
@@ -406,7 +409,7 @@ export const RightPanel = ({
         addConsoleLine(`✗ ${err.response?.data?.detail || 'Kredi eklenemedi.'}`, 'error');
       }
     } else if (spMatch) {
-      if (!isCEO) { addConsoleLine('Permission denied.', 'error'); return; }
+      if (!isCEO && !isAdmin) { addConsoleLine('Permission denied.', 'error'); return; }
       const amount = parseInt(spMatch[1]);
       addConsoleLine(`${amount} SP ekleniyor...`, 'output');
       try {
@@ -414,6 +417,15 @@ export const RightPanel = ({
         addConsoleLine(`✓ ${amount} SP eklendi. Toplam: ${res.data.total}`, 'success');
       } catch (err) {
         addConsoleLine(`✗ ${err.response?.data?.detail || 'SP eklenemedi.'}`, 'error');
+      }
+    } else if (normalized === '/freesub/') {
+      if (!isCEO && !isAdmin) { addConsoleLine('Permission denied.', 'error'); return; }
+      addConsoleLine('Pro abonelik aktive ediliyor...', 'output');
+      try {
+        await axios.post(`${API}/admin/free-subscription`, {}, { withCredentials: true });
+        addConsoleLine('✓ Pro abonelik aktive edildi.', 'success');
+      } catch (err) {
+        addConsoleLine(`✗ ${err.response?.data?.detail || 'Abonelik aktive edilemedi.'}`, 'error');
       }
     } else if (normalized === 'exit' || normalized === 'close') {
       setShowConsole(false); setConsoleStage('main');
@@ -569,6 +581,12 @@ export const RightPanel = ({
         {isCEO && (
           <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
             👑 CEO MODU AKTİF
+          </div>
+        )}
+        {/* Admin mode banner */}
+        {!isCEO && isAdmin && (
+          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(99,102,241,0.15)', borderBottom: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}>
+            🛡 ADMİN MODU AKTİF
           </div>
         )}
 

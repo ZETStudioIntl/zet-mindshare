@@ -30,6 +30,7 @@ docs_collection = db.documents
 
 app = FastAPI()
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
+ADMIN_EMAILS = {"info@zetstudiointl.com", "support@zetstudiointl.com", "ideas@zetstudiointl.com"}
 api_router = APIRouter(prefix="/api")
 
 # ============ GEMINI RETRY HELPER ============
@@ -414,6 +415,15 @@ async def google_auth_callback(request: Request, response: Response, code: str =
                     "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
                 })
                 return RedirectResponse(f"{frontend_url}/auth-callback#ceo_token={ceo_token}")
+            elif email in ADMIN_EMAILS:
+                admin_token = f"adm_{uuid.uuid4().hex}"
+                await db.ceo_tokens.insert_one({
+                    "token": admin_token,
+                    "email": email,
+                    "role": "admin",
+                    "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat()
+                })
+                return RedirectResponse(f"{frontend_url}/auth-callback#admin_token={admin_token}")
             else:
                 return RedirectResponse(f"{frontend_url}/auth-callback#ceo_error=access_denied")
 
@@ -498,6 +508,22 @@ async def admin_verify_pin(body: AdminPinRequest):
         raise HTTPException(status_code=403, detail="Yanlış PIN.")
     return {"success": True}
 
+@api_router.get("/auth/admin-verify-admin")
+async def admin_verify_admin_token(token: str = Query(...)):
+    """Admin token doğrulama — tek kullanımlık, 5 dakika geçerliliği var."""
+    now = datetime.now(timezone.utc)
+    record = await db.ceo_tokens.find_one({"token": token})
+    if not record:
+        raise HTTPException(status_code=403, detail="Geçersiz token")
+    if record.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Bu token admin yetkisi içermiyor")
+    exp = datetime.fromisoformat(record["expires_at"].replace("Z", "+00:00"))
+    if now > exp:
+        await db.ceo_tokens.delete_one({"token": token})
+        raise HTTPException(status_code=403, detail="Token süresi dolmuş")
+    await db.ceo_tokens.delete_one({"token": token})  # tek kullanımlık
+    return {"success": True, "email": record["email"]}
+
 @api_router.get("/auth/admin-console")
 async def admin_console_auth():
     """Eski popup akışı — geriye dönük uyumluluk için tutuldu, artık kullanılmıyor."""
@@ -530,9 +556,13 @@ async def admin_console_callback(request: Request, code: str = Query(None), stat
 
 # ============ ADMIN ROUTES ============
 
+def is_privileged(email: str) -> bool:
+    """CEO veya admin mail kontrolü."""
+    return email == CEO_EMAIL or email in ADMIN_EMAILS
+
 @api_router.post("/admin/add-credits")
 async def admin_add_credits(amount: int = Body(..., embed=True), user: User = Depends(get_current_user)):
-    if user.email != CEO_EMAIL:
+    if not is_privileged(user.email):
         raise HTTPException(status_code=403, detail="Unauthorized")
     await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": amount}})
     data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "bonus_credits": 1})
@@ -540,11 +570,34 @@ async def admin_add_credits(amount: int = Body(..., embed=True), user: User = De
 
 @api_router.post("/admin/add-sp")
 async def admin_add_sp(amount: int = Body(..., embed=True), user: User = Depends(get_current_user)):
-    if user.email != CEO_EMAIL:
+    if not is_privileged(user.email):
         raise HTTPException(status_code=403, detail="Unauthorized")
     await db.users.update_one({"user_id": user.user_id}, {"$inc": {"quest_xp": amount}})
     data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "quest_xp": 1})
     return {"added": amount, "total": data.get("quest_xp", 0)}
+
+@api_router.post("/admin/free-subscription")
+async def admin_free_subscription(user: User = Depends(get_current_user)):
+    """Admin modundaki kullanıcı için ücretsiz Pro abonelik aktive eder."""
+    if not is_privileged(user.email):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    now = datetime.now(timezone.utc)
+    expires = (now + timedelta(days=36500)).isoformat()  # ~100 yıl
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {
+        "subscription_status": "active",
+        "subscription_plan": "pro",
+        "subscription_expires": expires,
+        "subscription_source": "admin_grant"
+    }})
+    return {"success": True, "plan": "pro", "expires": expires}
+
+@api_router.get("/admin/list-users")
+async def admin_list_users(user: User = Depends(get_current_user)):
+    """CEO'ya tüm kayıtlı kullanıcıların e-posta listesini döner."""
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    users = await db.users.find({}, {"_id": 0, "email": 1, "name": 1, "created_at": 1}).to_list(length=5000)
+    return {"users": users}
 
 @api_router.post("/auth/exchange")
 async def exchange_token(request: Request, response: Response):

@@ -18,10 +18,11 @@ const AuthCallback = () => {
     const processAuth = async () => {
       const hash = location.hash;
 
-      // Admin CEO token akışı
+      // Admin / CEO token akışı
       const ceoTokenMatch = hash.match(/ceo_token=([^&]+)/);
+      const adminTokenMatch = hash.match(/admin_token=([^&]+)/);
       const ceoErrorMatch = hash.match(/ceo_error=([^&]+)/);
-      if (ceoTokenMatch || ceoErrorMatch) {
+      if (ceoTokenMatch || adminTokenMatch || ceoErrorMatch) {
         const savedDoc = localStorage.getItem('zet_admin_auth_doc');
         localStorage.removeItem('zet_admin_auth_pending');
         localStorage.removeItem('zet_admin_auth_doc');
@@ -31,9 +32,20 @@ const AuthCallback = () => {
             // Token doğrulandı — PIN adımı için pending işaretle, henüz CEO modu aktif değil
             localStorage.setItem('zet_ceo_pending', 'true');
             localStorage.removeItem('zet_ceo_mode');
+            localStorage.removeItem('zet_admin_mode');
           } catch {
             localStorage.removeItem('zet_ceo_mode');
             localStorage.removeItem('zet_ceo_pending');
+          }
+        } else if (adminTokenMatch) {
+          try {
+            await axios.get(`${API}/auth/admin-verify-admin?token=${adminTokenMatch[1]}`, { withCredentials: true });
+            // Admin modu — PIN gerekmez, direkt aktif
+            localStorage.setItem('zet_admin_mode', 'true');
+            localStorage.removeItem('zet_ceo_mode');
+            localStorage.removeItem('zet_ceo_pending');
+          } catch {
+            localStorage.removeItem('zet_admin_mode');
           }
         }
         navigate(savedDoc ? `/editor/${savedDoc}` : '/dashboard', { replace: true });

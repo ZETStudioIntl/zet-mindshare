@@ -888,12 +888,12 @@ export const CanvasArea = ({
   };
 
   return (
-    <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'none', WebkitOverflowScrolling: 'touch' }}>
+    <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
           <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
             className={`shadow-xl relative select-none transition-all duration-200 ${idx === currentPage ? 'ring-2' : 'opacity-70 hover:opacity-90'}`}
-            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'manipulation' : 'none' }}
+            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'manipulation' : (['draw', 'pen', 'eraser'].includes(activeTool) ? 'none' : 'pan-y') }}
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
             onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
@@ -905,8 +905,8 @@ export const CanvasArea = ({
               const isOnText = canvasElements.some(el => el.type === 'text' && isPointInElement(cx, cy, el));
               if (!isOnText) e.preventDefault();
             }}
-            onTouchStart={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseDown(e, idx); } }}
-            onTouchMove={(e) => { if (activeTool !== 'hand') { e.stopPropagation(); handleMouseMove(e, idx); } }}
+            onTouchStart={(e) => { if (activeTool !== 'hand') { if (['draw', 'pen', 'eraser'].includes(activeTool)) e.stopPropagation(); handleMouseDown(e, idx); } }}
+            onTouchMove={(e) => { if (activeTool !== 'hand') { if (['draw', 'pen', 'eraser'].includes(activeTool)) e.stopPropagation(); handleMouseMove(e, idx); } }}
             onTouchEnd={(e) => { if (activeTool !== 'hand') { handleMouseUp(e); } }}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
             
