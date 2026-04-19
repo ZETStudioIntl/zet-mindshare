@@ -599,6 +599,123 @@ async def admin_list_users(user: User = Depends(get_current_user)):
     users = await db.users.find({}, {"_id": 0, "email": 1, "name": 1, "created_at": 1}).to_list(length=5000)
     return {"users": users}
 
+# ============ MEDIA / POSTS ============
+
+class PostCreate(BaseModel):
+    type: str  # 'text' | 'image' | 'video' | 'document'
+    content: Optional[str] = None   # text body
+    media_data: Optional[str] = None  # base64 image (image posts)
+    media_url: Optional[str] = None   # video URL
+    doc_id: Optional[str] = None      # document reference
+    doc_title: Optional[str] = None
+
+class CommentCreate(BaseModel):
+    content: str
+
+@api_router.post("/posts")
+async def create_post(body: PostCreate, user: User = Depends(get_current_user)):
+    """Yeni medya gönderisi oluştur — şimdilik sadece ayrıcalıklı hesaplar."""
+    if not is_privileged(user.email):
+        raise HTTPException(status_code=403, detail="Şu an sadece admin hesaplar gönderi paylaşabilir.")
+    post_id = f"post_{uuid.uuid4().hex[:16]}"
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {
+        "post_id": post_id,
+        "author_id": user.user_id,
+        "author_name": user.name,
+        "author_picture": user.picture,
+        "type": body.type,
+        "content": body.content or "",
+        "media_data": body.media_data,
+        "media_url": body.media_url,
+        "doc_id": body.doc_id,
+        "doc_title": body.doc_title,
+        "likes": [],
+        "like_count": 0,
+        "comment_count": 0,
+        "created_at": now,
+    }
+    await db.posts.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+@api_router.get("/posts")
+async def list_posts(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
+    """Gönderi akışı — tüm kullanıcılar görebilir."""
+    posts = await db.posts.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
+    uid = user.user_id
+    for p in posts:
+        p["liked_by_me"] = uid in (p.get("likes") or [])
+        p.pop("likes", None)  # don't send full likes array to client
+    return {"posts": posts}
+
+@api_router.post("/posts/{post_id}/like")
+async def toggle_like(post_id: str, user: User = Depends(get_current_user)):
+    """Beğeni ekle / kaldır."""
+    post = await db.posts.find_one({"post_id": post_id})
+    if not post:
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
+    uid = user.user_id
+    if uid in post.get("likes", []):
+        await db.posts.update_one({"post_id": post_id}, {"$pull": {"likes": uid}, "$inc": {"like_count": -1}})
+        liked = False
+    else:
+        await db.posts.update_one({"post_id": post_id}, {"$addToSet": {"likes": uid}, "$inc": {"like_count": 1}})
+        liked = True
+    updated = await db.posts.find_one({"post_id": post_id}, {"_id": 0, "like_count": 1})
+    return {"liked": liked, "like_count": updated.get("like_count", 0)}
+
+@api_router.delete("/posts/{post_id}")
+async def delete_post(post_id: str, user: User = Depends(get_current_user)):
+    """Gönderi sil — sadece ayrıcalıklı hesaplar."""
+    if not is_privileged(user.email):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    result = await db.posts.delete_one({"post_id": post_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
+    await db.post_comments.delete_many({"post_id": post_id})
+    return {"deleted": True}
+
+@api_router.post("/posts/{post_id}/comments")
+async def add_comment(post_id: str, body: CommentCreate, user: User = Depends(get_current_user)):
+    """Yorum ekle."""
+    post = await db.posts.find_one({"post_id": post_id})
+    if not post:
+        raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
+    comment_id = f"cmt_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    comment = {
+        "comment_id": comment_id,
+        "post_id": post_id,
+        "author_id": user.user_id,
+        "author_name": user.name,
+        "author_picture": user.picture,
+        "content": body.content,
+        "created_at": now,
+    }
+    await db.post_comments.insert_one(comment)
+    await db.posts.update_one({"post_id": post_id}, {"$inc": {"comment_count": 1}})
+    comment.pop("_id", None)
+    return comment
+
+@api_router.get("/posts/{post_id}/comments")
+async def list_comments(post_id: str, user: User = Depends(get_current_user)):
+    """Yorumları listele."""
+    comments = await db.post_comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(length=200)
+    return {"comments": comments}
+
+@api_router.delete("/posts/{post_id}/comments/{comment_id}")
+async def delete_comment(post_id: str, comment_id: str, user: User = Depends(get_current_user)):
+    """Yorum sil — yorum sahibi veya ayrıcalıklı hesap."""
+    comment = await db.post_comments.find_one({"comment_id": comment_id, "post_id": post_id})
+    if not comment:
+        raise HTTPException(status_code=404, detail="Yorum bulunamadı")
+    if comment["author_id"] != user.user_id and not is_privileged(user.email):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    await db.post_comments.delete_one({"comment_id": comment_id})
+    await db.posts.update_one({"post_id": post_id}, {"$inc": {"comment_count": -1}})
+    return {"deleted": True}
+
 @api_router.post("/auth/exchange")
 async def exchange_token(request: Request, response: Response):
     """Frontend'den gelen token'ı session cookie'ye dönüştür."""

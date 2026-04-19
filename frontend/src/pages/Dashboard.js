@@ -7,11 +7,14 @@ import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
 import goldRankImg from '../assets/rank-gold.svg';
+import diamondRankImg from '../assets/rank-diamond.svg';
+import emeraldRankImg from '../assets/rank-emerald.svg';
+import endlessRankImg from '../assets/rank-endless.svg';
 import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
-  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain
+  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, Send
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -52,11 +55,31 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
   const [notes, setNotes] = useState([]);
+  // Media feed state
+  const [mediaPosts, setMediaPosts] = useState([]);
+  const [mediaLoading, setMediaLoading] = useState(false);
+  const [mediaHasMore, setMediaHasMore] = useState(true);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [postType, setPostType] = useState('text');
+  const [postContent, setPostContent] = useState('');
+  const [postMediaData, setPostMediaData] = useState(null);
+  const [postMediaUrl, setPostMediaUrl] = useState('');
+  const [postDocId, setPostDocId] = useState('');
+  const [postDocTitle, setPostDocTitle] = useState('');
+  const [postSubmitting, setPostSubmitting] = useState(false);
+  const [openComments, setOpenComments] = useState(null); // post_id
+  const [commentsMap, setCommentsMap] = useState({}); // { post_id: [...] }
+  const [commentInput, setCommentInput] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [quickNote, setQuickNote] = useState('');
   const [noteReminder, setNoteReminder] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
+  const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
+  const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
+  const isPrivileged = isCEO || isAdminMode;
+  const [adminUsers, setAdminUsers] = useState([]);
+  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   const [mobileSettingsSidebar, setMobileSettingsSidebar] = useState(true);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
@@ -183,7 +206,7 @@ const Dashboard = () => {
     ? Math.min(100, Math.round(((userSP - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
     : 100;
 
-  const RANK_LOGOS = { 'Demir': ironRankImg, 'Gümüş': silverRankImg, 'Altın': goldRankImg };
+  const RANK_LOGOS = { 'Demir': ironRankImg, 'Gümüş': silverRankImg, 'Altın': goldRankImg, 'Elmas': diamondRankImg, 'Zümrüt': emeraldRankImg, 'Endless': endlessRankImg };
   const RankIcon = ({ rank, size = 16, className = '' }) => {
     const src = RANK_LOGOS[rank?.name];
     if (src) return <img src={src} alt={rank.name} style={{ height: size, width: 'auto', display: 'inline-block', verticalAlign: 'middle' }} className={className} />;
@@ -218,7 +241,7 @@ const Dashboard = () => {
         '1200 Kredi/gün',
         'ZETA Sınırsız',
         'ZET Judge Sınırsız (Derin Analiz dahil)',
-        'Nano Banana Pro',
+        'zeta colors ultra',
         'Tüm Görsel Boyutları (7 boyut)',
         'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
         'Sınırsız Fast Select',
@@ -237,7 +260,7 @@ const Dashboard = () => {
         '130 Kredi/gün',
         'ZETA Sınırsız',
         'ZET Judge 600 harf (Derin Analiz dahil)',
-        'Nano Banana Pro',
+        'zeta colors ultra',
         '7 Görsel Boyutu',
         'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
         'Sınırsız Fast Select',
@@ -411,7 +434,100 @@ const Dashboard = () => {
     if (showSettings && settingsTab === 'ai') {
       loadZetaMemories();
     }
+    if (showSettings && settingsTab === 'users' && isPrivileged && adminUsers.length === 0) {
+      setAdminUsersLoading(true);
+      axios.get(`${API}/admin/list-users`, { withCredentials: true })
+        .then(r => setAdminUsers(r.data.users || []))
+        .catch(() => {})
+        .finally(() => setAdminUsersLoading(false));
+    }
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Media helpers ────────────────────────────────────────────────────────────
+  const loadPosts = async (reset = false) => {
+    if (mediaLoading) return;
+    setMediaLoading(true);
+    const skip = reset ? 0 : mediaPosts.length;
+    try {
+      const res = await axios.get(`${API}/posts?skip=${skip}&limit=20`, { withCredentials: true });
+      const fetched = res.data.posts || [];
+      setMediaPosts(prev => reset ? fetched : [...prev, ...fetched]);
+      setMediaHasMore(fetched.length === 20);
+    } catch {}
+    setMediaLoading(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'media' && mediaPosts.length === 0) loadPosts(true);
+  }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const submitPost = async () => {
+    if (postSubmitting) return;
+    setPostSubmitting(true);
+    try {
+      const res = await axios.post(`${API}/posts`, {
+        type: postType,
+        content: postContent,
+        media_data: postType === 'image' ? postMediaData : null,
+        media_url: postType === 'video' ? postMediaUrl : null,
+        doc_id: postType === 'document' ? postDocId : null,
+        doc_title: postType === 'document' ? postDocTitle : null,
+      }, { withCredentials: true });
+      setMediaPosts(prev => [res.data, ...prev]);
+      setShowCreatePost(false);
+      setPostContent(''); setPostMediaData(null); setPostMediaUrl(''); setPostDocId(''); setPostDocTitle('');
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Gönderi oluşturulamadı.', 'error');
+    }
+    setPostSubmitting(false);
+  };
+
+  const togglePostLike = async (postId) => {
+    try {
+      const res = await axios.post(`${API}/posts/${postId}/like`, {}, { withCredentials: true });
+      setMediaPosts(prev => prev.map(p => p.post_id === postId ? { ...p, liked_by_me: res.data.liked, like_count: res.data.like_count } : p));
+    } catch {}
+  };
+
+  const deletePost = async (postId) => {
+    try {
+      await axios.delete(`${API}/posts/${postId}`, { withCredentials: true });
+      setMediaPosts(prev => prev.filter(p => p.post_id !== postId));
+    } catch {}
+  };
+
+  const loadComments = async (postId) => {
+    try {
+      const res = await axios.get(`${API}/posts/${postId}/comments`, { withCredentials: true });
+      setCommentsMap(prev => ({ ...prev, [postId]: res.data.comments || [] }));
+    } catch {}
+  };
+
+  const toggleComments = async (postId) => {
+    if (openComments === postId) { setOpenComments(null); return; }
+    setOpenComments(postId);
+    if (!commentsMap[postId]) await loadComments(postId);
+  };
+
+  const submitComment = async (postId) => {
+    const text = commentInput.trim();
+    if (!text) return;
+    setCommentInput('');
+    try {
+      const res = await axios.post(`${API}/posts/${postId}/comments`, { content: text }, { withCredentials: true });
+      setCommentsMap(prev => ({ ...prev, [postId]: [...(prev[postId] || []), res.data] }));
+      setMediaPosts(prev => prev.map(p => p.post_id === postId ? { ...p, comment_count: (p.comment_count || 0) + 1 } : p));
+    } catch {}
+  };
+
+  const deleteComment = async (postId, commentId) => {
+    try {
+      await axios.delete(`${API}/posts/${postId}/comments/${commentId}`, { withCredentials: true });
+      setCommentsMap(prev => ({ ...prev, [postId]: (prev[postId] || []).filter(c => c.comment_id !== commentId) }));
+      setMediaPosts(prev => prev.map(p => p.post_id === postId ? { ...p, comment_count: Math.max(0, (p.comment_count || 1) - 1) } : p));
+    } catch {}
+  };
+  // ─────────────────────────────────────────────────────────────────────────────
 
   const fetchCreditPackages = async () => {
     try {
@@ -1273,6 +1389,7 @@ MATCHES:[1,3,5]`;
                 { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
+                ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: 'Kullanıcılar', color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
@@ -1926,6 +2043,34 @@ MATCHES:[1,3,5]`;
                 </div>
               )}
 
+              {settingsTab === 'users' && isPrivileged && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--zet-text)' }}>
+                    {isCEO ? '👑 Kayıtlı Kullanıcılar' : '🛡 Kullanıcılar'}
+                  </h2>
+                  <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>
+                    {adminUsers.length} kullanıcı kayıtlı
+                  </p>
+                  {adminUsersLoading ? (
+                    <div className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</div>
+                  ) : (
+                    <div className="space-y-1 max-h-[60vh] overflow-y-auto">
+                      {adminUsers.map((u, i) => (
+                        <div key={i} className="flex items-center justify-between px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--zet-bg-card)' }}>
+                          <div className="min-w-0">
+                            <p className="font-medium truncate" style={{ color: 'var(--zet-text)' }}>{u.name || '—'}</p>
+                            <p className="text-xs truncate" style={{ color: 'var(--zet-text-muted)' }}>{u.email}</p>
+                          </div>
+                          <span className="text-xs flex-shrink-0 ml-2" style={{ color: 'var(--zet-text-muted)' }}>
+                            {u.created_at ? new Date(u.created_at).toLocaleDateString('tr-TR') : ''}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
             </div>
           </div>
         </div>
@@ -2041,8 +2186,156 @@ MATCHES:[1,3,5]`;
 
         {/* Documents/Notes/Media Grid */}
         {activeTab === 'media' ? (
-          <div className="flex-1 flex items-center justify-center" style={{ color: 'var(--zet-text-muted)' }}>
-            Media coming soon
+          <div className="flex-1 overflow-y-auto pb-6">
+            {/* Create post button — only privileged */}
+            {isPrivileged && (
+              <div className="mb-4">
+                {!showCreatePost ? (
+                  <button onClick={() => setShowCreatePost(true)} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+                    <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
+                      {user?.picture ? <img src={user.picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{(user?.name || 'U')[0]}</span>}
+                    </div>
+                    <span>Bir şeyler paylaş...</span>
+                  </button>
+                ) : (
+                  <div className="rounded-xl p-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                    {/* Post type selector */}
+                    <div className="flex gap-1.5 mb-3">
+                      {[['text','Yazı'],['image','Görsel'],['video','Video'],['document','Belge']].map(([val, label]) => (
+                        <button key={val} onClick={() => setPostType(val)} className="px-2.5 py-1 rounded-full text-xs font-medium transition-all" style={{ background: postType === val ? 'var(--zet-primary)' : 'var(--zet-bg)', color: postType === val ? '#fff' : 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>{label}</button>
+                      ))}
+                    </div>
+                    {/* Content input */}
+                    <textarea value={postContent} onChange={e => setPostContent(e.target.value)} placeholder="Ne düşünüyorsun?" rows={3} className="w-full text-sm resize-none rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
+                    {/* Type-specific inputs */}
+                    {postType === 'image' && (
+                      <div className="mb-2">
+                        <input type="file" accept="image/*" className="hidden" id="post-img-upload" onChange={e => {
+                          const file = e.target.files?.[0]; if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = ev => setPostMediaData(ev.target.result);
+                          reader.readAsDataURL(file);
+                        }} />
+                        <label htmlFor="post-img-upload" className="flex items-center gap-2 px-3 py-2 rounded-lg text-xs cursor-pointer" style={{ background: 'var(--zet-bg)', border: '1px dashed var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+                          <Upload className="h-4 w-4" /> {postMediaData ? 'Görsel seçildi ✓' : 'Görsel seç'}
+                        </label>
+                        {postMediaData && <img src={postMediaData} alt="" className="mt-2 max-h-40 rounded-lg object-cover" />}
+                      </div>
+                    )}
+                    {postType === 'video' && (
+                      <input value={postMediaUrl} onChange={e => setPostMediaUrl(e.target.value)} placeholder="Video URL (YouTube, Vimeo...)" className="w-full text-sm rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
+                    )}
+                    {postType === 'document' && (
+                      <select value={postDocId} onChange={e => { const doc = documents.find(d => d.doc_id === e.target.value); setPostDocId(e.target.value); setPostDocTitle(doc?.title || ''); }} className="w-full text-sm rounded-lg px-3 py-2 mb-2 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
+                        <option value="">Belge seç...</option>
+                        {documents.map(d => <option key={d.doc_id} value={d.doc_id}>{d.title}</option>)}
+                      </select>
+                    )}
+                    <div className="flex justify-end gap-2">
+                      <button onClick={() => { setShowCreatePost(false); setPostContent(''); setPostMediaData(null); setPostMediaUrl(''); setPostDocId(''); setPostDocTitle(''); }} className="px-3 py-1.5 rounded-lg text-xs" style={{ color: 'var(--zet-text-muted)' }}>İptal</button>
+                      <button onClick={submitPost} disabled={postSubmitting || (!postContent.trim() && !postMediaData && !postMediaUrl && !postDocId)} className="px-4 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+                        {postSubmitting ? 'Paylaşılıyor...' : 'Paylaş'}
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Posts feed */}
+            {mediaLoading && mediaPosts.length === 0 ? (
+              <div className="flex justify-center py-12"><ZetaTypingIndicator /></div>
+            ) : mediaPosts.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--zet-text-muted)' }}>
+                <Sparkles className="h-10 w-10 mb-3 opacity-30" />
+                <p className="text-sm">Henüz gönderi yok</p>
+              </div>
+            ) : (
+              <div className="space-y-4 max-w-xl mx-auto">
+                {mediaPosts.map(post => (
+                  <div key={post.post_id} className="rounded-xl overflow-hidden" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                    {/* Post header */}
+                    <div className="flex items-center justify-between px-4 pt-3 pb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 rounded-full overflow-hidden flex-shrink-0" style={{ background: 'var(--zet-primary)' }}>
+                          {post.author_picture ? <img src={post.author_picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white text-xs font-bold">{(post.author_name || 'U')[0]}</span>}
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{post.author_name}</p>
+                          <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{new Date(post.created_at).toLocaleDateString('tr-TR', { day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' })}</p>
+                        </div>
+                      </div>
+                      {isPrivileged && (
+                        <button onClick={() => { if (window.confirm('Gönderiyi silmek istediğinize emin misiniz?')) deletePost(post.post_id); }} className="p-1.5 rounded-lg hover:bg-white/10 transition-colors">
+                          <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
+                        </button>
+                      )}
+                    </div>
+                    {/* Post content */}
+                    {post.content && <p className="px-4 pb-2 text-sm whitespace-pre-wrap" style={{ color: 'var(--zet-text)' }}>{post.content}</p>}
+                    {post.type === 'image' && post.media_data && (
+                      <img src={post.media_data} alt="" className="w-full max-h-96 object-cover" />
+                    )}
+                    {post.type === 'video' && post.media_url && (
+                      <div className="px-4 pb-2">
+                        <a href={post.media_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm" style={{ background: 'var(--zet-bg)', color: 'var(--zet-primary-light)', border: '1px solid var(--zet-border)' }}>
+                          <Globe className="h-4 w-4 flex-shrink-0" /> <span className="truncate">{post.media_url}</span>
+                        </a>
+                      </div>
+                    )}
+                    {post.type === 'document' && post.doc_id && (
+                      <div className="px-4 pb-2">
+                        <button onClick={() => navigate(`/editor/${post.doc_id}`)} className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm w-full text-left" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
+                          <FileText className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} /> <span className="truncate">{post.doc_title || 'Belge'}</span>
+                        </button>
+                      </div>
+                    )}
+                    {/* Actions */}
+                    <div className="flex items-center gap-4 px-4 py-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                      <button onClick={() => togglePostLike(post.post_id)} className="flex items-center gap-1.5 text-xs transition-colors" style={{ color: post.liked_by_me ? '#ef4444' : 'var(--zet-text-muted)' }}>
+                        <svg className="h-4 w-4" fill={post.liked_by_me ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>
+                        {post.like_count > 0 && <span>{post.like_count}</span>}
+                      </button>
+                      <button onClick={() => toggleComments(post.post_id)} className="flex items-center gap-1.5 text-xs transition-colors" style={{ color: openComments === post.post_id ? 'var(--zet-primary-light)' : 'var(--zet-text-muted)' }}>
+                        <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                        {post.comment_count > 0 && <span>{post.comment_count}</span>}
+                      </button>
+                    </div>
+                    {/* Comments */}
+                    {openComments === post.post_id && (
+                      <div className="px-4 pb-3 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                        <div className="space-y-2 pt-2 max-h-48 overflow-y-auto">
+                          {(commentsMap[post.post_id] || []).map(c => (
+                            <div key={c.comment_id} className="flex items-start gap-2">
+                              <div className="w-6 h-6 rounded-full flex-shrink-0 overflow-hidden mt-0.5" style={{ background: 'var(--zet-primary)' }}>
+                                {c.author_picture ? <img src={c.author_picture} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-white" style={{ fontSize: 9 }}>{(c.author_name || 'U')[0]}</span>}
+                              </div>
+                              <div className="flex-1 min-w-0 rounded-lg px-2.5 py-1.5" style={{ background: 'var(--zet-bg)' }}>
+                                <p className="text-xs font-semibold" style={{ color: 'var(--zet-text)' }}>{c.author_name}</p>
+                                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{c.content}</p>
+                              </div>
+                              {(isPrivileged || c.author_id === user?.user_id) && (
+                                <button onClick={() => deleteComment(post.post_id, c.comment_id)} className="mt-1 p-0.5 hover:opacity-70"><X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <input value={commentInput} onChange={e => setCommentInput(e.target.value)} onKeyDown={e => e.key === 'Enter' && submitComment(post.post_id)} placeholder="Yorum yaz..." className="flex-1 text-xs rounded-lg px-3 py-1.5 outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} />
+                          <button onClick={() => submitComment(post.post_id)} className="px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+                            <Send className="h-3 w-3" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+                {mediaHasMore && (
+                  <button onClick={() => loadPosts()} disabled={mediaLoading} className="w-full py-2 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
+                    {mediaLoading ? 'Yükleniyor...' : 'Daha fazla yükle'}
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         ) : activeTab === 'documents' ? (
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
