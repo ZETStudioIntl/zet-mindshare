@@ -3662,6 +3662,128 @@ async def get_online_users(doc_id: str):
 async def root():
     return {"message": "ZET Mindshare API", "version": "1.0.0"}
 
+# ============ CEO DATA EXPORT ============
+
+async def get_most_active_users(limit: int = 10) -> list:
+    pipeline = [
+        {"$lookup": {"from": "posts", "localField": "user_id", "foreignField": "author_id", "as": "posts"}},
+        {"$addFields": {"post_count": {"$size": "$posts"}}},
+        {"$sort": {"post_count": -1}},
+        {"$limit": limit},
+        {"$project": {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "post_count": 1, "followers_count": 1}},
+    ]
+    return await db.users.aggregate(pipeline).to_list(length=limit)
+
+async def get_trending_words(limit: int = 20) -> list:
+    import re
+    from collections import Counter
+    posts = await db.posts.find({"type": "text"}, {"content": 1, "_id": 0}).to_list(length=500)
+    words = []
+    for p in posts:
+        words.extend(re.findall(r'\b[a-zA-ZğüşıöçĞÜŞİÖÇ]{4,}\b', p.get("content", "")))
+    stopwords = {"için", "ile", "bir", "olan", "veya", "gibi", "daha", "çok", "the", "and", "that", "this", "with", "from"}
+    filtered = [w.lower() for w in words if w.lower() not in stopwords]
+    return [{"word": w, "count": c} for w, c in Counter(filtered).most_common(limit)]
+
+async def build_export_payload(export_type: str) -> dict:
+    now = datetime.now(timezone.utc)
+    payload: dict = {"exported_at": now.isoformat(), "type": export_type}
+
+    if export_type in ("last7", "last30"):
+        days = 7 if export_type == "last7" else 30
+        since = (now - timedelta(days=days)).isoformat()
+        payload["users"] = await db.users.find({"created_at": {"$gte": since}}, {"_id": 0, "password": 0}).to_list(length=5000)
+        payload["posts"] = await db.posts.find({"created_at": {"$gte": since}}, {"_id": 0}).to_list(length=5000)
+        payload["documents"] = await db.documents.find({"created_at": {"$gte": since}}, {"_id": 0}).to_list(length=5000)
+        return payload
+
+    if export_type in ("users", "all"):
+        payload["users"] = await db.users.find({}, {"_id": 0, "password": 0}).to_list(length=10000)
+    if export_type in ("posts", "all"):
+        payload["posts"] = await db.posts.find({}, {"_id": 0}).to_list(length=10000)
+    if export_type in ("documents", "all"):
+        payload["documents"] = await db.documents.find({}, {"_id": 0}).to_list(length=10000)
+    if export_type in ("comments", "all"):
+        payload["comments"] = await db.comments.find({}, {"_id": 0}).to_list(length=10000)
+    if export_type in ("notes", "all"):
+        payload["notes"] = await db.notes.find({}, {"_id": 0}).to_list(length=10000)
+    if export_type in ("analytics", "all"):
+        total_users = await db.users.count_documents({})
+        total_posts = await db.posts.count_documents({})
+        total_docs = await db.documents.count_documents({})
+        total_comments = await db.comments.count_documents({})
+        payload["analytics"] = {
+            "total_users": total_users,
+            "total_posts": total_posts,
+            "total_documents": total_docs,
+            "total_comments": total_comments,
+            "most_active_users": await get_most_active_users(10),
+            "trending_words": await get_trending_words(20),
+        }
+
+    return payload
+
+async def send_export_email(export_type: str, payload: dict):
+    resend.api_key = os.environ.get("RESEND_API_KEY", "")
+    sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+    json_bytes = json.dumps(payload, ensure_ascii=False, indent=2, default=str).encode("utf-8")
+    import base64 as b64
+    attachment_b64 = b64.b64encode(json_bytes).decode("ascii")
+    filename = f"zet_export_{export_type}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+    params = {
+        "from": sender,
+        "to": [CEO_EMAIL],
+        "subject": f"[ZET Data Export] {export_type.upper()} — {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M')} UTC",
+        "html": f"<p>ZET Mindshare veri dışa aktarımı: <b>{export_type}</b></p><p>Tarih: {datetime.now(timezone.utc).isoformat()}</p><p>Dosya ek olarak gönderilmiştir.</p>",
+        "attachments": [{"filename": filename, "content": attachment_b64}],
+    }
+    resend.Emails.send(params)
+
+class ExportRequest(BaseModel):
+    type: str  # posts, users, documents, comments, notes, analytics, all, last7, last30
+
+VALID_EXPORT_TYPES = {"posts", "users", "documents", "comments", "notes", "analytics", "all", "last7", "last30"}
+
+@api_router.post("/admin/export-data")
+async def export_data(body: ExportRequest, user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Sadece CEO veri dışa aktarabilir.")
+    if body.type not in VALID_EXPORT_TYPES:
+        raise HTTPException(status_code=400, detail=f"Geçersiz tip. Geçerli tipler: {', '.join(sorted(VALID_EXPORT_TYPES))}")
+    payload = await build_export_payload(body.type)
+    await send_export_email(body.type, payload)
+    await db.export_logs.insert_one({
+        "requested_by": user.email,
+        "type": body.type,
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "record_counts": {k: len(v) if isinstance(v, list) else None for k, v in payload.items() if k not in ("exported_at", "type")},
+    })
+    return {"success": True, "message": f"'{body.type}' verisi CEO e-postasına gönderildi."}
+
+async def send_weekly_report():
+    """Her Pazartesi 09:00 UTC'de haftalık rapor gönder."""
+    while True:
+        now = datetime.now(timezone.utc)
+        days_until_monday = (7 - now.weekday()) % 7 or 7
+        next_monday = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(days=days_until_monday)
+        wait_seconds = (next_monday - now).total_seconds()
+        await asyncio.sleep(wait_seconds)
+        try:
+            payload = await build_export_payload("analytics")
+            payload["last7"] = await build_export_payload("last7")
+            await send_export_email("weekly_report", payload)
+            await db.export_logs.insert_one({
+                "requested_by": "system",
+                "type": "weekly_report",
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+            })
+        except Exception as e:
+            logging.getLogger(__name__).error(f"Weekly report error: {e}")
+
+@app.on_event("startup")
+async def start_weekly_report():
+    asyncio.create_task(send_weekly_report())
+
 app.include_router(api_router)
 
 frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")

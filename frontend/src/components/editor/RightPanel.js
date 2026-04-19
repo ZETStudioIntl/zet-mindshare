@@ -332,7 +332,7 @@ export const RightPanel = ({
   // All known commands (used for autocomplete)
   const PUBLIC_COMMANDS = ['/clear/', '/open/admin/panel/login/'];
   const ADMIN_COMMANDS = ['/delete/admin/', '/logout/admin/', '/(number)/credits/', '/(number)/sp/', '/freesub/'];
-  const CEO_COMMANDS = ['/verify/@username/red/', '/verify/@username/gold/', '/verify/@username/blue/', '/verify/@username/remove/'];
+  const CEO_COMMANDS = ['/verify/@username/red/', '/verify/@username/gold/', '/verify/@username/blue/', '/verify/@username/remove/', '/data/', '/data/posts/', '/data/users/', '/data/documents/', '/data/comments/', '/data/notes/', '/data/analytics/', '/data/all/', '/data/last7/', '/data/last30/'];
   const getVisibleCommands = () => isCEO ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS, ...CEO_COMMANDS] : (isAdmin ? [...PUBLIC_COMMANDS, ...ADMIN_COMMANDS] : PUBLIC_COMMANDS);
   const getConsoleSuggestions = (input) => {
     if (!input) return [];
@@ -439,6 +439,26 @@ export const RightPanel = ({
         addConsoleLine(`✓ ${res.data.message}`, 'success');
       } catch (err) {
         addConsoleLine(`✗ ${err.response?.data?.detail || 'İşlem başarısız.'}`, 'error');
+      }
+    } else if (/^\/data(\/[\w]*\/?)?$/.test(normalized)) {
+      if (!isCEO) { addConsoleLine('Permission denied. Sadece CEO veri dışa aktarabilir.', 'error'); return; }
+      const VALID = ['posts', 'users', 'documents', 'comments', 'notes', 'analytics', 'all', 'last7', 'last30'];
+      const typeMatch = normalized.match(/^\/data\/?([\w]*)\/?\s*$/);
+      const exportType = typeMatch && typeMatch[1] ? typeMatch[1] : null;
+      if (!exportType) {
+        addConsoleLine('Kullanım: /data/posts/ | /data/users/ | /data/documents/ | /data/comments/ | /data/notes/ | /data/analytics/ | /data/all/ | /data/last7/ | /data/last30/', 'output');
+        return;
+      }
+      if (!VALID.includes(exportType)) {
+        addConsoleLine(`✗ Geçersiz tip: ${exportType}. Geçerli: ${VALID.join(', ')}`, 'error');
+        return;
+      }
+      addConsoleLine(`"${exportType}" verisi hazırlanıyor ve CEO e-postasına gönderiliyor...`, 'output');
+      try {
+        const res = await axios.post(`${API}/admin/export-data`, { type: exportType }, { withCredentials: true });
+        addConsoleLine(`✓ ${res.data.message}`, 'success');
+      } catch (err) {
+        addConsoleLine(`✗ ${err.response?.data?.detail || 'Dışa aktarma başarısız.'}`, 'error');
       }
     } else if (normalized === 'exit' || normalized === 'close') {
       setShowConsole(false); setConsoleStage('main');
