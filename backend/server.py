@@ -453,6 +453,7 @@ async def google_auth_callback(request: Request, response: Response, code: str =
             user_id = f"user_{uuid.uuid4().hex[:12]}"
             username = await generate_unique_username(email.split("@")[0])
             verified_type = "red" if email == CEO_EMAIL else None
+            trial_end = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
             await db.users.insert_one({
                 "user_id": user_id,
                 "email": email,
@@ -466,7 +467,9 @@ async def google_auth_callback(request: Request, response: Response, code: str =
                 "following": [],
                 "followers_count": 0,
                 "following_count": 0,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "needs_onboarding": True,
+                "subscription": {"plan": "pro", "status": "active", "trial": True, "trial_end": trial_end},
             })
 
         session_token = f"st_{uuid.uuid4().hex}"
@@ -638,6 +641,7 @@ class UsernameUpdate(BaseModel):
     username: str
     display_name: Optional[str] = None
     bio: Optional[str] = None
+    complete_onboarding: bool = False
 
 class SetVerifiedRequest(BaseModel):
     username: str
@@ -675,19 +679,22 @@ async def update_profile(body: UsernameUpdate, user: User = Depends(get_current_
         existing = await db.users.find_one({"username": uname, "user_id": {"$ne": user.user_id}})
         if existing:
             raise HTTPException(status_code=409, detail="Bu username zaten kullanılıyor.")
-        # 30-gün kısıtlaması
-        me = await db.users.find_one({"user_id": user.user_id}, {"username_changed_at": 1})
-        last_change = me.get("username_changed_at") if me else None
-        if last_change:
-            delta = datetime.now(timezone.utc) - datetime.fromisoformat(last_change.replace("Z", "+00:00"))
-            if delta.days < 30:
-                raise HTTPException(status_code=429, detail=f"Username değişikliği {30 - delta.days} gün sonra yapılabilir.")
+        # 30-gün kısıtlaması — onboarding sırasında atla
+        if not body.complete_onboarding:
+            me = await db.users.find_one({"user_id": user.user_id}, {"username_changed_at": 1})
+            last_change = me.get("username_changed_at") if me else None
+            if last_change:
+                delta = datetime.now(timezone.utc) - datetime.fromisoformat(last_change.replace("Z", "+00:00"))
+                if delta.days < 30:
+                    raise HTTPException(status_code=429, detail=f"Username değişikliği {30 - delta.days} gün sonra yapılabilir.")
         update["username"] = uname
         update["username_changed_at"] = datetime.now(timezone.utc).isoformat()
     if body.display_name is not None:
         update["display_name"] = body.display_name[:50]
     if body.bio is not None:
         update["bio"] = body.bio[:160]
+    if body.complete_onboarding:
+        update["needs_onboarding"] = False
     if update:
         await db.users.update_one({"user_id": user.user_id}, {"$set": update})
     return {"success": True}
@@ -901,7 +908,9 @@ async def exchange_token(request: Request, response: Response):
         "email": user.get("email"),
         "name": user.get("name", ""),
         "picture": user.get("picture"),
-        "subscription": user.get("subscription", "free")
+        "subscription": user.get("subscription", "free"),
+        "needs_onboarding": user.get("needs_onboarding", False),
+        "username": user.get("username"),
     }
 
 
