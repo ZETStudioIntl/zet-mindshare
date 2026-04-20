@@ -604,7 +604,7 @@ const Editor = () => {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
     }
     try {
-      await axios.put(`${API}/documents/${docId}`, { title: document.title, content: document.content, pages: updatedPages }, { withCredentials: true });
+      await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages }, { withCredentials: true });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
     } catch { setSaveStatus('unsaved'); } finally { if (!silent) setSaving(false); }
@@ -3780,8 +3780,14 @@ const Editor = () => {
       <header data-testid="editor-header" className="h-12 px-3 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-2">
           <button data-testid="home-btn" onClick={() => navigate('/dashboard')} className="tool-btn w-8 h-8"><Home className="h-4 w-4" /></button>
-          <input data-testid="doc-title-input" value={document.title} onChange={(e) => setDocument(prev => ({ ...prev, title: e.target.value }))}
-            className="bg-transparent font-medium px-2 text-sm border-b border-transparent hover:border-white/20 focus:border-white/40 transition-colors outline-none" style={{ color: 'var(--zet-text)', maxWidth: 200 }} />
+          <div className="flex flex-col">
+            <input data-testid="doc-title-input" value={document.title} onChange={(e) => setDocument(prev => ({ ...prev, title: e.target.value }))}
+              className="bg-transparent font-medium px-2 text-sm border-b border-transparent hover:border-white/20 focus:border-white/40 transition-colors outline-none" style={{ color: 'var(--zet-text)', maxWidth: 200 }} />
+            <input data-testid="doc-subtitle-input" value={document.subtitle || ''} onChange={(e) => setDocument(prev => ({ ...prev, subtitle: e.target.value }))}
+              placeholder={!document.subtitle ? '⚠ Alt başlık ekle...' : ''}
+              className="bg-transparent px-2 text-[10px] border-b border-transparent hover:border-white/20 focus:border-white/40 transition-colors outline-none"
+              style={{ color: document.subtitle ? 'var(--zet-text-muted)' : '#f59e0b', maxWidth: 200 }} />
+          </div>
         </div>
         <div className="flex items-center gap-1.5">
           <button data-testid="undo-btn" onClick={handleUndo} disabled={!history.canUndo} className={`tool-btn w-8 h-8 ${!history.canUndo ? 'opacity-30' : ''}`}><Undo className="h-4 w-4" /></button>

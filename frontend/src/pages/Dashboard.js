@@ -94,6 +94,12 @@ const Dashboard = () => {
   const [boostPackages, setBoostPackages] = useState([]);
   const [boostingTier, setBoostingTier] = useState(null);
   const [boostError, setBoostError] = useState('');
+  const [identityStatus, setIdentityStatus] = useState(null); // null | 'none' | 'pending' | 'approved' | 'rejected'
+  const [identityForm, setIdentityForm] = useState({ full_name: '', id_type: 'tc_kimlik', id_number: '', front_image: null, back_image: null, selfie_image: null });
+  const [identitySubmitting, setIdentitySubmitting] = useState(false);
+  const [identityError, setIdentityError] = useState('');
+  const [pendingVerifications, setPendingVerifications] = useState(null);
+  const [verifDeciding, setVerifDeciding] = useState(null);
   const [mobileSettingsSidebar, setMobileSettingsSidebar] = useState(true);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
@@ -470,6 +476,16 @@ const Dashboard = () => {
       const fetched = res.data.posts || [];
       setMediaPosts(prev => reset ? fetched : [...prev, ...fetched]);
       setMediaHasMore(fetched.length === 20);
+      // Takip durumlarını güncelle (backend viewer_follows_author dönüyor)
+      if (reset) {
+        const newMap = {};
+        fetched.forEach(p => {
+          if (p.author?.username && p.viewer_follows_author !== undefined) {
+            newMap[p.author.username] = p.viewer_follows_author;
+          }
+        });
+        setFollowingMap(newMap);
+      }
     } catch {}
     setMediaLoading(false);
   };
@@ -1569,6 +1585,7 @@ MATCHES:[1,3,5]`;
                 { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
+                { id: 'identity',     icon: <UserCheck className="h-4 w-4" />,  label: 'Kimlik Doğrulama', color: '#22c55e' },
                 ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: 'Kullanıcılar', color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
               ].map(item => (
                 <button
@@ -2254,6 +2271,98 @@ MATCHES:[1,3,5]`;
                 </div>
               )}
 
+              {settingsTab === 'identity' && (() => {
+                const loadIdentityStatus = async () => {
+                  try {
+                    const res = await axios.get(`${API}/users/verify-identity/status`, { withCredentials: true });
+                    setIdentityStatus(res.data.identity_status || 'none');
+                  } catch { setIdentityStatus('none'); }
+                };
+                if (identityStatus === null) { loadIdentityStatus(); return <div className="flex items-center justify-center py-8"><div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} /></div>; }
+
+                const toBase64 = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file); });
+                const handleImg = async (field, e) => { const f = e.target.files[0]; if (!f) return; const b64 = await toBase64(f); setIdentityForm(p => ({ ...p, [field]: b64 })); };
+                const submitVerification = async () => {
+                  setIdentityError('');
+                  if (!identityForm.full_name.trim() || !identityForm.id_number.trim()) return setIdentityError('Ad soyad ve kimlik numarası zorunludur.');
+                  if (!identityForm.front_image || !identityForm.selfie_image) return setIdentityError('Ön yüz ve selfie fotoğrafı zorunludur.');
+                  setIdentitySubmitting(true);
+                  try {
+                    await axios.post(`${API}/users/verify-identity`, identityForm, { withCredentials: true });
+                    setIdentityStatus('pending');
+                  } catch (e) { setIdentityError(e.response?.data?.detail || 'Bir hata oluştu.'); }
+                  setIdentitySubmitting(false);
+                };
+
+                return (
+                  <div className="max-w-lg">
+                    <h2 className="text-lg font-semibold mb-1" style={{ color: 'var(--zet-text)' }}>✅ Kimlik Doğrulama</h2>
+                    <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>Kimliğinizi doğrulayarak mavi tik rozeti kazanın.</p>
+                    {identityStatus === 'approved' && (
+                      <div className="p-4 rounded-xl text-center" style={{ background: '#22c55e20', border: '1px solid #22c55e50' }}>
+                        <p className="text-lg">✅</p>
+                        <p className="font-semibold mt-1" style={{ color: '#22c55e' }}>Kimliğiniz Doğrulandı</p>
+                        <p className="text-sm mt-1" style={{ color: 'var(--zet-text-muted)' }}>Mavi tik rozetiniz aktif.</p>
+                      </div>
+                    )}
+                    {identityStatus === 'pending' && (
+                      <div className="p-4 rounded-xl text-center" style={{ background: '#f59e0b20', border: '1px solid #f59e0b50' }}>
+                        <p className="text-lg">⏳</p>
+                        <p className="font-semibold mt-1" style={{ color: '#f59e0b' }}>İnceleniyor</p>
+                        <p className="text-sm mt-1" style={{ color: 'var(--zet-text-muted)' }}>Başvurunuz 24 saat içinde incelenecek.</p>
+                      </div>
+                    )}
+                    {identityStatus === 'rejected' && (
+                      <div className="p-4 rounded-xl mb-4" style={{ background: '#ef444420', border: '1px solid #ef444450' }}>
+                        <p className="font-semibold" style={{ color: '#ef4444' }}>❌ Başvuru Reddedildi</p>
+                        <p className="text-sm mt-1" style={{ color: 'var(--zet-text-muted)' }}>Tekrar başvurabilirsiniz.</p>
+                      </div>
+                    )}
+                    {(identityStatus === 'none' || identityStatus === 'rejected') && (
+                      <div className="space-y-3">
+                        <div>
+                          <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Ad Soyad *</label>
+                          <input value={identityForm.full_name} onChange={e => setIdentityForm(p => ({ ...p, full_name: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} placeholder="Adınız Soyadınız" />
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Kimlik Türü *</label>
+                          <select value={identityForm.id_type} onChange={e => setIdentityForm(p => ({ ...p, id_type: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
+                            <option value="tc_kimlik">TC Kimlik Kartı</option>
+                            <option value="pasaport">Pasaport</option>
+                            <option value="ehliyet">Ehliyet</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Kimlik Numarası *</label>
+                          <input value={identityForm.id_number} onChange={e => setIdentityForm(p => ({ ...p, id_number: e.target.value }))}
+                            className="w-full px-3 py-2 rounded-lg text-sm outline-none" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }} placeholder="Kimlik numaranız" />
+                        </div>
+                        {[['front_image', 'Kimlik Ön Yüzü *'], ['back_image', 'Kimlik Arka Yüzü'], ['selfie_image', 'Selfie (Kimlik ile) *']].map(([field, label]) => (
+                          <div key={field}>
+                            <label className="text-xs font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>{label}</label>
+                            <div className="flex items-center gap-2">
+                              <label className="cursor-pointer px-3 py-1.5 rounded-lg text-xs font-medium" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
+                                📎 Seç
+                                <input type="file" accept="image/*" className="hidden" onChange={e => handleImg(field, e)} />
+                              </label>
+                              {identityForm[field] && <span className="text-xs" style={{ color: '#22c55e' }}>✓ Yüklendi</span>}
+                            </div>
+                          </div>
+                        ))}
+                        {identityError && <p className="text-xs" style={{ color: '#ef4444' }}>{identityError}</p>}
+                        <button onClick={submitVerification} disabled={identitySubmitting}
+                          className="w-full py-2.5 rounded-xl text-sm font-semibold disabled:opacity-50"
+                          style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+                          {identitySubmitting ? 'Gönderiliyor...' : 'Başvuruyu Gönder'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
               {settingsTab === 'users' && isPrivileged && (
                 <div className="max-w-2xl">
                   <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--zet-text)' }}>
@@ -2321,6 +2430,43 @@ MATCHES:[1,3,5]`;
                       })}
                     </div>
                   )}
+                  {isCEO && (() => {
+                    const loadVerifs = async () => { try { const r = await axios.get(`${API}/admin/identity-verifications`, { withCredentials: true }); setPendingVerifications(r.data.verifications || []); } catch { setPendingVerifications([]); } };
+                    if (pendingVerifications === null) { loadVerifs(); return null; }
+                    if (pendingVerifications.length === 0) return null;
+                    const decide = async (vid, decision, vtype) => {
+                      setVerifDeciding(vid);
+                      try { await axios.post(`${API}/admin/identity-verifications/${vid}/decide`, { decision, verified_type: vtype || null }, { withCredentials: true }); setPendingVerifications(p => p.filter(v => v.verification_id !== vid)); } catch {}
+                      setVerifDeciding(null);
+                    };
+                    return (
+                      <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                        <h3 className="text-sm font-semibold mb-3" style={{ color: '#f59e0b' }}>🔍 Bekleyen Kimlik Doğrulamaları ({pendingVerifications.length})</h3>
+                        <div className="space-y-3">
+                          {pendingVerifications.map(v => (
+                            <div key={v.verification_id} className="p-3 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                              <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{v.full_name} — <span style={{ color: 'var(--zet-text-muted)' }}>{v.user_email}</span></p>
+                              <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{v.id_type} · {v.id_number} · {new Date(v.submitted_at).toLocaleDateString('tr-TR')}</p>
+                              <div className="flex gap-2 mt-2 flex-wrap">
+                                {['blue','gold','red'].map(t => (
+                                  <button key={t} onClick={() => decide(v.verification_id, 'approve', t)} disabled={!!verifDeciding}
+                                    className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
+                                    style={{ background: t === 'blue' ? '#3b82f620' : t === 'gold' ? '#f59e0b20' : '#ef444420', color: t === 'blue' ? '#3b82f6' : t === 'gold' ? '#f59e0b' : '#ef4444', border: `1px solid ${t === 'blue' ? '#3b82f640' : t === 'gold' ? '#f59e0b40' : '#ef444440'}` }}>
+                                    ✓ {t === 'blue' ? 'Mavi' : t === 'gold' ? 'Altın' : 'Kırmızı'} Tik
+                                  </button>
+                                ))}
+                                <button onClick={() => decide(v.verification_id, 'reject')} disabled={!!verifDeciding}
+                                  className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
+                                  style={{ background: '#6b728020', color: '#9ca3af', border: '1px solid #6b728040' }}>
+                                  ✗ Reddet
+                                </button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
@@ -2628,6 +2774,7 @@ MATCHES:[1,3,5]`;
             </div>
           );
         })() : activeTab === 'documents' ? (
+          <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card */}
             <button 
@@ -2725,6 +2872,7 @@ MATCHES:[1,3,5]`;
                 ))}
               </div>
             )}
+          </div>
           </div>
         ) : activeNotebook ? (
           /* ── Defter İçi Görünüm ── */

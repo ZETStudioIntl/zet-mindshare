@@ -17,6 +17,20 @@ import resend
 import json
 from google import genai as google_genai
 from google.genai import types as genai_types
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.util import get_remote_address
+    from slowapi.errors import RateLimitExceeded
+    _RATE_LIMIT_AVAILABLE = True
+except ImportError:
+    _RATE_LIMIT_AVAILABLE = False
+
+try:
+    from better_profanity import profanity as _profanity_lib
+    _profanity_lib.load_censor_words()
+    _PROFANITY_AVAILABLE = True
+except ImportError:
+    _PROFANITY_AVAILABLE = False
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -32,6 +46,52 @@ app = FastAPI()
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
 ADMIN_EMAILS = {"info@zetstudiointl.com", "support@zetstudiointl.com", "ideas@zetstudiointl.com"}
 api_router = APIRouter(prefix="/api")
+
+# ============ RATE LIMITING ============
+if _RATE_LIMIT_AVAILABLE:
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# ============ PROFANITY FILTER ============
+EXTRA_BANNED_TR = [
+    "orospu", "amk", "bok", "sik", "pic", "göt", "piç", "oç", "kahpe",
+    "ibne", "bok", "lan", "yarrak", "sikerim", "amına", "orospu",
+]
+
+def contains_profanity(text: str) -> bool:
+    if not text:
+        return False
+    tl = text.lower()
+    if any(w in tl for w in EXTRA_BANNED_TR):
+        return True
+    if _PROFANITY_AVAILABLE:
+        return _profanity_lib.contains_profanity(text)
+    return False
+
+def sanitize_text(text: str, max_len: int = 2000) -> str:
+    """Temel XSS / injection temizliği + uzunluk sınırı."""
+    import re, html
+    if not text:
+        return ""
+    text = html.escape(text[:max_len])
+    text = re.sub(r'javascript:', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'on\w+\s*=', '', text, flags=re.IGNORECASE)
+    return text.strip()
+
+# ── Basit in-memory rate limiter ──────────────────────────────────────────────
+_rl_store: dict = {}  # { "{user_id}:{action}": [timestamp, ...] }
+
+def check_rate_limit(user_id: str, action: str, limit: int, window: int):
+    """window saniye içinde limit kadar istek geçince 429 fırlatır."""
+    import time
+    key = f"{user_id}:{action}"
+    now = time.time()
+    timestamps = [t for t in _rl_store.get(key, []) if now - t < window]
+    if len(timestamps) >= limit:
+        raise HTTPException(status_code=429, detail=f"Çok fazla istek. Lütfen {window} saniye bekleyin.")
+    timestamps.append(now)
+    _rl_store[key] = timestamps
 
 # ============ GEMINI RETRY HELPER ============
 
@@ -107,6 +167,7 @@ class SubscriptionCreate(BaseModel):
 
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
+    subtitle: Optional[str] = None
     content: Optional[dict] = None
     pages: Optional[List[dict]] = None
     pinned: Optional[bool] = None
@@ -674,11 +735,13 @@ class SetVerifiedRequest(BaseModel):
     username: str
     verified_type: Optional[str] = None  # "red", "gold", "blue" veya None (kaldır)
 
-async def enrich_post(post: dict, viewer_id: str) -> dict:
-    """Post'a yazar bilgisi ve liked_by_me ekle."""
+async def enrich_post(post: dict, viewer_id: str, viewer_following: list = None) -> dict:
+    """Post'a yazar bilgisi, liked_by_me ve viewer_follows_author ekle."""
     author = await db.users.find_one({"user_id": post.get("author_id")}, {"_id": 0, "username": 1, "display_name": 1, "name": 1, "picture": 1, "verified_type": 1})
     post["author"] = author or {}
     post["liked_by_me"] = viewer_id in (post.get("likes") or [])
+    if viewer_following is not None:
+        post["viewer_follows_author"] = post.get("author_id") in viewer_following
     post.pop("likes", None)
     return post
 
@@ -776,9 +839,16 @@ class CommentCreate(BaseModel):
 @api_router.post("/posts")
 async def create_post(body: PostCreate, user: User = Depends(get_current_user)):
     """Yeni medya gönderisi oluştur."""
+    check_rate_limit(user.user_id, "post", limit=10, window=60)
     me = await db.users.find_one({"user_id": user.user_id}, {"username": 1})
     if not me or not me.get("username"):
         raise HTTPException(status_code=400, detail="Gönderi atmak için önce kullanıcı adı belirlemelisin.")
+    content = body.content or ""
+    if len(content) > 2000:
+        raise HTTPException(status_code=400, detail="Gönderi içeriği maksimum 2000 karakter olabilir.")
+    if contains_profanity(content):
+        raise HTTPException(status_code=400, detail="Bu içerik uygunsuz kelimeler içeriyor.")
+    body.content = sanitize_text(content, 2000)
     post_id = f"post_{uuid.uuid4().hex[:16]}"
     now = datetime.now(timezone.utc).isoformat()
     doc = {
@@ -821,10 +891,12 @@ def _boosted_pipeline(match: dict, skip: int, limit: int) -> list:
 @api_router.get("/posts")
 async def list_posts(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
     """Keşfet — tüm gönderiler, boosted önce."""
+    me = await db.users.find_one({"user_id": user.user_id}, {"following": 1})
+    viewer_following = list(me.get("following", [])) if me else []
     pipeline = _boosted_pipeline({}, skip, limit)
     posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
-        await enrich_post(p, user.user_id)
+        await enrich_post(p, user.user_id, viewer_following)
     return {"posts": posts}
 
 @api_router.get("/feed")
@@ -832,12 +904,13 @@ async def get_feed(skip: int = 0, limit: int = 20, user: User = Depends(get_curr
     """Feed — takip edilenlerin + kendi gönderileri; boosted önce."""
     me = await db.users.find_one({"user_id": user.user_id}, {"following": 1})
     following = list(me.get("following", [])) if me else []
+    viewer_following = list(following)
     following.append(user.user_id)
     match = {"author_id": {"$in": following}} if len(following) > 1 else {}
     pipeline = _boosted_pipeline(match, skip, limit)
     posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
-        await enrich_post(p, user.user_id)
+        await enrich_post(p, user.user_id, viewer_following)
     return {"posts": posts}
 
 @api_router.get("/users/{username}/posts")
@@ -884,6 +957,12 @@ async def delete_post(post_id: str, user: User = Depends(get_current_user)):
 @api_router.post("/posts/{post_id}/comments")
 async def add_comment(post_id: str, body: CommentCreate, user: User = Depends(get_current_user)):
     """Yorum ekle."""
+    check_rate_limit(user.user_id, "comment", limit=30, window=60)
+    if len(body.content) > 500:
+        raise HTTPException(status_code=400, detail="Yorum maksimum 500 karakter olabilir.")
+    if contains_profanity(body.content):
+        raise HTTPException(status_code=400, detail="Bu yorum uygunsuz kelimeler içeriyor.")
+    body.content = sanitize_text(body.content, 500)
     post = await db.posts.find_one({"post_id": post_id})
     if not post:
         raise HTTPException(status_code=404, detail="Gönderi bulunamadı")
@@ -2307,7 +2386,11 @@ ZET Studio International, basit ama güçlü üretkenlik araçları geliştiren 
 - ZET Studio X: @zet_studiointl | Instagram: zetstudiointl
 - Kurucu X: @bahaddinyilmazz | Instagram: bahaddin._.yilmaz
 
-Kullanıcının diline göre yanıt ver. Türkçe soruya Türkçe, İngilizce soruya İngilizce yanıt ver."""
+Kullanıcının diline göre yanıt ver. Türkçe soruya Türkçe, İngilizce soruya İngilizce yanıt ver.
+
+PUAN PROTOKOLÜ: Her yanıtının SONUNA mutlaka şu formatı ekle (başka hiçbir şeyden sonra değil):
+[SCORES: risk=XX, success=YY]
+XX = 0-100 arası risk skoru (yüksek = riskli), YY = 0-100 arası başarı/potansiyel skoru. Sadece tam sayı kullan."""
     
     # If document content is provided, add it to the context
     if req.document_content:
@@ -2350,6 +2433,16 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
         logging.error(f"Judge chat Gemini error: {e}")
         return {"response": f"AI hatası: {str(e)}", "session_id": session_id}
 
+    # Parse and strip scores from response
+    import re as _re
+    risk_score = None
+    success_score = None
+    score_match = _re.search(r'\[SCORES:\s*risk=(\d+),\s*success=(\d+)\]', response, _re.IGNORECASE)
+    if score_match:
+        risk_score = int(score_match.group(1))
+        success_score = int(score_match.group(2))
+        response = _re.sub(r'\s*\[SCORES:[^\]]+\]', '', response).strip()
+
     # Save chat history
     await db.judge_chats.insert_one({
         "user_id": user.user_id,
@@ -2360,7 +2453,7 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    return {"response": response, "session_id": session_id}
+    return {"response": response, "session_id": session_id, "risk_score": risk_score, "success_score": success_score}
 
 @api_router.post("/zeta/auto-write")
 async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_current_user)):
@@ -2840,6 +2933,21 @@ Muhammed Bahaddin Yılmaz
 - ZET Mindshare X: @ZETMindshare | Instagram: zetmindshare
 - ZET Studio X: @zet_studiointl | Instagram: zetstudiointl
 - Kurucu X: @bahaddinyilmazz | Instagram: bahaddin._.yilmaz
+
+📱 ZET MEDİA (SOSYAL PLATFORM):
+- ZET Mindshare'de sosyal platform özelliği var: Medya sekmesi
+- Kullanıcılar metin, görsel, video, belge paylaşabilir
+- Takip sistemi var: kullanıcıları takip edebilir, takipçi kazanabilirsin
+- Beğeni ve yorum yapılabilir
+- Keşfet / Feed / Takip ettiğim sekmeleri var
+- Verified rozet sistemi: mavi (onaylı), altın (içerik üretici), kırmızı (CEO/yönetici)
+- Boost sistemi: Gönderileri öne çıkar (kredi ile)
+  - Mini Boost: 30 kredi / 24 saat
+  - Standart Boost: 70 kredi / 3 gün
+  - Pro Boost: 150 kredi / 7 gün
+  - Mega Boost: 300 kredi / 15 gün
+- Profil sayfası: @kullanıcıadı ile erişilir (/profile/username)
+- Gönderi oluşturmak için username seçmek zorunlu
 
 CEVAP UZUNLUĞU KURALI:
 - Kullanıcı "uzun yaz", "detaylı anlat", "rapor yaz" gibi bir şey SÖYLEMEDIKÇE kısa ve öz yaz
@@ -3839,6 +3947,91 @@ async def send_export_email(export_type: str, payload: dict):
         "attachments": [{"filename": filename, "content": attachment_b64}],
     }
     resend.Emails.send(params)
+
+# ============ KİMLİK DOĞRULAMA ============
+
+class IdentityVerifyRequest(BaseModel):
+    full_name: str
+    id_type: str  # 'tc_kimlik' | 'pasaport' | 'ehliyet'
+    id_number: str
+    front_image: str   # base64
+    back_image: Optional[str] = None  # arka yüz (TC kimlik için)
+    selfie_image: str  # selfie with ID
+
+@api_router.post("/users/verify-identity")
+async def submit_identity_verification(body: IdentityVerifyRequest, user: User = Depends(get_current_user)):
+    existing = await db.identity_verifications.find_one({"user_id": user.user_id, "status": {"$in": ["pending", "approved"]}})
+    if existing:
+        if existing["status"] == "approved":
+            raise HTTPException(status_code=400, detail="Kimliğiniz zaten doğrulanmış.")
+        raise HTTPException(status_code=400, detail="Zaten bekleyen bir doğrulama başvurunuz var.")
+    if not body.full_name.strip() or len(body.id_number.strip()) < 4:
+        raise HTTPException(status_code=400, detail="Ad soyad ve kimlik numarası zorunludur.")
+    verification_id = f"verif_{uuid.uuid4().hex[:16]}"
+    now = datetime.now(timezone.utc).isoformat()
+    await db.identity_verifications.insert_one({
+        "verification_id": verification_id,
+        "user_id": user.user_id,
+        "user_email": user.email,
+        "full_name": body.full_name.strip(),
+        "id_type": body.id_type,
+        "id_number": body.id_number.strip(),
+        "front_image": body.front_image,
+        "back_image": body.back_image,
+        "selfie_image": body.selfie_image,
+        "status": "pending",
+        "submitted_at": now,
+    })
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"identity_status": "pending"}})
+    return {"message": "Kimlik doğrulama başvurunuz alındı. En geç 24 saat içinde incelenecektir.", "verification_id": verification_id}
+
+@api_router.get("/users/verify-identity/status")
+async def get_identity_status(user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"identity_status": 1})
+    verif = await db.identity_verifications.find_one({"user_id": user.user_id}, {"_id": 0, "front_image": 0, "back_image": 0, "selfie_image": 0})
+    return {"identity_status": user_data.get("identity_status", "none") if user_data else "none", "verification": verif}
+
+@api_router.get("/admin/identity-verifications")
+async def list_identity_verifications(user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        me = await db.users.find_one({"user_id": user.user_id}, {"is_privileged": 1})
+        if not me or not me.get("is_privileged"):
+            raise HTTPException(status_code=403)
+    verifs = await db.identity_verifications.find({"status": "pending"}, {"_id": 0, "front_image": 0, "back_image": 0, "selfie_image": 0}).sort("submitted_at", 1).to_list(100)
+    return {"verifications": verifs}
+
+class IdentityDecision(BaseModel):
+    decision: str  # 'approve' | 'reject'
+    reason: Optional[str] = None
+    verified_type: Optional[str] = None  # 'blue' | 'gold' | 'red' (only on approve)
+
+@api_router.post("/admin/identity-verifications/{verification_id}/decide")
+async def decide_identity_verification(verification_id: str, body: IdentityDecision, user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        me = await db.users.find_one({"user_id": user.user_id}, {"is_privileged": 1})
+        if not me or not me.get("is_privileged"):
+            raise HTTPException(status_code=403)
+    if body.decision not in ("approve", "reject"):
+        raise HTTPException(status_code=400, detail="Karar 'approve' veya 'reject' olmalı.")
+    verif = await db.identity_verifications.find_one({"verification_id": verification_id})
+    if not verif:
+        raise HTTPException(status_code=404, detail="Doğrulama bulunamadı.")
+    if verif["status"] != "pending":
+        raise HTTPException(status_code=400, detail="Bu başvuru zaten işleme alınmış.")
+    now = datetime.now(timezone.utc).isoformat()
+    new_status = "approved" if body.decision == "approve" else "rejected"
+    await db.identity_verifications.update_one(
+        {"verification_id": verification_id},
+        {"$set": {"status": new_status, "decided_at": now, "decided_by": user.email, "reason": body.reason}}
+    )
+    user_update: dict = {"identity_status": new_status}
+    if body.decision == "approve":
+        user_update["identity_verified"] = True
+        if body.verified_type:
+            user_update["verified_type"] = body.verified_type
+    await db.users.update_one({"user_id": verif["user_id"]}, {"$set": user_update})
+    return {"message": f"Başvuru {'onaylandı' if body.decision == 'approve' else 'reddedildi'}."}
+
 
 class ExportRequest(BaseModel):
     type: str  # posts, users, documents, comments, notes, analytics, all, last7, last30

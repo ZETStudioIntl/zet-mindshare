@@ -81,6 +81,7 @@ export const RightPanel = ({
   const [judgeSessionId, setJudgeSessionId] = useState(null);
   const [judgeImage, setJudgeImage] = useState(null);
   const [judgeMode, setJudgeMode] = useState('fast');
+  const [judgeScores, setJudgeScores] = useState(null); // {risk, success}
   const judgeChatEndRef = useRef(null);
   const [showJudgeSendMenu, setShowJudgeSendMenu] = useState(false);
   const [showZetaSendMenu, setShowZetaSendMenu] = useState(false);
@@ -223,6 +224,9 @@ export const RightPanel = ({
       } else {
         setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
         setJudgeSessionId(res.data.session_id);
+        if (res.data.risk_score != null && res.data.success_score != null) {
+          setJudgeScores({ risk: res.data.risk_score, success: res.data.success_score });
+        }
       }
     } catch (err) {
       setJudgeMessages(prev => [...prev, { role: 'assistant', content: 'Hata olustu. Lutfen tekrar deneyin.' }]);
@@ -1028,6 +1032,28 @@ export const RightPanel = ({
               )}
               <div ref={judgeChatEndRef} />
             </div>
+            {judgeScores && (
+              <div className="flex gap-3 px-3 py-2 border-t" style={{ borderColor: '#c8005a33', background: 'rgba(200,0,90,0.07)' }}>
+                {[
+                  { label: 'Risk', value: judgeScores.risk, color: judgeScores.risk > 66 ? '#ef4444' : judgeScores.risk > 33 ? '#f59e0b' : '#22c55e' },
+                  { label: 'Potansiyel', value: judgeScores.success, color: judgeScores.success > 66 ? '#22c55e' : judgeScores.success > 33 ? '#f59e0b' : '#ef4444' }
+                ].map(({ label, value, color }) => {
+                  const r = 18, circ = 2 * Math.PI * r;
+                  return (
+                    <div key={label} className="flex flex-col items-center gap-0.5 flex-1">
+                      <svg width="48" height="48" viewBox="0 0 48 48">
+                        <circle cx="24" cy="24" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
+                        <circle cx="24" cy="24" r={r} fill="none" stroke={color} strokeWidth="4"
+                          strokeDasharray={circ} strokeDashoffset={circ * (1 - value / 100)}
+                          strokeLinecap="round" transform="rotate(-90 24 24)" />
+                        <text x="24" y="28" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{value}</text>
+                      </svg>
+                      <span style={{ color: '#fff', opacity: 0.7, fontSize: 9 }}>{label}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             <div className="p-2 border-t" style={{ borderColor: '#c8005a33', background: '#4b0c37' }}>
               {judgeImage && (
                 <div className="mb-2 relative inline-block">
