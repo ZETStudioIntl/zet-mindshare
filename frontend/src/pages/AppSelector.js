@@ -3,30 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAppTheme } from '../contexts/AppThemeContext';
 
 const MindshareIcon = () => (
-  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-    <rect width="40" height="40" rx="10" fill="url(#msGrad)" />
-    <defs>
-      <linearGradient id="msGrad" x1="0" y1="0" x2="40" y2="40">
-        <stop offset="0%" stopColor="#292f91" />
-        <stop offset="100%" stopColor="#4ca8ad" />
-      </linearGradient>
-    </defs>
-    <path d="M12 14h16M12 20h10M12 26h13" stroke="white" strokeWidth="2.5" strokeLinecap="round" />
-    <circle cx="29" cy="26" r="4" fill="white" opacity="0.9" />
-  </svg>
+  <img src="/logo-mindshare.svg" alt="ZET Mindshare" style={{ width: 44, height: 44, objectFit: 'contain' }} />
 );
 
 const JudgeIcon = () => (
-  <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
-    <rect width="40" height="40" rx="10" fill="url(#jGrad)" />
-    <defs>
-      <linearGradient id="jGrad" x1="0" y1="0" x2="40" y2="40">
-        <stop offset="0%" stopColor="#4b0c37" />
-        <stop offset="100%" stopColor="#c8005a" />
-      </linearGradient>
-    </defs>
-    <path d="M20 10l2.5 7.5H30l-6.5 4.5 2.5 7.5L20 25l-6 4.5 2.5-7.5L10 17.5h7.5z" fill="white" opacity="0.9" />
-  </svg>
+  <img src="/logo-judge.svg" alt="ZET Judge" style={{ width: 44, height: 44, objectFit: 'contain' }} />
 );
 
 const APPS = [
@@ -85,7 +66,7 @@ const AppSelector = () => {
       }}
     >
       <div style={{ textAlign: 'center', marginBottom: 56 }}>
-        <img src="/logo.svg" alt="ZET" style={{ height: 52, width: 52, margin: '0 auto 16px', borderRadius: 14 }} />
+        <img src="/logo-cs.svg" alt="ZET Creative Station" style={{ height: 64, width: 64, margin: '0 auto 16px' }} />
         <h1 style={{ color: '#fff', fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px', marginBottom: 10 }}>
           ZET Creative Station
         </h1>

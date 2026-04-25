@@ -64,7 +64,7 @@ const LoginPage = () => {
     <div className="min-h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
       <header className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <img src="/logo.svg" alt="ZET" className="h-10 w-10" />
+          <img src="/logo-cs.svg" alt="ZET" className="h-10 w-10" />
           <span className="text-xl font-semibold" style={{ color: 'var(--zet-text)' }}>ZET Creative Station</span>
         </div>
       </header>
@@ -72,7 +72,7 @@ const LoginPage = () => {
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center animate-fadeIn">
           <div className="mb-6">
-            <img src="/logo.svg" alt="ZET Creative Station" className="h-20 w-20 mx-auto mb-3 glow-md rounded-2xl p-2" style={{ background: 'var(--zet-bg-card)' }} />
+            <img src="/logo-cs.svg" alt="ZET Creative Station" className="h-20 w-20 mx-auto mb-3 glow-md rounded-2xl p-2" style={{ background: 'var(--zet-bg-card)' }} />
             <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--zet-text)' }}>ZET Creative Station</h1>
             <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('documentCreation')}</p>
           </div>

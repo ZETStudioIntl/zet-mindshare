@@ -2486,6 +2486,18 @@ async def get_judge_sessions(user: User = Depends(get_current_user)):
     stats = {"total_sessions": total, "avg_risk": None, "avg_success": None}
     return {"sessions": sessions, "stats": stats}
 
+@api_router.get("/judge/sessions/{session_id}/messages")
+async def get_judge_session_messages(session_id: str, user: User = Depends(get_current_user)):
+    """Belirli bir Judge oturumunun mesaj geçmişini döner."""
+    docs = await db.judge_chats.find(
+        {"user_id": user.user_id, "session_id": session_id}, {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+    messages = []
+    for d in docs:
+        messages.append({"role": "user", "content": d.get("user_message", "")})
+        messages.append({"role": "assistant", "content": d.get("ai_response", "")})
+    return {"messages": messages}
+
 @api_router.post("/zeta/auto-write")
 async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_current_user)):
     """ZETA Otomatik Yazma: Prompt'a göre belge içeriği üretir. 10 kredi / 3 satır."""
@@ -4084,6 +4096,53 @@ async def export_data(body: ExportRequest, user: User = Depends(get_current_user
         "record_counts": {k: len(v) if isinstance(v, list) else None for k, v in payload.items() if k not in ("exported_at", "type")},
     })
     return {"success": True, "message": f"'{body.type}' verisi CEO e-postasına gönderildi."}
+
+@api_router.post("/admin/migrate-old-data")
+async def migrate_old_data(user: User = Depends(get_current_user)):
+    """Eski kullanıcı alanlarını yeni uygulama-bazlı alanlara taşır.
+    credits → mindshare_credits + judge_credits
+    subscription → mindshare_subscription
+    rank → mindshare_rank
+    xp → mindshare_xp
+    """
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Sadece CEO bu işlemi yapabilir.")
+
+    migrated = 0
+    skipped = 0
+    async for u in db.users.find({}):
+        updates = {}
+
+        # credits → mindshare_credits (judge_credits yok ise 0)
+        if "credits" in u and "mindshare_credits" not in u:
+            updates["mindshare_credits"] = u["credits"]
+        if "judge_credits" not in u:
+            updates["judge_credits"] = 0
+
+        # subscription → mindshare_subscription
+        if "mindshare_subscription" not in u:
+            updates["mindshare_subscription"] = u.get("subscription", "free")
+
+        # rank → mindshare_rank
+        if "rank" in u and "mindshare_rank" not in u:
+            updates["mindshare_rank"] = u["rank"]
+
+        # xp → mindshare_xp
+        if "xp" in u and "mindshare_xp" not in u:
+            updates["mindshare_xp"] = u["xp"]
+
+        if updates:
+            await db.users.update_one({"_id": u["_id"]}, {"$set": updates})
+            migrated += 1
+        else:
+            skipped += 1
+
+    return {
+        "success": True,
+        "migrated": migrated,
+        "skipped": skipped,
+        "message": f"{migrated} kullanıcı güncellendi, {skipped} zaten güncel."
+    }
 
 async def send_weekly_report():
     """Her Pazartesi 09:00 UTC'de haftalık rapor gönder."""
