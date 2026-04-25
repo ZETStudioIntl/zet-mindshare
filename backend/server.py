@@ -8,8 +8,9 @@ import logging
 import httpx
 from pathlib import Path
 from pydantic import BaseModel, Field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Any, Union
 import uuid
+import secrets
 from datetime import datetime, timezone, timedelta
 import base64
 import asyncio
@@ -121,13 +122,15 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
 # ============ MODELS ============
 
 class User(BaseModel):
+    model_config = {"extra": "ignore"}
+
     user_id: str
     email: str
     name: str
     picture: Optional[str] = None
-    subscription: str = "free"  # free, plus, pro, ultra
-    subscription_date: Optional[datetime] = None
-    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    subscription: Any = "free"  # str ("free") veya dict {"plan":..., "status":...} her iki format destekleniyor
+    subscription_date: Optional[Any] = None
+    created_at: Any = None
     username: Optional[str] = None
     display_name: Optional[str] = None
     bio: Optional[str] = None
@@ -402,7 +405,24 @@ async def get_current_user(request: Request) -> User:
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
-    return User(**user)
+    try:
+        return User(**user)
+    except Exception as e:
+        # Pydantic doğrulama hatası — en azından user_id ve email ile minimal User döndür
+        logging.error(f"User model validation error for user_id={session['user_id']}: {e}")
+        return User(
+            user_id=user["user_id"],
+            email=user.get("email", ""),
+            name=user.get("name", ""),
+            picture=user.get("picture"),
+            subscription=user.get("subscription", "free"),
+            username=user.get("username"),
+            display_name=user.get("display_name"),
+            bio=user.get("bio", ""),
+            verified_type=user.get("verified_type"),
+            followers_count=user.get("followers_count", 0),
+            following_count=user.get("following_count", 0),
+        )
 
 # ============ AUTH ROUTES ============
 
@@ -494,24 +514,31 @@ async def google_auth_callback(request: Request, response: Response, code: str =
             else:
                 return RedirectResponse(f"{frontend_url}/auth-callback#ceo_error=access_denied")
 
+        # KRİTİK: Email'i daima küçük harfe çevir (Google bazen farklı case dönebilir)
+        email = email.lower().strip()
+
+        # Adım 1: Email'e göre mevcut kullanıcıyı ara
         existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+
         if existing_user:
+            # Mevcut kullanıcı — user_id'yi ASLA değiştirme
             user_id = existing_user["user_id"]
+            logging.info(f"Google OAuth: mevcut kullanıcı bulundu email={email} user_id={user_id}")
+
             oauth_update = {}
             if not existing_user.get("name_custom"):
                 oauth_update["name"] = name
             if not existing_user.get("picture_custom"):
                 oauth_update["picture"] = picture
-            # Backfill: assign username if missing
             if not existing_user.get("username"):
                 oauth_update["username"] = await generate_unique_username(email.split("@")[0])
-            # Backfill: CEO gets red verified
             if email == CEO_EMAIL and not existing_user.get("verified_type"):
                 oauth_update["verified_type"] = "red"
             if oauth_update:
                 await db.users.update_one({"user_id": user_id}, {"$set": oauth_update})
         else:
-            user_id = f"user_{uuid.uuid4().hex[:12]}"
+            # Yeni kullanıcı — yeni user_id üret
+            user_id = f"user_{secrets.token_hex(6)}"
             username = await generate_unique_username(email.split("@")[0])
             verified_type = "red" if email == CEO_EMAIL else None
             trial_end = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
@@ -532,8 +559,23 @@ async def google_auth_callback(request: Request, response: Response, code: str =
                 "needs_onboarding": True,
                 "subscription": {"plan": "pro", "status": "active", "trial": True, "trial_end": trial_end},
             })
+            logging.info(f"Google OAuth: yeni kullanıcı oluşturuldu email={email} user_id={user_id}")
 
-        session_token = f"st_{uuid.uuid4().hex}"
+        # Adım 2: Session oluşturmadan önce user_id'yi DB'den doğrula
+        # (yarış durumu veya DB tutarsızlığı ihtimaline karşı)
+        verified = await db.users.find_one({"user_id": user_id}, {"_id": 0, "user_id": 1})
+        if not verified:
+            # user_id ile bulunamazsa email'e göre fallback
+            fallback = await db.users.find_one({"email": email}, {"_id": 0, "user_id": 1})
+            if fallback:
+                user_id = fallback["user_id"]
+                logging.warning(f"Google OAuth: user_id fallback email={email} → {user_id}")
+            else:
+                logging.error(f"Google OAuth: kullanıcı oluşturulamadı email={email}")
+                return RedirectResponse(f"{frontend_url}/?error=user_creation_failed")
+
+        # Adım 3: Session oluştur
+        session_token = f"st_{secrets.token_hex(16)}"
         expires_at = datetime.now(timezone.utc) + timedelta(days=7)
         await db.user_sessions.insert_one({
             "user_id": user_id,
@@ -1237,12 +1279,12 @@ async def confirm_account_deletion(token: str = Body(..., embed=True), response:
 
 @api_router.post("/auth/register")
 async def register_with_email(req: EmailAuthRequest, response: Response):
-    # Check if user exists
-    existing = await db.users.find_one({"email": req.email})
+    normalized_email = req.email.lower().strip()
+    existing = await db.users.find_one({"email": normalized_email})
     if existing:
-        raise HTTPException(status_code=400, detail="Email already registered")
-    
-    user_id = f"user_{uuid.uuid4().hex[:12]}"
+        raise HTTPException(status_code=400, detail="Bu e-posta zaten kayıtlı")
+
+    user_id = f"user_{secrets.token_hex(6)}"
     hashed_pw = hash_password(req.password)
     
     user_data = {
@@ -1294,26 +1336,31 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
 
 @api_router.post("/auth/login")
 async def login_with_email(req: EmailAuthRequest, response: Response):
-    user = await db.users.find_one({"email": req.email})
+    # Email'i normalize et
+    normalized_email = req.email.lower().strip()
+
+    user = await db.users.find_one({"email": normalized_email})
     if not user:
-        raise HTTPException(status_code=401, detail="Invalid email or password")
-    
+        raise HTTPException(status_code=401, detail="Geçersiz e-posta veya şifre")
+
     if not user.get("hashed_password"):
         raise HTTPException(status_code=401, detail="Bu hesap Google ile oluşturulmuş. Lütfen Google ile giriş yapın.")
     if not verify_password(req.password, user["hashed_password"]):
         raise HTTPException(status_code=401, detail="Şifre yanlış. Lütfen tekrar deneyin.")
-    
-    # Create session
-    session_token = f"sess_{uuid.uuid4().hex}"
+
+    # Mevcut user_id'yi kullan — asla yeni üretme
+    user_id = user["user_id"]
+    logging.info(f"Email login: user_id={user_id} email={normalized_email}")
+
+    session_token = f"sess_{secrets.token_hex(16)}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
-    
+
     await db.user_sessions.insert_one({
         "session_token": session_token,
-        "user_id": user["user_id"],
+        "user_id": user_id,
         "expires_at": expires_at.isoformat()
     })
 
-    is_production = os.getenv("REACT_APP_BACKEND_URL", "").startswith("https")
     response.set_cookie(
         key="session_token", value=session_token,
         httponly=True, secure=True,
@@ -1321,7 +1368,7 @@ async def login_with_email(req: EmailAuthRequest, response: Response):
         path="/", max_age=7*24*60*60
     )
 
-    return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}}
+    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}}
 
 # ============ APPLE AUTH ROUTES ============
 
