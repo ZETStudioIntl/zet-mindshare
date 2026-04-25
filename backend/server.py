@@ -2455,6 +2455,37 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
 
     return {"response": response, "session_id": session_id, "risk_score": risk_score, "success_score": success_score}
 
+@api_router.get("/judge/sessions")
+async def get_judge_sessions(user: User = Depends(get_current_user)):
+    """Kullanıcının geçmiş Judge analiz oturumlarını döner."""
+    pipeline = [
+        {"$match": {"user_id": user.user_id}},
+        {"$sort": {"created_at": 1}},
+        {"$group": {
+            "_id": "$session_id",
+            "first_message": {"$first": "$user_message"},
+            "created_at": {"$first": "$created_at"},
+            "message_count": {"$sum": 1},
+        }},
+        {"$sort": {"created_at": -1}},
+        {"$limit": 50},
+    ]
+    cursor = db.judge_chats.aggregate(pipeline)
+    sessions = []
+    async for doc in cursor:
+        sessions.append({
+            "session_id": doc["_id"],
+            "first_message": doc["first_message"],
+            "created_at": doc["created_at"],
+            "message_count": doc["message_count"],
+            "risk_score": None,
+            "success_score": None,
+        })
+
+    total = len(sessions)
+    stats = {"total_sessions": total, "avg_risk": None, "avg_success": None}
+    return {"sessions": sessions, "stats": stats}
+
 @api_router.post("/zeta/auto-write")
 async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_current_user)):
     """ZETA Otomatik Yazma: Prompt'a göre belge içeriği üretir. 10 kredi / 3 satır."""

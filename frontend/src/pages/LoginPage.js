@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { LogIn, FileText, Sparkles, Cloud, Layout, Mail, Lock, User, Check } from 'lucide-react';
+import { FileText, Sparkles, Cloud, Layout, Mail, Lock, User, Check } from 'lucide-react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -39,7 +39,7 @@ const LoginPage = () => {
       const res = await axios.post(`${API}${endpoint}`, payload, { withCredentials: true });
       if (res.data.user) {
         setUser(res.data.user);
-        window.location.href = '/dashboard';
+        window.location.href = '/app-select';
       }
     } catch (err) {
       setError(err.response?.data?.detail || 'Kimlik doğrulama başarısız');
@@ -65,15 +65,15 @@ const LoginPage = () => {
       <header className="p-4 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <img src="/logo.svg" alt="ZET" className="h-10 w-10" />
-          <span className="text-xl font-semibold" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
+          <span className="text-xl font-semibold" style={{ color: 'var(--zet-text)' }}>ZET Creative Station</span>
         </div>
       </header>
 
       <main className="flex-1 flex items-center justify-center px-4">
         <div className="max-w-md w-full text-center animate-fadeIn">
           <div className="mb-6">
-            <img src="/logo.svg" alt="ZET Mindshare" className="h-20 w-20 mx-auto mb-3 glow-md rounded-2xl p-2" style={{ background: 'var(--zet-bg-card)' }} />
-            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</h1>
+            <img src="/logo.svg" alt="ZET Creative Station" className="h-20 w-20 mx-auto mb-3 glow-md rounded-2xl p-2" style={{ background: 'var(--zet-bg-card)' }} />
+            <h1 className="text-2xl font-bold mb-1" style={{ color: 'var(--zet-text)' }}>ZET Creative Station</h1>
             <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('documentCreation')}</p>
           </div>
 

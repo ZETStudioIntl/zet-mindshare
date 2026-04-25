@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
+import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import ironRankImg from '../assets/rank-iron.svg';
@@ -51,6 +52,7 @@ const ZetaIcon = ({ size = 14, color = '#4ca8ad' }) => (
 const Dashboard = () => {
   const { user, logout, updateUser } = useAuth();
   const { t, language, changeLanguage } = useLanguage();
+  const { switchApp } = useAppTheme();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
@@ -1601,6 +1603,17 @@ MATCHES:[1,3,5]`;
                   {item.icon} {item.label}
                 </button>
               ))}
+
+              {/* App switcher */}
+              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                <button
+                  onClick={() => { switchApp('judge'); navigate('/judge'); setShowSettings(false); }}
+                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mb-0.5 transition-all hover:bg-white/5"
+                  style={{ color: '#c8005a' }}
+                >
+                  <Scale className="h-4 w-4" /> ZET Judge'e Geç
+                </button>
+              </div>
 
               {/* Çıkış */}
               <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--zet-border)' }}>

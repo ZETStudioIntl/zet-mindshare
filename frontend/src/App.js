@@ -3,6 +3,7 @@ import "@/index.css";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
+import { AppThemeProvider } from "./contexts/AppThemeContext";
 import AuthCallback from "./components/AuthCallback";
 import ProtectedRoute from "./components/ProtectedRoute";
 import LoginPage from "./pages/LoginPage";
@@ -13,6 +14,8 @@ import SharedView from "./pages/SharedView";
 import Profile from "./pages/Profile";
 import ConfirmDelete from "./pages/ConfirmDelete";
 import ConfirmEmailChange from "./pages/ConfirmEmailChange";
+import AppSelector from "./pages/AppSelector";
+import JudgeDashboard from "./pages/JudgeDashboard";
 import axios from "axios";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -79,6 +82,16 @@ const AppRouter = () => {
           <Profile />
         </ProtectedRoute>
       } />
+      <Route path="/app-select" element={
+        <ProtectedRoute>
+          <AppSelector />
+        </ProtectedRoute>
+      } />
+      <Route path="/judge" element={
+        <ProtectedRoute>
+          <JudgeDashboard />
+        </ProtectedRoute>
+      } />
       <Route path="/auth-callback" element={<AuthCallback />} />
       <Route path="/shared/:shareId" element={<SharedView />} />
       <Route path="/confirm-delete" element={<ConfirmDelete />} />
@@ -93,10 +106,12 @@ function App() {
   return (
     <LanguageProvider>
       <AuthProvider>
-        <BrowserRouter>
-          <GlobalHeartbeat />
-          <AppRouter />
-        </BrowserRouter>
+        <AppThemeProvider>
+          <BrowserRouter>
+            <GlobalHeartbeat />
+            <AppRouter />
+          </BrowserRouter>
+        </AppThemeProvider>
       </AuthProvider>
     </LanguageProvider>
   );

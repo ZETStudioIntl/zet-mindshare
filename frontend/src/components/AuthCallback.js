@@ -60,7 +60,7 @@ const AuthCallback = () => {
           const res = await axios.post(`${API}/auth/exchange`, { token });
           localStorage.setItem('session_token', token);
           setUser(res.data);
-          navigate('/dashboard', { replace: true });
+          navigate('/app-select', { replace: true });
         } catch (error) {
           console.error('Auth exchange error:', error);
           navigate('/login', { replace: true });
