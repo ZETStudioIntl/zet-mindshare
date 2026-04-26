@@ -121,6 +121,57 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
 
 # ============ MODELS ============
 
+def normalize_subscription(sub: Any) -> Dict[str, Any]:
+    """Subscription'ı her zaman dict formatına normalize et."""
+    if sub is None:
+        return {"plan": "free", "status": "active"}
+    if isinstance(sub, str):
+        return {"plan": sub if sub else "free", "status": "active"}
+    if isinstance(sub, dict):
+        return sub
+    return {"plan": "free", "status": "active"}
+
+def sanitize_user_doc(user: dict) -> dict:
+    """MongoDB user belgesini Pydantic User modeline geçmeden önce güvenli hale getirir."""
+    u = dict(user)
+    u.pop("_id", None)
+
+    # Subscription alanlarını normalize et
+    for field in ("subscription", "mindshare_subscription", "judge_subscription"):
+        if field in u:
+            u[field] = normalize_subscription(u[field])
+
+    # Geriye dönük uyumluluk: eski alanlar → yeni alanlar
+    u.setdefault("mindshare_credits", u.get("credits", 0))
+    u.setdefault("judge_credits", 0)
+    u.setdefault("mindshare_rank", u.get("rank", "iron"))
+    u.setdefault("judge_rank", "iron")
+    u.setdefault("mindshare_xp", u.get("quest_xp", u.get("xp", 0)))
+    u.setdefault("judge_xp", 0)
+    u.setdefault("zc_balance", u.get("sp_balance", 0))
+    u.setdefault("name", "")
+    u.setdefault("bio", "")
+
+    # Sayısal alanları int'e zorla
+    for int_field in ("credits", "bonus_credits", "sp_balance", "zc_balance",
+                      "xp", "quest_xp", "mindshare_credits", "judge_credits",
+                      "mindshare_xp", "judge_xp", "followers_count", "following_count",
+                      "active_time_seconds"):
+        if int_field in u:
+            try:
+                u[int_field] = int(u[int_field])
+            except (TypeError, ValueError):
+                u[int_field] = 0
+
+    # Bool alanlarını normalize et
+    for bool_field in ("picture_custom", "name_custom", "creative_station",
+                       "identity_verified", "needs_onboarding", "cancel_pending"):
+        if bool_field in u:
+            u[bool_field] = bool(u[bool_field])
+
+    return u
+
+
 class User(BaseModel):
     model_config = {"extra": "ignore", "arbitrary_types_allowed": True}
 
@@ -137,8 +188,8 @@ class User(BaseModel):
     picture_custom: Optional[bool] = False
     name_custom: Optional[bool] = False
 
-    # Subscription — hem str ("free") hem dict {"plan":..., "status":...} destekleniyor
-    subscription: Optional[Any] = None
+    # Subscription — sanitize_user_doc() tarafından normalize edilmiş dict gelir
+    subscription: Optional[Dict[str, Any]] = None
     subscription_date: Optional[Any] = None
     cancel_pending: Optional[bool] = False
     cancel_requested_at: Optional[str] = None
@@ -146,14 +197,14 @@ class User(BaseModel):
 
     # Mindshare specific
     mindshare_credits: Optional[int] = 0
-    mindshare_subscription: Optional[Any] = None
+    mindshare_subscription: Optional[Dict[str, Any]] = None
     mindshare_settings: Optional[Any] = None
     mindshare_rank: Optional[str] = "iron"
     mindshare_xp: Optional[int] = 0
 
     # Judge specific
     judge_credits: Optional[int] = 0
-    judge_subscription: Optional[Any] = None
+    judge_subscription: Optional[Dict[str, Any]] = None
     judge_settings: Optional[Any] = None
     judge_rank: Optional[str] = "iron"
     judge_xp: Optional[int] = 0
@@ -449,25 +500,12 @@ async def get_current_user(request: Request) -> User:
     if expires_at < datetime.now(timezone.utc):
         raise HTTPException(status_code=401, detail="Session expired")
 
-    user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
-    if not user:
+    raw = await db.users.find_one({"user_id": session["user_id"]})
+    if not raw:
         raise HTTPException(status_code=401, detail="User not found")
 
-    # MongoDB _id'yi temizle
-    user.pop("_id", None)
-
-    # Geriye dönük uyumluluk: eski alanları yeni alanlara eşle (DB güncellenmeden çalışsın)
-    user.setdefault("mindshare_credits", user.get("credits", 0))
-    user.setdefault("judge_credits", 0)
-    user.setdefault("mindshare_rank", user.get("rank", "iron"))
-    user.setdefault("judge_rank", "iron")
-    user.setdefault("mindshare_xp", user.get("quest_xp", user.get("xp", 0)))
-    user.setdefault("judge_xp", 0)
-    user.setdefault("zc_balance", user.get("sp_balance", 0))
-    user.setdefault("name", "")
-    user.setdefault("bio", "")
-    user.setdefault("followers_count", 0)
-    user.setdefault("following_count", 0)
+    # DB verisini Pydantic'e geçmeden önce tam normalize et
+    user = sanitize_user_doc(raw)
 
     try:
         return User(**user)
@@ -4250,6 +4288,28 @@ async def migrate_old_data(user: User = Depends(get_current_user)):
         "total": len(all_users),
         "message": f"{migrated}/{len(all_users)} kullanıcı güncellendi."
     }
+
+@api_router.post("/admin/normalize-subscriptions")
+async def normalize_all_subscriptions(user: User = Depends(get_current_user)):
+    """Tüm kullanıcıların subscription alanını dict formatına çevirir (string → dict)."""
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Sadece CEO bu işlemi yapabilir.")
+
+    all_users = await db.users.find({}).to_list(None)
+    fixed = 0
+
+    for u in all_users:
+        updates = {}
+        for field in ("subscription", "mindshare_subscription", "judge_subscription"):
+            val = u.get(field)
+            if isinstance(val, str):
+                updates[field] = {"plan": val if val else "free", "status": "active"}
+        if updates:
+            await db.users.update_one({"_id": u["_id"]}, {"$set": updates})
+            fixed += 1
+
+    return {"fixed_users": fixed, "total": len(all_users),
+            "message": f"{fixed} kullanıcının subscription alanı normalize edildi."}
 
 async def send_weekly_report():
     """Her Pazartesi 09:00 UTC'de haftalık rapor gönder."""
