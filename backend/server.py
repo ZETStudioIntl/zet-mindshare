@@ -1070,8 +1070,10 @@ def _boosted_pipeline(match: dict, skip: int, limit: int) -> list:
 async def list_posts(skip: int = 0, limit: int = 20, u: dict = Depends(get_current_user_raw)):
     """Keşfet — tüm gönderiler, boosted önce."""
     uid = u["user_id"]
-    me = await db.users.find_one({"user_id": uid}, {"following": 1})
-    viewer_following = list(me.get("following", [])) if me else []
+    me_raw = await db.users.find_one({"user_id": uid}, {"_id": 0})
+    if me_raw:
+        me_raw = sanitize_user_doc(me_raw)
+    viewer_following = list((me_raw or {}).get("following", []))
     pipeline = _boosted_pipeline({}, skip, limit)
     posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
@@ -1082,8 +1084,10 @@ async def list_posts(skip: int = 0, limit: int = 20, u: dict = Depends(get_curre
 async def get_feed(skip: int = 0, limit: int = 20, u: dict = Depends(get_current_user_raw)):
     """Feed — takip edilenlerin + kendi gönderileri; boosted önce."""
     uid = u["user_id"]
-    me = await db.users.find_one({"user_id": uid}, {"following": 1})
-    following = list(me.get("following", [])) if me else []
+    me_raw = await db.users.find_one({"user_id": uid}, {"_id": 0})
+    if me_raw:
+        me_raw = sanitize_user_doc(me_raw)
+    following = list((me_raw or {}).get("following", []))
     viewer_following = list(following)
     following.append(uid)
     match = {"author_id": {"$in": following}} if len(following) > 1 else {}
