@@ -1,12 +1,13 @@
 import {
   Type, Image, Hand, FileText, Baseline, ALargeSmall,
-  Volume2, FilePlus, Triangle, Square, Circle, Star,
+  Volume2, FilePlus,
   Pencil, Palette, Scissors, Wand2, MousePointer2,
   Eraser, PenTool, Languages, AlignJustify, Bold, Highlighter,
   AlignLeft, BarChart3, Contrast, Layers, Ruler,
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
-  PanelTop, Search, CircleDashed, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
-  IndentIncrease, Maximize, ShieldOff, FileUp, Underline, List, ListOrdered, Group, SmilePlus
+  PanelTop, Search, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
+  IndentIncrease, Maximize, ShieldOff, FileUp, List, ListOrdered, SmilePlus,
+  Shapes, Pilcrow
 } from 'lucide-react';
 
 export const PAGE_SIZES = [
@@ -98,11 +99,8 @@ export const TOOLS = [
   { id: 'pagesize', icon: FileText, nameKey: 'pageSize', shortcut: null },
   { id: 'voice', icon: Volume2, nameKey: 'voice', shortcut: 'V' },
   { id: 'voiceinput', icon: Mic, nameKey: 'voiceInput', shortcut: null },
-  { id: 'triangle', icon: Triangle, nameKey: 'triangle', shortcut: '1' },
-  { id: 'square', icon: Square, nameKey: 'square', shortcut: '2' },
-  { id: 'circle', icon: Circle, nameKey: 'circle', shortcut: '3' },
-  { id: 'ring', icon: CircleDashed, nameKey: 'ring', shortcut: '5' },
-  { id: 'star', icon: Star, nameKey: 'star', shortcut: '4' },
+  { id: 'shapes', icon: Shapes, nameKey: 'shapes', shortcut: null },
+  { id: 'punctuation', icon: Pilcrow, nameKey: 'punctuation', shortcut: null },
 ];
 
 // Default keyboard shortcuts

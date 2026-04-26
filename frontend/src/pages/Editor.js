@@ -3939,11 +3939,12 @@ const Editor = () => {
 
       <div style={{ display: 'flex', flex: 1, height: 0, minHeight: 0, overflow: 'hidden' }}>
         {/* Sol panel */}
-        <div style={{ width: toolboxOpen ? leftWidth : 40, height: '100%', overflowY: 'auto', overflowX: 'hidden', flexShrink: 0, transition: 'width 0.3s', minWidth: toolboxOpen ? 48 : 40 }}>
+        <div style={{ width: toolboxOpen ? leftWidth : 40, height: '100%', overflow: 'hidden', flexShrink: 0, transition: 'width 0.3s', minWidth: toolboxOpen ? 48 : 40 }}>
           <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
             onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
             zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)}
-            lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }} />
+            lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }}
+            onInsertText={(char) => document.execCommand('insertText', false, char)} />
         </div>
 
         <ResizableDivider onResize={delta => setLeftWidth(w => Math.max(48, Math.min(300, w + delta)))} />
@@ -3974,7 +3975,7 @@ const Editor = () => {
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />
 
         {/* Sağ panel */}
-        <div style={{ width: rightOpen ? rightWidth : 0, height: '100%', overflowY: rightOpen ? 'auto' : 'hidden', overflowX: 'hidden', flexShrink: 0, transition: 'width 0.3s' }}>
+        <div style={{ width: rightOpen ? rightWidth : 0, height: '100%', overflow: 'hidden', flexShrink: 0, transition: 'width 0.3s' }}>
           <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
             pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
             docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}

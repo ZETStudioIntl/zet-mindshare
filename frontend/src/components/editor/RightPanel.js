@@ -74,6 +74,10 @@ export const RightPanel = ({
   // ZETA sub-mode: 'chat', 'autowrite', 'deep'
   const [zetaMode, setZetaMode] = useState('chat');
 
+  // Model seçimi
+  const [zetaModel, setZetaModel] = useState('prime');
+  const [judgeModel, setJudgeModel] = useState('prime');
+
   // Judge state
   const [judgeMessages, setJudgeMessages] = useState([]);
   const [judgeInput, setJudgeInput] = useState('');
@@ -217,7 +221,7 @@ export const RightPanel = ({
         document_content: documentContent || '',
         image_data: sentImage,
         mode: judgeMode,
-        personality: judgeMood || 'normal', is_ceo: isCEO
+        personality: judgeMood || 'normal', is_ceo: isCEO, model: judgeModel
       });
       if (res.data.locked || res.data.limit_exceeded || res.data.char_limit_exceeded) {
         setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response, isWarning: true }]);
@@ -499,7 +503,7 @@ export const RightPanel = ({
         message: msg, doc_id: docId, session_id: zetaSessionId,
         document_content: documentContent || '', image: imageToSend || null,
         mood: zetaMood || 'professional', emoji_level: zetaEmoji || 'medium',
-        custom_prompt: zetaCustomPrompt || '', is_ceo: isCEO
+        custom_prompt: zetaCustomPrompt || '', is_ceo: isCEO, model: zetaModel
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
@@ -613,6 +617,52 @@ export const RightPanel = ({
             </button>
           )}
         </div>
+
+        {/* Model Selector */}
+        {activeAI === 'zeta' && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
+            {[
+              { id: 'spark', label: 'Spark', desc: 'Hızlı', color: '#22c55e' },
+              { id: 'prime', label: 'Prime', desc: 'Dengeli', color: 'var(--zet-primary-light)' },
+              { id: 'aziz', label: 'Aziz', desc: 'Güçlü', color: '#f59e0b' },
+            ].map(m => (
+              <button
+                key={m.id}
+                onClick={() => setZetaModel(m.id)}
+                className="flex-1 py-0.5 rounded text-[10px] font-medium transition-all"
+                style={{
+                  background: zetaModel === m.id ? m.color + '25' : 'transparent',
+                  border: `1px solid ${zetaModel === m.id ? m.color : 'var(--zet-border)'}`,
+                  color: zetaModel === m.id ? m.color : 'var(--zet-text-muted)',
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {activeAI === 'judge' && (
+          <div className="flex items-center gap-1 px-2 py-1 border-b flex-shrink-0" style={{ borderColor: '#c8005a33', background: '#1a0a14' }}>
+            {[
+              { id: 'spark', label: 'Spark', color: '#22c55e' },
+              { id: 'prime', label: 'Prime', color: '#c8005a' },
+              { id: 'aziz', label: 'Aziz', color: '#f59e0b' },
+            ].map(m => (
+              <button
+                key={m.id}
+                onClick={() => setJudgeModel(m.id)}
+                className="flex-1 py-0.5 rounded text-[10px] font-medium transition-all"
+                style={{
+                  background: judgeModel === m.id ? m.color + '25' : 'transparent',
+                  border: `1px solid ${judgeModel === m.id ? m.color : '#c8005a33'}`,
+                  color: judgeModel === m.id ? m.color : 'rgba(255,255,255,0.4)',
+                }}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* CEO mode banner */}
         {isCEO && (

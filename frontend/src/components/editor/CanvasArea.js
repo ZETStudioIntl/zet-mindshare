@@ -93,14 +93,30 @@ const ShapeRenderer = ({ el }) => {
     style.backgroundColor = el.fill || '#000000';
   }
   
-  const clips = { triangle: 'polygon(50% 0%, 0% 100%, 100% 100%)', star: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)' };
-  
+  const clips = {
+    triangle: 'polygon(50% 0%, 0% 100%, 100% 100%)',
+    star: 'polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)',
+    hexagon: 'polygon(25% 7%, 75% 7%, 100% 50%, 75% 93%, 25% 93%, 0% 50%)',
+    diamond: 'polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%)',
+    pentagon: 'polygon(50% 0%, 100% 38%, 82% 100%, 18% 100%, 0% 38%)',
+    arrow: 'polygon(0% 30%, 60% 30%, 60% 0%, 100% 50%, 60% 100%, 60% 70%, 0% 70%)',
+    parallelogram: 'polygon(20% 0%, 100% 0%, 80% 100%, 0% 100%)',
+  };
+
   if (el.shapeType === 'circle') return <div style={{ ...style, borderRadius: '50%' }} />;
   if (el.shapeType === 'ring') {
     if (hasGradient) {
       return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '4px solid transparent', background: `linear-gradient(white, white) padding-box, linear-gradient(135deg, ${el.gradientStart}, ${el.gradientEnd}) border-box`, boxSizing: 'border-box' }} />;
     }
     return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: `4px solid ${el.fill || '#000'}`, backgroundColor: 'transparent', backgroundImage: hasImage ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' }} />;
+  }
+  if (el.shapeType === 'heart') {
+    const fill = el.fill || '#000';
+    return (
+      <svg viewBox="0 0 100 90" style={{ width: '100%', height: '100%' }}>
+        <path d="M50,80 L12,42 C2,28 12,10 30,14 C38,16 45,24 50,32 C55,24 62,16 70,14 C88,10 98,28 88,42 Z" fill={fill} />
+      </svg>
+    );
   }
   if (clips[el.shapeType]) return <div style={{ ...style, clipPath: clips[el.shapeType] }} />;
   return <div style={style} />;
@@ -483,7 +499,7 @@ export const CanvasArea = ({
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
       };
       const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
-    } else if (['triangle', 'square', 'circle', 'star', 'ring'].includes(activeTool)) {
+    } else if (['triangle', 'square', 'circle', 'star', 'ring', 'hexagon', 'diamond', 'pentagon', 'heart', 'arrow', 'parallelogram'].includes(activeTool)) {
       const shapeEl = { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null };
       if (useGradient && gradientStart && gradientEnd) { shapeEl.gradientStart = gradientStart; shapeEl.gradientEnd = gradientEnd; }
       const u = [...canvasElements, shapeEl];
