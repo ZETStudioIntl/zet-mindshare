@@ -20,7 +20,8 @@ import {
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
   ZoomIn, ZoomOut, Download, Settings, Keyboard, Eye, EyeOff, Lock, Unlock,
   ChevronUp, ChevronDown, Trash2, Table, Grid3X3, Ruler, Zap, Mic, FlipHorizontal2, ImagePlus, Pencil, Crown,
-  List, ListOrdered, Group, Ungroup, CircleCheck, Cloud, Share2, MessageSquare, Users
+  List, ListOrdered, Group, Ungroup, CircleCheck, Cloud, Share2, MessageSquare, Users,
+  PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen
 } from 'lucide-react';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
@@ -33,6 +34,31 @@ import { useCollaboration } from '../hooks/useCollaboration';
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+
+const ResizableDivider = ({ onResize }) => {
+  const [dragging, setDragging] = useState(false);
+  const handleMouseDown = (e) => {
+    e.preventDefault();
+    setDragging(true);
+    const startX = e.clientX;
+    const handleMouseMove = (ev) => { onResize(ev.clientX - startX); };
+    const handleMouseUp = () => {
+      setDragging(false);
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  };
+  return (
+    <div
+      onMouseDown={handleMouseDown}
+      style={{ width: 4, cursor: 'col-resize', background: 'rgba(255,255,255,0.1)', flexShrink: 0, transition: dragging ? 'none' : 'background 0.2s', zIndex: 10 }}
+      onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.3)'; }}
+      onMouseLeave={e => { if (!dragging) e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; }}
+    />
+  );
+};
 
 const Editor = () => {
   const { docId } = useParams();
@@ -60,6 +86,9 @@ const Editor = () => {
   // Tool state
   const [activeTool, setActiveTool] = useState('select');
   const [toolboxOpen, setToolboxOpen] = useState(true);
+  const [leftWidth, setLeftWidth] = useState(180);
+  const [rightWidth, setRightWidth] = useState(320);
+  const [rightOpen, setRightOpen] = useState(true);
 
   // Canvas element state
   const [canvasElements, setCanvasElements] = useState([]);
@@ -3624,7 +3653,7 @@ const Editor = () => {
         </header>
 
         {/* Mobile Canvas */}
-        <div className="flex-1 overflow-hidden relative" style={{ touchAction: 'none', minHeight: 0 }}>
+        <div className="flex-1 relative" style={{ touchAction: 'pan-y', overflowY: 'scroll', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
           <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
             canvasElements={canvasElements} setCanvasElements={setCanvasElements}
             drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
@@ -3892,6 +3921,12 @@ const Editor = () => {
             <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
             <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
           </div>
+          <button onClick={() => setToolboxOpen(o => !o)} className="tool-btn w-8 h-8" title="Sol Panel">
+            {toolboxOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
+          </button>
+          <button onClick={() => setRightOpen(o => !o)} className="tool-btn w-8 h-8" title="Sağ Panel">
+            {rightOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+          </button>
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <div data-testid="save-status" className="flex items-center gap-1 text-xs ml-1" style={{ color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : 'var(--zet-text-muted)' }}>
             {saveStatus === 'saved' && <><CircleCheck className="h-3 w-3" /><span className="hidden sm:inline">Kaydedildi</span></>}
@@ -3902,41 +3937,54 @@ const Editor = () => {
         </div>
       </header>
 
-      <div className="flex-1 min-h-0 grid" style={{ gridTemplateColumns: toolboxOpen ? '1fr 1fr 1fr' : '40px 1fr 1fr', gap: '8px', padding: '8px', height: '100%' }}>
-        <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
-          onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
-          zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)} 
-          lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }} />
+      <div style={{ display: 'flex', flex: 1, height: 0, minHeight: 0, overflow: 'hidden' }}>
+        {/* Sol panel */}
+        <div style={{ width: toolboxOpen ? leftWidth : 40, height: '100%', overflowY: 'auto', overflowX: 'hidden', flexShrink: 0, transition: 'width 0.3s', minWidth: toolboxOpen ? 48 : 40 }}>
+          <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
+            onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
+            zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)}
+            lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }} />
+        </div>
 
-        <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
-          canvasElements={canvasElements} setCanvasElements={setCanvasElements}
-          drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
-          activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
-          currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
-          drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
-          markingColor={'#FFFF00'} markingOpacity={40} markingSize={20}
-          selectedElement={selectedElement} setSelectedElement={setSelectedElement}
-          selectedElements={selectedElements} setSelectedElements={setSelectedElements}
-          onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
-          onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
-          onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
-          onAddAiImageToShape={handleAddAiImageToShape}
-          isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
-          pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
-          zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-          onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
-          rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
-          eraserDragMode={eraserDragMode} />
+        <ResizableDivider onResize={delta => setLeftWidth(w => Math.max(48, Math.min(300, w + delta)))} />
 
-        <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
-          pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
-          docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-          onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan}
-          onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
-          onShowChatSettings={() => setShowChatSettings(true)}
-          zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
-          onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
-          onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote} />
+        {/* Orta canvas */}
+        <div style={{ flex: 1, height: '100%', minWidth: 0 }}>
+          <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
+            canvasElements={canvasElements} setCanvasElements={setCanvasElements}
+            drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
+            activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
+            currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
+            drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
+            markingColor={'#FFFF00'} markingOpacity={40} markingSize={20}
+            selectedElement={selectedElement} setSelectedElement={setSelectedElement}
+            selectedElements={selectedElements} setSelectedElements={setSelectedElements}
+            onSaveHistory={handleSaveHistory} canvasContainerRef={canvasContainerRef}
+            onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
+            onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
+            onAddAiImageToShape={handleAddAiImageToShape}
+            isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
+            pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
+            zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
+            onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
+            rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
+            eraserDragMode={eraserDragMode} />
+        </div>
+
+        <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />
+
+        {/* Sağ panel */}
+        <div style={{ width: rightOpen ? rightWidth : 0, height: '100%', overflowY: rightOpen ? 'auto' : 'hidden', overflowX: 'hidden', flexShrink: 0, transition: 'width 0.3s' }}>
+          <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
+            pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
+            docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
+            onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan}
+            onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
+            onShowChatSettings={() => setShowChatSettings(true)}
+            zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
+            onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
+            onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote} />
+        </div>
       </div>
 
       {showVoice && (
