@@ -888,7 +888,7 @@ export const CanvasArea = ({
   };
 
   return (
-    <div ref={canvasContainerRef} data-testid="canvas-container" className="flex-1 overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+    <div ref={canvasContainerRef} data-testid="canvas-container" className="h-full overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
           <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}

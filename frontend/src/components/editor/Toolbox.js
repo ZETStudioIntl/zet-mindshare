@@ -40,7 +40,7 @@ export const Toolbox = ({
     <div
       ref={containerRef}
       data-testid="toolbox-panel"
-      className={`border-r flex flex-col transition-all duration-200 relative ${isOpen ? 'w-72' : 'w-10'}`}
+      className={`border-r flex flex-col transition-all duration-200 relative ${isOpen ? 'w-full' : 'w-10'}`}
       style={{ borderColor: 'var(--zet-border)' }}
     >
       {/* Header */}

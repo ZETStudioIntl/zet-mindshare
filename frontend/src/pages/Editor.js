@@ -3865,7 +3865,7 @@ const Editor = () => {
         </div>
       </header>
 
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 overflow-hidden grid" style={{ gridTemplateColumns: toolboxOpen ? '1fr 1fr 1fr' : '40px 1fr 1fr' }}>
         <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
           onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
           zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)} 

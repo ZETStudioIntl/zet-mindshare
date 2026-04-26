@@ -511,8 +511,33 @@ async def get_current_user(request: Request) -> User:
         return User(**user)
     except Exception as e:
         logging.error(f"User validation error user_id={session['user_id']}: {e}")
-        # Son çare: sadece zorunlu alanlarla User üret
         return User(user_id=user["user_id"], email=user.get("email", ""))
+
+async def get_current_user_raw(request: Request) -> dict:
+    """Pydantic olmadan sanitize edilmiş kullanıcı dict döner; subscription tip çakışması yaşanan endpoint'lerde kullan."""
+    session_token = request.cookies.get("session_token")
+    if not session_token:
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            session_token = auth_header.split(" ")[1]
+    if not session_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    expires_at = session.get("expires_at")
+    if not expires_at:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Session expired")
+    raw = await db.users.find_one({"user_id": session["user_id"]})
+    if not raw:
+        raise HTTPException(status_code=401, detail="User not found")
+    return sanitize_user_doc(raw)
 
 # ============ AUTH ROUTES ============
 
@@ -883,11 +908,12 @@ async def get_me(user: User = Depends(get_current_user)):
     return data or {}
 
 @api_router.get("/users/{username}")
-async def get_user_profile(username: str, user: User = Depends(get_current_user)):
+async def get_user_profile(username: str, u: dict = Depends(get_current_user_raw)):
+    uid = u["user_id"]
     target = await db.users.find_one({"username": username}, {"_id": 0, "email": 0, "followers": 0, "following": 0})
     if not target:
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-    target["is_following"] = await db.users.find_one({"user_id": user.user_id, "following": target["user_id"]}) is not None
+    target["is_following"] = await db.users.find_one({"user_id": uid, "following": target["user_id"]}) is not None
     return target
 
 @api_router.patch("/users/me")
@@ -1021,39 +1047,42 @@ def _boosted_pipeline(match: dict, skip: int, limit: int) -> list:
     ]
 
 @api_router.get("/posts")
-async def list_posts(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
+async def list_posts(skip: int = 0, limit: int = 20, u: dict = Depends(get_current_user_raw)):
     """Keşfet — tüm gönderiler, boosted önce."""
-    me = await db.users.find_one({"user_id": user.user_id}, {"following": 1})
+    uid = u["user_id"]
+    me = await db.users.find_one({"user_id": uid}, {"following": 1})
     viewer_following = list(me.get("following", [])) if me else []
     pipeline = _boosted_pipeline({}, skip, limit)
     posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
-        await enrich_post(p, user.user_id, viewer_following)
+        await enrich_post(p, uid, viewer_following)
     return {"posts": posts}
 
 @api_router.get("/feed")
-async def get_feed(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
+async def get_feed(skip: int = 0, limit: int = 20, u: dict = Depends(get_current_user_raw)):
     """Feed — takip edilenlerin + kendi gönderileri; boosted önce."""
-    me = await db.users.find_one({"user_id": user.user_id}, {"following": 1})
+    uid = u["user_id"]
+    me = await db.users.find_one({"user_id": uid}, {"following": 1})
     following = list(me.get("following", [])) if me else []
     viewer_following = list(following)
-    following.append(user.user_id)
+    following.append(uid)
     match = {"author_id": {"$in": following}} if len(following) > 1 else {}
     pipeline = _boosted_pipeline(match, skip, limit)
     posts = await db.posts.aggregate(pipeline).to_list(length=limit)
     for p in posts:
-        await enrich_post(p, user.user_id, viewer_following)
+        await enrich_post(p, uid, viewer_following)
     return {"posts": posts}
 
 @api_router.get("/users/{username}/posts")
-async def get_user_posts(username: str, skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
+async def get_user_posts(username: str, skip: int = 0, limit: int = 20, u: dict = Depends(get_current_user_raw)):
     """Belirli kullanıcının gönderileri."""
+    uid = u["user_id"]
     target = await db.users.find_one({"username": username})
     if not target:
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
     posts = await db.posts.find({"author_id": target["user_id"]}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(length=limit)
     for p in posts:
-        await enrich_post(p, user.user_id)
+        await enrich_post(p, uid)
     return {"posts": posts}
 
 @api_router.post("/posts/{post_id}/like")
@@ -1115,7 +1144,7 @@ async def add_comment(post_id: str, body: CommentCreate, user: User = Depends(ge
     return comment
 
 @api_router.get("/posts/{post_id}/comments")
-async def list_comments(post_id: str, user: User = Depends(get_current_user)):
+async def list_comments(post_id: str, u: dict = Depends(get_current_user_raw)):
     """Yorumları listele."""
     comments = await db.post_comments.find({"post_id": post_id}, {"_id": 0}).sort("created_at", 1).to_list(length=200)
     return {"comments": comments}
