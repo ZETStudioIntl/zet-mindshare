@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ChevronDown, ChevronUp, Plus, Sparkles, Send, Download, Loader2, Volume2, Scale, Settings, PenTool, FileText, CreditCard, Search, X, ArrowLeft, SlidersHorizontal } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, PenTool, FileText, CreditCard, Search, ArrowLeft, SlidersHorizontal, Check } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 
@@ -31,11 +31,11 @@ export const RightPanel = ({
   zetaMood,
   zetaEmoji,
   zetaCustomPrompt,
-  judgeMood,
   onAutoWriteContent,
   onRefreshCredits,
   onUpdateSettings,
   onTakeNote,
+  onApplyEdit,
 }) => {
   const { t, language } = useLanguage();
   const { user } = useAuth();
@@ -69,25 +69,12 @@ export const RightPanel = ({
   const audioRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // Tab state: 'zeta' or 'judge'
-  const [activeAI, setActiveAI] = useState('zeta');
   // ZETA sub-mode: 'chat', 'autowrite', 'deep'
   const [zetaMode, setZetaMode] = useState('chat');
 
   // Model seçimi
   const [zetaModel, setZetaModel] = useState('prime');
-  const [judgeModel, setJudgeModel] = useState('prime');
 
-  // Judge state
-  const [judgeMessages, setJudgeMessages] = useState([]);
-  const [judgeInput, setJudgeInput] = useState('');
-  const [judgeLoading, setJudgeLoading] = useState(false);
-  const [judgeSessionId, setJudgeSessionId] = useState(null);
-  const [judgeImage, setJudgeImage] = useState(null);
-  const [judgeMode, setJudgeMode] = useState('fast');
-  const [judgeScores, setJudgeScores] = useState(null); // {risk, success}
-  const judgeChatEndRef = useRef(null);
-  const [showJudgeSendMenu, setShowJudgeSendMenu] = useState(false);
   const [showZetaSendMenu, setShowZetaSendMenu] = useState(false);
 
   // Auto-write state
@@ -106,11 +93,8 @@ export const RightPanel = ({
 
   useEffect(() => {
     if (docId) {
-      // Reset messages when switching documents
       setZetaMessages([]);
-      setJudgeMessages([]);
       setZetaSessionId(null);
-      setJudgeSessionId(null);
       loadChatHistory();
     }
   }, [docId]);
@@ -143,29 +127,16 @@ export const RightPanel = ({
 
   const loadChatHistory = async () => {
     try {
-      const [zetaRes, judgeRes] = await Promise.all([
-        axios.get(`${API}/chat-history/${docId}?ai_type=zeta`, { withCredentials: true }),
-        axios.get(`${API}/chat-history/${docId}?ai_type=judge`, { withCredentials: true })
-      ]);
-      const zetaMsgs = zetaRes.data.flatMap(h => [
+      const res = await axios.get(`${API}/chat-history/${docId}?ai_type=zeta`, { withCredentials: true });
+      const msgs = res.data.flatMap(h => [
         { role: 'user', content: h.user_message },
         { role: 'assistant', content: h.ai_response }
       ]);
-      const judgeMsgs = judgeRes.data.flatMap(h => [
-        { role: 'user', content: h.user_message },
-        { role: 'assistant', content: h.ai_response }
-      ]);
-      setZetaMessages(zetaMsgs);
-      setJudgeMessages(judgeMsgs);
-      if (zetaRes.data.length) setZetaSessionId(zetaRes.data[zetaRes.data.length - 1].session_id);
-      if (judgeRes.data.length) setJudgeSessionId(judgeRes.data[judgeRes.data.length - 1].session_id);
-      // Scroll to bottom after history loads
-      setTimeout(() => {
-        chatEndRef.current?.scrollIntoView({ behavior: 'instant' });
-        judgeChatEndRef.current?.scrollIntoView({ behavior: 'instant' });
-      }, 100);
-    } catch (err) {
-      console.log('No chat history found');
+      setZetaMessages(msgs);
+      if (res.data.length) setZetaSessionId(res.data[res.data.length - 1].session_id);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'instant' }), 100);
+    } catch {
+      // no history yet
     }
   };
 
@@ -174,70 +145,11 @@ export const RightPanel = ({
   }, [zetaMessages]);
 
   useEffect(() => {
-    setTimeout(() => judgeChatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
-  }, [judgeMessages]);
-
-  useEffect(() => {
-    if (!showJudgeSendMenu && !showZetaSendMenu) return;
-    const close = () => { setShowJudgeSendMenu(false); setShowZetaSendMenu(false); };
+    if (!showZetaSendMenu) return;
+    const close = () => setShowZetaSendMenu(false);
     window.document.addEventListener('click', close);
     return () => window.document.removeEventListener('click', close);
-  }, [showJudgeSendMenu, showZetaSendMenu]);
-
-  const handleJudgeImageUpload = () => {
-    const input = window.document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-      const file = e.target.files[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (ev) => setJudgeImage(ev.target.result);
-        reader.readAsDataURL(file);
-      }
-    };
-    input.click();
-  };
-
-  const sendJudgeMessage = async () => {
-    if (!judgeInput.trim() && !judgeImage) return;
-    if (language === 'tr' && !(documentContent || '').trim()) {
-      const userMsg = { role: 'user', content: judgeInput };
-      setJudgeMessages(prev => [...prev, userMsg, { role: 'assistant', content: "I'm sorry ама ваш документ пуст. Aus diesem Grund لا أستطيع التحليل. Por eso 分析できません。" }]);
-      setJudgeInput('');
-      return;
-    }
-    const userMsg = { role: 'user', content: judgeInput, image: judgeImage, mode: judgeMode };
-    setJudgeMessages(prev => [...prev, userMsg]);
-    setJudgeInput('');
-    const sentImage = judgeImage;
-    setJudgeImage(null);
-    setJudgeLoading(true);
-    try {
-      const res = await axios.post(`${API}/judge/chat`, {
-        message: judgeInput + (sentImage ? '\n[Görsel eklendi]' : ''),
-        session_id: judgeSessionId,
-        doc_id: docId,
-        document_content: documentContent || '',
-        image_data: sentImage,
-        mode: judgeMode,
-        personality: judgeMood || 'normal', is_ceo: isCEO, model: judgeModel
-      });
-      if (res.data.locked || res.data.limit_exceeded || res.data.char_limit_exceeded) {
-        setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response, isWarning: true }]);
-      } else {
-        setJudgeMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
-        setJudgeSessionId(res.data.session_id);
-        if (res.data.risk_score != null && res.data.success_score != null) {
-          setJudgeScores({ risk: res.data.risk_score, success: res.data.success_score });
-        }
-      }
-    } catch (err) {
-      setJudgeMessages(prev => [...prev, { role: 'assistant', content: 'Hata olustu. Lutfen tekrar deneyin.' }]);
-    } finally {
-      setJudgeLoading(false);
-    }
-  };
+  }, [showZetaSendMenu]);
 
   const speakMessage = async (text, msgIndex) => {
     if (speakingMsg === msgIndex) {
@@ -588,81 +500,33 @@ export const RightPanel = ({
       </div>
       )}
 
-      {/* AI Seçtion - 2 Tabs: ZETA & Judge */}
+      {/* AI — ZETA */}
       {showZeta && (
       <div className="flex-1 flex flex-col min-h-0">
-        {/* Tab Bar */}
-        <div className="flex border-b" style={{ borderColor: 'var(--zet-border)' }}>
-          <button
-            onClick={() => { setActiveAI('zeta'); setZetaMode('chat'); }}
-            data-testid="ai-tab-zeta"
-            className={`flex-1 p-2 flex items-center justify-center gap-1.5 transition-all ${activeAI === 'zeta' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
-            style={{ borderColor: activeAI === 'zeta' ? 'var(--zet-primary-light)' : 'transparent' }}
-          >
-            <img src="/zeta-icon.svg" alt="ZETA" style={{ width: 14, height: 14, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
-            <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>ZETA</span>
-          </button>
-          <button
-            onClick={() => setActiveAI('judge')}
-            data-testid="ai-tab-judge"
-            className={`flex-1 p-2 flex items-center justify-center gap-1.5 transition-all ${activeAI === 'judge' ? 'border-b-2' : 'opacity-60 hover:opacity-100'}`}
-            style={{ borderColor: activeAI === 'judge' ? '#c8005a' : 'transparent' }}
-          >
-            <Scale className="h-3.5 w-3.5" style={{ color: '#c8005a' }} />
-            <span className="font-medium text-xs" style={{ color: 'var(--zet-text)' }}>Judge Mini</span>
-          </button>
+        {/* Header */}
+        <div className="flex items-center border-b px-2 py-1.5 flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
+          <img src="/zeta-icon.svg" alt="ZETA" style={{ width: 14, height: 14, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
+          <span className="font-semibold text-xs ml-1.5 flex-1" style={{ color: 'var(--zet-text)' }}>ZETA</span>
           {onShowChatSettings && (
-            <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-2 hover:bg-white/10 rounded transition-all" title="Chat Ayarlari">
+            <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-1 hover:bg-white/10 rounded" title="Chat Ayarları">
               <Settings className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
             </button>
           )}
         </div>
 
         {/* Model Selector */}
-        {activeAI === 'zeta' && (
-          <div className="flex items-center gap-1 px-2 py-1 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
-            {[
-              { id: 'spark', label: 'Spark', desc: 'Hızlı', color: '#22c55e' },
-              { id: 'prime', label: 'Prime', desc: 'Dengeli', color: 'var(--zet-primary-light)' },
-              { id: 'aziz', label: 'Aziz', desc: 'Güçlü', color: '#f59e0b' },
-            ].map(m => (
-              <button
-                key={m.id}
-                onClick={() => setZetaModel(m.id)}
-                className="flex-1 py-0.5 rounded text-[10px] font-medium transition-all"
-                style={{
-                  background: zetaModel === m.id ? m.color + '25' : 'transparent',
-                  border: `1px solid ${zetaModel === m.id ? m.color : 'var(--zet-border)'}`,
-                  color: zetaModel === m.id ? m.color : 'var(--zet-text-muted)',
-                }}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        )}
-        {activeAI === 'judge' && (
-          <div className="flex items-center gap-1 px-2 py-1 border-b flex-shrink-0" style={{ borderColor: '#c8005a33', background: '#1a0a14' }}>
-            {[
-              { id: 'spark', label: 'Spark', color: '#22c55e' },
-              { id: 'prime', label: 'Prime', color: '#c8005a' },
-              { id: 'aziz', label: 'Aziz', color: '#f59e0b' },
-            ].map(m => (
-              <button
-                key={m.id}
-                onClick={() => setJudgeModel(m.id)}
-                className="flex-1 py-0.5 rounded text-[10px] font-medium transition-all"
-                style={{
-                  background: judgeModel === m.id ? m.color + '25' : 'transparent',
-                  border: `1px solid ${judgeModel === m.id ? m.color : '#c8005a33'}`,
-                  color: judgeModel === m.id ? m.color : 'rgba(255,255,255,0.4)',
-                }}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-        )}
+        <div className="flex items-center gap-1 px-2 py-1 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
+          {[
+            { id: 'spark', label: 'Spark', color: '#22c55e' },
+            { id: 'prime', label: 'Prime', color: 'var(--zet-primary-light)' },
+            { id: 'aziz', label: 'Aziz', color: '#f59e0b' },
+          ].map(m => (
+            <button key={m.id} onClick={() => setZetaModel(m.id)}
+              className="flex-1 py-0.5 rounded text-[10px] font-medium transition-all"
+              style={{ background: zetaModel === m.id ? m.color + '25' : 'transparent', border: `1px solid ${zetaModel === m.id ? m.color : 'var(--zet-border)'}`, color: zetaModel === m.id ? m.color : 'var(--zet-text-muted)' }}
+            >{m.label}</button>
+          ))}
+        </div>
 
         {/* CEO mode banner */}
         {isCEO && (
@@ -678,8 +542,7 @@ export const RightPanel = ({
         )}
 
         {/* ===== ZETA TAB ===== */}
-        {activeAI === 'zeta' && (
-          <>
+        <>
             {/* ZETA Chat Mode */}
             {zetaMode === 'chat' && (
               <>
@@ -708,9 +571,16 @@ export const RightPanel = ({
                           {msg.content}
                         </div>
                         {msg.role === 'assistant' && (
-                          <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 flex-shrink-0 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
-                            <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
-                          </button>
+                          <div className="flex flex-col gap-0.5 flex-shrink-0">
+                            <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
+                              <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
+                            </button>
+                            {onApplyEdit && (
+                              <button onClick={() => onApplyEdit(msg.content)} className="p-1 rounded hover:bg-white/10" title="Belgeye uygula">
+                                <Check className="h-3 w-3" style={{ color: '#22c55e' }} />
+                              </button>
+                            )}
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1028,139 +898,7 @@ export const RightPanel = ({
                 </div>
               </div>
             )}
-          </>
-        )}
-
-        {/* ===== JUDGE MINI TAB ===== */}
-        {activeAI === 'judge' && (
-          <>
-            <div data-testid="judge-messages" className="flex-1 p-2 overflow-y-auto text-xs" style={{ background: 'linear-gradient(135deg, #4b0c37 0%, #1a0a14 100%)' }}>
-              {userPlan === 'free' && judgeMessages.length === 0 && (
-                <div className="text-center py-6" style={{ color: '#c8005a' }}>
-                  <div className="w-12 h-12 mx-auto mb-3 rounded-full flex items-center justify-center" style={{ background: 'rgba(200, 0, 90, 0.2)', border: '2px solid #c8005a' }}>
-                    <Scale className="h-6 w-6" />
-                  </div>
-                  <p className="font-semibold text-sm">ZET Judge Mini</p>
-                  <p className="text-xs mt-2 opacity-70">Free planda kullanılamaz</p>
-                  <p className="text-xs mt-1 opacity-50 mb-3">Plus veya üzeri plana yükseltin</p>
-                  {onShowUpgrade && (
-                    <button onClick={() => onShowUpgrade('judge')} className="px-4 py-2 rounded-lg text-xs font-medium transition-all hover:scale-105" style={{ background: '#c8005a', color: 'white' }}>
-                      Plani Yükselt
-                    </button>
-                  )}
-                </div>
-              )}
-              {userPlan !== 'free' && judgeMessages.length === 0 && (
-                <div className="text-center py-6" style={{ color: '#c8005a' }}>
-                  <Scale className="h-6 w-6 mx-auto mb-2 opacity-70" />
-                  <p className="font-semibold">ZET Judge Mini</p>
-                  <p className="text-xs mt-1 opacity-70">İş analizi - Vizyon - Strateji</p>
-                  <p className="text-[10px] mt-2 opacity-50">Belgenizi otomatik olarak görüyorum.</p>
-                  {userUsage && (
-                    <p className="text-xs mt-2 opacity-50">
-                      Kalan: {userUsage.remaining?.judge_basic || 0} temel, {userUsage.remaining?.judge_deep || 0} derin
-                    </p>
-                  )}
-                </div>
-              )}
-              {judgeMessages.map((msg, i) => (
-                <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  {msg.image && (
-                    <div className="mb-1">
-                      <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
-                    </div>
-                  )}
-                  <div className="inline-block max-w-[90%]">
-                    <div className="px-2.5 py-1.5 rounded-lg" style={{ background: msg.role === 'user' ? '#c8005a' : 'rgba(200, 0, 90, 0.2)', color: '#fff', border: msg.role === 'assistant' ? '1px solid rgba(200, 0, 90, 0.3)' : 'none' }}>
-                      {msg.content}
-                    </div>
-                  </div>
-                </div>
-              ))}
-              {judgeLoading && (
-                <ZetaTypingIndicator isJudge className="py-1" />
-              )}
-              <div ref={judgeChatEndRef} />
-            </div>
-            {judgeScores && (
-              <div className="flex gap-3 px-3 py-2 border-t" style={{ borderColor: '#c8005a33', background: 'rgba(200,0,90,0.07)' }}>
-                {[
-                  { label: 'Risk', value: judgeScores.risk, color: judgeScores.risk > 66 ? '#ef4444' : judgeScores.risk > 33 ? '#f59e0b' : '#22c55e' },
-                  { label: 'Potansiyel', value: judgeScores.success, color: judgeScores.success > 66 ? '#22c55e' : judgeScores.success > 33 ? '#f59e0b' : '#ef4444' }
-                ].map(({ label, value, color }) => {
-                  const r = 18, circ = 2 * Math.PI * r;
-                  return (
-                    <div key={label} className="flex flex-col items-center gap-0.5 flex-1">
-                      <svg width="48" height="48" viewBox="0 0 48 48">
-                        <circle cx="24" cy="24" r={r} fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="4" />
-                        <circle cx="24" cy="24" r={r} fill="none" stroke={color} strokeWidth="4"
-                          strokeDasharray={circ} strokeDashoffset={circ * (1 - value / 100)}
-                          strokeLinecap="round" transform="rotate(-90 24 24)" />
-                        <text x="24" y="28" textAnchor="middle" fontSize="10" fill="#fff" fontWeight="bold">{value}</text>
-                      </svg>
-                      <span style={{ color: '#fff', opacity: 0.7, fontSize: 9 }}>{label}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-            <div className="p-2 border-t" style={{ borderColor: '#c8005a33', background: '#4b0c37' }}>
-              {judgeImage && (
-                <div className="mb-2 relative inline-block">
-                  <img src={judgeImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
-                  <button onClick={() => setJudgeImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
-                </div>
-              )}
-              {showJudgeSendMenu && (
-                <div className="flex gap-1 mb-1.5">
-                  <button
-                    data-testid="judge-fast-send"
-                    onClick={() => { setJudgeMode('fast'); setShowJudgeSendMenu(false); }}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-medium transition-all"
-                    style={{ background: judgeMode === 'fast' ? '#c8005a' : 'rgba(200,0,90,0.12)', color: '#fff', border: '1px solid #c8005a44' }}
-                  >
-                    <Sparkles className="h-2.5 w-2.5" /> Hızlı
-                  </button>
-                  <button
-                    data-testid="judge-deep-send"
-                    onClick={() => { setJudgeMode('deep'); setShowJudgeSendMenu(false); }}
-                    className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-medium transition-all"
-                    style={{ background: judgeMode === 'deep' ? '#c8005a' : 'rgba(200,0,90,0.12)', color: '#fff', border: '1px solid #c8005a44' }}
-                  >
-                    <Search className="h-2.5 w-2.5" /> Derin
-                  </button>
-                </div>
-              )}
-              <div className="flex gap-1">
-                <button
-                  onClick={e => { e.stopPropagation(); setShowJudgeSendMenu(v => !v); }}
-                  className="p-1.5 rounded-lg flex-shrink-0 transition-all"
-                  style={{ background: showJudgeSendMenu ? '#c8005a' : 'rgba(200,0,90,0.15)', border: '1px solid #c8005a44', color: '#fff' }}
-                  title="Mod seç"
-                >
-                  <SlidersHorizontal className="h-3 w-3" />
-                </button>
-                <input
-                  data-testid="judge-input"
-                  placeholder={judgeMode === 'deep' ? 'Derin analiz için...' : 'Hızlı analiz için...'}
-                  value={judgeInput}
-                  onChange={e => setJudgeInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { setShowJudgeSendMenu(false); sendJudgeMessage(); } }}
-                  className="flex-1 text-xs py-1.5 px-2 rounded"
-                  style={{ background: 'rgba(200, 0, 90, 0.15)', border: '1px solid #c8005a33', color: '#fff' }}
-                />
-                <button
-                  data-testid="judge-send-btn"
-                  onClick={() => { setShowJudgeSendMenu(false); sendJudgeMessage(); }}
-                  className="px-2 rounded flex items-center"
-                  style={{ background: '#c8005a' }}
-                >
-                  <Send className="h-3 w-3 text-white" />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+        </>
       </div>
       )}
 

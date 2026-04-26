@@ -3937,7 +3937,7 @@ const Editor = () => {
         </div>
       </header>
 
-      <div style={{ display: 'flex', flex: 1, height: 0, minHeight: 0, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, height: 0, minHeight: 0, overflow: 'hidden', gap: 8, padding: '8px 8px 8px 0', background: 'var(--zet-bg)' }}>
         {/* Sol panel */}
         <div style={{ width: toolboxOpen ? leftWidth : 40, height: '100%', overflow: 'hidden', flexShrink: 0, transition: 'width 0.3s', minWidth: toolboxOpen ? 48 : 40 }}>
           <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
@@ -3979,12 +3979,20 @@ const Editor = () => {
           <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
             pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
             docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-            onExport={exportToPDF} exporting={exporting} documentContent={getDocText()} userUsage={userUsage} userPlan={userPlan}
+            onExport={exportToPDF} exporting={exporting} documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan}
             onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
             onShowChatSettings={() => setShowChatSettings(true)}
-            zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
+            zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt}
             onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
-            onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote} />
+            onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
+            onApplyEdit={(text) => {
+              if (selectedElement) {
+                setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, content: text, htmlContent: null } : el));
+              } else {
+                const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'text', x: 40, y: 40, content: text, font: 'Arial', fontSize: 14, color: '#000', width: (pageSize?.width || 595) - 80 }];
+                setCanvasElements(updated);
+              }
+            }} />
         </div>
       </div>
 

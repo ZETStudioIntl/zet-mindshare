@@ -3362,13 +3362,33 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
 
     text_out = ""
     images = []
+
+    # Null/empty candidate guard
+    if not resp.candidates or not resp.candidates[0].content or not resp.candidates[0].content.parts:
+        # İade et
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db.usage.update_one(
+            {"user_id": user.user_id, "date": today},
+            {"$inc": {"credits_used": -credit_result['cost']}},
+            upsert=True
+        )
+        finish = getattr(resp.candidates[0] if resp.candidates else None, "finish_reason", None) if resp.candidates else None
+        detail = f"Görsel oluşturulamadı (filtre: {finish}). Farklı bir açıklama deneyin." if finish else "Görsel oluşturulamadı, kredi iade edildi."
+        raise HTTPException(status_code=500, detail=detail)
+
     for part in resp.candidates[0].content.parts:
-        if hasattr(part, "text") and part.text:
+        if getattr(part, "text", None):
             text_out = part.text
-        elif hasattr(part, "inline_data") and part.inline_data:
+        elif getattr(part, "inline_data", None):
+            raw = part.inline_data.data
+            # raw may be bytes or already b64 string
+            if isinstance(raw, bytes):
+                encoded = base64.b64encode(raw).decode()
+            else:
+                encoded = raw
             images.append({
                 "mime_type": part.inline_data.mime_type,
-                "data": base64.b64encode(part.inline_data.data).decode()
+                "data": encoded
             })
 
     if not images:
