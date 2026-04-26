@@ -122,21 +122,69 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
 # ============ MODELS ============
 
 class User(BaseModel):
-    model_config = {"extra": "ignore"}
+    model_config = {"extra": "ignore", "arbitrary_types_allowed": True}
 
+    # Sadece bunlar zorunlu
     user_id: str
     email: str
-    name: str
+
+    # Profil
+    name: Optional[str] = ""
     picture: Optional[str] = None
-    subscription: Any = "free"  # str ("free") veya dict {"plan":..., "status":...} her iki format destekleniyor
-    subscription_date: Optional[Any] = None
-    created_at: Any = None
     username: Optional[str] = None
     display_name: Optional[str] = None
-    bio: Optional[str] = None
-    verified_type: Optional[str] = None  # None, "red", "gold", "blue"
-    followers_count: int = 0
-    following_count: int = 0
+    bio: Optional[str] = ""
+    picture_custom: Optional[bool] = False
+    name_custom: Optional[bool] = False
+
+    # Subscription — hem str ("free") hem dict {"plan":..., "status":...} destekleniyor
+    subscription: Optional[Any] = None
+    subscription_date: Optional[Any] = None
+    cancel_pending: Optional[bool] = False
+    cancel_requested_at: Optional[str] = None
+    cancel_token: Optional[str] = None
+
+    # Mindshare specific
+    mindshare_credits: Optional[int] = 0
+    mindshare_subscription: Optional[Any] = None
+    mindshare_settings: Optional[Any] = None
+    mindshare_rank: Optional[str] = "iron"
+    mindshare_xp: Optional[int] = 0
+
+    # Judge specific
+    judge_credits: Optional[int] = 0
+    judge_subscription: Optional[Any] = None
+    judge_settings: Optional[Any] = None
+    judge_rank: Optional[str] = "iron"
+    judge_xp: Optional[int] = 0
+
+    # Eski alanlar — geriye dönük uyumluluk
+    credits: Optional[int] = 0
+    bonus_credits: Optional[int] = 0
+    sp_balance: Optional[int] = 0
+    zc_balance: Optional[int] = 0
+    rank: Optional[str] = "iron"
+    xp: Optional[int] = 0
+    quest_xp: Optional[int] = 0
+    completed_quests: Optional[List[Any]] = []
+
+    # Creative Station
+    creative_station: Optional[bool] = False
+    cs_expires_at: Optional[str] = None
+
+    # Social
+    verified_type: Optional[str] = None
+    following: Optional[List[Any]] = []
+    followers: Optional[List[Any]] = []
+    following_count: Optional[int] = 0
+    followers_count: Optional[int] = 0
+    identity_verified: Optional[bool] = False
+
+    # Activity
+    active_time_seconds: Optional[int] = 0
+    last_heartbeat: Optional[str] = None
+    created_at: Optional[Any] = None
+    needs_onboarding: Optional[bool] = False
 
 class Document(BaseModel):
     doc_id: str = Field(default_factory=lambda: f"doc_{uuid.uuid4().hex[:12]}")
@@ -383,14 +431,14 @@ async def get_current_user(request: Request) -> User:
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             session_token = auth_header.split(" ")[1]
-    
+
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    
+
     session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
-    
+
     expires_at = session.get("expires_at")
     if not expires_at:
         raise HTTPException(status_code=401, detail="Invalid session")
@@ -405,24 +453,28 @@ async def get_current_user(request: Request) -> User:
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
 
+    # MongoDB _id'yi temizle
+    user.pop("_id", None)
+
+    # Geriye dönük uyumluluk: eski alanları yeni alanlara eşle (DB güncellenmeden çalışsın)
+    user.setdefault("mindshare_credits", user.get("credits", 0))
+    user.setdefault("judge_credits", 0)
+    user.setdefault("mindshare_rank", user.get("rank", "iron"))
+    user.setdefault("judge_rank", "iron")
+    user.setdefault("mindshare_xp", user.get("quest_xp", user.get("xp", 0)))
+    user.setdefault("judge_xp", 0)
+    user.setdefault("zc_balance", user.get("sp_balance", 0))
+    user.setdefault("name", "")
+    user.setdefault("bio", "")
+    user.setdefault("followers_count", 0)
+    user.setdefault("following_count", 0)
+
     try:
         return User(**user)
     except Exception as e:
-        # Pydantic doğrulama hatası — en azından user_id ve email ile minimal User döndür
-        logging.error(f"User model validation error for user_id={session['user_id']}: {e}")
-        return User(
-            user_id=user["user_id"],
-            email=user.get("email", ""),
-            name=user.get("name", ""),
-            picture=user.get("picture"),
-            subscription=user.get("subscription", "free"),
-            username=user.get("username"),
-            display_name=user.get("display_name"),
-            bio=user.get("bio", ""),
-            verified_type=user.get("verified_type"),
-            followers_count=user.get("followers_count", 0),
-            following_count=user.get("following_count", 0),
-        )
+        logging.error(f"User validation error user_id={session['user_id']}: {e}")
+        # Son çare: sadece zorunlu alanlarla User üret
+        return User(user_id=user["user_id"], email=user.get("email", ""))
 
 # ============ AUTH ROUTES ============
 
@@ -1129,15 +1181,27 @@ async def exchange_token(request: Request, response: Response):
 
 @api_router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
-    # Get full user data including subscription
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="User not found")
     return {
         "user_id": user_data.get("user_id"),
         "email": user_data.get("email"),
         "name": user_data.get("name", ""),
         "picture": user_data.get("picture"),
+        "username": user_data.get("username"),
+        "display_name": user_data.get("display_name"),
+        "bio": user_data.get("bio", ""),
+        "verified_type": user_data.get("verified_type"),
         "subscription": user_data.get("subscription", "free"),
-        "subscription_date": user_data.get("subscription_date")
+        "subscription_date": user_data.get("subscription_date"),
+        "needs_onboarding": user_data.get("needs_onboarding", False),
+        "credits": user_data.get("mindshare_credits", user_data.get("credits", 0)),
+        "sp_balance": user_data.get("sp_balance", user_data.get("zc_balance", 0)),
+        "rank": user_data.get("mindshare_rank", user_data.get("rank", "iron")),
+        "quest_xp": user_data.get("mindshare_xp", user_data.get("quest_xp", user_data.get("xp", 0))),
+        "followers_count": user_data.get("followers_count", 0),
+        "following_count": user_data.get("following_count", 0),
     }
 
 class ProfileUpdate(BaseModel):
@@ -4146,49 +4210,45 @@ async def export_data(body: ExportRequest, user: User = Depends(get_current_user
 
 @api_router.post("/admin/migrate-old-data")
 async def migrate_old_data(user: User = Depends(get_current_user)):
-    """Eski kullanıcı alanlarını yeni uygulama-bazlı alanlara taşır.
-    credits → mindshare_credits + judge_credits
-    subscription → mindshare_subscription
-    rank → mindshare_rank
-    xp → mindshare_xp
-    """
+    """Eski kullanıcı alanlarını yeni uygulama-bazlı alanlara taşır. Mevcut veriye DOKUNMAZ."""
     if user.email != CEO_EMAIL:
         raise HTTPException(status_code=403, detail="Sadece CEO bu işlemi yapabilir.")
 
+    all_users = await db.users.find({}).to_list(None)
     migrated = 0
-    skipped = 0
-    async for u in db.users.find({}):
+
+    for u in all_users:
         updates = {}
 
-        # credits → mindshare_credits (judge_credits yok ise 0)
+        # credits → mindshare_credits
         if "credits" in u and "mindshare_credits" not in u:
-            updates["mindshare_credits"] = u["credits"]
-        if "judge_credits" not in u:
-            updates["judge_credits"] = 0
-
-        # subscription → mindshare_subscription
-        if "mindshare_subscription" not in u:
-            updates["mindshare_subscription"] = u.get("subscription", "free")
+            updates["mindshare_credits"] = u.get("credits", 0)
 
         # rank → mindshare_rank
-        if "rank" in u and "mindshare_rank" not in u:
-            updates["mindshare_rank"] = u["rank"]
+        if "mindshare_rank" not in u:
+            updates["mindshare_rank"] = u.get("rank", "iron")
 
-        # xp → mindshare_xp
-        if "xp" in u and "mindshare_xp" not in u:
-            updates["mindshare_xp"] = u["xp"]
+        # quest_xp / xp → mindshare_xp
+        if "mindshare_xp" not in u:
+            updates["mindshare_xp"] = u.get("quest_xp", u.get("xp", 0))
+
+        # Judge alanları — her zaman varsayılan ekle
+        if "judge_credits" not in u:
+            updates["judge_credits"] = 0
+        if "judge_rank" not in u:
+            updates["judge_rank"] = "iron"
+        if "judge_xp" not in u:
+            updates["judge_xp"] = 0
 
         if updates:
             await db.users.update_one({"_id": u["_id"]}, {"$set": updates})
             migrated += 1
-        else:
-            skipped += 1
 
     return {
         "success": True,
         "migrated": migrated,
-        "skipped": skipped,
-        "message": f"{migrated} kullanıcı güncellendi, {skipped} zaten güncel."
+        "total": len(all_users),
+        "message": f"{migrated}/{len(all_users)} kullanıcı güncellendi."
     }
 
 async def send_weekly_report():
@@ -4233,17 +4293,21 @@ app.include_router(api_router)
 
 frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
+_allowed_origins = list(filter(None, [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    "http://127.0.0.1:3000",
+    "https://exciting-comfort-production.up.railway.app",
+    "https://zet-mindshare-production.up.railway.app",
+    "https://app.zetstudiointl.com",
+    "https://zetstudiointl.com",
+    os.environ.get("FRONTEND_URL"),
+]))
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://127.0.0.1:3000",
-        "https://exciting-comfort-production.up.railway.app",
-        "https://zet-mindshare-production.up.railway.app",
-        os.environ.get("FRONTEND_URL", "http://localhost:3000"),
-    ],
+    allow_origins=_allowed_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )
