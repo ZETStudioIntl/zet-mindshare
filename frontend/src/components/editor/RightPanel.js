@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, PenTool, FileText, CreditCard, Search, ArrowLeft, SlidersHorizontal, Check } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, PenTool, FileText, CreditCard, Search, ArrowLeft, SlidersHorizontal, Check, Zap, Brain, Star } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 
@@ -74,6 +74,7 @@ export const RightPanel = ({
 
   // Model seçimi
   const [zetaModel, setZetaModel] = useState('prime');
+  const [showModelPicker, setShowModelPicker] = useState(false);
 
   const [showZetaSendMenu, setShowZetaSendMenu] = useState(false);
 
@@ -504,29 +505,70 @@ export const RightPanel = ({
       {showZeta && (
       <div className="flex-1 flex flex-col min-h-0">
         {/* Header */}
-        <div className="flex items-center border-b px-2 py-1.5 flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
-          <img src="/zeta-icon.svg" alt="ZETA" style={{ width: 14, height: 14, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
-          <span className="font-semibold text-xs ml-1.5 flex-1" style={{ color: 'var(--zet-text)' }}>ZETA</span>
-          {onShowChatSettings && (
-            <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-1 hover:bg-white/10 rounded" title="Chat Ayarları">
-              <Settings className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
-            </button>
-          )}
-        </div>
+        {(() => {
+          const MODELS = [
+            { id: 'spark', label: 'Zeta Spark', desc: 'Günlük görevler için hızlı ve verimli', Icon: Zap, color: '#22c55e' },
+            { id: 'prime', label: 'Zeta Prime', desc: 'Karmaşık görevler için güçlü ve dengeli', Icon: Brain, color: 'var(--zet-primary-light, #818cf8)' },
+            { id: 'aziz', label: 'Zeta Aziz', desc: 'En üst düzey analiz ve yaratıcılık', Icon: Star, color: '#f59e0b' },
+          ];
+          const active = MODELS.find(m => m.id === zetaModel) || MODELS[1];
+          return (
+            <div className="border-b flex-shrink-0 relative" style={{ borderColor: 'var(--zet-border)' }}>
+              <div className="flex items-center px-2 py-1.5 gap-1">
+                <img src="/zeta-icon.svg" alt="ZETA" style={{ width: 14, height: 14, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
+                <span className="font-semibold text-xs ml-0.5 flex-1" style={{ color: 'var(--zet-text)' }}>ZETA</span>
+                {/* Model Picker Button */}
+                <button
+                  onClick={e => { e.stopPropagation(); setShowModelPicker(v => !v); }}
+                  className="flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-medium transition-all hover:bg-white/10"
+                  style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: active.color }}
+                >
+                  <active.Icon className="h-3 w-3" />
+                  {active.label}
+                  <ChevronDown className="h-2.5 w-2.5 ml-0.5" style={{ color: 'var(--zet-text-muted)' }} />
+                </button>
+                {onShowChatSettings && (
+                  <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-1 hover:bg-white/10 rounded" title="Chat Ayarları">
+                    <Settings className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
+                  </button>
+                )}
+              </div>
 
-        {/* Model Selector */}
-        <div className="flex items-center gap-1 px-2 py-1 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
-          {[
-            { id: 'spark', label: 'Spark', color: '#22c55e' },
-            { id: 'prime', label: 'Prime', color: 'var(--zet-primary-light)' },
-            { id: 'aziz', label: 'Aziz', color: '#f59e0b' },
-          ].map(m => (
-            <button key={m.id} onClick={() => setZetaModel(m.id)}
-              className="flex-1 py-0.5 rounded text-[10px] font-medium transition-all"
-              style={{ background: zetaModel === m.id ? m.color + '25' : 'transparent', border: `1px solid ${zetaModel === m.id ? m.color : 'var(--zet-border)'}`, color: zetaModel === m.id ? m.color : 'var(--zet-text-muted)' }}
-            >{m.label}</button>
-          ))}
-        </div>
+              {/* Model Dropdown */}
+              {showModelPicker && (
+                <>
+                  <div className="fixed inset-0 z-[100]" onClick={() => setShowModelPicker(false)} />
+                  <div
+                    className="absolute right-2 top-full mt-1 z-[101] rounded-xl overflow-hidden shadow-2xl"
+                    style={{ width: 260, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}
+                    onClick={e => e.stopPropagation()}
+                  >
+                    {MODELS.map((m, idx) => {
+                      const isActive = zetaModel === m.id;
+                      return (
+                        <button
+                          key={m.id}
+                          onClick={() => { setZetaModel(m.id); setShowModelPicker(false); }}
+                          className="w-full flex items-start gap-3 px-3 py-2.5 transition-colors text-left hover:bg-white/5"
+                          style={{ borderBottom: idx < MODELS.length - 1 ? '1px solid var(--zet-border)' : 'none' }}
+                        >
+                          <div className="flex-shrink-0 mt-0.5 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: m.color + '20' }}>
+                            <m.Icon className="h-3.5 w-3.5" style={{ color: m.color }} />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-xs font-semibold" style={{ color: isActive ? m.color : 'var(--zet-text)' }}>{m.label}</div>
+                            <div className="text-[10px] mt-0.5 leading-snug" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</div>
+                          </div>
+                          {isActive && <Check className="h-3.5 w-3.5 flex-shrink-0 mt-1" style={{ color: m.color }} />}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+          );
+        })()}
 
         {/* CEO mode banner */}
         {isCEO && (
