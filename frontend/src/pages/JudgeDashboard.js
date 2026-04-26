@@ -109,7 +109,7 @@ const JudgeDashboard = () => {
     setMediaLoading(true);
     try {
       const cursor = reset ? null : (mediaPosts[mediaPosts.length - 1]?.post_id);
-      const endpoint = tab === 'explore' ? `${API}/media/explore` : `${API}/media/feed`;
+      const endpoint = tab === 'explore' ? `${API}/posts` : `${API}/feed`;
       const params = cursor ? { cursor } : {};
       const res = await axios.get(endpoint, { params, withCredentials: true });
       const newPosts = res.data.posts || [];
@@ -169,7 +169,7 @@ const JudgeDashboard = () => {
     if (!postContent.trim() || postSubmitting) return;
     setPostSubmitting(true);
     try {
-      await axios.post(`${API}/media/posts`, { content: postContent, post_type: 'text' }, { withCredentials: true });
+      await axios.post(`${API}/posts`, { content: postContent, post_type: 'text' }, { withCredentials: true });
       setPostContent('');
       setShowCreatePost(false);
       loadPosts(true);
@@ -180,7 +180,7 @@ const JudgeDashboard = () => {
 
   const likePost = async (postId) => {
     try {
-      await axios.post(`${API}/media/posts/${postId}/like`, {}, { withCredentials: true });
+      await axios.post(`${API}/posts/${postId}/like`, {}, { withCredentials: true });
       setMediaPosts(prev => prev.map(p => p.post_id === postId ? { ...p, liked: !p.liked, likes_count: p.liked ? p.likes_count - 1 : p.likes_count + 1 } : p));
     } catch { showToast('Beğeni gönderilemedi', 'error'); }
   };
