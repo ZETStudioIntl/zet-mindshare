@@ -895,12 +895,32 @@ class SetVerifiedRequest(BaseModel):
 async def enrich_post(post: dict, viewer_id: str, viewer_following: list = None) -> dict:
     """Post'a yazar bilgisi, liked_by_me ve viewer_follows_author ekle."""
     author = await db.users.find_one({"user_id": post.get("author_id")}, {"_id": 0, "username": 1, "display_name": 1, "name": 1, "picture": 1, "verified_type": 1})
+    if author:
+        author = sanitize_user_doc(author)
     post["author"] = author or {}
     post["liked_by_me"] = viewer_id in (post.get("likes") or [])
     if viewer_following is not None:
         post["viewer_follows_author"] = post.get("author_id") in viewer_following
     post.pop("likes", None)
     return post
+
+@api_router.get("/fonts")
+async def get_fonts():
+    """Google Fonts listesini getir — 1000+ font."""
+    import aiohttp
+    api_key = os.getenv("GOOGLE_FONTS_API_KEY")
+    if not api_key:
+        return []
+    try:
+        async with aiohttp.ClientSession() as session:
+            url = f"https://www.googleapis.com/webfonts/v1/webfonts?key={api_key}&sort=popularity"
+            async with session.get(url) as resp:
+                data = await resp.json()
+                fonts = data.get("items", [])
+                return [{"family": f["family"], "category": f.get("category", "sans-serif"), "variants": f.get("variants", ["regular"])} for f in fonts]
+    except Exception as e:
+        logging.error(f"Google Fonts API error: {e}")
+        return []
 
 @api_router.get("/users/me")
 async def get_me(user: User = Depends(get_current_user)):

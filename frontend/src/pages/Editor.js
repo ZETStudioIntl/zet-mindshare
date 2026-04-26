@@ -128,6 +128,8 @@ const Editor = () => {
   const [currentColor, setCurrentColor] = useState(DEFAULT_COLOR);
   const [customColor, setCustomColor] = useState(DEFAULT_COLOR);
   const [fontSearch, setFontSearch] = useState('');
+  const [googleFonts, setGoogleFonts] = useState([]);
+  const [loadedFonts, setLoadedFonts] = useState({});
   const [customWidth, setCustomWidth] = useState(DEFAULT_PAGE_SIZE.width);
   const [customHeight, setCustomHeight] = useState(DEFAULT_PAGE_SIZE.height);
   const [currentLineHeight, setCurrentLineHeight] = useState(1.5);
@@ -481,6 +483,23 @@ const Editor = () => {
     }
   };
   useEffect(() => { refreshCredits(); }, []);
+
+  useEffect(() => {
+    const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+    fetch(`${API}/fonts`, { credentials: 'include' })
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { if (Array.isArray(data) && data.length > 0) setGoogleFonts(data); })
+      .catch(() => {});
+  }, []);
+
+  const loadGoogleFont = (family) => {
+    if (loadedFonts[family]) return;
+    const link = window.document.createElement('link');
+    link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}&display=swap`;
+    link.rel = 'stylesheet';
+    window.document.head.appendChild(link);
+    setLoadedFonts(prev => ({ ...prev, [family]: true }));
+  };
 
   // === CANVAS TIME TRACKING — sadece editörde geçen aktif süreyi say ===
   useEffect(() => {
@@ -2415,7 +2434,8 @@ const Editor = () => {
 
   // === COMPUTED ===
   const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (el.content?.length || 0), 0);
-  const filteredFonts = FONTS.filter(f => f.toLowerCase().includes(fontSearch.toLowerCase()));
+  const allFonts = googleFonts.length > 0 ? googleFonts.map(f => f.family) : FONTS;
+  const filteredFonts = allFonts.filter(f => f.toLowerCase().includes(fontSearch.toLowerCase()));
 
   if (!document) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}><Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--zet-primary)' }} /></div>;
@@ -2517,9 +2537,26 @@ const Editor = () => {
         <div className="p-2 rounded text-center" style={{ background: 'var(--zet-bg)' }}><span style={{ fontSize: Math.min(currentFontSize, 36), color: 'var(--zet-text)', fontFamily: currentFont }}>Aa</span></div>
       </div>
     </DraggablePanel>}
-    {showFont && <DraggablePanel title={t('font')} onClose={() => setShowFont(false)} initialPosition={{ x: isMobile ? 20 : 420, y: 100 }}>
-      <div className="w-56"><div className="relative mb-2"><Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} /><input placeholder={t('search')} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" /></div>
-        <div className="max-h-48 overflow-y-auto space-y-0.5">{filteredFonts.map(f => <button key={f} onClick={() => { setCurrentFont(f); applyInlineStyle('fontFamily', f); setShowFont(false); }} className={`w-full text-left px-2 py-1.5 text-sm rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f }}>{f}</button>)}</div>
+    {showFont && <DraggablePanel title={`${t('font')} (${allFonts.length}+)`} onClose={() => setShowFont(false)} initialPosition={{ x: isMobile ? 20 : 420, y: 100 }}>
+      <div className="w-64">
+        <div className="relative mb-2">
+          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
+          <input placeholder={`Font ara... (${allFonts.length}+ font)`} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" />
+        </div>
+        <div className="max-h-64 overflow-y-auto space-y-0.5">
+          {filteredFonts.slice(0, 100).map(f => (
+            <button key={f}
+              onClick={() => { loadGoogleFont(f); setCurrentFont(f); applyInlineStyle('fontFamily', f); setShowFont(false); }}
+              onMouseEnter={() => loadGoogleFont(f)}
+              className={`w-full text-left px-2 py-1.5 rounded transition-colors flex items-center justify-between ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`}
+              style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)' }}
+            >
+              <span style={{ fontSize: 13 }}>{f}</span>
+              <span style={{ fontFamily: loadedFonts[f] ? f : 'inherit', fontSize: 11, opacity: 0.6 }}>Aa</span>
+            </button>
+          ))}
+        </div>
+        {filteredFonts.length > 100 && <p className="text-center text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Arama ile daralt ({filteredFonts.length} sonuç)</p>}
       </div>
     </DraggablePanel>}
     {showLineSpacing && <DraggablePanel title={t('lineSpacing')} onClose={() => setShowLineSpacing(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
@@ -3865,7 +3902,7 @@ const Editor = () => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-hidden grid" style={{ gridTemplateColumns: toolboxOpen ? '1fr 1fr 1fr' : '40px 1fr 1fr' }}>
+      <div className="flex-1 overflow-hidden grid" style={{ gridTemplateColumns: toolboxOpen ? '220px 1fr 220px' : '40px 1fr 220px', gap: '12px', padding: '16px' }}>
         <Toolbox tools={TOOLS} activeTool={activeTool} onToolSelect={handleToolSelect}
           onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
           zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)} 
