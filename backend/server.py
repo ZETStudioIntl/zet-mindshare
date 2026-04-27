@@ -309,18 +309,25 @@ class ChatMessage(BaseModel):
     content: str
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
+ZETA_MODEL_MAP = {
+    "spark": ("gemini-2.0-flash", 1024),    # hızlı + ucuz
+    "prime": ("gemini-2.5-flash", 4096),    # dengeli
+    "aziz": ("gemini-2.5-pro", 8192),       # en güçlü
+}
+
 class ZetaChatRequest(BaseModel):
     message: str
     doc_id: Optional[str] = None
     session_id: Optional[str] = None
-    document_content: Optional[str] = None  # Text content of the current document
-    image: Optional[str] = None  # Base64 image data
-    mode: Optional[str] = "fast"  # 'fast' or 'deep' for Judge
-    mood: Optional[str] = "professional"  # cheerful, professional, curious, custom
-    emoji_level: Optional[str] = "medium"  # none, low, medium, high
-    custom_prompt: Optional[str] = ""  # Custom prompt for ZETA
-    personality: Optional[str] = "normal"  # normal, harsh for Judge
+    document_content: Optional[str] = None
+    image: Optional[str] = None
+    mode: Optional[str] = "fast"
+    mood: Optional[str] = "professional"
+    emoji_level: Optional[str] = "medium"
+    custom_prompt: Optional[str] = ""
+    personality: Optional[str] = "normal"
     is_ceo: Optional[bool] = False
+    model: Optional[str] = "prime"  # spark | prime | aziz
 
 class ZetaAutoWriteRequest(BaseModel):
     prompt: str
@@ -3257,11 +3264,16 @@ The user may ask questions about this document. Use this content to provide rele
     if not api_key:
         return {"response": "Yapılandırma hatası: GEMINI_API_KEY eksik.", "session_id": session_id}
 
+    gemini_model, max_tokens = ZETA_MODEL_MAP.get(req.model or "prime", ZETA_MODEL_MAP["prime"])
+
     try:
         client = google_genai.Client(api_key=api_key)
         resp = await gemini_generate(
-            client, "gemini-2.5-flash", contents,
-            genai_types.GenerateContentConfig(system_instruction=system_message)
+            client, gemini_model, contents,
+            genai_types.GenerateContentConfig(
+                system_instruction=system_message,
+                max_output_tokens=max_tokens,
+            )
         )
         response = resp.text
     except Exception as e:
@@ -3329,35 +3341,59 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
     quality_prompt = "high quality, professional, detailed, " if req.pro else ""
     full_prompt = f"{aspect_prompt}{quality_prompt}{req.prompt}".strip()
 
-    parts = []
-    if req.reference_image:
-        img_b64 = req.reference_image
-        mime_type = "image/png"
-        if "," in img_b64:
-            header, img_b64 = img_b64.split(",", 1)
-            if "jpeg" in header or "jpg" in header:
-                mime_type = "image/jpeg"
-        parts.append(genai_types.Part(
-            inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))
-        ))
-    parts.append(genai_types.Part(text=full_prompt))
+    client = google_genai.Client(api_key=api_key)
 
+    # Pro → Imagen 3 (yüksek kalite); Standard → Gemini flash (hızlı)
     try:
-        client = google_genai.Client(api_key=api_key)
-        resp = await gemini_generate(
-            client, "gemini-2.0-flash-preview-image-generation",
-            [genai_types.Content(role="user", parts=parts)],
-            genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
-        )
+        if req.pro and not req.reference_image:
+            # Imagen 3 — generate_images API (no reference image support)
+            from google.genai import types as _gtypes
+            imagen_resp = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: client.models.generate_images(
+                    model="imagen-3.0-generate-001",
+                    prompt=full_prompt,
+                    config=_gtypes.GenerateImagesConfig(
+                        number_of_images=1,
+                        aspect_ratio=req.aspect_ratio or "1:1",
+                        safety_filter_level="block_only_high",
+                    )
+                )
+            )
+            text_out = ""
+            images = []
+            if imagen_resp.generated_images:
+                raw = imagen_resp.generated_images[0].image.image_bytes
+                encoded = base64.b64encode(raw).decode() if isinstance(raw, bytes) else raw
+                images.append({"mime_type": "image/png", "data": encoded})
+            if not images:
+                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                await db.usage.update_one({"user_id": user.user_id, "date": today}, {"$inc": {"credits_used": -credit_result['cost']}}, upsert=True)
+                raise HTTPException(status_code=500, detail="Görsel oluşturulamadı, kredi iade edildi.")
+            return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
+        else:
+            # Gemini flash image generation (standard or pro with reference)
+            parts = []
+            if req.reference_image:
+                img_b64 = req.reference_image
+                mime_type = "image/png"
+                if "," in img_b64:
+                    header, img_b64 = img_b64.split(",", 1)
+                    if "jpeg" in header or "jpg" in header:
+                        mime_type = "image/jpeg"
+                parts.append(genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))))
+            parts.append(genai_types.Part(text=full_prompt))
+            resp = await gemini_generate(
+                client, "gemini-2.0-flash-exp-image-generation",
+                [genai_types.Content(role="user", parts=parts)],
+                genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
+            )
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Image generation error: {e}")
-        # Krediyi iade et
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        await db.usage.update_one(
-            {"user_id": user.user_id, "date": today},
-            {"$inc": {"credits_used": -credit_result['cost']}},
-            upsert=True
-        )
+        await db.usage.update_one({"user_id": user.user_id, "date": today}, {"$inc": {"credits_used": -credit_result['cost']}}, upsert=True)
         raise HTTPException(status_code=500, detail=f"Görsel oluşturma hatası: {str(e)}")
 
     text_out = ""
@@ -3429,7 +3465,7 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
 
     client = google_genai.Client(api_key=api_key)
     resp = await gemini_generate(
-        client, "gemini-2.0-flash-preview-image-generation",
+        client, "gemini-2.0-flash-exp-image-generation",
         [genai_types.Content(role="user", parts=[
             genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(image_data))),
             genai_types.Part(text=f"Edit this image: {req.edit_prompt}")
