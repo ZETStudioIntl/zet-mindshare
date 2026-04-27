@@ -4,7 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
-import { Toolbox } from '../components/editor/Toolbox';
+import { Toolbox, SHAPE_LIST, PUNCTUATION_LIST } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
 import { DraggablePanel } from '../components/editor/DraggablePanel';
@@ -72,6 +72,18 @@ const Editor = () => {
     const handler = () => setIsMobile(window.innerWidth < 768);
     window.addEventListener('resize', handler);
     return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  // Offline detection
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   // Mobile panels
@@ -220,6 +232,9 @@ const Editor = () => {
   const [showPageColor, setShowPageColor] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
   const [showExport, setShowExport] = useState(false);
+  const [showShapes, setShowShapes] = useState(false);
+  const [showPunctuation, setShowPunctuation] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPhotoEdit, setShowPhotoEdit] = useState(false);
   const [showSignature, setShowSignature] = useState(false);
@@ -601,6 +616,15 @@ const Editor = () => {
   useEffect(() => {
     if (document) {
       setSaveStatus('unsaved');
+      // Always save locally first (offline backup)
+      if (docId) {
+        try {
+          localStorage.setItem(`zet_offline_${docId}`, JSON.stringify({
+            canvasElements, drawPaths, currentPage,
+            pageSize, pageBackground, timestamp: Date.now(),
+          }));
+        } catch {}
+      }
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
       autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 2000);
     }
@@ -608,8 +632,25 @@ const Editor = () => {
   }, [canvasElements, drawPaths]);
 
   const fetchDocument = async () => {
-    try { const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true }); setDocument(res.data); }
-    catch { navigate('/dashboard'); }
+    try {
+      const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
+      setDocument(res.data);
+      // Sync any pending offline changes
+      const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
+      if (offlineDoc) {
+        try {
+          const local = JSON.parse(offlineDoc);
+          await axios.put(`${API}/documents/${docId}`, { title: local.title, subtitle: local.subtitle || null, content: res.data.content, pages: local.pages }, { withCredentials: true });
+          localStorage.removeItem(`zet_offline_doc_${docId}`);
+        } catch {}
+      }
+    } catch {
+      // Try loading from offline cache
+      const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
+      if (offlineDoc) {
+        try { setDocument(JSON.parse(offlineDoc)); } catch { navigate('/dashboard'); }
+      } else { navigate('/dashboard'); }
+    }
   };
 
   const fetchCreditPackages = async () => {
@@ -651,10 +692,21 @@ const Editor = () => {
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
     }
+    if (!navigator.onLine) {
+      // Offline: save to localStorage only
+      try {
+        localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({ title: document.title, subtitle: document.subtitle, pages: updatedPages }));
+      } catch {}
+      setSaveStatus('unsaved');
+      if (!silent) setSaving(false);
+      return;
+    }
     try {
       await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages }, { withCredentials: true });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
+      // Clear offline cache on successful server save
+      localStorage.removeItem(`zet_offline_doc_${docId}`);
     } catch { setSaveStatus('unsaved'); } finally { if (!silent) setSaving(false); }
   };
 
@@ -775,7 +827,12 @@ const Editor = () => {
   }, []);
 
   // === LOCKED TOOLS (based on plan) ===
+  const FREE_ALLOWED_TOOLS = new Set(['select', 'text', 'hand']);
+
   const getLockedTools = () => {
+    if (userPlan === 'free') {
+      return TOOLS.map(t => t.id).filter(id => !FREE_ALLOWED_TOOLS.has(id));
+    }
     const locked = [];
     if (!planLimits.layers) locked.push('layers');
     if (!planLimits.signature) locked.push('signature');
@@ -784,8 +841,9 @@ const Editor = () => {
     if (!planLimits.charts) locked.push('graphic');
     return locked;
   };
-  
+
   const getToolLockReason = (toolId) => {
+    if (userPlan === 'free') return 'Bu araç sadece aboneler içindir. Herhangi bir planla tüm araçlara erişin.';
     const names = { layers: 'Katmanlar', signature: 'Dijital İmza', watermark: 'Filigran', pagecolor: 'Sayfa Rengi', graphic: 'Grafikler' };
     return `${names[toolId] || toolId} aracı mevcut planınızda kullanılamaz. Lütfen planınızı yükseltin.`;
   };
@@ -817,6 +875,8 @@ const Editor = () => {
       mirror: () => setShowMirror(true),
       voiceinput: () => setShowVoiceInput(true),
       export: () => setShowExport(true),
+      shapes: () => setShowShapes(true),
+      punctuation: () => setShowPunctuation(true),
       photoedit: () => setShowPhotoEdit(true),
       signature: () => setShowSignature(true),
       indent: () => setShowIndent(true),
@@ -2732,14 +2792,48 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
-    {/* Export Panel */}
-    {showExport && <DraggablePanel title="Export" onClose={() => setShowExport(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
-      <div className="space-y-3 w-52">
-        <button onClick={exportToPDF} disabled={exporting} className="zet-btn w-full flex items-center justify-center gap-2 py-2.5">
-          {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-          Export as PDF
-        </button>
-        <div className="text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>Current page will be exported</div>
+    {/* Shapes Panel */}
+    {showShapes && <DraggablePanel title="Şekiller" onClose={() => setShowShapes(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-56">
+        <div className="grid grid-cols-4 gap-1">
+          {SHAPE_LIST.map(shape => (
+            <button
+              key={shape.id}
+              title={shape.label}
+              onClick={() => { setActiveTool(shape.id); setShowShapes(false); }}
+              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded transition-colors hover:bg-white/10 ${activeTool === shape.id ? 'bg-white/15' : ''}`}
+              style={{ border: activeTool === shape.id ? '1px solid var(--zet-primary)' : '1px solid var(--zet-border)' }}
+            >
+              <span className="text-base">{
+                { triangle: '▲', square: '■', circle: '●', ring: '○', star: '★',
+                  hexagon: '⬡', diamond: '◆', pentagon: '⬠', heart: '♥',
+                  arrow: '➔', parallelogram: '▱' }[shape.id]
+              }</span>
+              <span className="text-[8px]" style={{ color: 'var(--zet-text-muted)' }}>{shape.label}</span>
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Seçip tuvale tıklayın</p>
+      </div>
+    </DraggablePanel>}
+
+    {/* Punctuation Panel */}
+    {showPunctuation && <DraggablePanel title="Noktalama İşaretleri" onClose={() => setShowPunctuation(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 120 }}>
+      <div className="w-60">
+        <div className="flex flex-wrap gap-1">
+          {PUNCTUATION_LIST.map((char, i) => (
+            <button
+              key={i}
+              title={char}
+              onClick={() => document.execCommand('insertText', false, char)}
+              className="w-8 h-8 rounded font-mono text-sm flex items-center justify-center hover:bg-white/15 transition-colors"
+              style={{ border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
+            >
+              {char}
+            </button>
+          ))}
+        </div>
+        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Metin kutusuna odaklanıp tıklayın</p>
       </div>
     </DraggablePanel>}
 
@@ -3840,6 +3934,13 @@ const Editor = () => {
   // =============================
   return (
     <div data-testid="editor-page" className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
+          style={{ background: '#f59e0b', color: '#000' }}>
+          <span>📴</span> Çevrimdışı — değişiklikler yerel olarak kaydediliyor
+        </div>
+      )}
       {/* Hidden PDF input */}
       <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importPDF(f); e.target.value = ''; }} />
       {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><div className="animate-spin w-8 h-8 border-2 border-t-transparent rounded-full mx-auto mb-3" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} /><p style={{ color: 'var(--zet-text)' }}>PDF içe aktarılıyor...</p></div></div>}
@@ -3944,7 +4045,7 @@ const Editor = () => {
             onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
             zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)}
             lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }}
-            onInsertText={(char) => document.execCommand('insertText', false, char)} />
+             />
         </div>
 
         <ResizableDivider onResize={delta => setLeftWidth(w => Math.max(48, Math.min(300, w + delta)))} />
