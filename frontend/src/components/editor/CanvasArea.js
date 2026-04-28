@@ -407,7 +407,11 @@ export const CanvasArea = ({
   }, [currentPage, canvasElements]); // eslint-disable-line react-hooks/exhaustive-deps
 
 
-  const getCoords = useCallback((e, el) => { const r = el.getBoundingClientRect(); return { x: (e.clientX - r.left) / zoom, y: (e.clientY - r.top) / zoom }; }, [zoom]);
+  const getCoords = useCallback((e, el) => {
+    const r = el.getBoundingClientRect();
+    const src = e.touches?.[0] || e.changedTouches?.[0] || e;
+    return { x: (src.clientX - r.left) / zoom, y: (src.clientY - r.top) / zoom };
+  }, [zoom]);
 
   const handleTextCommit = useCallback((id, text, isHtml = false) => {
     // Extract plain text for empty check
@@ -646,11 +650,24 @@ export const CanvasArea = ({
       }
     }
     
-    if (selectedElement && (activeTool === 'hand' || activeTool === 'text')) {
+    if (activeTool === 'hand') {
+      const hitEl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
+      if (hitEl && editingId !== hitEl.id) {
+        setSelectedElement(hitEl.id);
+        setSelectedElements([hitEl.id]);
+        setDragging(hitEl.id);
+        setDragOffset({ x: x - hitEl.x, y: y - hitEl.y });
+      } else if (!hitEl) {
+        setSelectedElement(null);
+        setSelectedElements([]);
+      }
+      return;
+    }
+    if (activeTool === 'text') {
       const el = canvasElements.find(el => el.id === selectedElement);
       if (el && isPointInElement(x, y, el) && editingId !== el.id) { setDragging(el.id); setDragOffset({ x: x - el.x, y: y - el.y }); }
     }
-  }, [activeTool, canvasElements, cropRect, cropTarget, currentPage, drawPaths, editingId, getCoords, selectedElement, selectedVector]);
+  }, [activeTool, canvasElements, cropRect, cropTarget, currentPage, drawPaths, editingId, getCoords, selectedElement, selectedElements, selectedVector]);
 
   const handleMouseMove = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;

@@ -130,7 +130,7 @@ const Dashboard = () => {
   const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
   const [userSubscription, setUserSubscription] = useState('free');
   const [subscribing, setSubscribing] = useState(false);
-  const [userSP, setUserSP] = useState(0);
+  const [userZP, setUserZP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0); // mevcut oturum süresi (yerel)
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
@@ -157,6 +157,7 @@ const Dashboard = () => {
   const [noteMenuPos, setNoteMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState(null);
   const [openMenuDocId, setOpenMenuDocId] = useState(null);
+  const [primeDriveDocs, setPrimeDriveDocs] = useState(() => JSON.parse(localStorage.getItem('prime_drive_docs') || '[]'));
   const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
   const [confirmDeleteNotebookId, setConfirmDeleteNotebookId] = useState(null);
@@ -224,10 +225,10 @@ const Dashboard = () => {
     for (const r of RANKS) { if (xp >= r.xp) rank = r; }
     return rank;
   };
-  const currentRank = getCurrentRank(userSP);
-  const nextRank = RANKS.find(r => r.xp > userSP) || null;
+  const currentRank = getCurrentRank(userZP);
+  const nextRank = RANKS.find(r => r.xp > userZP) || null;
   const rankProgress = nextRank
-    ? Math.min(100, Math.round(((userSP - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
+    ? Math.min(100, Math.round(((userZP - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
     : 100;
 
   const RANK_LOGOS = { 'Demir': ironRankImg, 'Gümüş': silverRankImg, 'Altın': goldRankImg, 'Elmas': diamondRankImg, 'Zümrüt': emeraldRankImg, 'Endless': endlessRankImg };
@@ -253,14 +254,14 @@ const Dashboard = () => {
   }, [userSubscription, fastSelectTools.length]);
 
   // Subscription plans data - ordered from biggest to smallest
-  const SP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
+  const ZP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
   const SUBSCRIPTION_PLANS = [
     {
       id: 'plus',
       name: 'Plus',
       monthlyPrice: 10,
       yearlyPrice: 100,
-      spCost: 10000,
+      zpCost: 10000,
       scope: 'mindshare',
       scopeLabel: 'Sadece ZET Mindshare',
       features: [
@@ -279,7 +280,7 @@ const Dashboard = () => {
       name: 'Pro',
       monthlyPrice: 25,
       yearlyPrice: 250,
-      spCost: 30000,
+      zpCost: 30000,
       scope: 'mindshare',
       scopeLabel: 'Sadece ZET Mindshare',
       features: [
@@ -299,7 +300,7 @@ const Dashboard = () => {
       name: 'Creative Station',
       monthlyPrice: 40,
       yearlyPrice: 400,
-      spCost: 50000,
+      zpCost: 50000,
       scope: 'both',
       scopeLabel: 'ZET Mindshare + ZET Judge',
       features: [
@@ -430,7 +431,7 @@ const Dashboard = () => {
     } catch { setUserSubscription('free'); }
     try {
       const spRes = await axios.get(`${API}/quests/progress`, { withCredentials: true });
-      setUserSP(spRes.data.quest_xp || 0);
+      setUserZP(spRes.data.quest_xp || 0);
       setActiveTimeSeconds(spRes.data.active_time_seconds || 0);
       setCompletedQuestCount((spRes.data.completed_quests || []).length);
     } catch { /* ignore */ }
@@ -682,22 +683,22 @@ const Dashboard = () => {
   const handleBuyWithSP = async (planId) => {
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
     if (!plan) return;
-    if (userSP < plan.spCost) {
-      showToast(`Yetersiz SP! Gerekli: ${plan.spCost.toLocaleString()} SP, Mevcut: ${userSP.toLocaleString()} SP`, 'error');
+    if (userZP < plan.zpCost) {
+      showToast(`Yetersiz ZP! Gerekli: ${plan.zpCost.toLocaleString()} ZP, Mevcut: ${userZP.toLocaleString()} ZP`, 'error');
       return;
     }
     showConfirm(
-      'SP ile Satın Al',
-      `${plan.spCost.toLocaleString()} SP harcayarak ${plan.name} planına yükselmek istiyor musunuz?\n\nMevcut SP: ${userSP.toLocaleString()}\nKalan SP: ${(userSP - plan.spCost).toLocaleString()}`,
+      'ZP ile Satın Al',
+      `${plan.zpCost.toLocaleString()} ZP harcayarak ${plan.name} planına yükselmek istiyor musunuz?\n\nMevcut ZP: ${userZP.toLocaleString()}\nKalan ZP: ${(userZP - plan.zpCost).toLocaleString()}`,
       async () => {
         setSubscribing(true);
         try {
           const res = await axios.post(`${API}/subscription/buy-with-sp`, { plan: planId }, { withCredentials: true });
           setUserSubscription(res.data.plan);
-          setUserSP(res.data.remaining_sp);
-          showToast(`${plan.name} planına ${plan.spCost.toLocaleString()} SP ile yükseltildiniz!`, 'success');
+          setUserZP(res.data.remaining_zp);
+          showToast(`${plan.name} planına ${plan.zpCost.toLocaleString()} ZP ile yükseltildiniz!`, 'success');
         } catch (err) {
-          showToast(err.response?.data?.detail || 'SP ile satın alma başarısız', 'error');
+          showToast(err.response?.data?.detail || 'ZP ile satın alma başarısız', 'error');
         }
         setSubscribing(false);
       }
@@ -1585,6 +1586,7 @@ MATCHES:[1,3,5]`;
                 { id: 'general',      icon: <User className="h-4 w-4" />,       label: t('general') },
                 { id: 'profile',      icon: <UserCheck className="h-4 w-4" />,  label: t('profile') },
                 { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
+                { id: 'primedrive',   icon: <HardDrive className="h-4 w-4" />,  label: 'Prime Drive',      color: '#6366f1' },
                 { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
                 { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('questMap'),      color: '#4ca8ad' },
                 { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: t('subscription'),  color: 'var(--zet-primary-light)' },
@@ -2084,7 +2086,7 @@ MATCHES:[1,3,5]`;
                             </span>
                             <span style={{ color: 'var(--zet-text-muted)' }}>+</span>
                             <span className="flex items-center gap-1" style={{ color: '#f59e0b' }}>
-                              <Star className="h-3.5 w-3.5" />{reward.sp.toLocaleString()} SP
+                              <Star className="h-3.5 w-3.5" />{reward.zp.toLocaleString()} ZP
                             </span>
                           </div>
                         </div>
@@ -2100,7 +2102,7 @@ MATCHES:[1,3,5]`;
                     <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
                       <div className="h-full rounded-full transition-all" style={{ width: `${rankProgress}%`, background: currentRank.color }} />
                     </div>
-                    <p className="text-xs mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>{userSP.toLocaleString()} / {nextRank ? nextRank.xp.toLocaleString() : '∞'} XP</p>
+                    <p className="text-xs mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>{userZP.toLocaleString()} / {nextRank ? nextRank.xp.toLocaleString() : '∞'} XP</p>
                   </div>
                 </div>
                 );
@@ -2111,8 +2113,8 @@ MATCHES:[1,3,5]`;
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('subscription')}</h2>
                   <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
                     <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
-                    <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userSP.toLocaleString()} SP</span>
-                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- SP ile de plan alabilirsiniz</span>
+                    <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userZP.toLocaleString()} ZP</span>
+                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- ZP ile de plan alabilirsiniz</span>
                   </div>
                   <div className="flex justify-center mb-6">
                     <div className="flex rounded-lg p-1" style={{ background: 'var(--zet-bg)' }}>
@@ -2165,8 +2167,8 @@ MATCHES:[1,3,5]`;
                                     {userSubscription === plan.id ? t('currentPlan') : `$${price}${period} ile Al`}
                                   </button>
                                   {userSubscription !== plan.id && (
-                                    <button onClick={() => handleBuyWithSP(plan.id)} disabled={subscribing || userSP < plan.spCost} className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-40 flex items-center justify-center gap-2" style={{ background: userSP >= plan.spCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)', color: userSP >= plan.spCost ? '#fbbf24' : 'var(--zet-text-muted)', border: `1px solid ${userSP >= plan.spCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
-                                      <Star className="h-4 w-4" />{plan.spCost.toLocaleString()} SP ile Al
+                                    <button onClick={() => handleBuyWithSP(plan.id)} disabled={subscribing || userZP < plan.zpCost} className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-40 flex items-center justify-center gap-2" style={{ background: userZP >= plan.zpCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)', color: userZP >= plan.zpCost ? '#fbbf24' : 'var(--zet-text-muted)', border: `1px solid ${userZP >= plan.zpCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
+                                      <Star className="h-4 w-4" />{plan.zpCost.toLocaleString()} ZP ile Al
                                     </button>
                                   )}
                                 </div>
@@ -2228,6 +2230,85 @@ MATCHES:[1,3,5]`;
                   </p>
                 </div>
               )}
+
+              {settingsTab === 'primedrive' && (() => {
+                const QUOTA_MAP = { free: 1, plus: 10, pro: 30, ultra: 1024 };
+                const quotaGB = QUOTA_MAP[userSubscription] || 1;
+                const usedBytes = primeDriveDocs.reduce((sum, d) => sum + (d.size || 0), 0);
+                const usedGB = usedBytes / (1024 * 1024 * 1024);
+                const usedPct = Math.min(100, (usedGB / quotaGB) * 100);
+                const fmtSize = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+                return (
+                  <div className="max-w-lg">
+                    <div className="flex items-center gap-3 mb-6">
+                      <HardDrive className="h-6 w-6" style={{ color: '#6366f1' }} />
+                      <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Prime Drive</h2>
+                    </div>
+                    {/* Quota bar */}
+                    <div className="p-5 rounded-2xl mb-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>Depolama Alanı</span>
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}>
+                          {userSubscription === 'ultra' ? '1 TB — Creative Station' : userSubscription === 'pro' ? '30 GB — Pro' : userSubscription === 'plus' ? '10 GB — Plus' : '1 GB — Free'}
+                        </span>
+                      </div>
+                      <div className="w-full h-3 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                        <div className="h-full rounded-full transition-all" style={{ width: `${usedPct}%`, background: usedPct > 80 ? '#ef4444' : '#6366f1' }} />
+                      </div>
+                      <div className="flex justify-between text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                        <span>{usedGB < 0.001 ? '0 MB' : `${(usedGB * 1024).toFixed(1)} MB`} kullanıldı</span>
+                        <span>{quotaGB < 1024 ? `${quotaGB} GB` : '1 TB'} toplam</span>
+                      </div>
+                    </div>
+                    {/* Shared pool badge for Creative Station */}
+                    {userSubscription === 'ultra' && (
+                      <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl mb-4" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
+                        <span style={{ color: '#f59e0b', fontSize: 13 }}>✦</span>
+                        <span className="text-sm" style={{ color: '#f59e0b' }}>ZET Mindshare ve ZET Judge için ortak 1 TB havuz</span>
+                      </div>
+                    )}
+                    {/* Files list */}
+                    <div className="mb-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--zet-text-muted)' }}>Dosyalar ({primeDriveDocs.length})</span>
+                    </div>
+                    {primeDriveDocs.length === 0 ? (
+                      <div className="text-center py-12 rounded-2xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                        <HardDrive className="h-10 w-10 mx-auto mb-3 opacity-30" style={{ color: '#6366f1' }} />
+                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Henüz Prime Drive'a dosya eklenmedi.</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Belgelerin üç nokta menüsünden ekleyebilirsin.</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {primeDriveDocs.map(item => (
+                          <div key={item.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                            <div className="flex items-center gap-3">
+                              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: item.type === 'session' ? 'rgba(200,0,90,0.15)' : 'rgba(99,102,241,0.15)' }}>
+                                {item.type === 'session' ? <Scale className="h-4 w-4" style={{ color: '#c8005a' }} /> : <FileText className="h-4 w-4" style={{ color: '#6366f1' }} />}
+                              </div>
+                              <div>
+                                <p className="text-sm font-medium truncate max-w-[200px]" style={{ color: 'var(--zet-text)' }}>{item.title}</p>
+                                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{fmtSize(item.size || 0)} · {new Date(item.addedAt).toLocaleDateString('tr-TR')}</p>
+                              </div>
+                            </div>
+                            <button onClick={() => {
+                              const updated = primeDriveDocs.filter(d => d.id !== item.id);
+                              setPrimeDriveDocs(updated);
+                              localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
+                            }} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {userSubscription === 'free' && (
+                      <p className="text-xs text-center mt-4" style={{ color: 'var(--zet-text-muted)' }}>
+                        Plus planına geçerek 10 GB, Pro ile 30 GB, Creative Station ile 1 TB alana sahip olun.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {settingsTab === 'shortcuts' && (
                 <div className="max-w-lg">
@@ -2876,12 +2957,26 @@ MATCHES:[1,3,5]`;
                 style={{ top: docMenuPos.top, right: docMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
                 onClick={e => e.stopPropagation()}
               >
-                {(() => { const doc = filteredDocs.find(d => d.doc_id === openMenuDocId); return [
-                  { icon: <Pin className="h-4 w-4" style={{ color: doc?.pinned ? '#f59e0b' : 'inherit' }} />, label: doc?.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { if (doc) pinDocument(doc); } },
-                  { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) analyzeDocWithZeta(doc); } },
-                  { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
-                  { icon: <Trash2 className="h-4 w-4" />, label: t('noteMenuDelete'), color: '#ef4444', action: () => { setConfirmDeleteDocId(openMenuDocId); setOpenMenuDocId(null); } },
-                ]; })().map(item => (
+                {(() => {
+                  const doc = filteredDocs.find(d => d.doc_id === openMenuDocId);
+                  const inDrive = primeDriveDocs.some(d => d.id === openMenuDocId);
+                  return [
+                    { icon: <Pin className="h-4 w-4" style={{ color: doc?.pinned ? '#f59e0b' : 'inherit' }} />, label: doc?.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { if (doc) pinDocument(doc); } },
+                    { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) analyzeDocWithZeta(doc); } },
+                    { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? 'Prime Drive\'da' : 'Prime Drive\'a At', color: inDrive ? '#6366f1' : undefined, action: () => {
+                      if (!inDrive && doc) {
+                        const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);
+                        const updated = [...primeDriveDocs, { id: doc.doc_id, title: doc.title, size, addedAt: Date.now(), type: 'document' }];
+                        setPrimeDriveDocs(updated);
+                        localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
+                        showToast('Prime Drive\'a eklendi', 'success');
+                      }
+                      setOpenMenuDocId(null);
+                    }},
+                    { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
+                    { icon: <Trash2 className="h-4 w-4" />, label: t('noteMenuDelete'), color: '#ef4444', action: () => { setConfirmDeleteDocId(openMenuDocId); setOpenMenuDocId(null); } },
+                  ];
+                })().map(item => (
                   <button
                     key={item.label}
                     onClick={item.action}
@@ -3724,11 +3819,11 @@ MATCHES:[1,3,5]`;
               </button>
             </div>
 
-            {/* SP Balance */}
+            {/* ZP Balance */}
             <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }} data-testid="sp-balance-banner">
               <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
-              <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userSP.toLocaleString()} SP</span>
-              <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- SP ile de plan alabilirsiniz</span>
+              <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userZP.toLocaleString()} ZP</span>
+              <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- ZP ile de plan alabilirsiniz</span>
             </div>
             
             {/* Billing Cycle Toggle */}
@@ -3849,17 +3944,17 @@ MATCHES:[1,3,5]`;
                             {userSubscription !== plan.id && (
                               <button
                                 onClick={() => handleBuyWithSP(plan.id)}
-                                disabled={subscribing || userSP < plan.spCost}
+                                disabled={subscribing || userZP < plan.zpCost}
                                 className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-40 flex items-center justify-center gap-2"
                                 style={{
-                                  background: userSP >= plan.spCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)',
-                                  color: userSP >= plan.spCost ? '#fbbf24' : 'var(--zet-text-muted)',
-                                  border: `1px solid ${userSP >= plan.spCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}`
+                                  background: userZP >= plan.zpCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)',
+                                  color: userZP >= plan.zpCost ? '#fbbf24' : 'var(--zet-text-muted)',
+                                  border: `1px solid ${userZP >= plan.zpCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}`
                                 }}
                                 data-testid={`buy-sp-${plan.id}`}
                               >
                                 <Star className="h-4 w-4" />
-                                {plan.spCost.toLocaleString()} SP ile Al
+                                {plan.zpCost.toLocaleString()} ZP ile Al
                               </button>
                             )}
                           </div>
@@ -4068,7 +4163,7 @@ MATCHES:[1,3,5]`;
               <div className="flex justify-center mb-2"><RankIcon rank={currentRank} size={72} /></div>
               <h3 className="text-lg font-bold" style={{ color: currentRank.color }}>{currentRank.name}</h3>
               <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-                Seviye {currentRank.level} • {userSP.toLocaleString()} XP {nextRank ? `/ ${nextRank.xp.toLocaleString()} XP` : '(Maksimum)'}
+                Seviye {currentRank.level} • {userZP.toLocaleString()} XP {nextRank ? `/ ${nextRank.xp.toLocaleString()} XP` : '(Maksimum)'}
               </p>
               <div className="w-full h-2 rounded-full mt-2" style={{ background: 'var(--zet-bg)' }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${rankProgress}%`, background: `linear-gradient(90deg, ${currentRank.color}, #8b5cf6)` }} />

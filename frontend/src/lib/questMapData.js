@@ -1,7 +1,7 @@
 // Quest Map Data Generator - 500 quests in a massive spider-web / labyrinth
 // Shapes: circle=20SP, square=45SP, triangle=100SP, star=200SP
 
-const SP_VALUES = { circle: 20, square: 45, triangle: 100, star: 200 };
+const ZP_VALUES = { circle: 20, square: 45, triangle: 100, star: 200 };
 
 const QUEST_CHAINS = {
   doc: [
@@ -300,11 +300,11 @@ const QUEST_CHAINS = {
     { name: 'Maestro', desc: '300 görevi tamamla', shape: 'triangle' },
     { name: 'Büyük Usta', desc: '400 görevi tamamla', shape: 'star' },
     { name: 'Efsane', desc: '500 görevi tamamla', shape: 'star' },
-    { name: '1000 SP', desc: '1000 SP kazan', shape: 'circle' },
-    { name: '5000 SP', desc: '5000 SP kazan', shape: 'square' },
-    { name: '10000 SP', desc: '10000 SP kazan', shape: 'triangle' },
-    { name: '25000 SP', desc: '25000 SP kazan', shape: 'triangle' },
-    { name: '50000 SP', desc: '50000 SP kazan', shape: 'star' },
+    { name: '1000 ZP', desc: '1000 ZP kazan', shape: 'circle' },
+    { name: '5000 ZP', desc: '5000 ZP kazan', shape: 'square' },
+    { name: '10000 ZP', desc: '10000 ZP kazan', shape: 'triangle' },
+    { name: '25000 ZP', desc: '25000 ZP kazan', shape: 'triangle' },
+    { name: '50000 ZP', desc: '50000 ZP kazan', shape: 'star' },
     { name: 'Gunluk Giriş', desc: '7 gun ust uste giriş', shape: 'circle' },
     { name: 'Haftalik', desc: '30 gun giriş yapın', shape: 'square' },
     { name: 'Aylik', desc: '90 gun giriş yapın', shape: 'triangle' },
@@ -509,7 +509,7 @@ export function generateQuestMap() {
       quests.push({
         id: quests.length,
         name: q.name, desc: q.desc,
-        sp: SP_VALUES[q.shape] || 20,
+        zp: ZP_VALUES[q.shape] || 20,
         shape: q.shape,
         x, y,
       });
@@ -550,7 +550,7 @@ export function generateQuestMap() {
         id: newId,
         name: `${t.name} ${Math.floor(newId / 4)}`,
         desc: t.desc,
-        sp: SP_VALUES[t.shape],
+        zp: ZP_VALUES[t.shape],
         shape: t.shape,
         x, y,
       });
@@ -611,7 +611,7 @@ export function generateQuestMap() {
   };
 }
 
-export { SP_VALUES };
+export { ZP_VALUES };
 
 const CREDIT_COSTS_MAP = {
   'nano_banana': 20, 'nano_banana_pro': 50,

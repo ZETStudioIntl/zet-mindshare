@@ -5,9 +5,9 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import {
   Search, Plus, Settings, LogOut, ArrowLeft, Send, X, Loader,
-  FileText, Globe, ChevronRight, Heart, MessageCircle,
+  FileText, Globe, Heart, MessageCircle,
   User, Scale, ChevronLeft, Brain, CreditCard, Zap, Map, Award,
-  Check, Sparkles
+  Check, Sparkles, HardDrive
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -36,7 +36,7 @@ const SUBSCRIPTION_PLANS = [
     color: '#3b82f6',
     monthlyPrice: 10,
     yearlyPrice: 100,
-    spCost: 10000,
+    zpCost: 10000,
     scope: 'judge',
     scopeLabel: 'Sadece ZET Judge',
     recommended: false,
@@ -54,7 +54,7 @@ const SUBSCRIPTION_PLANS = [
     color: C,
     monthlyPrice: 25,
     yearlyPrice: 250,
-    spCost: 30000,
+    zpCost: 30000,
     scope: 'judge',
     scopeLabel: 'Sadece ZET Judge',
     recommended: true,
@@ -72,7 +72,7 @@ const SUBSCRIPTION_PLANS = [
     color: '#f59e0b',
     monthlyPrice: 40,
     yearlyPrice: 400,
-    spCost: 50000,
+    zpCost: 50000,
     scope: 'both',
     scopeLabel: 'ZET Mindshare + ZET Judge',
     recommended: false,
@@ -156,6 +156,7 @@ const JudgeDashboard = () => {
   const [mobileSettingsSidebar, setMobileSettingsSidebar] = useState(true);
 
   // Credits
+  const [primeDriveDocs, setPrimeDriveDocs] = useState(() => JSON.parse(localStorage.getItem('prime_drive_docs') || '[]'));
   const [creditPackages, setCreditPackages] = useState([]);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [billingCycle, setBillingCycle] = useState('monthly');
@@ -314,6 +315,7 @@ const JudgeDashboard = () => {
     { id: 'general',      label: 'Genel',              icon: Settings },
     { id: 'subscription', label: 'Abonelikler',        icon: CreditCard, color: C_LIGHT },
     { id: 'ai',           label: 'Judge AI Ayarları',  icon: Brain,      color: '#4ca8ad' },
+    { id: 'primedrive',   label: 'Prime Drive',        icon: Award,      color: '#6366f1' },
     { id: 'credits',      label: 'Kredi Al',           icon: Zap,        color: '#fbbf24' },
     { id: 'quests',       label: 'Görev Haritası',     icon: Map,        color: '#34d399' },
     { id: 'ranks',        label: 'Ranklar',            icon: Award,      color: currentRank.color },
@@ -386,35 +388,47 @@ const JudgeDashboard = () => {
                       {group.label}
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                      {group.items.map(s => (
-                        <div key={s.session_id}
-                          onClick={() => openSession(s)}
-                          style={{ background: BG_CARD2, border: `1px solid ${C_BORDER}`, borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'all 0.2s' }}
-                          onMouseEnter={e => { e.currentTarget.style.background = 'rgba(200,0,90,0.07)'; e.currentTarget.style.borderColor = 'rgba(200,0,90,0.35)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.background = BG_CARD2; e.currentTarget.style.borderColor = C_BORDER; }}>
-                          <div style={{ width: 40, height: 40, borderRadius: 10, background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <Scale size={18} color={C_LIGHT} />
+                      {group.items.map(s => {
+                        const inDrive = primeDriveDocs.some(d => d.id === s.session_id);
+                        return (
+                        <div key={s.session_id} style={{ position: 'relative' }}>
+                          <div
+                            onClick={() => openSession(s)}
+                            style={{ background: BG_CARD2, border: `1px solid ${C_BORDER}`, borderRadius: 14, padding: '16px 18px', display: 'flex', alignItems: 'center', gap: 14, cursor: 'pointer', transition: 'all 0.2s' }}
+                            onMouseEnter={e => { e.currentTarget.style.background = 'rgba(200,0,90,0.07)'; e.currentTarget.style.borderColor = 'rgba(200,0,90,0.35)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.background = BG_CARD2; e.currentTarget.style.borderColor = C_BORDER; }}>
+                            <div style={{ width: 40, height: 40, borderRadius: 10, background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Scale size={18} color={C_LIGHT} />
+                            </div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {s.first_message || 'Analiz'}
+                              </div>
+                              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'flex', gap: 8 }}>
+                                <span>{formatDate(s.created_at)}</span>
+                                <span>·</span>
+                                <span>{s.message_count} mesaj</span>
+                                {inDrive && <span style={{ color: '#6366f1' }}>· Drive'da</span>}
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                              {s.risk_score != null && (
+                                <div style={{ display: 'flex', gap: 10 }}>
+                                  <CircleScore label="Risk" value={s.risk_score} color="#ef4444" />
+                                  <CircleScore label="Potansiyel" value={s.success_score} color="#22c55e" />
+                                </div>
+                              )}
+                              <button
+                                onClick={e => { e.stopPropagation(); if (!inDrive) { const size = Math.max(30 * 1024, (s.first_message?.length || 100) * 50); const updated = [...primeDriveDocs, { id: s.session_id, title: s.first_message?.slice(0, 40) || 'Analiz', size, addedAt: Date.now(), type: 'session' }]; setPrimeDriveDocs(updated); localStorage.setItem('prime_drive_docs', JSON.stringify(updated)); showToast('Prime Drive\'a eklendi', 'success'); } }}
+                                style={{ padding: 6, borderRadius: 8, background: inDrive ? 'rgba(99,102,241,0.15)' : BG_CARD2, border: `1px solid ${inDrive ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.08)'}`, color: inDrive ? '#6366f1' : 'rgba(255,255,255,0.3)', cursor: inDrive ? 'default' : 'pointer' }}
+                                title={inDrive ? 'Prime Drive\'da' : 'Prime Drive\'a At'}>
+                                <HardDrive size={14} />
+                              </button>
+                            </div>
                           </div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 3, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {s.first_message || 'Analiz'}
-                            </div>
-                            <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.4)', display: 'flex', gap: 8 }}>
-                              <span>{formatDate(s.created_at)}</span>
-                              <span>·</span>
-                              <span>{s.message_count} mesaj</span>
-                            </div>
-                          </div>
-                          {s.risk_score != null ? (
-                            <div style={{ display: 'flex', gap: 10, flexShrink: 0 }}>
-                              <CircleScore label="Risk" value={s.risk_score} color="#ef4444" />
-                              <CircleScore label="Potansiyel" value={s.success_score} color="#22c55e" />
-                            </div>
-                          ) : (
-                            <ChevronRight size={16} color="rgba(255,255,255,0.25)" />
-                          )}
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 ))}
@@ -780,10 +794,10 @@ const JudgeDashboard = () => {
                               style={{ width: '100%', padding: '10px', borderRadius: 10, background: isCurrent ? 'transparent' : plan.color, border: isCurrent ? `1px solid ${plan.color}` : 'none', color: isCurrent ? plan.color : '#fff', cursor: isCurrent ? 'default' : 'pointer', fontSize: 13, fontWeight: 600 }}>
                               {isCurrent ? 'Mevcut Plan' : `$${price}${period} ile Al`}
                             </button>
-                            {!isCurrent && plan.spCost && (
+                            {!isCurrent && plan.zpCost && (
                               <button onClick={() => handleSubscribe(plan.id)} disabled={subscribing}
                                 style={{ width: '100%', padding: '8px', borderRadius: 10, background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)', color: '#fbbf24', cursor: 'pointer', fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-                                <Zap size={13} /> {plan.spCost.toLocaleString()} SP ile Al
+                                <Zap size={13} /> {plan.zpCost.toLocaleString()} ZP ile Al
                               </button>
                             )}
                           </div>
@@ -872,6 +886,84 @@ const JudgeDashboard = () => {
                   </div>
                 </div>
               )}
+
+              {/* PRIME DRIVE */}
+              {settingsTab === 'primedrive' && (() => {
+                const QUOTA_MAP = { free: 1, plus: 10, pro: 30, ultra: 1024 };
+                const quotaGB = QUOTA_MAP[userSubscription] || 1;
+                const usedBytes = primeDriveDocs.reduce((sum, d) => sum + (d.size || 0), 0);
+                const usedGB = usedBytes / (1024 * 1024 * 1024);
+                const usedPct = Math.min(100, (usedGB / quotaGB) * 100);
+                const fmtSize = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+                return (
+                  <div style={{ maxWidth: 480 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                      <HardDrive size={22} style={{ color: '#6366f1' }} />
+                      <h2 style={{ fontSize: 18, fontWeight: 700, color: '#fff' }}>Prime Drive</h2>
+                    </div>
+                    {/* Quota bar */}
+                    <div style={{ padding: 20, borderRadius: 16, background: BG_CARD, border: `1px solid ${C_BORDER}`, marginBottom: 12 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>Depolama Alanı</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 10px', borderRadius: 20, background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}>
+                          {userSubscription === 'ultra' ? '1 TB — Creative Station' : userSubscription === 'pro' ? '30 GB — Pro' : userSubscription === 'plus' ? '10 GB — Plus' : '1 GB — Free'}
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: 10, borderRadius: 5, background: 'rgba(255,255,255,0.08)', overflow: 'hidden', marginBottom: 6 }}>
+                        <div style={{ height: '100%', borderRadius: 5, background: usedPct > 80 ? '#ef4444' : '#6366f1', width: `${usedPct}%`, transition: 'width 0.5s ease' }} />
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>
+                        <span>{usedGB < 0.001 ? '0 MB' : `${(usedGB * 1024).toFixed(1)} MB`} kullanıldı</span>
+                        <span>{quotaGB < 1024 ? `${quotaGB} GB` : '1 TB'} toplam</span>
+                      </div>
+                    </div>
+                    {userSubscription === 'ultra' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 14px', borderRadius: 12, background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)', marginBottom: 16 }}>
+                        <span style={{ color: '#f59e0b' }}>✦</span>
+                        <span style={{ fontSize: 13, color: '#f59e0b' }}>ZET Mindshare ve ZET Judge için ortak 1 TB havuz</span>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>
+                      Dosyalar ({primeDriveDocs.length})
+                    </div>
+                    {primeDriveDocs.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '48px 0', borderRadius: 16, background: BG_CARD, border: `1px solid ${C_BORDER}` }}>
+                        <HardDrive size={36} style={{ color: '#6366f1', opacity: 0.3, margin: '0 auto 12px', display: 'block' }} />
+                        <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.4)' }}>Henüz Prime Drive'a dosya eklenmedi.</p>
+                        <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', marginTop: 4 }}>Analizlerin üç nokta menüsünden ekleyebilirsin.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {primeDriveDocs.map(item => (
+                          <div key={item.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: 12, background: BG_CARD, border: `1px solid ${C_BORDER}` }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <div style={{ width: 36, height: 36, borderRadius: 9, background: item.type === 'session' ? C_DIM : 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                {item.type === 'session' ? <Scale size={16} style={{ color: C_LIGHT }} /> : <FileText size={16} style={{ color: '#6366f1' }} />}
+                              </div>
+                              <div>
+                                <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.title}</div>
+                                <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{fmtSize(item.size || 0)} · {new Date(item.addedAt).toLocaleDateString('tr-TR')}</div>
+                              </div>
+                            </div>
+                            <button onClick={() => {
+                              const updated = primeDriveDocs.filter(d => d.id !== item.id);
+                              setPrimeDriveDocs(updated);
+                              localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
+                            }} style={{ padding: 6, borderRadius: 7, background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer' }}>
+                              <X size={15} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {userSubscription === 'free' && (
+                      <p style={{ textAlign: 'center', fontSize: 11, marginTop: 16, color: 'rgba(255,255,255,0.3)' }}>
+                        Plus ile 10 GB, Pro ile 30 GB, Creative Station ile 1 TB alana sahip olun.
+                      </p>
+                    )}
+                  </div>
+                );
+              })()}
 
               {/* RANKLAR */}
               {settingsTab === 'ranks' && (

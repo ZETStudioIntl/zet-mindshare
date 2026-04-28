@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, ZoomIn, ZoomOut, Maximize2, X, Star, Trophy } from 'lucide-react';
-import { generateQuestMap, SP_VALUES } from '../lib/questMapData';
+import { generateQuestMap, ZP_VALUES } from '../lib/questMapData';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -392,7 +392,7 @@ const QuestMap = () => {
         if (isDone) drawCheck(ctx, q.x, q.y - 2);
         else {
           ctx.fillStyle = c.stroke; ctx.font = 'bold 8px "DM Sans",sans-serif';
-          ctx.textAlign = 'center'; ctx.fillText(`${q.sp}`, q.x, q.y + 3);
+          ctx.textAlign = 'center'; ctx.fillText(`${q.zp}`, q.x, q.y + 3);
         }
 
         if (v.z > 0.3) {
@@ -536,7 +536,7 @@ const QuestMap = () => {
   const doComplete = async (q) => {
     if (completed.has(q.id) || !isUnlocked(q.id)) return;
     try {
-      const r = await axios.post(`${API}/quests/${q.id}/complete`, { xp: q.sp }, { withCredentials: true });
+      const r = await axios.post(`${API}/quests/${q.id}/complete`, { xp: q.zp }, { withCredentials: true });
       setCompleted(new Set(r.data.completed_quests)); setSp(r.data.quest_xp);
       playCompleteSound();
       if (r.data.rank_up) {
@@ -567,7 +567,7 @@ const QuestMap = () => {
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
             <Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} />
-            <span className="text-xs font-bold" style={{ color: '#fbbf24' }} data-testid="quest-sp-badge">{sp} SP</span>
+            <span className="text-xs font-bold" style={{ color: '#fbbf24' }} data-testid="quest-sp-badge">{sp} ZP</span>
           </div>
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)' }}>
             <Trophy className="h-3.5 w-3.5" style={{ color: '#4ade80' }} />
@@ -591,7 +591,7 @@ const QuestMap = () => {
           <button onClick={resetView} className="p-1 rounded hover:bg-white/5" data-testid="quest-reset-view"><Maximize2 className="h-4 w-4" style={{ color: '#64748b' }} /></button>
         </div>
         <div className="hidden lg:flex items-center gap-2 ml-2 pl-2 border-l" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          {[['circle','#38bdf8','20 SP'],['square','#818cf8','45 SP'],['triangle','#c084fc','100 SP'],['star','#fbbf24','200 SP']].map(([s,c,l]) => (
+          {[['circle','#38bdf8','20 ZP'],['square','#818cf8','45 ZP'],['triangle','#c084fc','100 ZP'],['star','#fbbf24','200 ZP']].map(([s,c,l]) => (
             <div key={s} className="flex items-center gap-1">
               <div className="w-2.5 h-2.5" style={{ background: c, borderRadius: s === 'circle' ? '50%' : '2px', clipPath: s === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : s === 'star' ? 'polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)' : 'none' }} />
               <span className="text-[10px]" style={{ color: '#475569' }}>{l}</span>
@@ -628,7 +628,7 @@ const QuestMap = () => {
             </div>
             <p className="text-xs mb-3" style={{ color: '#94a3b8' }}>{selected.desc}</p>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1"><Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} /><span className="text-xs font-bold" style={{ color: '#fbbf24' }}>+{selected.sp} SP</span></div>
+              <div className="flex items-center gap-1"><Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} /><span className="text-xs font-bold" style={{ color: '#fbbf24' }}>+{selected.zp} ZP</span></div>
               {completed.has(selected.id) ? (
                 <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>Tamamlandı</span>
               ) : isUnlocked(selected.id) ? (

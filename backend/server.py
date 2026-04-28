@@ -2118,13 +2118,13 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
     if plan_rank.get(req.plan, 0) <= plan_rank.get(current_plan, 0):
         raise HTTPException(status_code=400, detail="Zaten bu plan veya daha ust bir plana sahipsiniz")
     if current_sp < cost:
-        raise HTTPException(status_code=400, detail=f"Yetersiz SP. Gerekli: {cost} SP, Mevcut: {current_sp} SP")
+        raise HTTPException(status_code=400, detail=f"Yetersiz ZP. Gerekli: {cost} ZP, Mevcut: {current_sp} ZP")
     new_sp = current_sp - cost
     await db.users.update_one(
         {"user_id": user.user_id},
         {"$set": {"quest_xp": new_sp, "subscription": req.plan, "subscription_date": datetime.now(timezone.utc).isoformat(), "cancel_pending": False}}
     )
-    return {"message": f"{req.plan.upper()} planina SP ile yukseltildi", "plan": req.plan, "remaining_sp": new_sp}
+    return {"message": f"{req.plan.upper()} planina ZP ile yukseltildi", "plan": req.plan, "remaining_sp": new_sp}
 
 # ============ CREDIT PACKAGES ============
 
@@ -3384,7 +3384,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 parts.append(genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))))
             parts.append(genai_types.Part(text=full_prompt))
             resp = await gemini_generate(
-                client, "gemini-2.0-flash-exp-image-generation",
+                client, "gemini-2.0-flash-exp",
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
@@ -3465,7 +3465,7 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
 
     client = google_genai.Client(api_key=api_key)
     resp = await gemini_generate(
-        client, "gemini-2.0-flash-exp-image-generation",
+        client, "gemini-2.0-flash-exp",
         [genai_types.Content(role="user", parts=[
             genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(image_data))),
             genai_types.Part(text=f"Edit this image: {req.edit_prompt}")
