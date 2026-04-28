@@ -256,22 +256,22 @@ const Dashboard = () => {
   const SP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
   const SUBSCRIPTION_PLANS = [
     {
-      id: 'ultra',
-      name: 'ZET Creative Station',
-      monthlyPrice: 40,
-      yearlyPrice: 400,
-      spCost: 50000,
+      id: 'plus',
+      name: 'Plus',
+      monthlyPrice: 10,
+      yearlyPrice: 100,
+      spCost: 10000,
+      scope: 'mindshare',
+      scopeLabel: 'Sadece ZET Mindshare',
       features: [
-        '1200 Kredi/gün',
-        'ZETA Sınırsız',
-        'ZET Judge Sınırsız (Derin Analiz dahil)',
-        'zeta colors ultra',
-        'Tüm Görsel Boyutları (7 boyut)',
-        'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
+        '40 Kredi/gün',
+        'ZETA 500 token',
+        '3 Görsel Boyutu (16:9, 9:16, 1:1)',
+        'Katmanlar, Sayfa Rengi, Grafikler',
         'Sınırsız Fast Select',
-        '7/24 Öncelikli Destek + API Erişimi',
+        'E-posta Desteği',
       ],
-      color: '#f59e0b',
+      color: '#3b82f6',
       recommended: false
     },
     {
@@ -280,11 +280,12 @@ const Dashboard = () => {
       monthlyPrice: 25,
       yearlyPrice: 250,
       spCost: 30000,
+      scope: 'mindshare',
+      scopeLabel: 'Sadece ZET Mindshare',
       features: [
         '130 Kredi/gün',
         'ZETA Sınırsız',
-        'ZET Judge 600 harf (Derin Analiz dahil)',
-        'zeta colors ultra',
+        'zeta colors pro',
         '7 Görsel Boyutu',
         'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
         'Sınırsız Fast Select',
@@ -294,23 +295,26 @@ const Dashboard = () => {
       recommended: true
     },
     {
-      id: 'plus',
-      name: 'Plus',
-      monthlyPrice: 10,
-      yearlyPrice: 100,
-      spCost: 10000,
+      id: 'ultra',
+      name: 'Creative Station',
+      monthlyPrice: 40,
+      yearlyPrice: 400,
+      spCost: 50000,
+      scope: 'both',
+      scopeLabel: 'ZET Mindshare + ZET Judge',
       features: [
-        '40 Kredi/gün',
-        'ZETA 500 harf',
-        'ZET Judge Mini 200 harf (Derin Analiz yok)',
-        '3 Görsel Boyutu (16:9, 9:16, 1:1)',
-        'Katmanlar, Sayfa Rengi, Grafikler',
+        '1200 Kredi/gün',
+        'ZETA Sınırsız',
+        'ZET Judge Sınırsız + Derin Analiz',
+        'zeta colors ultra',
+        'Tüm Görsel Boyutları (7 boyut)',
+        'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
         'Sınırsız Fast Select',
-        'E-posta Desteği',
+        '7/24 Öncelikli Destek + API Erişimi',
       ],
-      color: '#3b82f6',
+      color: '#f59e0b',
       recommended: false
-    }
+    },
   ];
 
   // Notification helper function - defined before useEffects that use it
@@ -2137,7 +2141,12 @@ MATCHES:[1,3,5]`;
                               <div className={`relative rounded-2xl p-6 transition-all ${plan.recommended ? 'ring-2' : ''}`} style={{ background: `linear-gradient(135deg, ${plan.color}15 0%, ${plan.color}05 100%)`, border: `1px solid ${plan.color}30` }}>
                                 {plan.recommended && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>{t('recommended')}</div>}
                                 <div className="text-center mb-6 pt-2">
-                                  <h3 className="text-2xl font-bold mb-2" style={{ color: plan.color }}>{plan.name}</h3>
+                                  <h3 className="text-2xl font-bold mb-1" style={{ color: plan.color }}>{plan.name}</h3>
+                                  {plan.scopeLabel && (
+                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2" style={{ background: plan.scope === 'both' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.06)', color: plan.scope === 'both' ? '#f59e0b' : 'var(--zet-text-muted)', border: plan.scope === 'both' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.1)' }}>
+                                      {plan.scope === 'both' ? '✦ ' : ''}{plan.scopeLabel}
+                                    </span>
+                                  )}
                                   {isYearly ? (
                                     <div className="flex flex-col items-center gap-0.5">
                                       <span className="text-sm line-through" style={{ color: 'var(--zet-text-muted)' }}>${fullYearlyPrice}/yr</span>
