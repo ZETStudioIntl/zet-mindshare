@@ -149,6 +149,11 @@ const JudgeDashboard = () => {
   const [judgeScores, setJudgeScores] = useState(null);
   const [mode, setMode] = useState('basic');
   const chatEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+
+  const [sessionFiles, setSessionFiles] = useState([]);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [mobileProjectTab, setMobileProjectTab] = useState('chat');
 
   // Settings
   const [showSettings, setShowSettings] = useState(false);
@@ -168,7 +173,7 @@ const JudgeDashboard = () => {
   const [toast, setToast] = useState(null);
   const showToast = (msg, type = 'info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
-  useEffect(() => { fetchSessions(); }, []);
+  useEffect(() => { fetchSessions(); fetchSubscription(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (activeTab === 'media') loadPosts(true, mediaFeedTab);
   }, [activeTab, mediaFeedTab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -179,6 +184,19 @@ const JudgeDashboard = () => {
       fetchCreditPackages();
     }
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    const handler = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+
+  const fetchSubscription = async () => {
+    try {
+      const res = await axios.get(`${API}/subscription`, { withCredentials: true });
+      if (res.data.plan) setUserSubscription(res.data.plan);
+    } catch { /* keep default */ }
+  };
 
   const fetchSessions = async () => {
     try {
@@ -275,6 +293,14 @@ const JudgeDashboard = () => {
 
   const handleKeyDown = (e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } };
 
+  const handleFileUpload = (e) => {
+    const files = Array.from(e.target.files || []);
+    files.forEach(f => {
+      setSessionFiles(prev => [...prev, { name: f.name, size: f.size, type: f.type, id: Date.now() + Math.random() }]);
+    });
+    e.target.value = '';
+  };
+
   const submitPost = async () => {
     if (!postContent.trim() || postSubmitting) return;
     setPostSubmitting(true);
@@ -315,7 +341,7 @@ const JudgeDashboard = () => {
     { id: 'general',      label: 'Genel',              icon: Settings },
     { id: 'subscription', label: 'Abonelikler',        icon: CreditCard, color: C_LIGHT },
     { id: 'ai',           label: 'Judge AI Ayarları',  icon: Brain,      color: '#4ca8ad' },
-    { id: 'primedrive',   label: 'Prime Drive',        icon: Award,      color: '#6366f1' },
+    { id: 'primedrive',   label: 'Prime Drive',        icon: HardDrive,  color: '#6366f1' },
     { id: 'credits',      label: 'Kredi Al',           icon: Zap,        color: '#fbbf24' },
     { id: 'quests',       label: 'Görev Haritası',     icon: Map,        color: '#34d399' },
     { id: 'ranks',        label: 'Ranklar',            icon: Award,      color: currentRank.color },
@@ -548,84 +574,320 @@ const JudgeDashboard = () => {
         </button>
       )}
 
-      {/* Chat Panel */}
+      {/* Project View (full screen) */}
       {showChat && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex' }}>
-          <div style={{ flex: 1, background: 'rgba(0,0,0,0.5)' }} onClick={() => setShowChat(false)} />
-          <div style={{ width: 480, background: BG_CARD, borderLeft: `1px solid ${C_BORDER}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', borderBottom: `1px solid ${C_BORDER}`, flexShrink: 0 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <Scale size={18} color={C} />
-                <span style={{ fontWeight: 700, fontSize: 15 }}>
-                  {activeSession ? (activeSession.first_message?.slice(0, 30) + '...') : 'Yeni Analiz'}
-                </span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 3, gap: 2 }}>
-                  {['basic', 'deep'].map(m => (
-                    <button key={m} onClick={() => setMode(m)}
-                      style={{ padding: '4px 12px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, background: mode === m ? C : 'transparent', color: mode === m ? '#fff' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>
-                      {m === 'basic' ? 'Temel' : 'Derin'}
-                    </button>
-                  ))}
-                </div>
-                <button onClick={() => setShowChat(false)}
-                  style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4, display: 'flex' }}>
-                  <X size={18} />
+        <div style={{ position: 'fixed', inset: 0, zIndex: 100, background: BG, display: 'flex', flexDirection: 'column' }}>
+
+          {/* Top bar */}
+          <div style={{ height: 52, background: BG_CARD, borderBottom: `1px solid ${C_BORDER}`, display: 'flex', alignItems: 'center', gap: 10, padding: '0 16px', flexShrink: 0 }}>
+            <button onClick={() => setShowChat(false)}
+              style={{ padding: 7, borderRadius: 8, background: BG_CARD2, border: `1px solid ${C_BORDER}`, color: 'rgba(255,255,255,0.6)', cursor: 'pointer', display: 'flex', flexShrink: 0 }}>
+              <ArrowLeft size={16} />
+            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flex: 1 }}>
+              <img src="/logo-judge.svg" alt="" style={{ width: 22, height: 22, flexShrink: 0 }} />
+              <span style={{ fontWeight: 700, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {activeSession ? (activeSession.first_message?.slice(0, 36) + (activeSession.first_message?.length > 36 ? '…' : '')) : 'Yeni Analiz'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 8, padding: 3, gap: 2, flexShrink: 0 }}>
+              {['basic', 'deep'].map(m => (
+                <button key={m} onClick={() => setMode(m)}
+                  style={{ padding: '4px 11px', borderRadius: 5, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600, background: mode === m ? C : 'transparent', color: mode === m ? '#fff' : 'rgba(255,255,255,0.4)', transition: 'all 0.2s' }}>
+                  {m === 'basic' ? 'Temel' : 'Derin'}
                 </button>
-              </div>
-            </div>
-
-            {judgeScores && (
-              <div style={{ display: 'flex', gap: 24, justifyContent: 'center', padding: '12px 20px', borderBottom: 'rgba(200,0,90,0.1) 1px solid', background: 'rgba(200,0,90,0.05)', flexShrink: 0 }}>
-                <CircleScore label="Risk Skoru" value={judgeScores.risk} color="#ef4444" />
-                <CircleScore label="Başarı Potansiyeli" value={judgeScores.success} color="#22c55e" />
-              </div>
-            )}
-
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {chatMessages.map((msg, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                  {msg.role === 'assistant' && (
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
-                      <Scale size={13} color={C_LIGHT} />
-                    </div>
-                  )}
-                  <div style={{ maxWidth: '78%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '16px 16px 4px 16px' : '16px 16px 16px 4px', background: msg.role === 'user' ? C : 'rgba(255,255,255,0.07)', fontSize: 13, lineHeight: 1.6, color: '#fff', whiteSpace: 'pre-wrap' }}>
-                    {msg.content}
-                  </div>
-                </div>
               ))}
-              {chatLoading && (
-                <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
-                  <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                    <Scale size={13} color={C_LIGHT} />
-                  </div>
-                  <div style={{ padding: '10px 14px', borderRadius: '16px 16px 16px 4px', background: 'rgba(255,255,255,0.07)', display: 'flex', gap: 5, alignItems: 'center' }}>
-                    {[0, 1, 2].map(i => (
-                      <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: C_LIGHT, display: 'inline-block', animation: `bounce 1.2s ${i * 0.2}s infinite` }} />
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            <div style={{ padding: '12px 16px', borderTop: `1px solid ${C_BORDER}`, display: 'flex', gap: 10, alignItems: 'flex-end', flexShrink: 0 }}>
-              <textarea
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="İş planınızı veya sorunuzu yazın..."
-                rows={2}
-                style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: `1px solid ${C_BORDER}`, borderRadius: 10, padding: '10px 14px', color: '#fff', fontSize: 13, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }}
-              />
-              <button onClick={sendMessage} disabled={!chatInput.trim() || chatLoading}
-                style={{ padding: '10px 14px', borderRadius: 10, background: chatInput.trim() && !chatLoading ? C : 'rgba(200,0,90,0.25)', border: 'none', color: '#fff', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
-                <Send size={16} />
-              </button>
             </div>
           </div>
+
+          {/* ── DESKTOP 3-COLUMN ── */}
+          {!isMobile && (
+            <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
+
+              {/* Left col — chart + sources */}
+              <div style={{ width: 260, flexShrink: 0, borderRight: `1px solid ${C_BORDER}`, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                {/* Chart */}
+                <div style={{ padding: '14px 16px 10px', borderBottom: `1px solid ${C_BORDER}`, flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Analiz Grafiği</div>
+                  <svg width="100%" height="80" viewBox="0 0 228 80" style={{ display: 'block' }}>
+                    <defs>
+                      <linearGradient id="cg" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor={C} stopOpacity="0.4" />
+                        <stop offset="100%" stopColor={C} stopOpacity="0" />
+                      </linearGradient>
+                    </defs>
+                    {[0,1,2].map(i => <line key={i} x1="0" y1={15 + i*22} x2="228" y2={15 + i*22} stroke="rgba(255,255,255,0.05)" strokeWidth="1" />)}
+                    <polygon
+                      points={judgeScores
+                        ? `0,75 40,68 80,56 120,${80 - judgeScores.success * 0.55} 170,${80 - judgeScores.success * 0.6} 228,${80 - judgeScores.success * 0.65} 228,80 0,80`
+                        : "0,75 40,68 80,60 120,50 170,45 228,40 228,80 0,80"
+                      }
+                      fill="url(#cg)"
+                    />
+                    <polyline
+                      points={judgeScores
+                        ? `0,75 40,68 80,56 120,${80 - judgeScores.success * 0.55} 170,${80 - judgeScores.success * 0.6} 228,${80 - judgeScores.success * 0.65}`
+                        : "0,75 40,68 80,60 120,50 170,45 228,40"
+                      }
+                      fill="none" stroke={C} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round"
+                    />
+                  </svg>
+                  {judgeScores && (
+                    <div style={{ display: 'flex', gap: 14, marginTop: 8 }}>
+                      <CircleScore label="Risk" value={judgeScores.risk} color="#ef4444" />
+                      <CircleScore label="Potansiyel" value={judgeScores.success} color="#22c55e" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Sources / files */}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '12px 14px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Kaynaklar</span>
+                    <label style={{ padding: '3px 10px', borderRadius: 6, background: C_DIM, border: `1px solid ${C_BORDER}`, color: C_LIGHT, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+                      + Dosya
+                      <input ref={fileInputRef} type="file" onChange={handleFileUpload} multiple accept="image/*,.pdf,.doc,.docx,.txt,.mp4,.mov" style={{ display: 'none' }} />
+                    </label>
+                  </div>
+                  {sessionFiles.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '24px 0', color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>Kaynak eklenmedi</div>
+                  ) : sessionFiles.map(f => {
+                    const isImg = f.type.startsWith('image/');
+                    const isVid = f.type.startsWith('video/');
+                    const sz = f.size < 1048576 ? `${(f.size/1024).toFixed(0)} KB` : `${(f.size/1048576).toFixed(1)} MB`;
+                    return (
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 10, background: BG_CARD2, border: `1px solid ${C_BORDER}`, marginBottom: 6 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: 6, background: isImg ? 'rgba(251,191,36,0.15)' : isVid ? 'rgba(168,85,247,0.15)' : C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13 }}>
+                          {isImg ? '🖼' : isVid ? '🎬' : '📄'}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{sz}</div>
+                        </div>
+                        <button onClick={() => setSessionFiles(prev => prev.filter(x => x.id !== f.id))} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', padding: 2, display: 'flex' }}><X size={13} /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Middle col — all messages */}
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+                <div style={{ padding: '14px 22px 12px', borderBottom: `1px solid ${C_BORDER}`, flexShrink: 0 }}>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 3 }}>
+                    {activeSession ? `Dosya No: ${activeSession.session_id?.slice(-6).toUpperCase()}` : 'Yeni Analiz'}
+                  </div>
+                  <h1 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#fff', lineHeight: 1.35, overflow: 'hidden', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                    {activeSession?.first_message || 'Analizinizi başlatın'}
+                  </h1>
+                </div>
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  {chatMessages.map((msg, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                      {msg.role === 'assistant' && (
+                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
+                          <Scale size={13} color={C_LIGHT} />
+                        </div>
+                      )}
+                      <div style={{ maxWidth: '80%', padding: '11px 15px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 14, lineHeight: 1.65, color: '#fff', whiteSpace: 'pre-wrap' }}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ))}
+                  {chatLoading && (
+                    <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                        <Scale size={13} color={C_LIGHT} />
+                      </div>
+                      <div style={{ padding: '11px 15px', borderRadius: '4px 18px 18px 18px', background: 'rgba(255,255,255,0.06)', display: 'flex', gap: 5, alignItems: 'center' }}>
+                        {[0,1,2].map(i => <span key={i} style={{ width: 7, height: 7, borderRadius: '50%', background: C_LIGHT, display: 'inline-block', animation: `bounce 1.2s ${i*0.2}s infinite` }} />)}
+                      </div>
+                    </div>
+                  )}
+                  <div ref={chatEndRef} />
+                </div>
+              </div>
+
+              {/* Right col — YARGI + context + input */}
+              <div style={{ width: 300, flexShrink: 0, borderLeft: `1px solid ${C_BORDER}`, display: 'flex', flexDirection: 'column' }}>
+                {/* YARGI + context */}
+                <div style={{ padding: 16, borderBottom: `1px solid ${C_BORDER}`, flexShrink: 0 }}>
+                  <button onClick={sendMessage} disabled={!chatInput.trim() || chatLoading}
+                    style={{ width: '100%', padding: '13px', borderRadius: 14, background: `linear-gradient(135deg,#7b0035,${C},#e8337a)`, border: 'none', color: '#fff', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', fontSize: 16, fontWeight: 800, letterSpacing: '0.07em', marginBottom: 14, opacity: chatInput.trim() && !chatLoading ? 1 : 0.45, boxShadow: '0 4px 22px rgba(200,0,90,0.45)', transition: 'opacity 0.2s' }}>
+                    YARGI
+                  </button>
+                  <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Judge Ne Analiz Ediyor</div>
+                  <div style={{ padding: '9px 12px', borderRadius: 10, background: BG_CARD2, border: `1px solid ${C_BORDER}`, fontSize: 12, color: 'rgba(255,255,255,0.5)', lineHeight: 1.55, minHeight: 36 }}>
+                    {chatLoading
+                      ? 'Analiz işleniyor...'
+                      : (() => { const last = chatMessages.filter(m => m.role === 'user').slice(-1)[0]?.content; return last ? last.slice(0, 90) + (last.length > 90 ? '…' : '') : 'Henüz veri girilmedi'; })()
+                    }
+                  </div>
+                  {sessionFiles.length > 0 && (
+                    <div style={{ marginTop: 8, display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                      {sessionFiles.slice(0, 3).map(f => (
+                        <span key={f.id} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: C_DIM, color: C_LIGHT, maxWidth: 86, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</span>
+                      ))}
+                      {sessionFiles.length > 3 && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>+{sessionFiles.length - 3}</span>}
+                    </div>
+                  )}
+                </div>
+                {/* Input area */}
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 14px', gap: 10 }}>
+                  <textarea
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder="İş planınızı veya sorunuzu yazın..."
+                    style={{ flex: 1, background: 'rgba(255,255,255,0.04)', border: `1px solid ${C_BORDER}`, borderRadius: 12, padding: '12px 14px', color: '#fff', fontSize: 13, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, minHeight: 100 }}
+                  />
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <label style={{ padding: '9px 12px', borderRadius: 10, background: BG_CARD2, border: `1px solid ${C_BORDER}`, color: 'rgba(255,255,255,0.45)', cursor: 'pointer', display: 'flex', alignItems: 'center' }}>
+                      <Plus size={15} />
+                      <input type="file" onChange={handleFileUpload} multiple accept="image/*,.pdf,.doc,.docx,.txt,.mp4,.mov" style={{ display: 'none' }} />
+                    </label>
+                    <button onClick={sendMessage} disabled={!chatInput.trim() || chatLoading}
+                      style={{ flex: 1, padding: '9px', borderRadius: 10, background: chatInput.trim() && !chatLoading ? C : 'rgba(200,0,90,0.2)', border: 'none', color: '#fff', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, transition: 'background 0.2s' }}>
+                      <Send size={14} /> Gönder
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* ── MOBILE LAYOUT ── */}
+          {isMobile && (
+            <>
+              {/* Tab content */}
+              <div style={{ flex: 1, minHeight: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+
+                {/* Dosyalar */}
+                {mobileProjectTab === 'files' && (
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                      <span style={{ fontWeight: 700, fontSize: 15 }}>Kaynaklar</span>
+                      <label style={{ padding: '7px 14px', borderRadius: 9, background: C, color: '#fff', cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+                        + Dosya Ekle
+                        <input type="file" onChange={handleFileUpload} multiple accept="image/*,.pdf,.doc,.docx,.txt,.mp4,.mov" style={{ display: 'none' }} />
+                      </label>
+                    </div>
+                    {sessionFiles.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)' }}>
+                        <FileText size={32} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
+                        <p style={{ fontSize: 13 }}>Henüz kaynak eklenmedi</p>
+                      </div>
+                    ) : sessionFiles.map(f => {
+                      const sz = f.size < 1048576 ? `${(f.size/1024).toFixed(0)} KB` : `${(f.size/1048576).toFixed(1)} MB`;
+                      return (
+                        <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: BG_CARD2, border: `1px solid ${C_BORDER}`, marginBottom: 8 }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 8, background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>
+                            {f.type.startsWith('image/') ? '🖼' : f.type.startsWith('video/') ? '🎬' : '📄'}
+                          </div>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
+                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{sz}</div>
+                          </div>
+                          <button onClick={() => setSessionFiles(prev => prev.filter(x => x.id !== f.id))} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Analiz */}
+                {mobileProjectTab === 'analysis' && (
+                  <div style={{ flex: 1, overflowY: 'auto', padding: 16 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                      {activeSession ? `Dosya No: ${activeSession.session_id?.slice(-6).toUpperCase()}` : 'Yeni Analiz'}
+                    </div>
+                    <h2 style={{ margin: '0 0 14px', fontSize: 17, fontWeight: 800, lineHeight: 1.3 }}>
+                      {activeSession?.first_message || 'Analizinizi başlatın'}
+                    </h2>
+                    {judgeScores && (
+                      <div style={{ display: 'flex', gap: 20, marginBottom: 16 }}>
+                        <CircleScore label="Risk" value={judgeScores.risk} color="#ef4444" />
+                        <CircleScore label="Potansiyel" value={judgeScores.success} color="#22c55e" />
+                      </div>
+                    )}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {chatMessages.filter(m => m.role === 'assistant').map((msg, i) => (
+                        <div key={i} style={{ padding: '14px 16px', borderRadius: 14, background: 'rgba(255,255,255,0.05)', border: `1px solid ${C_BORDER}`, fontSize: 14, lineHeight: 1.65, color: 'rgba(255,255,255,0.9)', whiteSpace: 'pre-wrap' }}>
+                          {msg.content}
+                        </div>
+                      ))}
+                      {chatMessages.filter(m => m.role === 'assistant').length === 0 && (
+                        <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)' }}>
+                          <Scale size={32} style={{ margin: '0 auto 12px', display: 'block', opacity: 0.3 }} />
+                          <p style={{ fontSize: 13 }}>Henüz analiz yok</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chat */}
+                {mobileProjectTab === 'chat' && (
+                  <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+                    <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                      {chatMessages.map((msg, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
+                          {msg.role === 'assistant' && (
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
+                              <Scale size={13} color={C_LIGHT} />
+                            </div>
+                          )}
+                          <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 13, lineHeight: 1.6, color: '#fff', whiteSpace: 'pre-wrap' }}>
+                            {msg.content}
+                          </div>
+                        </div>
+                      ))}
+                      {chatLoading && (
+                        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
+                          <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <Scale size={13} color={C_LIGHT} />
+                          </div>
+                          <div style={{ padding: '10px 14px', borderRadius: '4px 18px 18px 18px', background: 'rgba(255,255,255,0.06)', display: 'flex', gap: 5, alignItems: 'center' }}>
+                            {[0,1,2].map(i => <span key={i} style={{ width: 6, height: 6, borderRadius: '50%', background: C_LIGHT, display: 'inline-block', animation: `bounce 1.2s ${i*0.2}s infinite` }} />)}
+                          </div>
+                        </div>
+                      )}
+                      <div ref={chatEndRef} />
+                    </div>
+                    <div style={{ padding: '10px 14px', borderTop: `1px solid ${C_BORDER}`, display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0, background: BG_CARD }}>
+                      <textarea
+                        value={chatInput}
+                        onChange={e => setChatInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        placeholder="Mesajınızı yazın..."
+                        rows={2}
+                        style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: `1px solid ${C_BORDER}`, borderRadius: 10, padding: '9px 13px', color: '#fff', fontSize: 13, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.5 }}
+                      />
+                      <button onClick={sendMessage} disabled={!chatInput.trim() || chatLoading}
+                        style={{ padding: '10px 13px', borderRadius: 10, background: chatInput.trim() && !chatLoading ? C : 'rgba(200,0,90,0.25)', border: 'none', color: '#fff', cursor: chatInput.trim() && !chatLoading ? 'pointer' : 'default', flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                        <Send size={16} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Mobile bottom tabs */}
+              <div style={{ display: 'flex', background: BG_CARD, borderTop: `1px solid ${C_BORDER}`, flexShrink: 0 }}>
+                {[
+                  { id: 'files',    label: 'Dosyalar', icon: FileText },
+                  { id: 'analysis', label: 'Analiz',   icon: Scale },
+                  { id: 'chat',     label: 'Chat',      icon: MessageCircle },
+                ].map(({ id, label, icon: Icon }) => (
+                  <button key={id} onClick={() => setMobileProjectTab(id)}
+                    style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3, padding: '10px 0 8px', border: 'none', background: 'transparent', color: mobileProjectTab === id ? C_LIGHT : 'rgba(255,255,255,0.35)', cursor: 'pointer', fontSize: 11, fontWeight: mobileProjectTab === id ? 700 : 400, borderTop: `2px solid ${mobileProjectTab === id ? C : 'transparent'}`, transition: 'all 0.2s' }}>
+                    <Icon size={18} />
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
         </div>
       )}
 
