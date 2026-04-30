@@ -273,14 +273,47 @@ const JudgeDashboard = () => {
     }
   };
 
+  const parseSource = async (file, id) => {
+    try {
+      const base64 = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const result = e.target.result;
+          resolve(result.includes(',') ? result.split(',')[1] : result);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const res = await axios.post(`${API}/judge/parse-source`, {
+        filename: file.name,
+        content_base64: base64,
+        mime_type: file.type || 'application/octet-stream',
+      }, { withCredentials: true });
+      setSessionFiles(prev => prev.map(f => f.id === id ? { ...f, content: res.data.content, parsing: false } : f));
+    } catch {
+      setSessionFiles(prev => prev.map(f => f.id === id ? { ...f, parsing: false, parseError: true } : f));
+    }
+  };
+
   const sendMessage = async () => {
     if (!chatInput.trim() || chatLoading) return;
     const msg = chatInput.trim();
     setChatInput('');
     setChatMessages(prev => [...prev, { role: 'user', content: msg }]);
     setChatLoading(true);
+
+    const sourcesText = sessionFiles
+      .filter(f => f.content)
+      .map((f, i) => `[Kaynak ${i + 1}: ${f.name}]\n${f.content}`)
+      .join('\n\n---\n\n');
+
     try {
-      const res = await axios.post(`${API}/judge/chat`, { message: msg, session_id: sessionId, mode }, { withCredentials: true });
+      const res = await axios.post(`${API}/judge/chat`, {
+        message: msg,
+        session_id: sessionId,
+        mode,
+        ...(sourcesText ? { document_content: sourcesText } : {}),
+      }, { withCredentials: true });
       const newSid = res.data.session_id || sessionId;
       setSessionId(newSid);
       setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
@@ -296,7 +329,9 @@ const JudgeDashboard = () => {
   const handleFileUpload = (e) => {
     const files = Array.from(e.target.files || []);
     files.forEach(f => {
-      setSessionFiles(prev => [...prev, { name: f.name, size: f.size, type: f.type, id: Date.now() + Math.random() }]);
+      const id = Date.now() + Math.random();
+      setSessionFiles(prev => [...prev, { name: f.name, size: f.size, type: f.type, id, content: null, parsing: true, parseError: false }]);
+      parseSource(f, id);
     });
     e.target.value = '';
   };
@@ -656,14 +691,17 @@ const JudgeDashboard = () => {
                     const isVid = f.type.startsWith('video/');
                     const sz = f.size < 1048576 ? `${(f.size/1024).toFixed(0)} KB` : `${(f.size/1048576).toFixed(1)} MB`;
                     return (
-                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 10, background: BG_CARD2, border: `1px solid ${C_BORDER}`, marginBottom: 6 }}>
+                      <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 10px', borderRadius: 10, background: BG_CARD2, border: `1px solid ${f.parseError ? 'rgba(239,68,68,0.4)' : f.content ? 'rgba(34,197,94,0.25)' : C_BORDER}`, marginBottom: 6 }}>
                         <div style={{ width: 28, height: 28, borderRadius: 6, background: isImg ? 'rgba(251,191,36,0.15)' : isVid ? 'rgba(168,85,247,0.15)' : C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 13 }}>
                           {isImg ? '🖼' : isVid ? '🎬' : '📄'}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
-                          <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)' }}>{sz}</div>
+                          <div style={{ fontSize: 10, color: f.parseError ? '#ef4444' : f.content ? '#22c55e' : 'rgba(255,255,255,0.35)' }}>
+                            {f.parsing ? 'Okunuyor…' : f.parseError ? 'Okunamadı' : f.content ? 'Hazır' : sz}
+                          </div>
                         </div>
+                        {f.parsing && <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: C_LIGHT, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
                         <button onClick={() => setSessionFiles(prev => prev.filter(x => x.id !== f.id))} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.25)', cursor: 'pointer', padding: 2, display: 'flex' }}><X size={13} /></button>
                       </div>
                     );
@@ -780,14 +818,17 @@ const JudgeDashboard = () => {
                     ) : sessionFiles.map(f => {
                       const sz = f.size < 1048576 ? `${(f.size/1024).toFixed(0)} KB` : `${(f.size/1048576).toFixed(1)} MB`;
                       return (
-                        <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: BG_CARD2, border: `1px solid ${C_BORDER}`, marginBottom: 8 }}>
+                        <div key={f.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 12, background: BG_CARD2, border: `1px solid ${f.parseError ? 'rgba(239,68,68,0.4)' : f.content ? 'rgba(34,197,94,0.25)' : C_BORDER}`, marginBottom: 8 }}>
                           <div style={{ width: 36, height: 36, borderRadius: 8, background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 16 }}>
                             {f.type.startsWith('image/') ? '🖼' : f.type.startsWith('video/') ? '🎬' : '📄'}
                           </div>
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
-                            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)' }}>{sz}</div>
+                            <div style={{ fontSize: 11, color: f.parseError ? '#ef4444' : f.content ? '#22c55e' : 'rgba(255,255,255,0.4)' }}>
+                              {f.parsing ? 'Okunuyor…' : f.parseError ? 'Okunamadı' : f.content ? 'Hazır' : sz}
+                            </div>
                           </div>
+                          {f.parsing && <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: C_LIGHT, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
                           <button onClick={() => setSessionFiles(prev => prev.filter(x => x.id !== f.id))} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: 4 }}><X size={16} /></button>
                         </div>
                       );

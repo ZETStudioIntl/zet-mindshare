@@ -329,6 +329,11 @@ class ZetaChatRequest(BaseModel):
     is_ceo: Optional[bool] = False
     model: Optional[str] = "prime"  # spark | prime | aziz
 
+class ParseSourceRequest(BaseModel):
+    filename: str
+    content_base64: str
+    mime_type: str = "application/octet-stream"
+
 class ZetaAutoWriteRequest(BaseModel):
     prompt: str
     page_count: int = 1
@@ -2663,6 +2668,95 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
     })
 
     return {"response": response, "session_id": session_id, "risk_score": risk_score, "success_score": success_score}
+
+def _extract_tiptap_text(node) -> str:
+    """Recursively extract plain text from a Tiptap/ProseMirror JSON node."""
+    if not isinstance(node, dict):
+        return ""
+    if node.get("type") == "text":
+        return node.get("text", "")
+    parts = [_extract_tiptap_text(child) for child in node.get("content", [])]
+    sep = "\n" if node.get("type") in ("paragraph", "heading", "blockquote", "listItem") else " "
+    return sep.join(p for p in parts if p)
+
+
+@api_router.post("/judge/parse-source")
+async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_current_user)):
+    """Parse an uploaded source file and return its text content.
+    PDF → max 3 pages extracted via Gemini.
+    .ms  → max 5 pages of text extracted from Tiptap JSON.
+    Text → raw content (truncated).
+    Image → visual description via Gemini.
+    """
+    api_key = os.getenv("GEMINI_API_KEY")
+    filename_lower = req.filename.lower()
+
+    try:
+        raw_bytes = base64.b64decode(req.content_base64)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid base64 content")
+
+    # PDF — extract first 3 pages via Gemini
+    if req.mime_type == "application/pdf" or filename_lower.endswith(".pdf"):
+        if not api_key:
+            raise HTTPException(status_code=500, detail="API key missing")
+        try:
+            gc = google_genai.Client(api_key=api_key)
+            resp = await asyncio.to_thread(
+                gc.models.generate_content,
+                model="gemini-2.0-flash",
+                contents=[genai_types.Content(role="user", parts=[
+                    genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=raw_bytes)),
+                    genai_types.Part(text=(
+                        "Extract the verbatim plain text from the FIRST 3 PAGES of this PDF. "
+                        "Do not summarize — return the actual text. Stop after page 3."
+                    ))
+                ])]
+            )
+            return {"content": resp.text, "type": "pdf", "page_limit": 3}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"PDF parse error: {str(e)}")
+
+    # .ms — ZET Studio document (Tiptap JSON), max 5 pages (~15 000 chars)
+    if filename_lower.endswith(".ms"):
+        try:
+            text = raw_bytes.decode("utf-8", errors="replace")
+            try:
+                doc = json.loads(text)
+                text = _extract_tiptap_text(doc)
+            except json.JSONDecodeError:
+                pass  # treat as plain text
+            return {"content": text[:15000], "type": "ms", "page_limit": 5}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f".ms parse error: {str(e)}")
+
+    # Plain text files
+    if req.mime_type.startswith("text/") or filename_lower.endswith((".txt", ".md", ".csv", ".json")):
+        try:
+            return {"content": raw_bytes.decode("utf-8", errors="replace")[:8000], "type": "text", "page_limit": None}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Text parse error: {str(e)}")
+
+    # Images — describe via Gemini
+    if req.mime_type.startswith("image/"):
+        if not api_key:
+            raise HTTPException(status_code=500, detail="API key missing")
+        try:
+            gc = google_genai.Client(api_key=api_key)
+            resp = await asyncio.to_thread(
+                gc.models.generate_content,
+                model="gemini-2.0-flash",
+                contents=[genai_types.Content(role="user", parts=[
+                    genai_types.Part(inline_data=genai_types.Blob(mime_type=req.mime_type, data=raw_bytes)),
+                    genai_types.Part(text="Describe this image in detail. Include all visible text, data, charts, and key information.")
+                ])]
+            )
+            return {"content": resp.text, "type": "image", "page_limit": None}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Image parse error: {str(e)}")
+
+    raise HTTPException(status_code=415, detail=f"Unsupported file type: {req.mime_type}")
+
 
 @api_router.get("/judge/sessions")
 async def get_judge_sessions(user: User = Depends(get_current_user)):
