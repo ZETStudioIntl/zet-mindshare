@@ -2672,6 +2672,13 @@ UZMANLIKLARIN:
 - İş planları ve gelecek vizyonu
 - Rakamlar ve metrikler ile cevap verme
 
+OKUYABILDIKLARIN (KAYNAK DOSYALAR):
+- PDF (ilk 3 sayfa), .ms belgeleri (5 sayfa), .docx/.doc (Word)
+- .txt metin dosyaları
+- Görseller (.png, .jpg, .jpeg, .webp): görsel analiz, veri/grafik çıkarma, sorun tespiti
+- Videolar (.mp4, .mov): sahne sahne döküm ve özet
+Analiz çıktıların PDF (maks. 3 sayfa) veya .ms (maks. 5 sayfa) olarak dışa aktarılabilir.
+
 ⚠️ ÖNEMLİ ANALİZ KURALI:
 - Kullanıcı açıkça "analiz et", "değerlendir", "incele" gibi bir komut VERMEDEN analiz YAPMA!
 - Sadece sohbet ediyorsa, sohbet et. Analiz istemeden analiz sunma.
@@ -2686,18 +2693,14 @@ ANALİZ YAPTIĞINDA:
 2. Analiz sonunda kullanıcının bu materyaller ile ne yaptığını ve gelecekte nasıl yardımcı olabileceğini söyle
 
 YAPAMADIKLARIN:
-- Görsel ve video üretemezsin
-- Bu istek gelirse: "Üzgünüm, şu anki modelim bu özellikleri desteklemiyor. Başka hangi konularda yardımcı olabilirim?"
+- Görsel veya video ÜRETEMEZSIN (sadece analiz edebilirsin)
+- Bu istek gelirse: "Görsel ve video üretimi şu an desteklenmiyor. Bunun yerine mevcut görseli veya videoyu analiz etmemi ister misiniz?"
 
 ZET EKOSİSTEMİ VE ZETA:
 - ZET Mindshare uygulamasında seninle birlikte ZETA adında bir AI asistanı daha var
 - ZETA: Uygulamayı kullanmayı öğretir, araçları açıklar, genel sorulara cevap verir
 - Kullanıcı sana "uygulamayı nasıl kullanırım", "bu tool ne işe yarar", "nasıl çizim yaparım" gibi UYGULAMA KULLANIMI ile ilgili sorular sorarsa:
   → "Bu konuda ZETA sana daha iyi yardımcı olabilir. ZETA sekmesine geçerek uygulamayla ilgili sorularını sorabilirsin." de
-
-YAPAMADIKLARIN:
-- Görsel ve video üretemezsin
-- Bu istek gelirse kullanıcının dilinde şunu de: "Üzgünüm, şu anki modelim bu özellikleri desteklemiyor. Başka hangi konularda yardımcı olabilirim?"
 
 HASSAS KONULAR:
 - Dini/siyasi konularda tarafsız kal
@@ -2850,6 +2853,35 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
         except Exception as e:
             raise HTTPException(status_code=500, detail=f".ms parse error: {str(e)}")
 
+    # .docx — extract text with python-docx
+    if req.mime_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document" or filename_lower.endswith((".docx", ".doc")):
+        try:
+            import io as _io
+            try:
+                from docx import Document as _DocxDocument
+                doc = _DocxDocument(_io.BytesIO(raw_bytes))
+                paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
+                text = "\n".join(paragraphs)
+                return {"content": text[:15000], "type": "docx", "page_limit": None}
+            except ImportError:
+                # Fallback: try Gemini if python-docx not available
+                if not api_key:
+                    raise HTTPException(status_code=500, detail="python-docx not installed")
+                gc = google_genai.Client(api_key=api_key)
+                resp = await asyncio.to_thread(
+                    gc.models.generate_content,
+                    model="gemini-2.0-flash",
+                    contents=[genai_types.Content(role="user", parts=[
+                        genai_types.Part(inline_data=genai_types.Blob(mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", data=raw_bytes)),
+                        genai_types.Part(text="Extract all text content from this Word document verbatim.")
+                    ])]
+                )
+                return {"content": resp.text[:15000], "type": "docx", "page_limit": None}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f".docx parse error: {str(e)}")
+
     # Plain text files
     if req.mime_type.startswith("text/") or filename_lower.endswith((".txt", ".md", ".csv", ".json")):
         try:
@@ -2857,23 +2889,80 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Text parse error: {str(e)}")
 
-    # Images — describe via Gemini
-    if req.mime_type.startswith("image/"):
+    # Images — visual analysis via Gemini
+    if req.mime_type.startswith("image/") or filename_lower.endswith((".png", ".jpg", ".jpeg", ".webp", ".gif")):
         if not api_key:
             raise HTTPException(status_code=500, detail="API key missing")
+        mime = req.mime_type if req.mime_type.startswith("image/") else "image/jpeg"
         try:
             gc = google_genai.Client(api_key=api_key)
             resp = await asyncio.to_thread(
                 gc.models.generate_content,
                 model="gemini-2.0-flash",
                 contents=[genai_types.Content(role="user", parts=[
-                    genai_types.Part(inline_data=genai_types.Blob(mime_type=req.mime_type, data=raw_bytes)),
-                    genai_types.Part(text="Describe this image in detail. Include all visible text, data, charts, and key information.")
+                    genai_types.Part(inline_data=genai_types.Blob(mime_type=mime, data=raw_bytes)),
+                    genai_types.Part(text=(
+                        "Perform a detailed visual analysis of this image. "
+                        "1) Describe all visible content, text, charts, data, people, objects. "
+                        "2) Identify any issues, inconsistencies, or notable elements. "
+                        "3) If it contains data/charts, extract the key numbers and trends. "
+                        "4) Summarize the overall purpose and content."
+                    ))
                 ])]
             )
             return {"content": resp.text, "type": "image", "page_limit": None}
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Image parse error: {str(e)}")
+
+    # Video — scene-by-scene analysis via Gemini Files API
+    if req.mime_type.startswith("video/") or filename_lower.endswith((".mp4", ".mov", ".avi", ".webm")):
+        if not api_key:
+            raise HTTPException(status_code=500, detail="API key missing")
+        if len(raw_bytes) > 100 * 1024 * 1024:  # 100MB limit
+            raise HTTPException(status_code=413, detail="Video file too large (max 100MB)")
+        import tempfile as _tempfile
+        tmp_path = None
+        try:
+            suffix = "." + filename_lower.rsplit(".", 1)[-1] if "." in filename_lower else ".mp4"
+            with _tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                tmp.write(raw_bytes)
+                tmp_path = tmp.name
+            gc = google_genai.Client(api_key=api_key)
+            # Upload to Files API
+            uploaded = await asyncio.to_thread(gc.files.upload, file=tmp_path)
+            # Wait for processing (max 30s)
+            for _ in range(15):
+                file_status = await asyncio.to_thread(gc.files.get, name=uploaded.name)
+                if file_status.state.name == "ACTIVE":
+                    break
+                await asyncio.sleep(2)
+            resp = await asyncio.to_thread(
+                gc.models.generate_content,
+                model="gemini-2.0-flash",
+                contents=[
+                    file_status,
+                    ("Provide a detailed scene-by-scene breakdown of this video. "
+                     "For each scene describe: what happens, key visual elements, any spoken or on-screen text, "
+                     "and important moments. Then give an overall summary and key insights.")
+                ]
+            )
+            # Clean up Files API entry
+            try:
+                await asyncio.to_thread(gc.files.delete, name=uploaded.name)
+            except Exception:
+                pass
+            return {"content": resp.text, "type": "video", "page_limit": None}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Video parse error: {str(e)}")
+        finally:
+            if tmp_path:
+                import os as _os
+                try:
+                    _os.unlink(tmp_path)
+                except Exception:
+                    pass
 
     raise HTTPException(status_code=415, detail=f"Unsupported file type: {req.mime_type}")
 
@@ -3248,12 +3337,12 @@ ZORUNLU DAVRANIŞ KURALLARI:
 - Free kullanıcılar için Judge kilitli - Plus veya üzeri plan gerekli
 
 💎 ABONELİK PAKETLERİ (KREDİ SİSTEMİ):
-| Plan  | Günlük Kredi | ZETA Harf | Judge | Judge Harf | Nano Pro |
-|-------|-------------|-----------|-------|------------|----------|
-| Free  | 20          | 250       | Kapalı| -          | Yok      |
-| Plus  | 100         | 500       | Mini  | 150        | Yok      |
-| Pro   | 250         | Sınırsız  | Tam   | 600        | Var      |
-| Ultra | 1000        | Sınırsız  | Tam   | Sınırsız   | Var      |
+| Plan                      | Fiyat        | Günlük Kredi | ZETA Harf | Judge | Judge Harf | Nano Pro |
+|---------------------------|-------------|-------------|-----------|-------|------------|----------|
+| Free                      | Ücretsiz    | 20          | 250       | Kapalı| -          | Yok      |
+| Plus                      | $9.99/ay    | 100         | 500       | Mini  | 150        | Yok      |
+| Pro                       | $19.99/ay   | 250         | Sınırsız  | Tam   | 600        | Var      |
+| Creative Station          | $49/ay      | 1000        | Sınırsız  | Tam   | Sınırsız   | Var      |
 
 KREDİ MALİYETLERİ:
 - Nano Banana görsel: 20 kredi
@@ -3267,7 +3356,12 @@ PAKET ÖZELLİKLERİ:
 - Free: Layers/Signature/Watermark/Page Color/Grafikler kapalı, 3 fast select
 - Plus: Layers açık, Signature/Watermark/Page Color/Grafikler kapalı, Derin analiz yok
 - Pro: Tüm araçlar açık
-- Ultra: Pro + sınırsız Judge ve 1000 kredi
+- Creative Station: Pro + sınırsız Judge + 1000 kredi/gün — hem ZET Mindshare hem Judge için tam erişim
+
+💳 ÖDEME VE YENİLEME:
+- Abonelik aynı takvim günü her ay/yıl yenilenir (örn: 15'inde başladıysa her ay 15'inde)
+- Yenilemeden 3 gün önce hatırlatma e-postası gönderilir
+- Yenileme gerçekleştiğinde fatura detaylı e-postayla iletilir
 
 GÖRÜNTÜ BOYUTLARI:
 - Free: 16:9
@@ -3421,6 +3515,22 @@ CEVAP UZUNLUĞU KURALI:
 - Açıklama soruları → maksimum 1 kısa paragraf
 - Liste istekleri → en fazla 5 madde
 - Uzun içerik sadece kullanıcı açıkça istediğinde
+
+🎭 ZETA MODLARI:
+- Chat (varsayılan): Normal sohbet, belge yardımı, sorulara cevap
+- Patch: Belge tarama & düzeltme modu — kullanıcı hata türünü ve sayfayı belirtir, Zeta sorunları numaralı listeler, onay gelince DÜZELTİLMİŞ metni yazar
+- Puzzle: Derin problem çözme modu — Aziz modeli otomatik seçilir, kullanıcı karmaşık/stratejik sorunlar için kullanır; Puzzle'dan çıkınca önceki modele döner
+- Zeta Colors: AI görsel oluşturma modu — metin prompt'undan Nano Banana ile görsel üretir, boyut ve kalite seçenekleri var
+
+⚖️ ZET JUDGE — DOSYA DESTEĞİ:
+ZET Judge şu dosya türlerini okuyabilir ve analiz edebilir:
+- 📄 PDF (maks. 3 sayfa metin çıkarma)
+- 📝 .ms dosyaları (ZET Mindshare belgeleri, maks. 5 sayfa)
+- 📋 .docx / .doc (Word belgeleri — tam metin çıkarma)
+- 📃 .txt metin dosyaları
+- 🖼 Görsel: .png, .jpg, .jpeg, .webp — içerik tarifi, veri/grafik çıkarma, sorun tespiti
+- 🎬 Video: .mp4, .mov — sahne sahne döküm, konuşma ve metin çıkarma, özet
+Analiz çıktıları: PDF (maks. 3 sayfa) veya .ms (maks. 5 sayfa) formatında dışa aktarılabilir.
 
 🎮 EYLEM SİSTEMİ (KRİTİK):
 Kullanıcı senden ayarlarını değiştirmeni, bir şeyi hatırlamanı veya not almasını istediğinde, cevabının EN BAŞINA bu özel etiketleri ekle. Bu etiketler kullanıcıya gösterilmez, sisteme gönderilir:

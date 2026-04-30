@@ -3,11 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
+import jsPDF from 'jspdf';
 import {
   Search, Plus, Settings, LogOut, ArrowLeft, Send, X, Loader,
   FileText, Globe, Heart, MessageCircle,
   User, Scale, ChevronLeft, Brain, CreditCard, Zap, Map, Award,
-  Check, Sparkles, HardDrive
+  Check, Sparkles, HardDrive, Download
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -334,6 +335,68 @@ const JudgeDashboard = () => {
       parseSource(f, id);
     });
     e.target.value = '';
+  };
+
+  const getAnalysisText = () =>
+    chatMessages.filter(m => m.role === 'assistant').map(m => m.content).join('\n\n---\n\n');
+
+  const exportAsPDF = () => {
+    const text = getAnalysisText();
+    if (!text) return;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(11);
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.getWidth() - margin * 2;
+    const pageHeight = doc.internal.pageSize.getHeight() - margin * 2;
+    const lineHeight = 6;
+    let y = margin;
+    let pageCount = 1;
+
+    // Title
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('ZET Judge — Analiz Raporu', margin, y);
+    y += 10;
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+
+    const lines = doc.splitTextToSize(text, pageWidth);
+    for (const line of lines) {
+      if (y + lineHeight > margin + pageHeight) {
+        if (pageCount >= 3) break;
+        doc.addPage();
+        y = margin;
+        pageCount++;
+      }
+      doc.text(line, margin, y);
+      y += lineHeight;
+    }
+    const title = activeSession?.first_message?.slice(0, 30).replace(/[^a-z0-9]/gi, '-') || 'analiz';
+    doc.save(`judge-${title}-${Date.now()}.pdf`);
+  };
+
+  const exportAsMS = () => {
+    const text = getAnalysisText();
+    if (!text) return;
+    const paragraphs = text.split('\n').map(line => ({
+      type: 'paragraph',
+      content: line.trim() ? [{ type: 'text', text: line }] : [],
+    }));
+    const msDoc = {
+      type: 'doc',
+      content: paragraphs,
+      _version: '1.0.0',
+      _title: `Judge Analizi — ${new Date().toLocaleDateString('tr-TR')}`,
+      _created: new Date().toISOString(),
+    };
+    const blob = new Blob([JSON.stringify(msDoc, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `judge-analiz-${Date.now()}.ms`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
   const submitPost = async () => {
@@ -769,6 +832,19 @@ const JudgeDashboard = () => {
                       {sessionFiles.length > 3 && <span style={{ fontSize: 10, padding: '2px 8px', borderRadius: 6, background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.4)' }}>+{sessionFiles.length - 3}</span>}
                     </div>
                   )}
+                  {chatMessages.some(m => m.role === 'assistant') && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 10, fontWeight: 700, color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Dışa Aktar</div>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button onClick={exportAsPDF} style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', cursor: 'pointer', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <Download size={11} /> PDF
+                        </button>
+                        <button onClick={exportAsMS} style={{ flex: 1, padding: '7px 0', borderRadius: 8, background: C_DIM, border: `1px solid ${C_BORDER}`, color: C_LIGHT, cursor: 'pointer', fontSize: 11, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+                          <Download size={11} /> .ms
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
                 {/* Input area */}
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '12px 14px', gap: 10 }}>
@@ -864,6 +940,16 @@ const JudgeDashboard = () => {
                         </div>
                       )}
                     </div>
+                    {chatMessages.some(m => m.role === 'assistant') && (
+                      <div style={{ marginTop: 16, display: 'flex', gap: 10 }}>
+                        <button onClick={exportAsPDF} style={{ flex: 1, padding: '11px 0', borderRadius: 10, background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.25)', color: '#f87171', cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                          <Download size={14} /> PDF
+                        </button>
+                        <button onClick={exportAsMS} style={{ flex: 1, padding: '11px 0', borderRadius: 10, background: C_DIM, border: `1px solid ${C_BORDER}`, color: C_LIGHT, cursor: 'pointer', fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
+                          <Download size={14} /> .ms
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )}
 
