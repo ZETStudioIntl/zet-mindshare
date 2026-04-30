@@ -11,11 +11,17 @@ from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 import uuid
 import secrets
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone, timedelta, date
 import base64
 import asyncio
 import resend
 import json
+from dateutil.relativedelta import relativedelta
+try:
+    from apscheduler.schedulers.asyncio import AsyncIOScheduler
+    _APSCHEDULER_AVAILABLE = True
+except ImportError:
+    _APSCHEDULER_AVAILABLE = False
 from google import genai as google_genai
 from google.genai import types as genai_types
 try:
@@ -258,8 +264,9 @@ class NoteCreate(BaseModel):
     reminder_time: Optional[str] = None  # ISO datetime string for alarm
 
 class SubscriptionUpdate(BaseModel):
-    plan: str  # 'free', 'plus', 'pro', 'ultra'
+    plan: str  # 'free', 'plus', 'pro', 'creative_station'
     action: str  # 'subscribe' or 'cancel'
+    billing_cycle: Optional[str] = "monthly"  # 'monthly' or 'yearly'
 
 class SubscriptionCreate(BaseModel):
     plan: str                       # pro, ultra, creative_station, entertainment_pocket
@@ -445,6 +452,55 @@ async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     except Exception as e:
         logging.error(f"Failed to send email to {to_email}: {str(e)}")
         return {"success": False, "error": str(e)}
+
+# ============ PLAN PRICING ============
+
+PLAN_PRICES_USD = {
+    "plus":             {"monthly": 9.99,  "yearly": 99.99},
+    "pro":              {"monthly": 19.99, "yearly": 199.99},
+    "creative_station": {"monthly": 49.00, "yearly": 490.00},
+}
+
+def compute_next_renewal(from_date: date, billing_cycle: str) -> date:
+    """Return the next renewal date using calendar month/year arithmetic.
+    relativedelta handles month-end edge cases (e.g. Jan 31 → Feb 28)."""
+    delta = relativedelta(months=1) if billing_cycle == "monthly" else relativedelta(years=1)
+    return from_date + delta
+
+async def send_renewal_email(to_email: str, plan: str, renewal_date: date, amount: float, next_date: date):
+    currency = "USD"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
+        <h2 style="color:#4ca8ad;margin-bottom:20px;">🔄 ZET Mindshare Aboneliğiniz Yenilendi</h2>
+        <p style="font-size:16px;line-height:1.6;">Aboneliğiniz başarıyla yenilendi. Aşağıda fatura detaylarını bulabilirsiniz.</p>
+        <div style="background:rgba(255,255,255,0.08);padding:16px;border-radius:8px;margin:20px 0;">
+            <p style="margin:6px 0;color:#4ca8ad;"><strong>Plan:</strong> {plan.upper()}</p>
+            <p style="margin:6px 0;color:#4ca8ad;"><strong>Yenileme Tarihi:</strong> {renewal_date.strftime('%d.%m.%Y')}</p>
+            <p style="margin:6px 0;color:#4ca8ad;"><strong>Tahsil Edilen Tutar:</strong> {amount:.2f} {currency}</p>
+            <p style="margin:6px 0;color:#4ca8ad;"><strong>Sonraki Yenileme:</strong> {next_date.strftime('%d.%m.%Y')}</p>
+        </div>
+        <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">ZET Mindshare'e Git</a>
+        <p style="color:#888;font-size:12px;margin-top:20px;">Sorularınız için info@zetstudiointl.com adresine yazabilirsiniz.</p>
+    </div>
+    """
+    await send_email(to_email, f"🔄 ZET Mindshare {plan.upper()} Planı Yenilendi", html)
+
+async def send_renewal_reminder_email(to_email: str, plan: str, renewal_date: date, amount: float):
+    currency = "USD"
+    html = f"""
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
+        <h2 style="color:#f59e0b;margin-bottom:20px;">⏰ Abonelik Yenileme Hatırlatması</h2>
+        <p style="font-size:16px;line-height:1.6;">ZET Mindshare aboneliğiniz <strong>3 gün içinde</strong> yenilenecektir.</p>
+        <div style="background:rgba(255,255,255,0.08);padding:16px;border-radius:8px;margin:20px 0;">
+            <p style="margin:6px 0;color:#f59e0b;"><strong>Plan:</strong> {plan.upper()}</p>
+            <p style="margin:6px 0;color:#f59e0b;"><strong>Yenileme Tarihi:</strong> {renewal_date.strftime('%d.%m.%Y')}</p>
+            <p style="margin:6px 0;color:#f59e0b;"><strong>Tahsil Edilecek Tutar:</strong> {amount:.2f} {currency}</p>
+        </div>
+        <p style="color:#ccc;font-size:14px;">Aboneliğinizi iptal etmek istiyorsanız yenileme tarihinden önce hesap ayarlarınızdan işlem yapabilirsiniz.</p>
+        <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">Hesabımı Yönet</a>
+    </div>
+    """
+    await send_email(to_email, f"⏰ ZET Mindshare {plan.upper()} Planı 3 Gün İçinde Yenilenecek", html)
 
 # ============ SUBSCRIPTION HELPERS ============
 
@@ -1914,9 +1970,23 @@ async def get_subscription(user: User = Depends(get_current_user)):
 @api_router.post("/subscription")
 async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_current_user)):
     if sub.action == "subscribe":
+        now = datetime.now(timezone.utc)
+        billing_cycle = getattr(sub, "billing_cycle", "monthly") or "monthly"
+        start_date = now.date()
+        next_renewal = compute_next_renewal(start_date, billing_cycle)
+        plan_price = PLAN_PRICES_USD.get(sub.plan, {}).get(billing_cycle, 0.0)
         await db.users.update_one(
             {"user_id": user.user_id},
-            {"$set": {"subscription": sub.plan, "subscription_date": datetime.now(timezone.utc).isoformat(), "cancel_pending": False}}
+            {"$set": {
+                "subscription": sub.plan,
+                "subscription_date": now.isoformat(),
+                "subscription_start_day": start_date.day,
+                "subscription_start_date": start_date.isoformat(),
+                "billing_cycle": billing_cycle,
+                "next_renewal_date": next_renewal.isoformat(),
+                "plan_price": plan_price,
+                "cancel_pending": False,
+            }}
         )
         # Send welcome email
         html_content = f"""
@@ -1924,13 +1994,15 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
             <h2 style="color: #4ca8ad; margin-bottom: 20px;">🎉 ZET Mindshare {sub.plan.upper()} Planına Hoş Geldiniz!</h2>
             <p style="font-size: 16px; line-height: 1.6;">Aboneliğiniz başarıyla aktifleştirildi. Artık tüm premium özelliklerden yararlanabilirsiniz!</p>
             <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #4ca8ad;"><strong>Plan:</strong> {sub.plan.upper()}</p>
+                <p style="margin: 4px 0; color: #4ca8ad;"><strong>Plan:</strong> {sub.plan.upper()}</p>
+                <p style="margin: 4px 0; color: #4ca8ad;"><strong>Dönem:</strong> {"Aylık" if billing_cycle == "monthly" else "Yıllık"}</p>
+                <p style="margin: 4px 0; color: #4ca8ad;"><strong>Sonraki Yenileme:</strong> {next_renewal.strftime('%d.%m.%Y')}</p>
             </div>
             <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">ZET Mindshare'e Git</a>
         </div>
         """
         await send_email(user.email, f"🎉 ZET Mindshare {sub.plan.upper()} Planına Hoş Geldiniz!", html_content)
-        return {"message": f"Subscribed to {sub.plan}", "plan": sub.plan}
+        return {"message": f"Subscribed to {sub.plan}", "plan": sub.plan, "next_renewal_date": next_renewal.isoformat()}
     elif sub.action == "cancel":
         # Generate cancellation token
         cancel_token = f"cancel_{uuid.uuid4().hex}"
@@ -2010,14 +2082,20 @@ async def confirm_cancellation(token: str):
 @api_router.post("/subscription/create")
 async def create_subscription(data: SubscriptionCreate, user: User = Depends(get_current_user)):
     now = datetime.now(timezone.utc)
-    period_end = now + timedelta(days=30 if data.billing_cycle == "monthly" else 365)
+    start_date = now.date()
+    next_renewal = compute_next_renewal(start_date, data.billing_cycle)
+    plan_price = PLAN_PRICES_USD.get(data.plan, {}).get(data.billing_cycle, 0.0)
 
     subscription = {
         "plan": data.plan,
         "status": "active",
         "billing_cycle": data.billing_cycle,
         "current_period_start": now.isoformat(),
-        "current_period_end": period_end.isoformat(),
+        "current_period_end": next_renewal.isoformat(),
+        "subscription_start_day": start_date.day,
+        "subscription_start_date": start_date.isoformat(),
+        "next_renewal_date": next_renewal.isoformat(),
+        "plan_price": plan_price,
         "cancel_at_period_end": False,
         "payment_provider": data.payment_provider,
         "external_subscription_id": data.external_subscription_id,
@@ -2061,46 +2139,88 @@ async def cancel_subscription_at_period_end(user: User = Depends(get_current_use
     )
     return {"success": True, "message": "Abonelik dönem sonunda iptal edilecek"}
 
-# ── Abonelik yenileme kontrolü (cron / zamanlanmış çağrı) ────────────────────
+# ── Abonelik yenileme kontrolü (günlük zamanlayıcı tarafından çağrılır) ───────
 @api_router.post("/subscription/check-renewals")
 async def check_subscription_renewals():
-    """Süresi dolmuş abonelikleri tespit eder ve durumu günceller."""
-    now = datetime.now(timezone.utc)
-    now_iso = now.isoformat()
+    """Calendar-based renewal: find users whose next_renewal_date is today or past,
+    and users whose next_renewal_date is exactly 3 days away (reminder)."""
+    today = datetime.now(timezone.utc).date()
+    today_iso = today.isoformat()
+    reminder_day = (today + timedelta(days=3)).isoformat()
 
-    expired_users = await db.users.find({
-        "subscription.status": "active",
-        "subscription.current_period_end": {"$lt": now_iso}
+    renewed_count = 0
+    expired_count = 0
+    reminder_count = 0
+
+    # --- Reminder emails: renewal is in 3 days ---
+    reminder_users = await db.users.find({
+        "next_renewal_date": reminder_day,
+        "cancel_pending": {"$ne": True},
+        "subscription": {"$nin": [None, "free", ""]},
     }).to_list(None)
 
-    expired_count = 0
-    renewed_count = 0
+    for u in reminder_users:
+        plan = u.get("subscription") if isinstance(u.get("subscription"), str) else u.get("subscription", {}).get("plan", "")
+        billing_cycle = u.get("billing_cycle") or (u.get("subscription", {}) or {}).get("billing_cycle", "monthly")
+        amount = PLAN_PRICES_USD.get(plan, {}).get(billing_cycle, 0.0)
+        renewal_date = date.fromisoformat(u["next_renewal_date"])
+        await send_renewal_reminder_email(u["email"], plan, renewal_date, amount)
+        reminder_count += 1
 
-    for u in expired_users:
-        sub = u.get("subscription", {})
-        if sub.get("cancel_at_period_end"):
+    # --- Process due renewals: next_renewal_date <= today ---
+    due_users = await db.users.find({
+        "next_renewal_date": {"$lte": today_iso},
+        "subscription": {"$nin": [None, "free", ""]},
+    }).to_list(None)
+
+    for u in due_users:
+        sub_raw = u.get("subscription")
+        plan = sub_raw if isinstance(sub_raw, str) else (sub_raw or {}).get("plan", "")
+        if not plan or plan == "free":
+            continue
+
+        cancel_pending = u.get("cancel_pending") or (isinstance(sub_raw, dict) and sub_raw.get("cancel_at_period_end"))
+
+        if cancel_pending:
+            # Expire the subscription
             await db.users.update_one(
                 {"user_id": u["user_id"]},
                 {"$set": {
-                    "subscription.status": "expired",
-                    "subscription.updated_at": now_iso
+                    "subscription": "free",
+                    "subscription_date": None,
+                    "next_renewal_date": None,
+                    "cancel_pending": False,
                 }}
             )
             expired_count += 1
-            # Sona erdi maili
             html_content = f"""
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
-                <h2 style="color: #f59e0b; margin-bottom: 20px;">Aboneliğiniz Sona Erdi</h2>
-                <p style="font-size: 16px; line-height: 1.6;">{sub.get('plan', '').upper()} planı aboneliğiniz sona erdi. Dilediğiniz zaman yeniden abone olabilirsiniz.</p>
-                <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 10px;">Yeniden Abone Ol</a>
+            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
+                <h2 style="color:#f59e0b;margin-bottom:20px;">Aboneliğiniz Sona Erdi</h2>
+                <p style="font-size:16px;line-height:1.6;">{plan.upper()} planı aboneliğiniz sona erdi. Dilediğiniz zaman yeniden abone olabilirsiniz.</p>
+                <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;margin-top:10px;">Yeniden Abone Ol</a>
             </div>
             """
             await send_email(u["email"], "ZET Mindshare Aboneliğiniz Sona Erdi", html_content)
         else:
-            # Yenileme gerekiyor — ödeme sistemi entegrasyonunda tamamlanacak
-            renewed_count += 1
+            # Renew: advance next_renewal_date by one billing period
+            billing_cycle = u.get("billing_cycle") or (isinstance(sub_raw, dict) and sub_raw.get("billing_cycle")) or "monthly"
+            renewal_date = date.fromisoformat(u["next_renewal_date"])
+            next_renewal = compute_next_renewal(renewal_date, billing_cycle)
+            amount = PLAN_PRICES_USD.get(plan, {}).get(billing_cycle, 0.0)
 
-    return {"checked": len(expired_users), "expired": expired_count, "pending_renewal": renewed_count}
+            await db.users.update_one(
+                {"user_id": u["user_id"]},
+                {"$set": {"next_renewal_date": next_renewal.isoformat()}}
+            )
+            renewed_count += 1
+            await send_renewal_email(u["email"], plan, renewal_date, amount, next_renewal)
+
+    return {
+        "date_checked": today_iso,
+        "renewed": renewed_count,
+        "expired": expired_count,
+        "reminders_sent": reminder_count,
+    }
 
 SP_PLAN_COSTS = {
     'plus': 10000,
@@ -4566,10 +4686,25 @@ async def expire_boosts_loop():
         except Exception as e:
             logging.getLogger(__name__).error(f"Boost expiry error: {e}")
 
+async def _run_renewal_check():
+    """Wrapper called by APScheduler — runs the renewal logic directly."""
+    try:
+        result = await check_subscription_renewals()
+        logging.info(f"Renewal check: {result}")
+    except Exception as e:
+        logging.error(f"Renewal check error: {e}")
+
 @app.on_event("startup")
 async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
     asyncio.create_task(expire_boosts_loop())
+
+    if _APSCHEDULER_AVAILABLE:
+        scheduler = AsyncIOScheduler(timezone="UTC")
+        # Run renewal check every day at 08:00 UTC
+        scheduler.add_job(_run_renewal_check, "cron", hour=8, minute=0)
+        scheduler.start()
+        logging.info("APScheduler started — renewal check runs daily at 08:00 UTC")
 
 app.include_router(api_router)
 
