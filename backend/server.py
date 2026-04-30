@@ -3343,10 +3343,10 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
 
     client = google_genai.Client(api_key=api_key)
 
-    # Pro → Imagen 3 (yüksek kalite); Standard → Gemini flash (hızlı)
+    # No reference image → Imagen 3 (text-to-image); Reference image → Gemini flash multimodal
     try:
-        if req.pro and not req.reference_image:
-            # Imagen 3 — generate_images API (no reference image support)
+        if not req.reference_image:
+            # Imagen 3 — generate_images API (text-to-image, no reference support)
             from google.genai import types as _gtypes
             imagen_resp = await asyncio.get_event_loop().run_in_executor(
                 None,
@@ -3372,19 +3372,20 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 raise HTTPException(status_code=500, detail="Görsel oluşturulamadı, kredi iade edildi.")
             return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
         else:
-            # Gemini flash image generation (standard or pro with reference)
-            parts = []
-            if req.reference_image:
-                img_b64 = req.reference_image
-                mime_type = "image/png"
-                if "," in img_b64:
-                    header, img_b64 = img_b64.split(",", 1)
-                    if "jpeg" in header or "jpg" in header:
-                        mime_type = "image/jpeg"
-                parts.append(genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))))
-            parts.append(genai_types.Part(text=full_prompt))
+            # Gemini flash for reference-guided generation — requires v1alpha for response_modalities
+            client_alpha = google_genai.Client(api_key=api_key, http_options={"api_version": "v1alpha"})
+            img_b64 = req.reference_image
+            mime_type = "image/png"
+            if "," in img_b64:
+                header, img_b64 = img_b64.split(",", 1)
+                if "jpeg" in header or "jpg" in header:
+                    mime_type = "image/jpeg"
+            parts = [
+                genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))),
+                genai_types.Part(text=full_prompt),
+            ]
             resp = await gemini_generate(
-                client, "gemini-2.0-flash",
+                client_alpha, "gemini-2.0-flash",
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
@@ -3463,7 +3464,8 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
         if "jpeg" in header or "jpg" in header:
             mime_type = "image/jpeg"
 
-    client = google_genai.Client(api_key=api_key)
+    # v1alpha required for response_modalities=["IMAGE", "TEXT"]
+    client = google_genai.Client(api_key=api_key, http_options={"api_version": "v1alpha"})
     resp = await gemini_generate(
         client, "gemini-2.0-flash",
         [genai_types.Content(role="user", parts=[
