@@ -2819,24 +2819,40 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid base64 content")
 
-    # PDF — extract first 3 pages via Gemini
+    # PDF — extract first 3 pages with pypdf (no API key required)
     if req.mime_type == "application/pdf" or filename_lower.endswith(".pdf"):
-        if not api_key:
-            raise HTTPException(status_code=500, detail="API key missing")
         try:
-            gc = google_genai.Client(api_key=api_key)
-            resp = await asyncio.to_thread(
-                gc.models.generate_content,
-                model="gemini-2.0-flash",
-                contents=[genai_types.Content(role="user", parts=[
-                    genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=raw_bytes)),
-                    genai_types.Part(text=(
-                        "Extract the verbatim plain text from the FIRST 3 PAGES of this PDF. "
-                        "Do not summarize — return the actual text. Stop after page 3."
-                    ))
-                ])]
-            )
-            return {"content": resp.text, "type": "pdf", "page_limit": 3}
+            import io as _io
+            try:
+                from pypdf import PdfReader as _PdfReader
+            except ImportError:
+                from PyPDF2 import PdfReader as _PdfReader  # fallback
+            reader = _PdfReader(_io.BytesIO(raw_bytes))
+            pages = reader.pages[:3]
+            text = "\n\n".join(
+                p.extract_text() or "" for p in pages
+            ).strip()
+            if not text:
+                text = "[PDF boş veya sadece görsel içeriyor]"
+            return {"content": text[:20000], "type": "pdf", "page_limit": 3}
+        except ImportError:
+            # Last resort: try Gemini if pypdf not installed
+            api_key = os.getenv("GEMINI_API_KEY")
+            if not api_key:
+                raise HTTPException(status_code=500, detail="pypdf not installed and no GEMINI_API_KEY")
+            try:
+                gc = google_genai.Client(api_key=api_key)
+                resp = await asyncio.to_thread(
+                    gc.models.generate_content,
+                    model="gemini-2.0-flash",
+                    contents=[genai_types.Content(role="user", parts=[
+                        genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=raw_bytes)),
+                        genai_types.Part(text="Extract verbatim plain text from the first 3 pages. Do not summarize.")
+                    ])]
+                )
+                return {"content": resp.text, "type": "pdf", "page_limit": 3}
+            except Exception as e:
+                raise HTTPException(status_code=500, detail=f"PDF parse error: {str(e)}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"PDF parse error: {str(e)}")
 
@@ -3673,16 +3689,18 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
     if not credit_result['success']:
         raise HTTPException(status_code=429, detail=credit_result['message'])
 
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="GEMINI_API_KEY eksik")
+    # Use IMAGEN_API_KEY if available (separate key with Imagen access), else fall back to GEMINI_API_KEY
+    imagen_key = os.getenv("IMAGEN_API_KEY") or os.getenv("GEMINI_API_KEY")
+    gemini_key = os.getenv("GEMINI_API_KEY")
+    if not imagen_key:
+        raise HTTPException(status_code=500, detail="IMAGEN_API_KEY veya GEMINI_API_KEY eksik")
 
     # Build prompt
     aspect_prompt = f"({req.aspect_ratio} aspect ratio) " if req.aspect_ratio else ""
     quality_prompt = "high quality, professional, detailed, " if req.pro else ""
     full_prompt = f"{aspect_prompt}{quality_prompt}{req.prompt}".strip()
 
-    client = google_genai.Client(api_key=api_key)
+    client = google_genai.Client(api_key=imagen_key)
 
     # No reference image → Imagen 3 (text-to-image); Reference image → Gemini flash multimodal
     try:
@@ -3714,7 +3732,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
             return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
         else:
             # Gemini flash for reference-guided generation — requires v1alpha for response_modalities
-            client_alpha = google_genai.Client(api_key=api_key, http_options={"api_version": "v1alpha"})
+            client_alpha = google_genai.Client(api_key=gemini_key or imagen_key, http_options={"api_version": "v1alpha"})
             img_b64 = req.reference_image
             mime_type = "image/png"
             if "," in img_b64:

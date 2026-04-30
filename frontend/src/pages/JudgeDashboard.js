@@ -761,7 +761,7 @@ const JudgeDashboard = () => {
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 11, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
                           <div style={{ fontSize: 10, color: f.parseError ? '#ef4444' : f.content ? '#22c55e' : 'rgba(255,255,255,0.35)' }}>
-                            {f.parsing ? 'Okunuyor…' : f.parseError ? 'Okunamadı' : f.content ? 'Hazır' : sz}
+                            {f.parsing ? 'Okunuyor…' : f.parseError ? 'Okunamadı' : f.content ? 'Okundu ✓' : sz}
                           </div>
                         </div>
                         {f.parsing && <div style={{ width: 12, height: 12, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: C_LIGHT, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}
@@ -901,7 +901,7 @@ const JudgeDashboard = () => {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <div style={{ fontSize: 13, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
                             <div style={{ fontSize: 11, color: f.parseError ? '#ef4444' : f.content ? '#22c55e' : 'rgba(255,255,255,0.4)' }}>
-                              {f.parsing ? 'Okunuyor…' : f.parseError ? 'Okunamadı' : f.content ? 'Hazır' : sz}
+                              {f.parsing ? 'Okunuyor…' : f.parseError ? 'Okunamadı' : f.content ? 'Okundu ✓' : sz}
                             </div>
                           </div>
                           {f.parsing && <div style={{ width: 14, height: 14, border: '2px solid rgba(255,255,255,0.2)', borderTopColor: C_LIGHT, borderRadius: '50%', animation: 'spin 0.8s linear infinite', flexShrink: 0 }} />}

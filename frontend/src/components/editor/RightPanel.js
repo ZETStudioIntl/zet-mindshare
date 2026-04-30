@@ -72,6 +72,7 @@ export const RightPanel = ({
   // ZETA sub-mode: 'chat' | 'patch' | 'puzzle' | 'colors'
   const [zetaMode, setZetaMode] = useState('chat');
   const [prevModel, setPrevModel] = useState(null); // model saved before entering puzzle
+  const [showModePanel, setShowModePanel] = useState(false);
 
   // Model selection
   const [zetaModel, setZetaModel] = useState('prime');
@@ -566,37 +567,6 @@ export const RightPanel = ({
           </div>
         )}
 
-        {/* ── Vertical mode rail ── */}
-        {(() => {
-          const ZETA_MODES = [
-            { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)',  desc: 'Zeta ile konuş' },
-            { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',             desc: 'Belge tara & düzelt' },
-            { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',             desc: 'Derin problem çözme · Aziz' },
-            { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',             desc: 'AI görsel oluştur' },
-          ];
-          return (
-            <div className="flex-shrink-0 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-              {ZETA_MODES.map(m => {
-                const active = zetaMode === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => handleModeChange(m.id)}
-                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-white/5"
-                    style={{
-                      borderLeft: `2px solid ${active ? m.color : 'transparent'}`,
-                      background: active ? m.color + '12' : 'transparent',
-                    }}
-                  >
-                    <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
-                    <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
-                    <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
-                  </button>
-                );
-              })}
-            </div>
-          );
-        })()}
 
         {/* ── Chat / Patch / Puzzle: shared messages + input layout ── */}
         {(zetaMode === 'chat' || zetaMode === 'patch' || zetaMode === 'puzzle') && (
@@ -664,7 +634,35 @@ export const RightPanel = ({
               <audio ref={audioRef} hidden />
             </div>
             {/* Input bar */}
-            <div className="p-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+            <div className="p-2 border-t relative" style={{ borderColor: 'var(--zet-border)' }}>
+              {/* Mode selector popup — floats above input */}
+              {showModePanel && (() => {
+                const ZETA_MODES = [
+                  { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
+                  { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                  { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',            desc: 'Derin problem çözme · Aziz' },
+                  { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
+                ];
+                return (
+                  <div className="absolute bottom-full left-0 right-0 mx-2 mb-1 rounded-lg shadow-xl overflow-hidden z-50 border"
+                    style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
+                    <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
+                    {ZETA_MODES.map(m => {
+                      const active = zetaMode === m.id;
+                      return (
+                        <button key={m.id}
+                          onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
+                          className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
+                          style={{ borderLeft: `2px solid ${active ? m.color : 'transparent'}`, background: active ? m.color + '12' : 'transparent' }}>
+                          <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
+                          <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
+                          <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
               {zetaImage && (
                 <div className="mb-2 relative inline-block">
                   <img src={zetaImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
@@ -672,6 +670,16 @@ export const RightPanel = ({
                 </div>
               )}
               <div className="flex gap-1">
+                {/* Gear/settings button — shows active mode colour */}
+                {(() => {
+                  const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'puzzle' ? '#f59e0b' : zetaMode === 'colors' ? '#ec4899' : 'var(--zet-primary)';
+                  return (
+                    <button onClick={() => setShowModePanel(v => !v)} className="zet-btn px-2 flex-shrink-0" title="Mod seç"
+                      style={{ color: modeColor, background: showModePanel ? modeColor + '18' : undefined }}>
+                      <Settings className="h-3 w-3" />
+                    </button>
+                  );
+                })()}
                 <input
                   data-testid="zeta-input"
                   placeholder={
@@ -694,9 +702,42 @@ export const RightPanel = ({
 
         {/* ── Zeta Colors: image generation ── */}
         {zetaMode === 'colors' && (
-          <div className="flex-1 flex flex-col min-h-0">
+          <div className="flex-1 flex flex-col min-h-0 relative">
+            {/* Mode popup for Colors panel */}
+            {showModePanel && (() => {
+              const ZETA_MODES = [
+                { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
+                { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',            desc: 'Derin problem çözme · Aziz' },
+                { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
+              ];
+              return (
+                <div className="absolute bottom-10 left-2 right-2 rounded-lg shadow-xl overflow-hidden z-50 border"
+                  style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
+                  <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
+                  {ZETA_MODES.map(m => {
+                    const active = zetaMode === m.id;
+                    return (
+                      <button key={m.id}
+                        onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
+                        style={{ borderLeft: `2px solid ${active ? m.color : 'transparent'}`, background: active ? m.color + '12' : 'transparent' }}>
+                        <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
+                        <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
+                        <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             <div className="flex-1 p-3 overflow-y-auto space-y-3">
-              <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>Nano Banana ile AI görsel oluştur</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Nano Banana ile AI görsel oluştur</p>
+                <button onClick={() => setShowModePanel(v => !v)} className="zet-btn p-1" title="Mod seç" style={{ color: '#ec4899' }}>
+                  <Settings className="h-3 w-3" />
+                </button>
+              </div>
 
               <div>
                 <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Prompt</label>
