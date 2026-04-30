@@ -3351,7 +3351,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
             imagen_resp = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: client.models.generate_images(
-                    model="imagen-3.0-generate-001",
+                    model="imagen-3.0-generate-002",
                     prompt=full_prompt,
                     config=_gtypes.GenerateImagesConfig(
                         number_of_images=1,
@@ -3384,7 +3384,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 parts.append(genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(img_b64))))
             parts.append(genai_types.Part(text=full_prompt))
             resp = await gemini_generate(
-                client, "gemini-2.0-flash-exp",
+                client, "gemini-2.0-flash",
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
@@ -3465,7 +3465,7 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
 
     client = google_genai.Client(api_key=api_key)
     resp = await gemini_generate(
-        client, "gemini-2.0-flash-exp",
+        client, "gemini-2.0-flash",
         [genai_types.Content(role="user", parts=[
             genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(image_data))),
             genai_types.Part(text=f"Edit this image: {req.edit_prompt}")
