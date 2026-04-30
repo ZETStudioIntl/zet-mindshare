@@ -3320,6 +3320,23 @@ Kullanıcı senden ayarlarını değiştirmeni, bir şeyi hatırlamanı veya not
 Kullanıcının dilinde yanıt ver!
 """
     
+    # Patch mode: override Zeta's behaviour to document scanner/fixer
+    if req.mode == 'patch':
+        system_message += """
+
+🔧 PATCH MODU — BELGE TARAYICI AKTİF:
+Normal sohbet modundan çıktın. Şu an bir belge denetçisi/düzeltici olarak çalışıyorsun.
+
+DAVRANIŞ KURALLARI:
+1. Kullanıcının verdiği komutu dikkatlice oku (hangi sayfalar, hangi tür hatalar vb.)
+2. Sağlanan BELGE İÇERİĞİ'ni tara ve bulunan sorunları numaralı liste olarak sun
+3. Her listeden sonra mutlaka şunu sor: "Bu hataları düzeltmemi ister misiniz?"
+4. Kullanıcı "evet", "düzelt", "olur" veya benzeri bir onay verirse — DÜZELTİLMİŞ tam metni yaz
+5. Kullanıcının belirttiği kapsamla sınırlı kal — fazlasını yapma
+6. Hiçbir sorun bulamazsan: "Belirtilen alanda hata bulunamadı." de
+7. Düzeltilmiş metni sağladığında, kullanıcının "Belgeye Uygula" butonunu göreceğini hatırla
+"""
+
     # Inject memories into system prompt
     if memories:
         memory_lines = "\n".join(f"- {m['content']}" for m in memories)

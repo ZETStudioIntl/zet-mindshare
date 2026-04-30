@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, PenTool, FileText, CreditCard, Search, ArrowLeft, SlidersHorizontal, Check, Zap, Brain, Star } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 
@@ -69,28 +69,21 @@ export const RightPanel = ({
   const audioRef = useRef(null);
   const chatEndRef = useRef(null);
 
-  // ZETA sub-mode: 'chat', 'autowrite', 'deep'
+  // ZETA sub-mode: 'chat' | 'patch' | 'puzzle' | 'colors'
   const [zetaMode, setZetaMode] = useState('chat');
+  const [prevModel, setPrevModel] = useState(null); // model saved before entering puzzle
 
-  // Model seçimi
+  // Model selection
   const [zetaModel, setZetaModel] = useState('prime');
   const [showModelPicker, setShowModelPicker] = useState(false);
 
-  const [showZetaSendMenu, setShowZetaSendMenu] = useState(false);
-
-  // Auto-write state
-  const [autoPrompt, setAutoPrompt] = useState('');
-  const [autoPages, setAutoPages] = useState(1);
-  const [autoStyle, setAutoStyle] = useState('profesyonel');
-  const [autoLoading, setAutoLoading] = useState(false);
-  const [autoResult, setAutoResult] = useState(null);
-  const [autoError, setAutoError] = useState('');
-
-  // Deep Analysis state
-  const [deepTopic, setDeepTopic] = useState('');
-  const [deepLoading, setDeepLoading] = useState(false);
-  const [deepResult, setDeepResult] = useState(null);
-  const [deepError, setDeepError] = useState('');
+  // Zeta Colors (image generation) state
+  const [colorPrompt, setColorPrompt] = useState('');
+  const [colorPro, setColorPro] = useState(false);
+  const [colorAspect, setColorAspect] = useState('16:9');
+  const [colorLoading, setColorLoading] = useState(false);
+  const [colorResult, setColorResult] = useState(null);
+  const [colorError, setColorError] = useState('');
 
   useEffect(() => {
     if (docId) {
@@ -145,12 +138,13 @@ export const RightPanel = ({
     setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
   }, [zetaMessages]);
 
+  // Auto-detect CEO from email
   useEffect(() => {
-    if (!showZetaSendMenu) return;
-    const close = () => setShowZetaSendMenu(false);
-    window.document.addEventListener('click', close);
-    return () => window.document.removeEventListener('click', close);
-  }, [showZetaSendMenu]);
+    if (user?.email === CEO_EMAIL) {
+      setIsCEO(true);
+      localStorage.setItem('zet_ceo_mode', 'true');
+    }
+  }, [user]);
 
   const speakMessage = async (text, msgIndex) => {
     if (speakingMsg === msgIndex) {
@@ -180,49 +174,37 @@ export const RightPanel = ({
     }
   };
 
-  const handleAutoWrite = async () => {
-    if (!autoPrompt.trim() || autoLoading) return;
-    setAutoLoading(true);
-    setAutoError('');
-    setAutoResult(null);
-    try {
-      const res = await axios.post(`${API}/zeta/auto-write`, {
-        prompt: autoPrompt, page_count: autoPages, writing_style: autoStyle,
-      }, { withCredentials: true });
-      if (res.data.success) {
-        setAutoResult(res.data);
-        if (onRefreshCredits) onRefreshCredits();
-      } else {
-        setAutoError(res.data.error || 'Yazma başarısız');
-      }
-    } catch (err) {
-      setAutoError(err.response?.data?.detail || 'Otomatik yazma başarısız');
+  const handleModeChange = (newMode) => {
+    if (newMode === 'puzzle' && zetaMode !== 'puzzle') {
+      setPrevModel(zetaModel);
+      setZetaModel('aziz');
+    } else if (zetaMode === 'puzzle' && newMode !== 'puzzle') {
+      if (prevModel) setZetaModel(prevModel);
+      setPrevModel(null);
     }
-    setAutoLoading(false);
+    setZetaMode(newMode);
   };
 
-  const handleDeepAnalysis = async () => {
-    if (!deepTopic.trim() || deepLoading) return;
-    setDeepLoading(true);
-    setDeepError('');
-    setDeepResult(null);
+  const handleColorGenerate = async () => {
+    if (!colorPrompt.trim() || colorLoading) return;
+    setColorLoading(true);
+    setColorError('');
+    setColorResult(null);
     try {
-      const res = await axios.post(`${API}/zeta/deep-analysis`, {
-        topic: deepTopic, document_content: documentContent || '',
+      const res = await axios.post(`${API}/zeta/generate-image`, {
+        prompt: colorPrompt, pro: colorPro, aspect_ratio: colorAspect,
       }, { withCredentials: true });
-      if (res.data.success) {
-        setDeepResult(res.data);
+      if (res.data.images?.length) {
+        const img = res.data.images[0];
+        setColorResult(`data:${img.mime_type};base64,${img.data}`);
       } else {
-        setDeepError(res.data.error || 'Analiz başarısız');
+        setColorError('Görsel oluşturulamadı');
       }
+      if (onRefreshCredits) onRefreshCredits();
     } catch (err) {
-      const status = err.response?.status;
-      const detail = err.response?.data?.detail;
-      if (status === 403) setDeepError(detail || 'Derin Analiz sadece Pro ve Ultra aboneler için kullanılabilir.');
-      else if (status === 402) setDeepError(detail || 'Yetersiz kredi! Derin Analiz 100 kredi gerektirir.');
-      else setDeepError(detail || 'Derin analiz başarısız');
+      setColorError(err.response?.data?.detail || 'Görsel oluşturma hatası');
     }
-    setDeepLoading(false);
+    setColorLoading(false);
   };
 
   // ─── Console logic ───────────────────────────────────────────
@@ -416,7 +398,9 @@ export const RightPanel = ({
         message: msg, doc_id: docId, session_id: zetaSessionId,
         document_content: documentContent || '', image: imageToSend || null,
         mood: zetaMood || 'professional', emoji_level: zetaEmoji || 'medium',
-        custom_prompt: zetaCustomPrompt || '', is_ceo: isCEO, model: zetaModel
+        custom_prompt: zetaCustomPrompt || '', is_ceo: isCEO,
+        model: zetaMode === 'puzzle' ? 'aziz' : zetaModel,
+        mode: zetaMode,
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
@@ -570,377 +554,213 @@ export const RightPanel = ({
           );
         })()}
 
-        {/* CEO mode banner */}
+        {/* ── Status banners ── */}
         {isCEO && (
-          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
             👑 CEO MODU AKTİF
           </div>
         )}
-        {/* Admin mode banner */}
         {!isCEO && isAdmin && (
-          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(99,102,241,0.15)', borderBottom: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}>
+          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold flex-shrink-0" style={{ background: 'rgba(99,102,241,0.15)', borderBottom: '1px solid rgba(99,102,241,0.3)', color: '#818cf8' }}>
             🛡 ADMİN MODU AKTİF
           </div>
         )}
 
-        {/* ===== ZETA TAB ===== */}
-        <>
-            {/* ZETA Chat Mode */}
-            {zetaMode === 'chat' && (
-              <>
-                <div data-testid="zeta-messages" className="flex-1 p-2 overflow-y-auto text-xs" style={{ background: 'var(--zet-bg)' }}>
-                  {zetaMessages.length === 0 && (
-                    <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
-                      <img src="/zeta-icon.svg" alt="ZETA" className="mx-auto mb-2" style={{ width: 28, height: 28, opacity: 0.6, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
+        {/* ── Vertical mode rail ── */}
+        {(() => {
+          const ZETA_MODES = [
+            { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)',  desc: 'Zeta ile konuş' },
+            { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',             desc: 'Belge tara & düzelt' },
+            { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',             desc: 'Derin problem çözme · Aziz' },
+            { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',             desc: 'AI görsel oluştur' },
+          ];
+          return (
+            <div className="flex-shrink-0 border-b" style={{ borderColor: 'var(--zet-border)' }}>
+              {ZETA_MODES.map(m => {
+                const active = zetaMode === m.id;
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => handleModeChange(m.id)}
+                    className="w-full flex items-center gap-2 px-3 py-1.5 text-left transition-colors hover:bg-white/5"
+                    style={{
+                      borderLeft: `2px solid ${active ? m.color : 'transparent'}`,
+                      background: active ? m.color + '12' : 'transparent',
+                    }}
+                  >
+                    <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
+                    <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
+                    <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* ── Chat / Patch / Puzzle: shared messages + input layout ── */}
+        {(zetaMode === 'chat' || zetaMode === 'patch' || zetaMode === 'puzzle') && (
+          <>
+            {zetaMode === 'puzzle' && (
+              <div className="flex-shrink-0 flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }}>
+                <Star className="h-3 w-3" /> Zeta Aziz aktif — karmaşık problem modu
+              </div>
+            )}
+            <div data-testid="zeta-messages" className="flex-1 p-2 overflow-y-auto text-xs" style={{ background: 'var(--zet-bg)' }}>
+              {zetaMessages.length === 0 && (
+                <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
+                  <img src="/zeta-icon.svg" alt="ZETA" className="mx-auto mb-2" style={{ width: 28, height: 28, opacity: 0.6, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
+                  {zetaMode === 'patch' ? (
+                    <>
+                      <p className="text-xs font-medium">Patch modu</p>
+                      <p className="text-[10px] mt-2 opacity-70">Belgedeki sorunları tarar ve düzeltir. Örnek: "5. ve 6. sayfalardaki yazım hatalarını bul"</p>
+                    </>
+                  ) : zetaMode === 'puzzle' ? (
+                    <>
+                      <p className="text-xs font-medium">Puzzle modu</p>
+                      <p className="text-[10px] mt-2 opacity-70">Karmaşık sorunlar için derin analiz. Zeta Aziz modeli kullanılıyor.</p>
+                    </>
+                  ) : (
+                    <>
                       <p className="text-xs font-medium">{t('askZetaAnything')}</p>
-                      <p className="text-[10px] mt-2 opacity-70">Belgenizi otomatik olarak görüyorum. Siyah bantla gizlenen alanları göremem.</p>
+                      <p className="text-[10px] mt-2 opacity-70">Belgenizi otomatik olarak görüyorum.</p>
+                    </>
+                  )}
+                </div>
+              )}
+              {zetaMessages.map((msg, i) => (
+                <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  {msg.image && (
+                    <div className="mb-1">
+                      <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
                     </div>
                   )}
-                  {zetaMessages.map((msg, i) => (
-                    <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                      {msg.image && (
-                        <div className="mb-1">
-                          <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
-                        </div>
-                      )}
-                      <div className="inline-flex items-start gap-1 max-w-[90%]">
-                        {msg.role === 'assistant' && (
-                          <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5" style={{ background: 'var(--zet-primary)', minWidth: 20 }}>
-                            <img src="/zeta-icon.svg" alt="Z" style={{ width: 11, height: 11 }} />
-                          </div>
-                        )}
-                        <div className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap" style={{ background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}>
-                          {msg.content}
-                        </div>
-                        {msg.role === 'assistant' && (
-                          <div className="flex flex-col gap-0.5 flex-shrink-0">
-                            <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
-                              <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
-                            </button>
-                            {onApplyEdit && (
-                              <button onClick={() => onApplyEdit(msg.content)} className="p-1 rounded hover:bg-white/10" title="Belgeye uygula">
-                                <Check className="h-3 w-3" style={{ color: '#22c55e' }} />
-                              </button>
-                            )}
-                          </div>
+                  <div className="inline-flex items-start gap-1 max-w-[90%]">
+                    {msg.role === 'assistant' && (
+                      <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5" style={{ background: 'var(--zet-primary)', minWidth: 20 }}>
+                        <img src="/zeta-icon.svg" alt="Z" style={{ width: 11, height: 11 }} />
+                      </div>
+                    )}
+                    <div className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap" style={{ background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}>
+                      {msg.content}
+                    </div>
+                    {msg.role === 'assistant' && (
+                      <div className="flex flex-col gap-0.5 flex-shrink-0">
+                        <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
+                          <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
+                        </button>
+                        {onApplyEdit && (
+                          <button onClick={() => onApplyEdit(msg.content)} className="p-1 rounded hover:bg-white/10" title="Belgeye uygula">
+                            <Check className="h-3 w-3" style={{ color: '#22c55e' }} />
+                          </button>
                         )}
                       </div>
-                    </div>
-                  ))}
-                  {zetaLoading && (
-                    <ZetaTypingIndicator className="py-1" />
-                  )}
-                  <div ref={chatEndRef} />
-                  <audio ref={audioRef} hidden />
-                </div>
-                {/* ZETA Input Bar */}
-                <div className="p-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                  {zetaImage && (
-                    <div className="mb-2 relative inline-block">
-                      <img src={zetaImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
-                      <button onClick={() => setZetaImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
-                    </div>
-                  )}
-                  {showZetaSendMenu && (
-                    <div className="flex gap-1 mb-1.5">
-                      <button
-                        data-testid="zeta-chat-send"
-                        onClick={() => { setZetaMode('chat'); setShowZetaSendMenu(false); }}
-                        className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-medium transition-all"
-                        style={{ background: zetaMode === 'chat' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: zetaMode === 'chat' ? '#fff' : 'var(--zet-text)', border: '1px solid var(--zet-border)' }}
-                      >
-                        <Send className="h-2.5 w-2.5" /> Chat
-                      </button>
-                      <button
-                        data-testid="zeta-autowrite-btn"
-                        onClick={() => { setZetaMode('autowrite'); setShowZetaSendMenu(false); }}
-                        className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-medium transition-all"
-                        style={{ background: zetaMode === 'autowrite' ? '#10b981' : 'var(--zet-bg-card)', color: zetaMode === 'autowrite' ? '#fff' : '#10b981', border: '1px solid rgba(16,185,129,0.35)' }}
-                      >
-                        <PenTool className="h-2.5 w-2.5" /> Oto Yaz
-                      </button>
-                      <button
-                        data-testid="zeta-deep-btn"
-                        onClick={() => { setZetaMode('deep'); setShowZetaSendMenu(false); }}
-                        className="flex-1 flex items-center justify-center gap-1 py-1 rounded-lg text-[10px] font-medium transition-all"
-                        style={{ background: zetaMode === 'deep' ? '#f59e0b' : 'var(--zet-bg-card)', color: zetaMode === 'deep' ? '#fff' : '#f59e0b', border: '1px solid rgba(245,158,11,0.35)' }}
-                      >
-                        <Search className="h-2.5 w-2.5" /> Derin
-                      </button>
-                    </div>
-                  )}
-                  <div className="flex gap-1">
-                    <button
-                      onClick={e => { e.stopPropagation(); setShowZetaSendMenu(v => !v); }}
-                      className="p-1.5 rounded-lg flex-shrink-0 transition-all"
-                      style={{ background: showZetaSendMenu ? 'var(--zet-primary)' : 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
-                      title="Mod seç"
-                    >
-                      <SlidersHorizontal className="h-3 w-3" />
-                    </button>
-                    <input
-                      data-testid="zeta-input"
-                      placeholder={t('askZeta')}
-                      value={zetaInput}
-                      onChange={e => setZetaInput(e.target.value)}
-                      onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { setShowZetaSendMenu(false); sendZetaMessage(); } }}
-                      className="zet-input flex-1 text-xs py-1.5"
-                    />
-                    <button
-                      data-testid="zeta-send-btn"
-                      onClick={() => { setShowZetaSendMenu(false); sendZetaMessage(); }}
-                      className="zet-btn px-2"
-                    >
-                      <Send className="h-3 w-3" />
-                    </button>
+                    )}
                   </div>
                 </div>
-              </>
-            )}
-
-            {/* ZETA Auto-Write Mode */}
-            {zetaMode === 'autowrite' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Header with back button */}
-                <div className="flex items-center gap-2 p-2 border-b" style={{ borderColor: 'rgba(16,185,129,0.2)', background: 'rgba(16,185,129,0.05)' }}>
-                  <button data-testid="autowrite-back-btn" onClick={() => { setZetaMode('chat'); setAutoResult(null); }} className="p-1 rounded hover:bg-white/10">
-                    <ArrowLeft className="h-3.5 w-3.5" style={{ color: '#10b981' }} />
-                  </button>
-                  <PenTool className="h-3.5 w-3.5" style={{ color: '#10b981' }} />
-                  <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Otomatik Yazma</span>
+              ))}
+              {zetaLoading && <ZetaTypingIndicator className="py-1" />}
+              <div ref={chatEndRef} />
+              <audio ref={audioRef} hidden />
+            </div>
+            {/* Input bar */}
+            <div className="p-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+              {zetaImage && (
+                <div className="mb-2 relative inline-block">
+                  <img src={zetaImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
+                  <button onClick={() => setZetaImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
                 </div>
-                <div className="flex-1 p-3 overflow-y-auto">
-                  {!autoResult ? (
-                    <div className="space-y-3">
-                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>ZETA belgenizi sizin için yazar</p>
+              )}
+              <div className="flex gap-1">
+                <input
+                  data-testid="zeta-input"
+                  placeholder={
+                    zetaMode === 'patch'  ? 'Örn: "5-6. sayfalardaki yazım hatalarını bul"' :
+                    zetaMode === 'puzzle' ? 'Karmaşık sorununu yaz…' :
+                    t('askZeta')
+                  }
+                  value={zetaInput}
+                  onChange={e => setZetaInput(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) sendZetaMessage(); }}
+                  className="zet-input flex-1 text-xs py-1.5"
+                />
+                <button data-testid="zeta-send-btn" onClick={sendZetaMessage} className="zet-btn px-2">
+                  <Send className="h-3 w-3" />
+                </button>
+              </div>
+            </div>
+          </>
+        )}
 
-                      <div>
-                        <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Konu / Prompt</label>
-                        <textarea
-                          data-testid="auto-write-prompt"
-                          value={autoPrompt}
-                          onChange={e => setAutoPrompt(e.target.value)}
-                          placeholder="Ornegin: Yapay zekanin gelecegi hakkında detaylı bir makale yaz..."
-                          className="zet-input w-full text-xs resize-none"
-                          rows={3}
-                        />
-                      </div>
+        {/* ── Zeta Colors: image generation ── */}
+        {zetaMode === 'colors' && (
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex-1 p-3 overflow-y-auto space-y-3">
+              <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>Nano Banana ile AI görsel oluştur</p>
 
-                      <div className="flex gap-2">
-                        <div className="flex-1">
-                          <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Sayfa Sayisi</label>
-                          <select data-testid="auto-write-pages" value={autoPages} onChange={e => setAutoPages(Number(e.target.value))} className="zet-input w-full text-xs py-1.5">
-                            {[1,2,3,4,5,6,7].map(n => (<option key={n} value={n}>{n} sayfa</option>))}
-                          </select>
-                        </div>
-                        <div className="flex-1">
-                          <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Yazim Stili</label>
-                          <select data-testid="auto-write-style" value={autoStyle} onChange={e => setAutoStyle(e.target.value)} className="zet-input w-full text-xs py-1.5">
-                            <option value="profesyonel">Profesyonel</option>
-                            <option value="akademik">Akademik</option>
-                            <option value="yaratici">Yaratici</option>
-                            <option value="resmi">Resmi</option>
-                            <option value="gunluk">Gunluk</option>
-                            <option value="hikaye">Hikaye</option>
-                          </select>
-                        </div>
-                      </div>
+              <div>
+                <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Prompt</label>
+                <textarea
+                  value={colorPrompt}
+                  onChange={e => setColorPrompt(e.target.value)}
+                  placeholder="Görsel açıklaması yaz…"
+                  className="zet-input w-full text-xs resize-none"
+                  rows={3}
+                />
+              </div>
 
-                      <div className="rounded-lg p-2" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <CreditCard className="h-3 w-3" style={{ color: '#10b981' }} />
-                          <span className="text-[10px] font-semibold" style={{ color: '#10b981' }}>Tahmini Maliyet</span>
-                        </div>
-                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
-                          {autoPages} sayfa x ~500 kelime = ~{Math.max(10, Math.floor((autoPages * 43) / 3) * 10)} kredi
-                        </p>
-                      </div>
-
-                      {autoError && (
-                        <div className="rounded-lg p-2 text-xs" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
-                          {autoError}
-                        </div>
-                      )}
-
-                      <button
-                        data-testid="auto-write-start-btn"
-                        onClick={handleAutoWrite}
-                        disabled={!autoPrompt.trim() || autoLoading}
-                        className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
-                        style={{ background: '#10b981', color: 'white' }}
-                      >
-                        {autoLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> ZETA yaziyor...</>) : (<><PenTool className="h-3.5 w-3.5" /> Yazmaya Başla</>)}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <FileText className="h-4 w-4" style={{ color: '#10b981' }} />
-                          <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Yazma Tamamlandı!</span>
-                        </div>
-                        <button onClick={() => { setAutoResult(null); setAutoPrompt(''); }} className="text-[10px] px-2 py-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }} data-testid="auto-write-new-btn">
-                          Yeni Yaz
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
-                          <p className="text-sm font-bold" style={{ color: '#10b981' }}>{autoResult.pages?.length || 1}</p>
-                          <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Sayfa</p>
-                        </div>
-                        <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
-                          <p className="text-sm font-bold" style={{ color: '#10b981' }}>{autoResult.lines || 0}</p>
-                          <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Satir</p>
-                        </div>
-                        <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(16,185,129,0.08)' }}>
-                          <p className="text-sm font-bold" style={{ color: '#10b981' }}>{autoResult.credits_spent || 0}</p>
-                          <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Kredi</p>
-                        </div>
-                      </div>
-                      <div className="rounded-lg p-2 text-xs max-h-48 overflow-y-auto whitespace-pre-wrap" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
-                        {autoResult.content?.substring(0, 600)}...
-                      </div>
-                      <button
-                        onClick={() => { if (onAutoWriteContent) onAutoWriteContent(autoResult.pages || [autoResult.content], autoPages); }}
-                        className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2"
-                        style={{ background: '#10b981', color: 'white' }}
-                      >
-                        <Plus className="h-3.5 w-3.5" /> Belgeye Ekle
-                      </button>
-                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
-                        Kalan kredi: {autoResult.credits_remaining}
-                      </p>
-                    </div>
-                  )}
+              <div className="flex gap-2">
+                <div className="flex-1">
+                  <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Boyut</label>
+                  <select value={colorAspect} onChange={e => setColorAspect(e.target.value)} className="zet-input w-full text-xs py-1">
+                    <option value="16:9">16:9</option>
+                    <option value="9:16">9:16</option>
+                    <option value="1:1">1:1</option>
+                    {(userPlan === 'pro' || userPlan === 'ultra') && <>
+                      <option value="2.55:1">2.55:1</option>
+                      <option value="2.39:1">2.39:1</option>
+                    </>}
+                  </select>
+                </div>
+                <div className="flex flex-col justify-end pb-0.5">
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input type="checkbox" checked={colorPro} onChange={e => setColorPro(e.target.checked)} className="rounded" />
+                    <span className="text-[10px] font-medium" style={{ color: colorPro ? '#ec4899' : 'var(--zet-text-muted)' }}>Pro (50 kredi)</span>
+                  </label>
                 </div>
               </div>
-            )}
 
-            {/* ZETA Deep Analysis Mode */}
-            {zetaMode === 'deep' && (
-              <div className="flex-1 flex flex-col min-h-0">
-                {/* Header with back button */}
-                <div className="flex items-center gap-2 p-2 border-b" style={{ borderColor: 'rgba(245,158,11,0.2)', background: 'rgba(245,158,11,0.05)' }}>
-                  <button data-testid="deep-back-btn" onClick={() => { setZetaMode('chat'); setDeepResult(null); }} className="p-1 rounded hover:bg-white/10">
-                    <ArrowLeft className="h-3.5 w-3.5" style={{ color: '#f59e0b' }} />
-                  </button>
-                  <Search className="h-3.5 w-3.5" style={{ color: '#f59e0b' }} />
-                  <span className="text-xs font-semibold" style={{ color: '#f59e0b' }}>Derin Analiz</span>
-                  <span className="text-[9px] px-1.5 py-0.5 rounded-full ml-auto" style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>100 Kredi</span>
-                </div>
-                <div className="flex-1 p-3 overflow-y-auto">
-                  {(userPlan !== 'pro' && userPlan !== 'ultra') ? (
-                    <div className="rounded-xl p-4 text-center mt-4" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                      <Search className="h-8 w-8 mx-auto mb-2" style={{ color: '#f59e0b', opacity: 0.5 }} />
-                      <p className="text-xs font-semibold mb-1" style={{ color: '#f59e0b' }}>Pro veya Ultra Plan Gerekli</p>
-                      <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Derin Analiz sadece Pro ve Ultra aboneler için kullanılabilir.</p>
-                      {onShowUpgrade && (
-                        <button onClick={() => onShowUpgrade('Derin Analiz için Pro veya Ultra plana yükseltmeniz gerekiyor.')} className="mt-3 px-4 py-2 rounded-lg text-xs font-semibold" style={{ background: '#f59e0b', color: 'white' }}>
-                          Plani Yükselt
-                        </button>
-                      )}
-                    </div>
-                  ) : !deepResult ? (
-                    <div className="space-y-3">
-                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>ZETA internette araştırma yaparak derinlemesine analiz yazar. Bu işlem 10 dakikaya kadar sürebilir.</p>
-
-                      <div>
-                        <label className="text-[10px] font-medium mb-1 block" style={{ color: 'var(--zet-text-muted)' }}>Araştırma Konusu</label>
-                        <textarea
-                          data-testid="deep-analysis-topic"
-                          value={deepTopic}
-                          onChange={e => setDeepTopic(e.target.value)}
-                          placeholder="Ornegin: Turkiye'de yapay zeka sektoru ve gelecek projeksiyonlari..."
-                          className="zet-input w-full text-xs resize-none"
-                          rows={3}
-                        />
-                      </div>
-
-                      <div className="rounded-lg p-2" style={{ background: 'rgba(245,158,11,0.08)', border: '1px solid rgba(245,158,11,0.2)' }}>
-                        <div className="flex items-center gap-1.5 mb-1">
-                          <CreditCard className="h-3 w-3" style={{ color: '#f59e0b' }} />
-                          <span className="text-[10px] font-semibold" style={{ color: '#f59e0b' }}>Maliyet: 100 Kredi</span>
-                        </div>
-                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>Internette detaylı araştırma + AI analiz raporu</p>
-                      </div>
-
-                      {deepError && (
-                        <div className="rounded-lg p-2 text-xs" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
-                          {deepError}
-                        </div>
-                      )}
-
-                      <button
-                        data-testid="deep-analysis-start-btn"
-                        onClick={handleDeepAnalysis}
-                        disabled={!deepTopic.trim() || deepLoading}
-                        className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
-                        style={{ background: '#f59e0b', color: 'white' }}
-                      >
-                        {deepLoading ? (<><Loader2 className="h-3.5 w-3.5 animate-spin" /> Araştırılıyor...</>) : (<><Search className="h-3.5 w-3.5" /> Derin Analiz Başlat</>)}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <Search className="h-4 w-4" style={{ color: '#f59e0b' }} />
-                          <span className="text-xs font-semibold" style={{ color: '#f59e0b' }}>Analiz Tamamlandı!</span>
-                        </div>
-                        <button onClick={() => { setDeepResult(null); setDeepTopic(''); }} className="text-[10px] px-2 py-1 rounded hover:bg-white/10" style={{ color: 'var(--zet-text-muted)' }} data-testid="deep-analysis-new-btn">
-                          Yeni Analiz
-                        </button>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2">
-                        <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(245,158,11,0.08)' }}>
-                          <p className="text-sm font-bold" style={{ color: '#f59e0b' }}>{deepResult.sources_found || 0}</p>
-                          <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Kaynak</p>
-                        </div>
-                        <div className="rounded-lg p-2 text-center" style={{ background: 'rgba(245,158,11,0.08)' }}>
-                          <p className="text-sm font-bold" style={{ color: '#f59e0b' }}>{deepResult.credits_spent || 100}</p>
-                          <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>Kredi</p>
-                        </div>
-                      </div>
-                      <div className="rounded-lg p-2 text-xs max-h-96 overflow-y-auto whitespace-pre-wrap" style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
-                        {deepResult.analysis}
-                      </div>
-                      {/* Kaynak Linkleri */}
-                      {deepResult.sources && deepResult.sources.length > 0 && (
-                        <div className="rounded-lg p-2" style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.15)' }}>
-                          <p className="text-[10px] font-semibold mb-1.5" style={{ color: '#f59e0b' }}>Kaynaklar ({deepResult.sources.length})</p>
-                          <div className="space-y-1">
-                            {deepResult.sources.map((src, idx) => (
-                              <a key={idx} href={src.url} target="_blank" rel="noopener noreferrer" className="flex items-start gap-1.5 text-[10px] hover:bg-white/5 rounded p-1 transition-colors" style={{ color: 'var(--zet-text-muted)' }}>
-                                <span className="font-mono flex-shrink-0" style={{ color: '#f59e0b' }}>[{idx + 1}]</span>
-                                <span className="underline decoration-dotted hover:text-white truncate">{src.title}</span>
-                              </a>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                      <p className="text-[10px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
-                        Arama sorguları: {deepResult.search_queries?.join(', ')}
-                      </p>
-                      {/* Belgeye Ekle Butonu */}
-                      <button
-                        data-testid="deep-add-to-doc-btn"
-                        onClick={() => {
-                          if (onAutoWriteContent) {
-                            onAutoWriteContent([deepResult.analysis], 1);
-                          }
-                        }}
-                        className="w-full py-2 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] flex items-center justify-center gap-2"
-                        style={{ background: '#f59e0b', color: 'white' }}
-                      >
-                        <FileText className="h-3.5 w-3.5" />
-                        Belgeye Ekle
-                      </button>
-                    </div>
-                  )}
-                </div>
+              <div className="rounded-lg p-2 text-[10px]" style={{ background: 'rgba(236,72,153,0.08)', border: '1px solid rgba(236,72,153,0.2)', color: 'var(--zet-text-muted)' }}>
+                Maliyet: <span style={{ color: '#ec4899', fontWeight: 600 }}>{colorPro ? '50' : '20'} kredi</span>
               </div>
-            )}
-        </>
+
+              {colorError && (
+                <div className="rounded-lg p-2 text-xs" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#f87171' }}>
+                  {colorError}
+                </div>
+              )}
+
+              <button
+                onClick={handleColorGenerate}
+                disabled={!colorPrompt.trim() || colorLoading}
+                className="w-full py-2.5 rounded-xl text-xs font-semibold transition-all hover:scale-[1.02] disabled:opacity-40 flex items-center justify-center gap-2"
+                style={{ background: 'linear-gradient(135deg,#ec4899,#a855f7)', color: 'white' }}
+              >
+                {colorLoading ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Oluşturuluyor…</> : <><Palette className="h-3.5 w-3.5" /> Görsel Oluştur</>}
+              </button>
+
+              {colorResult && (
+                <div className="space-y-2">
+                  <img src={colorResult} alt="Generated" className="w-full rounded-xl" style={{ border: '1px solid rgba(236,72,153,0.3)' }} />
+                  <a href={colorResult} download="zeta-colors.png" className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]" style={{ background: 'rgba(236,72,153,0.15)', color: '#ec4899', border: '1px solid rgba(236,72,153,0.3)' }}>
+                    <Download className="h-3.5 w-3.5" /> İndir
+                  </a>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
       )}
 
