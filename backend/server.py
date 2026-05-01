@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -3581,6 +3581,14 @@ DAVRANIŞ KURALLARI:
 5. Kullanıcının belirttiği kapsamla sınırlı kal — fazlasını yapma
 6. Hiçbir sorun bulamazsan: "Belirtilen alanda hata bulunamadı." de
 7. Düzeltilmiş metni sağladığında, kullanıcının "Belgeye Uygula" butonunu göreceğini hatırla
+
+ZORUNLU FORMAT — DÜZELTİLMİŞ METİN VERME:
+Kullanıcı onay verdiğinde, düzeltilmiş metni MUTLAKA şu etiketler arasına yaz:
+[PATCH_START]
+düzeltilmiş metin içeriği buraya (açıklama yok, sadece düzeltilmiş metin)
+[PATCH_END]
+Bu etiketleri SADECE onaylı düzeltme sunarken kullan, başka hiçbir durumda kullanma.
+Etiketler dışında kısa bir açıklama yapabilirsin.
 """
 
     # Inject memories into system prompt
@@ -3938,6 +3946,29 @@ async def generate_tts(req: TTSRequest, user: User = Depends(get_current_user)):
     except Exception as e:
         logging.error(f"Error generating TTS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating TTS: {str(e)}")
+
+@api_router.post("/voice/stt")
+async def speech_to_text(audio: UploadFile = File(...), language: str = "tr", user: User = Depends(get_current_user)):
+    """Convert speech to text using ElevenLabs Scribe STT"""
+    from elevenlabs import ElevenLabs
+
+    api_key = os.getenv("ELEVENLABS_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
+
+    try:
+        audio_bytes = await audio.read()
+        el_client = ElevenLabs(api_key=api_key)
+        import io
+        result = el_client.speech_to_text.convert(
+            audio=io.BytesIO(audio_bytes),
+            model_id="scribe_v1",
+            language_code=language if language != "auto" else None,
+        )
+        return {"transcript": result.text}
+    except Exception as e:
+        logging.error(f"STT error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"STT error: {str(e)}")
 
 # ============ CLOUD STORAGE ROUTES (MOCK) ============
 

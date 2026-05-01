@@ -268,6 +268,7 @@ const Editor = () => {
   // Gradient colors for text
   const [gradientStart, setGradientStart] = useState(null);
   const [gradientEnd, setGradientEnd] = useState(null);
+  const [gradientDirection, setGradientDirection] = useState('90deg');
   const [useGradient, setUseGradient] = useState(false);
   const [hexInput, setHexInput] = useState('#000000');
 
@@ -275,6 +276,10 @@ const Editor = () => {
   const [zoomLevel, setZoomLevel] = useState(1.5);
   const [zoomRadius, setZoomRadius] = useState(50);
   const [magnifierPos, setMagnifierPos] = useState(null);
+  const [magnifierBorderColor, setMagnifierBorderColor] = useState('#60a5fa');
+  const [magnifierGradientStart, setMagnifierGradientStart] = useState('#60a5fa');
+  const [magnifierGradientEnd, setMagnifierGradientEnd] = useState('#a855f7');
+  const [useMagnifierGradient, setUseMagnifierGradient] = useState(false);
 
   // Graphiç chart state
   const [chartType, setChartType] = useState('bar');
@@ -409,6 +414,10 @@ const Editor = () => {
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState('');
   const recognitionRef = useRef(null);
+  const [isRecordingEL, setIsRecordingEL] = useState(false);
+  const [elSttLoading, setElSttLoading] = useState(false);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
   // Find & Replace state
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
@@ -887,6 +896,7 @@ const Editor = () => {
       bulletlist: () => applyListFormat('ul'),
       numberedlist: () => applyListFormat('ol'),
       emoji: () => setShowEmoji(!showEmoji),
+      zoom: () => setShowZoom(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -1342,8 +1352,9 @@ const Editor = () => {
     }
   };
 
-  const addSignatureToCanvas = () => {
-    if (!signatureData) return;
+  const addSignatureToCanvas = (src) => {
+    const imgSrc = src || signatureData;
+    if (!imgSrc) return;
     const newEl = {
       id: `el_${Date.now()}`,
       type: 'image',
@@ -1351,13 +1362,38 @@ const Editor = () => {
       y: 100,
       width: 200,
       height: 80,
-      src: signatureData
+      src: imgSrc
     };
     const updated = [...canvasElements, newEl];
     setCanvasElements(updated);
     handleSaveHistory(updated);
     setShowSignature(false);
     clearSignature();
+  };
+
+  const handleSignaturePhotoUpload = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onload = () => {
+        const tmpCanvas = document.createElement('canvas');
+        tmpCanvas.width = img.width;
+        tmpCanvas.height = img.height;
+        const ctx = tmpCanvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const imageData = ctx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
+        const d = imageData.data;
+        for (let i = 0; i < d.length; i += 4) {
+          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) d[i + 3] = 0;
+        }
+        ctx.putImageData(imageData, 0, 0);
+        addSignatureToCanvas(tmpCanvas.toDataURL('image/png'));
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
   };
 
   // Import JSON project
@@ -1643,14 +1679,29 @@ const Editor = () => {
       ];
     } else if (templateId === 'report') {
       elements = [
-        { id: `el_${now}_1`, type: 'text', x: 180, y: 100, content: 'ANNUAL REPORT', font: 'Montserrat', fontSize: 36, color: '#1a1a2e', bold: true, textAlign: 'center' },
-        { id: `el_${now}_2`, type: 'text', x: 180, y: 150, content: '2024', font: 'Open Sans', fontSize: 24, color: '#666666', textAlign: 'center' },
-        { id: `el_${now}_3`, type: 'text', x: 180, y: 250, content: 'Company Name', font: 'Montserrat', fontSize: 18, color: '#333333', textAlign: 'center' },
-        { id: `el_${now}_4`, type: 'shape', x: 150, y: 200, width: 295, height: 3, shapeType: 'square', fill: '#1a1a2e' },
-        { id: `el_${now}_5`, type: 'text', x: 40, y: 350, content: 'Executive Summary', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_6`, type: 'text', x: 40, y: 380, content: 'This report provides a comprehensive overview of our company\'s performance, achievements, and strategiç initiatives throughout the fiscal year.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
-        { id: `el_${now}_7`, type: 'text', x: 40, y: 450, content: 'Key Highlights', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_8`, type: 'text', x: 40, y: 480, content: '• Revenue growth of 25% year-over-year\n• Expanded to 3 new markets\n• Launched 5 innovative products\n• Employee satisfaction increased to 92%', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 5, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_2`, type: 'text', x: 40, y: 30, content: 'ZET', font: 'Montserrat', fontSize: 12, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 65, content: 'BUSINESS REPORT', font: 'Montserrat', fontSize: 34, color: '#0f172a', bold: true },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 108, content: new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long' }), font: 'Inter', fontSize: 12, color: '#64748b' },
+        { id: `el_${now}_5`, type: 'shape', x: 40, y: 132, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 155, content: 'EXECUTIVE SUMMARY', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 173, content: 'This report presents a comprehensive analysis of performance, key achievements, and strategic direction. Our results demonstrate consistent growth and operational excellence across all divisions.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 243, content: 'KEY METRICS', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_9`, type: 'shape', x: 40, y: 262, width: 115, height: 65, shapeType: 'square', fill: '#f0fdfa' },
+        { id: `el_${now}_10`, type: 'text', x: 97, y: 276, content: '+28%', font: 'Montserrat', fontSize: 20, color: '#0d9488', bold: true, textAlign: 'center' },
+        { id: `el_${now}_11`, type: 'text', x: 97, y: 304, content: 'Revenue', font: 'Inter', fontSize: 9, color: '#64748b', textAlign: 'center' },
+        { id: `el_${now}_12`, type: 'shape', x: 165, y: 262, width: 115, height: 65, shapeType: 'square', fill: '#eff6ff' },
+        { id: `el_${now}_13`, type: 'text', x: 222, y: 276, content: '94%', font: 'Montserrat', fontSize: 20, color: '#2563eb', bold: true, textAlign: 'center' },
+        { id: `el_${now}_14`, type: 'text', x: 222, y: 304, content: 'Satisfaction', font: 'Inter', fontSize: 9, color: '#64748b', textAlign: 'center' },
+        { id: `el_${now}_15`, type: 'shape', x: 290, y: 262, width: 115, height: 65, shapeType: 'square', fill: '#fdf4ff' },
+        { id: `el_${now}_16`, type: 'text', x: 347, y: 276, content: '3 New', font: 'Montserrat', fontSize: 20, color: '#7c3aed', bold: true, textAlign: 'center' },
+        { id: `el_${now}_17`, type: 'text', x: 347, y: 304, content: 'Markets', font: 'Inter', fontSize: 9, color: '#64748b', textAlign: 'center' },
+        { id: `el_${now}_18`, type: 'text', x: 40, y: 352, content: 'HIGHLIGHTS', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_19`, type: 'text', x: 40, y: 370, content: '→ Revenue grew 28% YoY driven by new market expansion\n→ Launched 5 innovative products — 40k+ users in first month\n→ Achieved 94% customer satisfaction score across all segments\n→ Reduced operational costs 15% through process automation', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_20`, type: 'text', x: 40, y: 488, content: 'OUTLOOK', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_21`, type: 'text', x: 40, y: 506, content: 'We are positioned for continued growth with investment in digital transformation and talent development. Strategic roadmap targets 35% growth for the coming fiscal year.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_22`, type: 'shape', x: 0, y: 822, width: 595, height: 20, shapeType: 'square', fill: '#0f172a' },
+        { id: `el_${now}_23`, type: 'text', x: 297, y: 828, content: 'Confidential  •  ZET Business Documents', font: 'Inter', fontSize: 8, color: '#94a3b8', textAlign: 'center' },
       ];
     } else if (templateId === 'letter') {
       elements = [
@@ -1666,29 +1717,43 @@ const Editor = () => {
       ];
     } else if (templateId === 'invoice') {
       elements = [
-        { id: `el_${now}_1`, type: 'text', x: 40, y: 40, content: 'INVOICE', font: 'Montserrat', fontSize: 36, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_2`, type: 'text', x: 400, y: 40, content: '#INV-001', font: 'Open Sans', fontSize: 14, color: '#666666' },
-        { id: `el_${now}_3`, type: 'text', x: 400, y: 60, content: new Date().toLocaleDateString(), font: 'Open Sans', fontSize: 11, color: '#888888' },
-        { id: `el_${now}_4`, type: 'text', x: 40, y: 100, content: 'From:', font: 'Open Sans', fontSize: 10, color: '#888888' },
-        { id: `el_${now}_5`, type: 'text', x: 40, y: 115, content: 'Your Company Name\n123 Street, City\nPhone: +90 555 000 00 00', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
-        { id: `el_${now}_6`, type: 'text', x: 300, y: 100, content: 'Bill To:', font: 'Open Sans', fontSize: 10, color: '#888888' },
-        { id: `el_${now}_7`, type: 'text', x: 300, y: 115, content: 'Client Name\nClient Address\nClient City', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.5 },
-        { id: `el_${now}_8`, type: 'shape', x: 40, y: 200, width: 515, height: 30, shapeType: 'square', fill: '#1a1a2e' },
-        { id: `el_${now}_9`, type: 'text', x: 50, y: 207, content: 'Description', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
-        { id: `el_${now}_10`, type: 'text', x: 300, y: 207, content: 'Qty', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
-        { id: `el_${now}_11`, type: 'text', x: 380, y: 207, content: 'Price', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
-        { id: `el_${now}_12`, type: 'text', x: 480, y: 207, content: 'Total', font: 'Montserrat', fontSize: 11, color: '#ffffff', bold: true },
-        { id: `el_${now}_13`, type: 'text', x: 50, y: 245, content: 'Service/Product 1', font: 'Open Sans', fontSize: 11, color: '#444444' },
-        { id: `el_${now}_14`, type: 'text', x: 300, y: 245, content: '2', font: 'Open Sans', fontSize: 11, color: '#444444' },
-        { id: `el_${now}_15`, type: 'text', x: 380, y: 245, content: '$500', font: 'Open Sans', fontSize: 11, color: '#444444' },
-        { id: `el_${now}_16`, type: 'text', x: 480, y: 245, content: '$1,000', font: 'Open Sans', fontSize: 11, color: '#444444' },
-        { id: `el_${now}_17`, type: 'shape', x: 40, y: 270, width: 515, height: 1, shapeType: 'square', fill: '#eeeeee' },
-        { id: `el_${now}_18`, type: 'text', x: 380, y: 320, content: 'Subtotal:', font: 'Open Sans', fontSize: 11, color: '#666666' },
-        { id: `el_${now}_19`, type: 'text', x: 480, y: 320, content: '$1,000', font: 'Open Sans', fontSize: 11, color: '#444444' },
-        { id: `el_${now}_20`, type: 'text', x: 380, y: 345, content: 'Tax (18%):', font: 'Open Sans', fontSize: 11, color: '#666666' },
-        { id: `el_${now}_21`, type: 'text', x: 480, y: 345, content: '$180', font: 'Open Sans', fontSize: 11, color: '#444444' },
-        { id: `el_${now}_22`, type: 'text', x: 380, y: 375, content: 'TOTAL:', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_23`, type: 'text', x: 480, y: 375, content: '$1,180', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 5, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_2`, type: 'text', x: 40, y: 28, content: 'FATURA', font: 'Montserrat', fontSize: 32, color: '#0f172a', bold: true },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 70, content: 'ZET', font: 'Montserrat', fontSize: 11, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_4`, type: 'text', x: 390, y: 28, content: `#FAT-${Date.now().toString().slice(-4)}`, font: 'Montserrat', fontSize: 14, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_5`, type: 'text', x: 390, y: 50, content: `Tarih: ${new Date().toLocaleDateString('tr-TR')}`, font: 'Inter', fontSize: 10, color: '#64748b' },
+        { id: `el_${now}_6`, type: 'text', x: 390, y: 65, content: 'Vade: 30 gün', font: 'Inter', fontSize: 10, color: '#64748b' },
+        { id: `el_${now}_7`, type: 'shape', x: 40, y: 92, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 105, content: 'KİMDEN', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true },
+        { id: `el_${now}_9`, type: 'text', x: 40, y: 120, content: 'Şirket Adınız\nAdres, İstanbul 34000\n+90 212 000 00 00', font: 'Inter', fontSize: 10, color: '#334155', lineHeight: 1.6 },
+        { id: `el_${now}_10`, type: 'text', x: 310, y: 105, content: 'KİME', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true },
+        { id: `el_${now}_11`, type: 'text', x: 310, y: 120, content: 'Müşteri Adı\nMüşteri Adresi\nŞehir, Ülke', font: 'Inter', fontSize: 10, color: '#334155', lineHeight: 1.6 },
+        { id: `el_${now}_12`, type: 'shape', x: 40, y: 185, width: 515, height: 24, shapeType: 'square', fill: '#0f172a' },
+        { id: `el_${now}_13`, type: 'text', x: 48, y: 192, content: 'HİZMET / ÜRÜN', font: 'Montserrat', fontSize: 9, color: '#e2e8f0', bold: true },
+        { id: `el_${now}_14`, type: 'text', x: 340, y: 192, content: 'ADET', font: 'Montserrat', fontSize: 9, color: '#e2e8f0', bold: true },
+        { id: `el_${now}_15`, type: 'text', x: 400, y: 192, content: 'BİRİM FİYAT', font: 'Montserrat', fontSize: 9, color: '#e2e8f0', bold: true },
+        { id: `el_${now}_16`, type: 'text', x: 490, y: 192, content: 'TOPLAM', font: 'Montserrat', fontSize: 9, color: '#e2e8f0', bold: true },
+        { id: `el_${now}_17`, type: 'text', x: 48, y: 222, content: 'Hizmet / Ürün 1', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_18`, type: 'text', x: 345, y: 222, content: '2', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_19`, type: 'text', x: 405, y: 222, content: '₺2.500', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_20`, type: 'text', x: 490, y: 222, content: '₺5.000', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_21`, type: 'shape', x: 40, y: 238, width: 515, height: 1, shapeType: 'square', fill: '#f1f5f9' },
+        { id: `el_${now}_22`, type: 'text', x: 48, y: 250, content: 'Hizmet / Ürün 2', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_23`, type: 'text', x: 345, y: 250, content: '1', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_24`, type: 'text', x: 405, y: 250, content: '₺1.000', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_25`, type: 'text', x: 490, y: 250, content: '₺1.000', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_26`, type: 'shape', x: 40, y: 268, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_27`, type: 'text', x: 400, y: 283, content: 'Ara Toplam:', font: 'Inter', fontSize: 10, color: '#64748b' },
+        { id: `el_${now}_28`, type: 'text', x: 490, y: 283, content: '₺6.000', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_29`, type: 'text', x: 400, y: 300, content: 'KDV (%18):', font: 'Inter', fontSize: 10, color: '#64748b' },
+        { id: `el_${now}_30`, type: 'text', x: 490, y: 300, content: '₺1.080', font: 'Inter', fontSize: 10, color: '#334155' },
+        { id: `el_${now}_31`, type: 'shape', x: 390, y: 317, width: 165, height: 28, shapeType: 'square', fill: '#0f172a' },
+        { id: `el_${now}_32`, type: 'text', x: 400, y: 326, content: 'GENEL TOPLAM', font: 'Montserrat', fontSize: 9, color: '#e2e8f0', bold: true },
+        { id: `el_${now}_33`, type: 'text', x: 490, y: 326, content: '₺7.080', font: 'Montserrat', fontSize: 11, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_34`, type: 'text', x: 40, y: 380, content: 'ÖDEME BİLGİLERİ', font: 'Montserrat', fontSize: 9, color: '#64748b', bold: true },
+        { id: `el_${now}_35`, type: 'text', x: 40, y: 395, content: 'Banka: [Banka Adı]\nIBAN: TR00 0000 0000 0000 0000 00\nHesap Sahibi: Şirket Adı', font: 'Inter', fontSize: 10, color: '#334155', lineHeight: 1.7 },
+        { id: `el_${now}_36`, type: 'shape', x: 0, y: 822, width: 595, height: 20, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_37`, type: 'text', x: 297, y: 828, content: 'Teşekkür ederiz  •  ZET Documents', font: 'Inter', fontSize: 8, color: '#ffffff', textAlign: 'center' },
       ];
     } else if (templateId === 'presentation') {
       elements = [
@@ -1709,25 +1774,47 @@ const Editor = () => {
         { id: `el_${now}_6`, type: 'text', x: 40, y: 150, content: '• Ad Soyad - Pozisyon\n• Ad Soyad - Pozisyon\n• Ad Soyad - Pozisyon', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
         { id: `el_${now}_7`, type: 'text', x: 40, y: 220, content: 'Gündem Maddeleri', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
         { id: `el_${now}_8`, type: 'text', x: 40, y: 245, content: '1. Proje durumu gözden geçirme\n2. Önümüzdeki hafta hedefleri\n3. Açık konular ve sorunlar\n4. Diğer', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
-        { id: `el_${now}_9`, type: 'text', x: 40, y: 350, content: 'Kararlar', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_10`, type: 'text', x: 40, y: 375, content: '•\n•\n•', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
-        { id: `el_${now}_11`, type: 'text', x: 40, y: 440, content: 'Aksiyon Maddeleri', font: 'Montserrat', fontSize: 14, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_12`, type: 'text', x: 40, y: 465, content: '| Görev | Sorumlu | Tarih |\n|-------|---------|-------|\n|       |         |       |', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
+        { id: `el_${now}_9`, type: 'shape', x: 40, y: 345, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 358, content: 'KARARLAR', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 375, content: '◉  \n◉  \n◉  ', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.9 },
+        { id: `el_${now}_12`, type: 'shape', x: 40, y: 445, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_13`, type: 'text', x: 40, y: 458, content: 'AKSİYON MADDELERİ', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_14`, type: 'shape', x: 40, y: 477, width: 515, height: 22, shapeType: 'square', fill: '#f8fafc' },
+        { id: `el_${now}_15`, type: 'text', x: 42, y: 483, content: 'GÖREV', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true },
+        { id: `el_${now}_16`, type: 'text', x: 270, y: 483, content: 'SORUMLU', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true },
+        { id: `el_${now}_17`, type: 'text', x: 430, y: 483, content: 'TARİH', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true },
+        { id: `el_${now}_18`, type: 'text', x: 40, y: 510, content: '1. \n2. \n3. ', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 2.0 },
       ];
     } else if (templateId === 'proposal') {
       elements = [
-        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 200, shapeType: 'square', fill: '#1a1a2e' },
-        { id: `el_${now}_2`, type: 'text', x: 297, y: 60, content: 'PROJE TEKLİFİ', font: 'Montserrat', fontSize: 36, color: '#ffffff', bold: true, textAlign: 'center' },
-        { id: `el_${now}_3`, type: 'text', x: 297, y: 110, content: 'Şirket Adı', font: 'Open Sans', fontSize: 16, color: '#4ca8ad', textAlign: 'center' },
-        { id: `el_${now}_4`, type: 'text', x: 297, y: 140, content: new Date().toLocaleDateString('tr-TR'), font: 'Open Sans', fontSize: 12, color: '#aaaaaa', textAlign: 'center' },
-        { id: `el_${now}_5`, type: 'text', x: 40, y: 230, content: 'Yönetici Özeti', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_6`, type: 'text', x: 40, y: 260, content: 'Bu teklif, projenin kapsamını, hedeflerini ve bütçesini özetlemektedir.', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.6 },
-        { id: `el_${now}_7`, type: 'text', x: 40, y: 310, content: 'Proje Kapsamı', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_8`, type: 'text', x: 40, y: 340, content: '• Hedef 1: ...\n• Hedef 2: ...\n• Hedef 3: ...', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
-        { id: `el_${now}_9`, type: 'text', x: 40, y: 420, content: 'Zaman Çizelgesi', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_10`, type: 'text', x: 40, y: 450, content: 'Faz 1: Planlama (2 hafta)\nFaz 2: Geliştirme (6 hafta)\nFaz 3: Test & Lansman (2 hafta)', font: 'Open Sans', fontSize: 11, color: '#444444', lineHeight: 1.8 },
-        { id: `el_${now}_11`, type: 'text', x: 40, y: 540, content: 'Bütçe', font: 'Montserrat', fontSize: 16, color: '#1a1a2e', bold: true },
-        { id: `el_${now}_12`, type: 'text', x: 40, y: 570, content: 'Toplam Proje Maliyeti: ₺XX,XXX', font: 'Open Sans', fontSize: 14, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 175, shapeType: 'square', fill: '#0f172a' },
+        { id: `el_${now}_2`, type: 'shape', x: 0, y: 0, width: 6, height: 175, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 40, content: 'ZET', font: 'Montserrat', fontSize: 11, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_2b`, type: 'text', x: 40, y: 65, content: 'PROJE TEKLİFİ', font: 'Montserrat', fontSize: 34, color: '#ffffff', bold: true },
+        { id: `el_${now}_3b`, type: 'text', x: 40, y: 110, content: 'Şirket / Müşteri Adı', font: 'Inter', fontSize: 14, color: '#94a3b8' },
+        { id: `el_${now}_3c`, type: 'text', x: 40, y: 132, content: new Date().toLocaleDateString('tr-TR'), font: 'Inter', fontSize: 11, color: '#64748b' },
+        { id: `el_${now}_3d`, type: 'text', x: 450, y: 132, content: 'Gizli', font: 'Montserrat', fontSize: 9, color: '#ef4444', bold: true },
+        { id: `el_${now}_p5`, type: 'text', x: 40, y: 200, content: 'YÖNETİCİ ÖZETİ', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_p6`, type: 'text', x: 40, y: 218, content: 'Bu teklif, projenin kapsamını, hedeflerini, zaman çizelgesini ve bütçesini detaylı olarak özetlemektedir. Müşteriye sağlanacak değer ve başarı kriterleri aşağıda belirtilmiştir.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_p7`, type: 'shape', x: 40, y: 285, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_p8`, type: 'text', x: 40, y: 298, content: 'PROJE KAPSAMI', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_p9`, type: 'text', x: 40, y: 316, content: '→  Hedef 1: Kullanıcı deneyimini %40 iyileştirme\n→  Hedef 2: Sistem entegrasyonlarını tamamlama\n→  Hedef 3: Canlıya geçiş ve destek süreci', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_p10`, type: 'shape', x: 40, y: 390, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_p11`, type: 'text', x: 40, y: 403, content: 'ZAMAN ÇİZELGESİ', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_p12`, type: 'shape', x: 40, y: 422, width: 80, height: 24, shapeType: 'square', fill: '#e0f2fe' },
+        { id: `el_${now}_p13`, type: 'text', x: 80, y: 430, content: 'Faz 1 — 2 Hafta', font: 'Inter', fontSize: 9, color: '#0369a1', textAlign: 'center' },
+        { id: `el_${now}_p14`, type: 'shape', x: 130, y: 422, width: 120, height: 24, shapeType: 'square', fill: '#f0fdf4' },
+        { id: `el_${now}_p15`, type: 'text', x: 190, y: 430, content: 'Faz 2 — 6 Hafta', font: 'Inter', fontSize: 9, color: '#15803d', textAlign: 'center' },
+        { id: `el_${now}_p16`, type: 'shape', x: 260, y: 422, width: 100, height: 24, shapeType: 'square', fill: '#fdf4ff' },
+        { id: `el_${now}_p17`, type: 'text', x: 310, y: 430, content: 'Faz 3 — 2 Hafta', font: 'Inter', fontSize: 9, color: '#7c3aed', textAlign: 'center' },
+        { id: `el_${now}_p18`, type: 'shape', x: 40, y: 468, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_p19`, type: 'text', x: 40, y: 481, content: 'BÜTÇE', font: 'Montserrat', fontSize: 10, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_p20`, type: 'text', x: 40, y: 500, content: 'Planlama & Tasarım: ₺XX,XXX\nGeliştirme: ₺XX,XXX\nTest & Lansman: ₺XX,XXX', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.7 },
+        { id: `el_${now}_p21`, type: 'shape', x: 40, y: 563, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_p22`, type: 'text', x: 40, y: 577, content: 'TOPLAM PROJE MALİYETİ', font: 'Montserrat', fontSize: 11, color: '#0f172a', bold: true },
+        { id: `el_${now}_p23`, type: 'text', x: 380, y: 577, content: '₺XX,XXX', font: 'Montserrat', fontSize: 18, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_p24`, type: 'shape', x: 0, y: 822, width: 595, height: 20, shapeType: 'square', fill: '#0f172a' },
+        { id: `el_${now}_p25`, type: 'text', x: 297, y: 828, content: 'Gizli  •  ZET Documents', font: 'Inter', fontSize: 8, color: '#94a3b8', textAlign: 'center' },
       ];
     } else if (templateId === 'contract') {
       elements = [
@@ -1892,8 +1979,67 @@ const Editor = () => {
         { id: `el_${now}_8`, type: 'text', x: 297, y: 420, content: '📍 Mekan Adı, İstanbul', font: 'Open Sans', fontSize: 16, color: '#e2e8f0', textAlign: 'center' },
         { id: `el_${now}_9`, type: 'text', x: 297, y: 520, content: 'Kayıt için: etkinlik@example.com', font: 'Open Sans', fontSize: 14, color: '#c084fc', textAlign: 'center' },
       ];
+    } else if (templateId === 'academic') {
+      elements = [
+        { id: `el_${now}_1`, type: 'text', x: 297, y: 40, content: 'Makale Başlığı Buraya Yazılır', font: 'Merriweather', fontSize: 18, color: '#1a1a2e', bold: true, textAlign: 'center' },
+        { id: `el_${now}_2`, type: 'text', x: 297, y: 80, content: 'Yazar Adı, Yazar Adı²', font: 'Inter', fontSize: 11, color: '#64748b', textAlign: 'center' },
+        { id: `el_${now}_3`, type: 'text', x: 297, y: 96, content: '¹Üniversite Adı, Bölüm Adı  ²Üniversite Adı', font: 'Inter', fontSize: 9, color: '#94a3b8', textAlign: 'center' },
+        { id: `el_${now}_4`, type: 'text', x: 297, y: 112, content: 'yazaradı@üniversite.edu', font: 'Inter', fontSize: 9, color: '#4ca8ad', textAlign: 'center' },
+        { id: `el_${now}_5`, type: 'shape', x: 40, y: 132, width: 515, height: 1, shapeType: 'square', fill: '#334155' },
+        { id: `el_${now}_6`, type: 'text', x: 40, y: 148, content: 'ÖZET', font: 'Merriweather', fontSize: 10, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 165, content: 'Bu çalışmada [konu] incelenmekte olup [yöntem] kullanılmıştır. Elde edilen bulgular, [ana bulgular] şeklinde özetlenebilir. Sonuçlar, [sonuçların önemi] açısından değerlendirildiğinde önemli katkılar sunmaktadır.', font: 'Inter', fontSize: 10, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 222, content: 'Anahtar Kelimeler: kelime1, kelime2, kelime3, kelime4', font: 'Inter', fontSize: 9, color: '#64748b', italic: true },
+        { id: `el_${now}_9`, type: 'shape', x: 40, y: 238, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 252, content: '1. GİRİŞ', font: 'Merriweather', fontSize: 12, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 272, content: 'Giriş paragrafı: Araştırmanın arka planı, amacı ve kapsamı burada açıklanır. Literatür taramasına kısa bir atıfla başlanabilir [1]. Çalışmanın önemi ve özgün katkısı vurgulanmalıdır.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_12`, type: 'text', x: 40, y: 338, content: '2. YÖNTEM', font: 'Merriweather', fontSize: 12, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_13`, type: 'text', x: 40, y: 358, content: 'Kullanılan araştırma yöntemi, veri toplama süreci ve analiz teknikleri bu bölümde detaylı şekilde açıklanır. Araştırmanın tekrar edilebilirliğini sağlayacak düzeyde bilgi verilmelidir.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_14`, type: 'text', x: 40, y: 424, content: '3. BULGULAR', font: 'Merriweather', fontSize: 12, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_15`, type: 'text', x: 40, y: 444, content: 'Elde edilen bulgular tablolar, grafikler ve istatistiksel analizlerle desteklenerek sunulur. Her bulgu açıkça ifade edilmeli ve araştırma sorusuyla ilişkilendirilmelidir.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_16`, type: 'text', x: 40, y: 510, content: '4. SONUÇ', font: 'Merriweather', fontSize: 12, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_17`, type: 'text', x: 40, y: 530, content: 'Bulguların literatür bağlamında değerlendirilmesi, çalışmanın sınırlılıkları ve gelecek araştırmalar için öneriler bu bölümde yer alır.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_18`, type: 'shape', x: 40, y: 590, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_19`, type: 'text', x: 40, y: 603, content: 'KAYNAKÇA', font: 'Merriweather', fontSize: 10, color: '#1a1a2e', bold: true },
+        { id: `el_${now}_20`, type: 'text', x: 40, y: 620, content: '[1] Yazar, A. ve Yazar, B. (2024). Makale Başlığı. Dergi Adı, 12(3), 45–67.\n[2] Yazar, C. (2023). Kitap Adı. Yayınevi.', font: 'Inter', fontSize: 9, color: '#64748b', lineHeight: 1.7 },
+      ];
+    } else if (templateId === 'creative-brief') {
+      elements = [
+        { id: `el_${now}_1`, type: 'shape', x: 0, y: 0, width: 595, height: 140, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_2`, type: 'shape', x: 0, y: 0, width: 595, height: 6, shapeType: 'square', fill: '#4ca8ad' },
+        { id: `el_${now}_3`, type: 'text', x: 40, y: 28, content: 'KREATİF BRIEF', font: 'Montserrat', fontSize: 30, color: '#ffffff', bold: true },
+        { id: `el_${now}_4`, type: 'text', x: 40, y: 72, content: 'Proje / Kampanya Adı', font: 'Inter', fontSize: 15, color: '#4ca8ad' },
+        { id: `el_${now}_5`, type: 'text', x: 40, y: 95, content: `${new Date().toLocaleDateString('tr-TR')}  •  ZET Creative`, font: 'Inter', fontSize: 10, color: '#64748b' },
+        { id: `el_${now}_6`, type: 'shape', x: 40, y: 158, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_7`, type: 'text', x: 40, y: 170, content: 'MARKA / MÜŞTERİ', font: 'Montserrat', fontSize: 9, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_8`, type: 'text', x: 40, y: 186, content: 'Marka adı, sektör ve temel değerler burada belirtilir.', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.6 },
+        { id: `el_${now}_9`, type: 'shape', x: 40, y: 215, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_10`, type: 'text', x: 40, y: 227, content: 'HEDEF & AMAÇ', font: 'Montserrat', fontSize: 9, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_11`, type: 'text', x: 40, y: 243, content: 'Bu kampanya ile ulaşılmak istenen temel hedef nedir? Başarı nasıl ölçülecek?\n→ Farkındalık artırmak  →  Dönüşüm sağlamak  →  Marka konumlandırma', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.7 },
+        { id: `el_${now}_12`, type: 'shape', x: 40, y: 295, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_13`, type: 'text', x: 40, y: 307, content: 'HEDEF KİTLE', font: 'Montserrat', fontSize: 9, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_14`, type: 'shape', x: 40, y: 324, width: 155, height: 75, shapeType: 'square', fill: '#f8fafc' },
+        { id: `el_${now}_15`, type: 'text', x: 118, y: 337, content: 'Demografik', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true, textAlign: 'center' },
+        { id: `el_${now}_16`, type: 'text', x: 118, y: 352, content: '25–40 yaş\nKentsel', font: 'Inter', fontSize: 10, color: '#334155', textAlign: 'center', lineHeight: 1.5 },
+        { id: `el_${now}_17`, type: 'shape', x: 205, y: 324, width: 155, height: 75, shapeType: 'square', fill: '#f8fafc' },
+        { id: `el_${now}_18`, type: 'text', x: 283, y: 337, content: 'Psikografik', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true, textAlign: 'center' },
+        { id: `el_${now}_19`, type: 'text', x: 283, y: 352, content: 'Teknoloji meraklısı\nKalite odaklı', font: 'Inter', fontSize: 10, color: '#334155', textAlign: 'center', lineHeight: 1.5 },
+        { id: `el_${now}_20`, type: 'shape', x: 370, y: 324, width: 155, height: 75, shapeType: 'square', fill: '#f8fafc' },
+        { id: `el_${now}_21`, type: 'text', x: 448, y: 337, content: 'Davranışsal', font: 'Montserrat', fontSize: 8, color: '#64748b', bold: true, textAlign: 'center' },
+        { id: `el_${now}_22`, type: 'text', x: 448, y: 352, content: 'Dijital aktif\nSosyal medya', font: 'Inter', fontSize: 10, color: '#334155', textAlign: 'center', lineHeight: 1.5 },
+        { id: `el_${now}_23`, type: 'shape', x: 40, y: 415, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_24`, type: 'text', x: 40, y: 427, content: 'TEMEL MESAJ', font: 'Montserrat', fontSize: 9, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_25`, type: 'text', x: 40, y: 444, content: '"Tek cümlede iletmek istediğiniz mesaj nedir?"', font: 'Merriweather', fontSize: 12, color: '#1a1a2e', italic: true },
+        { id: `el_${now}_26`, type: 'shape', x: 40, y: 475, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_27`, type: 'text', x: 40, y: 487, content: 'TESLİMATLAR', font: 'Montserrat', fontSize: 9, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_28`, type: 'text', x: 40, y: 504, content: '☐ Sosyal medya görselleri (1080×1080, 1920×1080)\n☐ Display banner seti (5 boyut)\n☐ E-posta şablonu\n☐ Landing page tasarımı', font: 'Inter', fontSize: 11, color: '#334155', lineHeight: 1.75 },
+        { id: `el_${now}_29`, type: 'shape', x: 40, y: 585, width: 515, height: 1, shapeType: 'square', fill: '#e2e8f0' },
+        { id: `el_${now}_30`, type: 'text', x: 40, y: 597, content: 'TERMİN & BÜTÇE', font: 'Montserrat', fontSize: 9, color: '#4ca8ad', bold: true },
+        { id: `el_${now}_31`, type: 'text', x: 40, y: 614, content: `Son Teslim: ${new Date(Date.now() + 14*86400000).toLocaleDateString('tr-TR')}     Bütçe: ₺XX,XXX`, font: 'Inter', fontSize: 11, color: '#334155' },
+        { id: `el_${now}_32`, type: 'shape', x: 0, y: 822, width: 595, height: 20, shapeType: 'square', fill: '#1a1a2e' },
+        { id: `el_${now}_33`, type: 'text', x: 297, y: 828, content: 'ZET Creative Documents  •  Gizli', font: 'Inter', fontSize: 8, color: '#64748b', textAlign: 'center' },
+      ];
     }
-    
+
     if (elements.length > 0) {
       setCanvasElements(elements);
       history.push(elements);
@@ -2118,6 +2264,50 @@ const Editor = () => {
       recognitionRef.current.stop();
     }
     setIsListening(false);
+  };
+
+  const startElevenLabsSTT = async () => {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert('Mikrofon erişimi bu tarayıcıda desteklenmiyor.');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
+      const recorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
+      recorder.onstop = async () => {
+        stream.getTracks().forEach(t => t.stop());
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        setElSttLoading(true);
+        try {
+          const formData = new FormData();
+          formData.append('audio', blob, 'recording.webm');
+          formData.append('language', language === 'tr' ? 'tr' : 'en');
+          const res = await axios.post(`${API}/voice/stt`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
+          if (res.data.transcript) {
+            setVoiceTranscript(prev => prev ? prev + ' ' + res.data.transcript : res.data.transcript);
+          }
+        } catch (err) {
+          alert('ElevenLabs STT hatası: ' + (err.response?.data?.detail || err.message));
+        } finally {
+          setElSttLoading(false);
+        }
+      };
+      recorder.start();
+      setIsRecordingEL(true);
+    } catch (err) {
+      alert('Mikrofon erişimi reddedildi: ' + err.message);
+    }
+  };
+
+  const stopElevenLabsSTT = () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecordingEL(false);
   };
 
   const addVoiceTextToDocument = () => {
@@ -2581,41 +2771,42 @@ const Editor = () => {
         </div>
 
         <div className="space-y-2">
-          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--zet-text-muted)' }}>
-            <input type="checkbox" checked={useGradient} onChange={e => setUseGradient(e.target.checked)} className="rounded" />
-            Gradient (Text & Shapes)
-          </label>
-          {useGradient && (
-            <div className="space-y-2">
-              <div className="flex gap-2">
-                <div className="flex-1">
-                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Start</label>
-                  <input type="color" value={gradientStart || '#FF0000'} onChange={e => setGradientStart(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
-                </div>
-                <div className="flex-1">
-                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>End</label>
-                  <input type="color" value={gradientEnd || '#0000FF'} onChange={e => setGradientEnd(e.target.value)} className="w-full h-8 rounded cursor-pointer" />
-                </div>
-              </div>
-              {/* Preview */}
-              <div className="h-6 rounded" style={{ background: `linear-gradient(90deg, ${gradientStart || '#FF0000'}, ${gradientEnd || '#0000FF'})` }} />
+          <label className="text-xs font-semibold" style={{ color: 'var(--zet-text-muted)' }}>✦ Özel Gradient</label>
+          <div className="flex gap-2">
+            <div className="flex-1">
+              <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç</label>
+              <input type="color" value={gradientStart || '#FF0000'} onChange={e => { setGradientStart(e.target.value); setUseGradient(true); }} className="w-full h-8 rounded cursor-pointer" />
             </div>
-          )}
-          {useGradient && gradientStart && gradientEnd && (
-            <button onClick={() => {
-              if (selectedElement) {
-                const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart, gradientEnd, color: null } : el);
-                setCanvasElements(updated); 
-                handleSaveHistory(updated);
-              } else if (selectedElements.length > 0) {
-                const updated = canvasElements.map(el => selectedElements.includes(el.id) ? { ...el, gradientStart, gradientEnd, color: null } : el);
-                setCanvasElements(updated);
-                handleSaveHistory(updated);
-              } else {
-                alert('Lütfen önce bir öğe seçin');
-              }
-            }} className="zet-btn w-full text-xs">Apply Gradient to Selected</button>
-          )}
+            <div className="flex-1">
+              <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Bitiş</label>
+              <input type="color" value={gradientEnd || '#0000FF'} onChange={e => { setGradientEnd(e.target.value); setUseGradient(true); }} className="w-full h-8 rounded cursor-pointer" />
+            </div>
+          </div>
+          {/* Direction selector */}
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Yön</label>
+            <div className="grid grid-cols-4 gap-1">
+              {[['→', '90deg'], ['↓', '180deg'], ['↗', '45deg'], ['↘', '135deg']].map(([icon, deg]) => (
+                <button key={deg} onClick={() => setGradientDirection?.(deg)} className="text-xs py-1 rounded" style={{ background: (gradientDirection || '90deg') === deg ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>{icon}</button>
+              ))}
+            </div>
+          </div>
+          {/* Live preview */}
+          <div className="h-8 rounded border" style={{ background: `linear-gradient(${gradientDirection || '90deg'}, ${gradientStart || '#FF0000'}, ${gradientEnd || '#0000FF'})`, borderColor: 'var(--zet-border)' }} />
+          <button onClick={() => {
+            const gs = gradientStart || '#FF0000';
+            const ge = gradientEnd || '#0000FF';
+            const gd = gradientDirection || '90deg';
+            if (selectedElement) {
+              const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart: gs, gradientEnd: ge, gradientDirection: gd, color: null } : el);
+              setCanvasElements(updated); handleSaveHistory(updated);
+            } else if (selectedElements.length > 0) {
+              const updated = canvasElements.map(el => selectedElements.includes(el.id) ? { ...el, gradientStart: gs, gradientEnd: ge, gradientDirection: gd, color: null } : el);
+              setCanvasElements(updated); handleSaveHistory(updated);
+            } else {
+              setUseGradient(true);
+            }
+          }} className="zet-btn w-full text-xs" style={{ background: gradientStart && gradientEnd ? `linear-gradient(${gradientDirection || '90deg'}, ${gradientStart}, ${gradientEnd})` : undefined }}>Seçili Öğeye Uygula</button>
         </div>
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Custom Picker</label><input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColor(e.target.value); setHexInput(e.target.value); }} className="w-full h-8 rounded cursor-pointer" /></div>
       </div>
@@ -2633,7 +2824,7 @@ const Editor = () => {
           <input placeholder={`Font ara... (${allFonts.length}+ font)`} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" />
         </div>
         <div className="max-h-64 overflow-y-auto space-y-0.5">
-          {filteredFonts.slice(0, 100).map(f => (
+          {filteredFonts.slice(0, fontSearch ? 200 : 150).map(f => (
             <button key={f}
               onClick={() => { loadGoogleFont(f); setCurrentFont(f); applyInlineStyle('fontFamily', f); setShowFont(false); }}
               onMouseEnter={() => loadGoogleFont(f)}
@@ -2696,9 +2887,112 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showPageSize && <DraggablePanel title={t('pageSize')} onClose={() => setShowPageSize(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 200 }}>
-      <div className="space-y-2 w-48">{PAGE_SIZES.map(s => <button key={s.name} onClick={() => { setPageSize(s); setShowPageSize(false); }} className={`w-full p-2 rounded text-left text-sm transition-colors ${pageSize.name === s.name ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: pageSize.name === s.name ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{s.name} <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{s.width}x{s.height}</span></button>)}
+      <div className="space-y-2 w-48">{PAGE_SIZES.map(s => <button key={s.name} onClick={() => {
+        setPageSize(s);
+        setDocument(prev => {
+          if (!prev) return prev;
+          const pages = [...(prev.pages || [])];
+          if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
+          return { ...prev, pages };
+        });
+        setShowPageSize(false);
+      }} className={`w-full p-2 rounded text-left text-sm transition-colors ${pageSize.name === s.name ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: pageSize.name === s.name ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{s.name} <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{s.width}×{s.height}</span></button>)}
         <div className="flex gap-1 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}><input type="number" value={customWidth} onChange={e => setCustomWidth(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="W" /><input type="number" value={customHeight} onChange={e => setCustomHeight(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="H" /></div>
-        <button onClick={() => { setPageSize({ name: 'Custom', width: customWidth, height: customHeight }); setShowPageSize(false); }} className="zet-btn w-full text-sm">Apply</button>
+        <button onClick={() => {
+          const s = { name: 'Custom', width: customWidth, height: customHeight };
+          setPageSize(s);
+          setDocument(prev => {
+            if (!prev) return prev;
+            const pages = [...(prev.pages || [])];
+            if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
+            return { ...prev, pages };
+          });
+          setShowPageSize(false);
+        }} className="zet-btn w-full text-sm">Apply</button>
+      </div>
+    </DraggablePanel>}
+
+    {showZoom && <DraggablePanel title="🔍 Büyüteç Aracı" onClose={() => setShowZoom(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 200 }}>
+      <div className="space-y-3 w-64">
+        {/* Zoom level */}
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Büyütme: <strong style={{ color: 'var(--zet-text)' }}>{zoomLevel}×</strong></label>
+          <input type="range" min="1.5" max="8" step="0.5" value={zoomLevel} onChange={e => setZoomLevel(parseFloat(e.target.value))} className="w-full" />
+          <div className="flex justify-between text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}><span>1.5×</span><span>8×</span></div>
+        </div>
+        {/* Radius */}
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Lens Boyutu: <strong style={{ color: 'var(--zet-text)' }}>{zoomRadius}px</strong></label>
+          <input type="range" min="40" max="200" step="10" value={zoomRadius} onChange={e => setZoomRadius(parseInt(e.target.value))} className="w-full" />
+          <div className="flex justify-between text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}><span>40px</span><span>200px</span></div>
+        </div>
+        {/* Border color / gradient */}
+        <div className="border-t pt-3" style={{ borderColor: 'var(--zet-border)' }}>
+          <div className="flex items-center justify-between mb-2">
+            <label className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>Lens Rengi</label>
+            <label className="flex items-center gap-1.5 cursor-pointer">
+              <input type="checkbox" checked={useMagnifierGradient} onChange={e => setUseMagnifierGradient(e.target.checked)} className="w-3 h-3 cursor-pointer" />
+              <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Gradient</span>
+            </label>
+          </div>
+          {!useMagnifierGradient ? (
+            <div className="flex items-center gap-2">
+              <input type="color" value={magnifierBorderColor} onChange={e => setMagnifierBorderColor(e.target.value)} className="w-8 h-8 rounded cursor-pointer" style={{ border: 'none', padding: 0 }} />
+              <input type="text" value={magnifierBorderColor} onChange={e => { if (/^#[0-9A-Fa-f]{0,6}$/.test(e.target.value)) setMagnifierBorderColor(e.target.value); }} className="zet-input text-xs flex-1" />
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <span className="text-xs w-14 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç</span>
+                <input type="color" value={magnifierGradientStart} onChange={e => setMagnifierGradientStart(e.target.value)} className="w-7 h-7 rounded cursor-pointer" style={{ border: 'none', padding: 0 }} />
+                <input type="text" value={magnifierGradientStart} onChange={e => { if (/^#[0-9A-Fa-f]{0,6}$/.test(e.target.value)) setMagnifierGradientStart(e.target.value); }} className="zet-input text-xs flex-1" />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs w-14 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}>Bitiş</span>
+                <input type="color" value={magnifierGradientEnd} onChange={e => setMagnifierGradientEnd(e.target.value)} className="w-7 h-7 rounded cursor-pointer" style={{ border: 'none', padding: 0 }} />
+                <input type="text" value={magnifierGradientEnd} onChange={e => { if (/^#[0-9A-Fa-f]{0,6}$/.test(e.target.value)) setMagnifierGradientEnd(e.target.value); }} className="zet-input text-xs flex-1" />
+              </div>
+              {/* Gradient presets */}
+              <div className="flex gap-1.5 flex-wrap pt-1">
+                {[
+                  { name: 'Sunset', s: '#ff7e5f', e: '#feb47b' },
+                  { name: 'Ocean', s: '#2193b0', e: '#6dd5ed' },
+                  { name: 'Purple', s: '#7f00ff', e: '#e100ff' },
+                  { name: 'Green', s: '#11998e', e: '#38ef7d' },
+                  { name: 'Fire', s: '#f12711', e: '#f5af19' },
+                  { name: 'Night', s: '#0f0c29', e: '#302b63' },
+                  { name: 'Pink', s: '#f953c6', e: '#b91d73' },
+                  { name: 'Aqua', s: '#13547a', e: '#80d0c7' },
+                  { name: 'Gold', s: '#f7971e', e: '#ffd200' },
+                  { name: 'Neon', s: '#00f260', e: '#0575e6' },
+                ].map(p => (
+                  <button key={p.name} onClick={() => { setMagnifierGradientStart(p.s); setMagnifierGradientEnd(p.e); }}
+                    className="w-6 h-6 rounded-full" title={p.name}
+                    style={{ background: `linear-gradient(135deg, ${p.s}, ${p.e})`, border: '2px solid rgba(255,255,255,0.2)' }} />
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        {/* Preview */}
+        <div className="flex items-center justify-center py-1">
+          <div className="rounded-full flex items-center justify-center" style={{
+            width: Math.min(zoomRadius, 80) * 2, height: Math.min(zoomRadius, 80) * 2,
+            maxWidth: 160, maxHeight: 160,
+            background: useMagnifierGradient
+              ? `linear-gradient(135deg, ${magnifierGradientStart}, ${magnifierGradientEnd})`
+              : magnifierBorderColor,
+            padding: '3px',
+          }}>
+            <div className="rounded-full flex items-center justify-center w-full h-full" style={{ background: 'var(--zet-bg-card)' }}>
+              <span className="font-bold text-sm" style={{ color: useMagnifierGradient ? magnifierGradientStart : magnifierBorderColor }}>{zoomLevel}×</span>
+            </div>
+          </div>
+        </div>
+        <p className="text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>Tuval üzerinde fareyi hareket ettir — lens o noktayı büyütür.</p>
+        <button onClick={() => { setActiveTool('zoom'); setShowZoom(false); }} className="zet-btn w-full text-sm" style={{ background: 'var(--zet-primary)' }}>
+          Lensi Etkinleştir
+        </button>
       </div>
     </DraggablePanel>}
     {showCreateImage && <DraggablePanel title={aiTargetShape ? "AI Image (Shape)" : "AI Image"} onClose={() => { setShowCreateImage(false); setAiPreview(null); setAiTargetShape(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
@@ -2794,26 +3088,33 @@ const Editor = () => {
 
     {/* Shapes Panel */}
     {showShapes && <DraggablePanel title="Şekiller" onClose={() => setShowShapes(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-56">
-        <div className="grid grid-cols-4 gap-1">
-          {SHAPE_LIST.map(shape => (
-            <button
-              key={shape.id}
-              title={shape.label}
-              onClick={() => { setActiveTool(shape.id); setShowShapes(false); }}
-              className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded transition-colors hover:bg-white/10 ${activeTool === shape.id ? 'bg-white/15' : ''}`}
-              style={{ border: activeTool === shape.id ? '1px solid var(--zet-primary)' : '1px solid var(--zet-border)' }}
-            >
-              <span className="text-base">{
-                { triangle: '▲', square: '■', circle: '●', ring: '○', star: '★',
-                  hexagon: '⬡', diamond: '◆', pentagon: '⬠', heart: '♥',
-                  arrow: '➔', parallelogram: '▱' }[shape.id]
-              }</span>
-              <span className="text-[8px]" style={{ color: 'var(--zet-text-muted)' }}>{shape.label}</span>
-            </button>
-          ))}
-        </div>
-        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Seçip tuvale tıklayın</p>
+      <div className="w-64 space-y-2 max-h-[70vh] overflow-y-auto">
+        {Array.from(new Set(SHAPE_LIST.map(s => s.group || 'Temel'))).map(group => (
+          <div key={group}>
+            <p className="text-[9px] font-semibold mb-1 px-1" style={{ color: 'var(--zet-text-muted)' }}>{group.toUpperCase()}</p>
+            <div className="grid grid-cols-4 gap-1">
+              {SHAPE_LIST.filter(s => (s.group || 'Temel') === group).map(shape => (
+                <button
+                  key={shape.id}
+                  title={shape.label}
+                  onClick={() => { setActiveTool(shape.id); setShowShapes(false); }}
+                  className={`flex flex-col items-center justify-center gap-0.5 p-2 rounded transition-colors hover:bg-white/10 ${activeTool === shape.id ? 'bg-white/15' : ''}`}
+                  style={{ border: activeTool === shape.id ? '1px solid var(--zet-primary)' : '1px solid var(--zet-border)' }}
+                >
+                  <span className="text-xs leading-none">{
+                    { triangle:'▲', square:'■', circle:'●', ring:'○', star:'★', hexagon:'⬡', diamond:'◆', pentagon:'⬠', heart:'♥', arrow:'➔', parallelogram:'▱',
+                      oval:'⬭', 'arrow-right':'→', 'arrow-left':'←', 'arrow-up':'↑', 'arrow-down':'↓', 'arrow-double':'↔',
+                      star3:'⚡', star4:'✦', star6:'✡', bubble:'💬', 'bubble-left':'💬', 'diamond-flow':'◇', cylinder:'🛢',
+                      'math-sum':'∑', 'math-pi':'π', 'math-sqrt':'√', 'math-inf':'∞', 'math-int':'∫',
+                      'bracket-sq':'[]', 'brace-curly':'{}' }[shape.id] || '■'
+                  }</span>
+                  <span className="text-[7px] truncate w-full text-center" style={{ color: 'var(--zet-text-muted)' }}>{shape.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ))}
+        <p className="text-[10px] pt-1 text-center" style={{ color: 'var(--zet-text-muted)' }}>Seçip tuvale tıklayın</p>
       </div>
     </DraggablePanel>}
 
@@ -3008,7 +3309,7 @@ const Editor = () => {
     {/* Signature Panel */}
     {showSignature && <DraggablePanel title="Digital Signature" onClose={() => { setShowSignature(false); clearSignature(); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="space-y-3 w-72">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('drawSignature') || 'Draw your signature below:'}</p>
+        <p className="text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>İmzanızı çizin:</p>
         <canvas
           ref={signatureCanvasRef}
           width={256}
@@ -3017,19 +3318,27 @@ const Editor = () => {
           onMouseMove={handleSignatureMouseMove}
           onMouseUp={handleSignatureMouseUp}
           onMouseLeave={handleSignatureMouseUp}
-          className="rounded border cursor-crosshair"
+          className="rounded border cursor-crosshair w-full"
           style={{ background: '#fff', borderColor: 'var(--zet-border)' }}
         />
         <div className="flex gap-2">
-          <button onClick={clearSignature} className="zet-btn flex-1 py-2 text-xs">{t('clear') || 'Clear'}</button>
-          <button 
-            onClick={addSignatureToCanvas} 
+          <button onClick={clearSignature} className="zet-btn py-1.5 text-xs px-3">Temizle</button>
+          <button
+            onClick={() => addSignatureToCanvas()}
             disabled={!signatureData}
-            className="zet-btn flex-1 py-2 text-xs flex items-center justify-center gap-1 disabled:opacity-50"
+            className="zet-btn flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5 disabled:opacity-40"
             style={{ background: signatureData ? 'var(--zet-primary)' : undefined }}
           >
-            <Plus className="h-3 w-3" /> {t('addToDocument') || 'Add to Document'}
+            <Plus className="h-4 w-4" /> Belgeye Ekle
           </button>
+        </div>
+        <div className="border-t pt-3" style={{ borderColor: 'var(--zet-border)' }}>
+          <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>veya fotoğraftan imza yükle:</p>
+          <label className="zet-btn w-full py-2 text-xs flex items-center justify-center gap-2 cursor-pointer">
+            <ImagePlus className="h-4 w-4" />
+            Fotoğraf Yükle
+            <input type="file" accept="image/*" onChange={handleSignaturePhotoUpload} className="sr-only" />
+          </label>
         </div>
       </div>
     </DraggablePanel>}
@@ -3687,36 +3996,53 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Voice Input (STT) Panel */}
-    {showVoiceInput && <DraggablePanel title="Voice Input" onClose={() => { setShowVoiceInput(false); stopListening(); setVoiceTranscript(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+    {showVoiceInput && <DraggablePanel title="Ses Girişi" onClose={() => { setShowVoiceInput(false); stopListening(); stopElevenLabsSTT(); setVoiceTranscript(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-72 space-y-3">
-        <div className="text-center">
-          <button 
-            onClick={isListening ? stopListening : startListening} 
-            className={`w-16 h-16 rounded-full flex items-center justify-center mx-auto transition-all ${isListening ? 'bg-red-500 animate-pulse' : 'bg-blue-500 hover:bg-blue-600'}`}
-          >
-            <Miç className="h-8 w-8 text-white" />
-          </button>
-          <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
-            {isListening ? 'Listening... Click to stop' : 'Click to start speaking'}
+        {/* ElevenLabs STT */}
+        <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
+          <p className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--zet-primary)' }}>
+            <Zap className="h-3 w-3" /> ElevenLabs Scribe
           </p>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={isRecordingEL ? stopElevenLabsSTT : startElevenLabsSTT}
+              disabled={elSttLoading}
+              className={`flex-1 py-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${isRecordingEL ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 hover:bg-blue-700 text-white'} disabled:opacity-50`}
+            >
+              {elSttLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
+              {elSttLoading ? 'İşleniyor...' : isRecordingEL ? 'Durdur' : 'Kayıt Başlat'}
+            </button>
+          </div>
         </div>
-        
+
+        {/* Browser STT */}
+        <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
+          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--zet-text-muted)' }}>Tarayıcı STT</p>
+          <button
+            onClick={isListening ? stopListening : startListening}
+            className={`w-full py-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : ''}`}
+            style={!isListening ? { background: 'var(--zet-bg-card)', color: 'var(--zet-text)' } : {}}
+          >
+            <Mic className="h-3.5 w-3.5" />
+            {isListening ? 'Dinleniyor... Durdurmak için tıkla' : 'Dinlemeye başla'}
+          </button>
+        </div>
+
         {voiceTranscript && (
           <div className="space-y-2">
-            <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Transcript:</label>
+            <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Transkript:</label>
             <div className="p-3 rounded text-sm max-h-32 overflow-y-auto" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
               {voiceTranscript}
             </div>
             <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setVoiceTranscript('')} className="zet-btn text-xs py-2" style={{ background: 'var(--zet-bg)' }}>Clear</button>
-              <button onClick={addVoiceTextToDocument} className="zet-btn text-xs py-2">Add to Document</button>
+              <button onClick={() => setVoiceTranscript('')} className="zet-btn text-xs py-2" style={{ background: 'var(--zet-bg)' }}>Temizle</button>
+              <button onClick={addVoiceTextToDocument} className="zet-btn text-xs py-2">Belgeye Ekle</button>
             </div>
           </div>
         )}
-        
+
         <div className="text-xs pt-2 border-t" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
-          <p>Language: {language === 'tr' ? 'Türkçe' : 'English'}</p>
-          <p className="mt-1">Uses your browser's speech recognition</p>
+          <p>Dil: {language === 'tr' ? 'Türkçe' : 'English'}</p>
         </div>
       </div>
     </DraggablePanel>}
@@ -3764,6 +4090,8 @@ const Editor = () => {
             isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
             pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
+            magnifierBorderColor={magnifierBorderColor} magnifierGradientStart={magnifierGradientStart}
+            magnifierGradientEnd={magnifierGradientEnd} useMagnifierGradient={useMagnifierGradient}
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode}

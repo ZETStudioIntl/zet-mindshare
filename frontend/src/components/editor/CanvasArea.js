@@ -119,6 +119,46 @@ const ShapeRenderer = ({ el }) => {
     );
   }
   if (clips[el.shapeType]) return <div style={{ ...style, clipPath: clips[el.shapeType] }} />;
+
+  // SVG-based shapes with gradient support
+  const svgFill = hasGradient ? `url(#sg-${el.id})` : (el.fill || '#000000');
+  const gradDef = hasGradient ? (
+    <defs>
+      <linearGradient id={`sg-${el.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stopColor={el.gradientStart} />
+        <stop offset="100%" stopColor={el.gradientEnd} />
+      </linearGradient>
+    </defs>
+  ) : null;
+  const svgProps = { viewBox: '0 0 100 100', style: { width: '100%', height: '100%' } };
+
+  const svgShapes = {
+    'arrow-right': <path d="M10,35 L65,35 L65,15 L93,50 L65,85 L65,65 L10,65 Z" fill={svgFill} />,
+    'arrow-left':  <path d="M90,35 L35,35 L35,15 L7,50 L35,85 L35,65 L90,65 Z" fill={svgFill} />,
+    'arrow-up':    <path d="M35,90 L35,45 L15,45 L50,5 L85,45 L65,45 L65,90 Z" fill={svgFill} />,
+    'arrow-down':  <path d="M35,10 L35,55 L15,55 L50,95 L85,55 L65,55 L65,10 Z" fill={svgFill} />,
+    'arrow-double':<path d="M5,50 L22,20 L22,37 L78,37 L78,20 L95,50 L78,80 L78,63 L22,63 L22,80 Z" fill={svgFill} />,
+    'star3':       <polygon points="50,5 61,40 97,40 68,60 79,95 50,73 21,95 32,60 3,40 39,40" fill={svgFill} />,
+    'star4':       <polygon points="50,5 57,43 95,50 57,57 50,95 43,57 5,50 43,43" fill={svgFill} />,
+    'star6':       <polygon points="50,3 61,28 90,22 74,46 90,70 61,64 50,90 39,64 10,70 26,46 10,22 39,28" fill={svgFill} />,
+    'bubble':      <path d="M10,10 Q10,5 15,5 L85,5 Q90,5 90,10 L90,65 Q90,70 85,70 L42,70 L26,90 L31,70 L15,70 Q10,70 10,65 Z" fill={svgFill} />,
+    'bubble-left': <path d="M90,10 Q90,5 85,5 L15,5 Q10,5 10,10 L10,65 Q10,70 15,70 L58,70 L74,90 L69,70 L85,70 Q90,70 90,65 Z" fill={svgFill} />,
+    'diamond-flow':<polygon points="50,5 95,50 50,95 5,50" fill={svgFill} />,
+    'oval':        <ellipse cx="50" cy="50" rx="48" ry="32" fill={svgFill} />,
+    'cylinder':    <><path d="M10,22 Q10,8 50,8 Q90,8 90,22 L90,78 Q90,92 50,92 Q10,92 10,78 Z" fill={svgFill} /><ellipse cx="50" cy="22" rx="40" ry="13" fill="rgba(0,0,0,0.2)" /></>,
+    'math-sum':    <text x="50" y="78" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>∑</text>,
+    'math-pi':     <text x="50" y="80" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>π</text>,
+    'math-sqrt':   <text x="50" y="80" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>√</text>,
+    'math-inf':    <text x="50" y="70" textAnchor="middle" fontSize="72" fontFamily="serif" fill={svgFill}>∞</text>,
+    'math-int':    <text x="50" y="80" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>∫</text>,
+    'bracket-sq':  <text x="50" y="82" textAnchor="middle" fontSize="90" fontFamily="serif" fontWeight="bold" fill={svgFill}>[ ]</text>,
+    'brace-curly': <text x="50" y="82" textAnchor="middle" fontSize="90" fontFamily="serif" fontWeight="bold" fill={svgFill}>{"{ }"}</text>,
+  };
+
+  if (svgShapes[el.shapeType]) {
+    return <svg {...svgProps}>{gradDef}{svgShapes[el.shapeType]}</svg>;
+  }
+
   return <div style={style} />;
 };
 
@@ -205,6 +245,7 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
         onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
         className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
         style={{
+          visibility: el.isRedacted && !isEditing ? 'hidden' : undefined,
           fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial',
           color: (el.gradientStart && el.gradientEnd) ? undefined : (el.color || '#000'),
           fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal',
@@ -225,6 +266,9 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
         }}
         dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
       />
+      {el.isRedacted && !isEditing && (
+        <div style={{ position: 'absolute', inset: 0, background: '#111', borderRadius: 2, zIndex: 2, cursor: 'default', userSelect: 'none' }} />
+      )}
       {removeTarget && (
         <div
           className="absolute z-50 flex items-center gap-1 rounded-lg text-xs font-medium shadow-xl"
@@ -266,9 +310,16 @@ const ElementMenu = ({ el, onDelete, onChangeImage, onAddImageToShape, onAddAiIm
 );
 
 // Vector path menu component
-const VectorMenu = ({ pathId, position, zoom, onDelete, onAddImage, onAddAiImage, onClose }) => (
-  <div data-testid={`vector-menu-${pathId}`} className="absolute zet-card p-1 z-50 min-w-[140px] shadow-xl animate-fadeIn" 
+const VectorMenu = ({ pathId, position, zoom, onDelete, onAddImage, onAddAiImage, onClose, path, onChangeFill }) => (
+  <div data-testid={`vector-menu-${pathId}`} className="absolute zet-card p-1 z-50 min-w-[140px] shadow-xl animate-fadeIn"
     style={{ left: position.x * zoom + 20, top: position.y * zoom }} onClick={e => e.stopPropagation()}>
+    {path?.isClosed && (
+      <label className="w-full px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2 cursor-pointer" style={{ color: 'var(--zet-text)' }}>
+        <span className="w-3 h-3 rounded-sm border border-white/30" style={{ background: path.fillColor || path.color }} />
+        Fill color
+        <input type="color" value={path.fillColor || path.color || '#000000'} onChange={e => onChangeFill(pathId, e.target.value)} className="sr-only" />
+      </label>
+    )}
     <button onClick={() => { onAddImage(pathId); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Image className="h-3 w-3" /> Add Image</button>
     <button onClick={() => { onAddAiImage(pathId); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Wand2 className="h-3 w-3" /> AI Image</button>
     <button onClick={() => { onDelete(pathId); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-red-500/20 flex items-center gap-2" style={{ color: '#f87171' }}><Trash2 className="h-3 w-3" /> Delete</button>
@@ -282,7 +333,9 @@ export const CanvasArea = ({
   selectedElement, setSelectedElement, selectedElements, setSelectedElements,
   onSaveHistory, canvasContainerRef, onElementSelect, onDeleteElement, onChangeImage, onAddImageToShape,
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd, useGradient,
-  zoomLevel, zoomRadius, magnifierPos, setMagnifierPos, onAddPage, onCopyElement, onMirrorElement,
+  zoomLevel, zoomRadius, magnifierPos, setMagnifierPos,
+  magnifierBorderColor, magnifierGradientStart, magnifierGradientEnd, useMagnifierGradient,
+  onAddPage, onCopyElement, onMirrorElement,
   rulerVisible, gridVisible, gridSize, snapToGrid, pageMargins: pageMarginsProp, eraserDragMode,
 }) => {
   const canvasRef = useRef(null);
@@ -301,6 +354,9 @@ export const CanvasArea = ({
   const [cropRect, setCropRect] = useState(null);
   const [cropDragging, setCropDragging] = useState(false);
   const [cropStart, setCropStart] = useState(null);
+  const [cropHandle, setCropHandle] = useState(null); // 'n'|'s'|'e'|'w'|'nw'|'ne'|'sw'|'se'|'move'
+  const [isPanning, setIsPanning] = useState(false);
+  const panStartRef = useRef(null);
   const [elementMenu, setElementMenu] = useState(null);
   const [eraserTrail, setEraserTrail] = useState([]);
   const [selectedVector, setSelectedVector] = useState(null);
@@ -317,6 +373,9 @@ export const CanvasArea = ({
   const [rectSelectStart, setRectSelectStart] = useState(null);
   const [rectSelectEnd, setRectSelectEnd] = useState(null);
   const [isRectSelecting, setIsRectSelecting] = useState(false);
+
+  // Snap indicator: shows a crosshair when element snaps to a grid line
+  const [snapIndicator, setSnapIndicator] = useState(null);
 
   // Auto-fit zoom: fill container width on mount and container resize
   useEffect(() => {
@@ -338,7 +397,7 @@ export const CanvasArea = ({
   // Zoom tool - scroll towards cursor position
   useEffect(() => {
     const h = (e) => {
-      if ((activeTool === 'hand' || activeTool === 'zoom') && canvasContainerRef.current?.contains(e.target)) {
+      if (activeTool === 'zoom' && canvasContainerRef.current?.contains(e.target)) {
         e.preventDefault();
         const container = canvasContainerRef.current;
         const rect = container.getBoundingClientRect();
@@ -442,9 +501,18 @@ export const CanvasArea = ({
     setEditingId(null);
   }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage, margins.bottom]);
 
-  // Remove redaction from element
+  const [hoveredElementId, setHoveredElementId] = useState(null);
+
+  // Remove element-level redaction
   const handleRemoveRedact = useCallback((id) => {
     const u = canvasElements.map(el => el.id === id ? { ...el, isRedacted: false } : el);
+    setCanvasElements(u);
+    onSaveHistory(u);
+  }, [canvasElements, setCanvasElements, onSaveHistory]);
+
+  // Remove element-level highlight
+  const handleRemoveHighlight = useCallback((id) => {
+    const u = canvasElements.map(el => el.id === id ? { ...el, isHighlighted: false, highlightColor: undefined } : el);
     setCanvasElements(u);
     onSaveHistory(u);
   }, [canvasElements, setCanvasElements, onSaveHistory]);
@@ -543,8 +611,12 @@ export const CanvasArea = ({
       else if (!cropTarget || (cl && cl.id !== cropTarget)) { if (cl) { const u = canvasElements.filter(el => el.id !== cl.id); setCanvasElements(u); onSaveHistory(u); setSelectedElement(null); } setCropTarget(null); setCropRect(null); }
     } else if (activeTool === 'pen') {
       // Auto-close: if near first point, close the path
-      if (penPoints.length > 2 && dist({ x, y }, penPoints[0]) < 15) {
-        const newPath = { id: `vec_${Date.now()}`, points: [...penPoints, penPoints[0]], size: 2, opacity: 100, color: currentColor, isPen: true, image: null };
+      if (penPoints.length > 2 && dist({ x, y }, penPoints[0]) < 15 / zoom) {
+        const newPath = {
+          id: `vec_${Date.now()}`, points: [...penPoints, penPoints[0]],
+          size: 2, opacity: 100, color: currentColor, isPen: true, isClosed: true,
+          fillColor: currentColor, fillOpacity: 30, image: null,
+        };
         setDrawPaths(prev => [...prev, newPath]);
         setPenPoints([]);
       } else { setPenPoints(prev => [...prev, { x, y }]); }
@@ -618,8 +690,30 @@ export const CanvasArea = ({
       // Zoom tool is automatic on hover, no click needed
       return;
     }
-    if (activeTool === 'cut' && cropTarget && cropRect) { setCropDragging(true); setCropStart({ x, y, rect: { ...cropRect } }); return; }
-    
+    if (activeTool === 'cut' && cropTarget && cropRect) {
+      const r = cropRect;
+      const hw = 10 / zoom;
+      const handles = {
+        nw: { x: r.x, y: r.y }, ne: { x: r.x + r.w, y: r.y },
+        sw: { x: r.x, y: r.y + r.h }, se: { x: r.x + r.w, y: r.y + r.h },
+        n: { x: r.x + r.w / 2, y: r.y }, s: { x: r.x + r.w / 2, y: r.y + r.h },
+        w: { x: r.x, y: r.y + r.h / 2 }, e: { x: r.x + r.w, y: r.y + r.h / 2 },
+      };
+      for (const [name, pos] of Object.entries(handles)) {
+        if (Math.abs(x - pos.x) <= hw && Math.abs(y - pos.y) <= hw) {
+          setCropHandle(name);
+          setCropStart({ x, y, rect: { ...cropRect } });
+          return;
+        }
+      }
+      if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
+        setCropHandle('move');
+        setCropDragging(true);
+        setCropStart({ x, y, rect: { ...cropRect } });
+      }
+      return;
+    }
+
     // Hand tool: check for vector dragging first
     if (activeTool === 'hand') {
       // Check if clicking on a selected vector to drag
@@ -660,6 +754,14 @@ export const CanvasArea = ({
       } else if (!hitEl) {
         setSelectedElement(null);
         setSelectedElements([]);
+        // Start canvas pan
+        setIsPanning(true);
+        panStartRef.current = {
+          clientX: e.clientX,
+          clientY: e.clientY,
+          scrollLeft: canvasContainerRef.current?.scrollLeft || 0,
+          scrollTop: canvasContainerRef.current?.scrollTop || 0,
+        };
       }
       return;
     }
@@ -692,7 +794,29 @@ export const CanvasArea = ({
       setMagnifierPosition({ x, y });
       return;
     }
-    if (cropDragging && cropStart) { setCropRect({ x: cropStart.rect.x + x - cropStart.x, y: cropStart.rect.y + y - cropStart.y, w: cropStart.rect.w, h: cropStart.rect.h }); return; }
+    if (isPanning && panStartRef.current && canvasContainerRef.current) {
+      const dx = e.clientX - panStartRef.current.clientX;
+      const dy = e.clientY - panStartRef.current.clientY;
+      canvasContainerRef.current.scrollLeft = panStartRef.current.scrollLeft - dx;
+      canvasContainerRef.current.scrollTop = panStartRef.current.scrollTop - dy;
+      return;
+    }
+    if ((cropDragging || cropHandle) && cropStart) {
+      const dx = x - cropStart.x;
+      const dy = y - cropStart.y;
+      const r = cropStart.rect;
+      const minSide = 20 / zoom;
+      let nx = r.x, ny = r.y, nw = r.w, nh = r.h;
+      if (cropHandle === 'move' || cropDragging) { nx = r.x + dx; ny = r.y + dy; }
+      else {
+        if (cropHandle?.includes('n')) { ny = r.y + dy; nh = Math.max(minSide, r.h - dy); }
+        if (cropHandle?.includes('s')) { nh = Math.max(minSide, r.h + dy); }
+        if (cropHandle?.includes('w')) { nx = r.x + dx; nw = Math.max(minSide, r.w - dx); }
+        if (cropHandle?.includes('e')) { nw = Math.max(minSide, r.w + dx); }
+      }
+      setCropRect({ x: nx, y: ny, w: nw, h: nh });
+      return;
+    }
     
     // Vector dragging
     if (draggingVector !== null && activeTool === 'hand') {
@@ -725,9 +849,15 @@ export const CanvasArea = ({
         const gs = gridSize || 20;
         const rawX = Math.max(0, x - dragOffset.x);
         const rawY = Math.max(0, y - dragOffset.y);
-        const newX = snapToGrid ? Math.round(rawX / gs) * gs : rawX;
-        const newY = snapToGrid ? Math.round(rawY / gs) * gs : rawY;
-        setCanvasElements(p => p.map(i => i.id === dragging ? { ...i, x: newX, y: newY } : i));
+        const snapToGridVal = (v) => snapToGrid ? Math.round(v / gs) * gs : v;
+        const snappedX = snapToGridVal(rawX);
+        const snappedY = snapToGridVal(rawY);
+        setCanvasElements(p => p.map(i => i.id === dragging ? { ...i, x: snappedX, y: snappedY } : i));
+        if (snapToGrid && (Math.abs(rawX - snappedX) < 6 || Math.abs(rawY - snappedY) < 6)) {
+          setSnapIndicator({ x: snappedX, y: snappedY });
+        } else {
+          setSnapIndicator(null);
+        }
       }
     }
     if (resizing) {
@@ -850,7 +980,10 @@ export const CanvasArea = ({
     if (activeTool !== 'zoom') setMagnifierActive(false);
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
-    setCropDragging(false); setCropStart(null); setDragging(null); setResizing(null);
+    setCropDragging(false); setCropStart(null); setCropHandle(null);
+    setIsPanning(false); panStartRef.current = null;
+    setDragging(null); setResizing(null);
+    setSnapIndicator(null);
   }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
@@ -872,6 +1005,11 @@ export const CanvasArea = ({
     setVectorMenu(null);
   }, [onAddAiImageToShape]);
 
+  // Change fill color of closed vector path
+  const handleChangeFillColor = useCallback((idx, color) => {
+    setDrawPaths(prev => prev.map((p, i) => i === idx ? { ...p, fillColor: color } : p));
+  }, [setDrawPaths]);
+
   const getCursor = () => ({ text: 'text', hand: draggingVector !== null ? 'grabbing' : 'grab', draw: 'crosshair', pen: 'crosshair', eraser: 'cell', cut: 'crosshair', select: 'crosshair', marking: 'crosshair', translate: 'help' }[activeTool] || 'crosshair');
 
   const pageBg = pageBackground || '#ffffff';
@@ -881,8 +1019,8 @@ export const CanvasArea = ({
     return paths.filter(p => !p.isHighlight).map((path, i) => {
       const isSelected = idx === currentPage && selectedVector === i && path.isPen;
       const bounds = path.isPen ? getPathBounds(path) : null;
-      const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
-      
+      const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}${path.isClosed ? ' Z' : ''}` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
+
       return (
         <g key={`d${i}`}>
           {/* Clip path for image fill */}
@@ -911,7 +1049,7 @@ export const CanvasArea = ({
             stroke={isSelected ? '#4ca8ad' : path.color}
             strokeWidth={(isSelected ? path.size + 2 : path.size) * zoom}
             strokeOpacity={path.opacity / 100}
-            fill={path.isPen && !path.image ? `${path.color}20` : 'none'}
+            fill={path.isClosed && !path.image ? `${path.fillColor || path.color}${Math.round(((path.fillOpacity ?? 20) / 100) * 255).toString(16).padStart(2, '0')}` : path.isPen && !path.image ? `${path.color}14` : 'none'}
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -979,9 +1117,11 @@ export const CanvasArea = ({
                 >
                   {Array.from({ length: Math.ceil((page.pageSize?.width || pageSize.width) / 50) + 1 }).map((_, i) => (
                     <div key={`rh${i}`} className="flex-shrink-0 relative" style={{ width: 50 * zoom }}>
-                      <div style={{ position: 'absolute', left: 0, bottom: 0, height: i % 2 === 0 ? 10 : 6, width: 1, background: 'rgba(180,180,255,0.7)' }} />
-                      {i % 2 === 0 && (
-                        <span style={{ position: 'absolute', left: 2, top: 2, fontSize: 8, color: 'rgba(180,180,255,0.9)', userSelect: 'none' }}>{i * 50}</span>
+                      <div style={{ position: 'absolute', left: 0, bottom: 0, height: i % 2 === 0 ? 10 : 5, width: 1, background: 'rgba(180,180,255,0.7)' }} />
+                      {i > 0 && i % 2 === 0 && (
+                        <span style={{ position: 'absolute', left: 2, bottom: 11, fontSize: 7, color: 'rgba(200,200,255,0.95)', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                          {i * 50}
+                        </span>
                       )}
                     </div>
                   ))}
@@ -1037,7 +1177,7 @@ export const CanvasArea = ({
               {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight).map((path, i) => {
                 const isSelected = idx === currentPage && selectedVector === i && path.isPen;
                 const bounds = path.isPen ? getPathBounds(path) : null;
-                const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
+                const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}${path.isClosed ? ' Z' : ''}` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
                 
                 return (
                   <g key={`d${i}`}>
@@ -1064,7 +1204,7 @@ export const CanvasArea = ({
                       stroke={isSelected ? '#4ca8ad' : path.color}
                       strokeWidth={(isSelected ? path.size + 2 : path.size) * zoom}
                       strokeOpacity={path.opacity / 100}
-                      fill={path.isPen && !path.image ? `${path.color}20` : 'none'}
+                      fill={path.isClosed && !path.image ? `${path.fillColor || path.color}${Math.round(((path.fillOpacity ?? 20) / 100) * 255).toString(16).padStart(2, '0')}` : path.isPen && !path.image ? `${path.color}14` : 'none'}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />
@@ -1100,42 +1240,97 @@ export const CanvasArea = ({
                   ))}
                 </>
               )}
+              {/* Snap indicator crosshair */}
+              {snapIndicator && idx === currentPage && (
+                <g>
+                  <circle cx={snapIndicator.x * zoom} cy={snapIndicator.y * zoom} r={6} fill="none" stroke="#3b82f6" strokeWidth={1.5} />
+                  <line x1={(snapIndicator.x - 8) * zoom} y1={snapIndicator.y * zoom} x2={(snapIndicator.x + 8) * zoom} y2={snapIndicator.y * zoom} stroke="#3b82f6" strokeWidth={1} />
+                  <line x1={snapIndicator.x * zoom} y1={(snapIndicator.y - 8) * zoom} x2={snapIndicator.x * zoom} y2={(snapIndicator.y + 8) * zoom} stroke="#3b82f6" strokeWidth={1} />
+                </g>
+              )}
               {/* Crop overlay */}
-              {cropTarget && cropRect && idx === currentPage && (<><rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.3)" /><rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} stroke="#4ca8ad" strokeWidth={2} fill="rgba(0,0,0,0)" strokeDasharray="6,3" /></>)}
+              {cropTarget && cropRect && idx === currentPage && (
+                <>
+                  <rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.38)" />
+                  {/* Transparent clear window */}
+                  <rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} fill="rgba(255,255,255,0.05)" stroke="#4ca8ad" strokeWidth={2} strokeDasharray="6,3" />
+                  {/* Resize handles */}
+                  {[
+                    { id: 'nw', cx: cropRect.x, cy: cropRect.y, cur: 'nwse-resize' },
+                    { id: 'ne', cx: cropRect.x + cropRect.w, cy: cropRect.y, cur: 'nesw-resize' },
+                    { id: 'sw', cx: cropRect.x, cy: cropRect.y + cropRect.h, cur: 'nesw-resize' },
+                    { id: 'se', cx: cropRect.x + cropRect.w, cy: cropRect.y + cropRect.h, cur: 'nwse-resize' },
+                    { id: 'n', cx: cropRect.x + cropRect.w / 2, cy: cropRect.y, cur: 'ns-resize' },
+                    { id: 's', cx: cropRect.x + cropRect.w / 2, cy: cropRect.y + cropRect.h, cur: 'ns-resize' },
+                    { id: 'w', cx: cropRect.x, cy: cropRect.y + cropRect.h / 2, cur: 'ew-resize' },
+                    { id: 'e', cx: cropRect.x + cropRect.w, cy: cropRect.y + cropRect.h / 2, cur: 'ew-resize' },
+                  ].map(h => (
+                    <rect key={h.id} x={h.cx * zoom - 5} y={h.cy * zoom - 5} width={10} height={10}
+                      fill="white" stroke="#4ca8ad" strokeWidth={1.5} rx={2} style={{ cursor: h.cur }} />
+                  ))}
+                </>
+              )}
             </svg>
             
             {/* Magnifier effect - real zoom */}
-            {activeTool === 'zoom' && magnifierActive && idx === currentPage && (
-              <div 
-                className="absolute pointer-events-none rounded-full border-4 border-blue-400 shadow-2xl z-50 overflow-hidden"
-                style={{
-                  left: magnifierPosition.x * zoom - (zoomRadius || 50),
-                  top: magnifierPosition.y * zoom - (zoomRadius || 50),
-                  width: (zoomRadius || 50) * 2,
-                  height: (zoomRadius || 50) * 2,
-                  background: pageBg,
-                }}
-              >
-                <div 
+            {activeTool === 'zoom' && magnifierActive && idx === currentPage && (() => {
+              const r = zoomRadius || 80;
+              const lv = zoomLevel || 2;
+              const mx = magnifierPosition.x;
+              const my = magnifierPosition.y;
+              const pw = (page.pageSize?.width || pageSize.width) * zoom;
+              const ph = (page.pageSize?.height || pageSize.height) * zoom;
+              const bw = 4;
+              const borderBg = useMagnifierGradient
+                ? `linear-gradient(135deg, ${magnifierGradientStart || '#60a5fa'}, ${magnifierGradientEnd || '#a855f7'})`
+                : (magnifierBorderColor || '#60a5fa');
+              const accentColor = magnifierBorderColor || '#60a5fa';
+              return (
+                <div
+                  className="absolute pointer-events-none z-50"
                   style={{
-                    position: 'absolute',
-                    left: '50%',
-                    top: '50%',
-                    width: '100%',
-                    height: '100%',
-                    transform: `translate(-50%, -50%) scale(${zoomLevel || 2})`,
-                    transformOrigin: 'center center',
-                    backgroundImage: `url(${canvasContainerRef?.current?.querySelector('svg')?.outerHTML ? `data:image/svg+xml,${encodeURIComponent(canvasContainerRef?.current?.querySelector('svg')?.outerHTML || '')}` : 'none'})`,
-                    backgroundPosition: `${50 - (magnifierPosition.x / (page.pageSize?.width || pageSize.width)) * 100}% ${50 - (magnifierPosition.y / (page.pageSize?.height || pageSize.height)) * 100}%`,
-                    backgroundSize: 'cover',
-                    backgroundRepeat: 'no-repeat',
+                    left: mx * zoom - r - bw,
+                    top: my * zoom - r - bw,
+                    width: (r + bw) * 2,
+                    height: (r + bw) * 2,
+                    borderRadius: '50%',
+                    background: borderBg,
+                    padding: bw,
+                    boxShadow: '0 4px 28px rgba(0,0,0,0.6)',
                   }}
-                />
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-blue-400 text-xs font-bold bg-black/50 px-1 rounded">{Math.round((zoomLevel || 2) * 100)}%</span>
+                >
+                  <div style={{ width: '100%', height: '100%', borderRadius: '50%', overflow: 'hidden', position: 'relative' }}>
+                    {/* Page background + elements re-rendered at magnified scale */}
+                    <div style={{
+                      position: 'absolute',
+                      width: pw,
+                      height: ph,
+                      background: pageBg,
+                      transform: `scale(${lv})`,
+                      transformOrigin: '0 0',
+                      left: r - mx * zoom * lv,
+                      top: r - my * zoom * lv,
+                    }}>
+                      {canvasElements.filter(el => !el.hidden).map(el => {
+                        const base = { position: 'absolute', left: el.x * zoom, top: el.y * zoom, width: (el.width || 100) * zoom, pointerEvents: 'none' };
+                        if (el.type === 'text') return (
+                          <div key={el.id} style={{ ...base, height: 'auto', fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial', color: el.color || '#000', fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal', textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none', lineHeight: el.lineHeight || 1.5, textAlign: el.textAlign || 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }} dangerouslySetInnerHTML={{ __html: el.htmlContent || (el.content || '').replace(/\n/g, '<br>') }} />
+                        );
+                        if (el.type === 'image' || el.type === 'chart') return (
+                          <img key={el.id} src={el.src} alt="" style={{ ...base, height: (el.height || 100) * zoom, objectFit: 'contain' }} draggable={false} />
+                        );
+                        return null;
+                      })}
+                    </div>
+                    {/* Crosshair */}
+                    <div style={{ position: 'absolute', top: '50%', left: 0, right: 0, height: 1, background: `${accentColor}70`, transform: 'translateY(-50%)' }} />
+                    <div style={{ position: 'absolute', left: '50%', top: 0, bottom: 0, width: 1, background: `${accentColor}70`, transform: 'translateX(-50%)' }} />
+                    {/* Zoom badge */}
+                    <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.75)', color: accentColor, fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4 }}>{lv}×</div>
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
             
             {/* Vector menu */}
             {vectorMenu && idx === currentPage && (
@@ -1143,10 +1338,12 @@ export const CanvasArea = ({
                 pathId={vectorMenu.idx}
                 position={vectorMenu.position}
                 zoom={zoom}
+                path={drawPaths[vectorMenu.idx]}
                 onDelete={handleDeleteVector}
                 onAddImage={handleAddImageToVector}
                 onAddAiImage={handleAddAiImageToVector}
                 onClose={() => setVectorMenu(null)}
+                onChangeFill={handleChangeFillColor}
               />
             )}
             
@@ -1161,16 +1358,31 @@ export const CanvasArea = ({
               const transformStyle = `scaleX(${scaleX}) scaleY(${scaleY}) rotate(${rotation}deg)`;
               return (
                 <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${isSel ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''} ${el.groupId && isSel ? 'ring-blue-400 ring-opacity-60' : ''}`}
-                  style={{ 
-                    left: el.x * zoom, 
-                    top: el.y * zoom, 
-                    width: el.type === 'text' ? (el.width ? el.width * zoom : 'auto') : (el.width || 80) * zoom, 
-                    height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto', 
-                    cursor: activeTool === 'hand' && !isLocked ? 'move' : undefined,
+                  style={{
+                    left: el.x * zoom,
+                    top: el.y * zoom,
+                    width: el.type === 'text' ? (el.width ? el.width * zoom : 'auto') : (el.width || 80) * zoom,
+                    height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto',
+                    cursor: activeTool === 'redact' ? 'crosshair' : activeTool === 'highlighter' ? 'cell' : activeTool === 'hand' && !isLocked ? 'move' : undefined,
                     transform: transformStyle,
                     transformOrigin: 'center center'
                   }}
-                  onClick={(e) => { if (isLocked) return; e.stopPropagation(); setSelectedElement(el.id); if (idx !== currentPage) changePage(idx); if (onElementSelect) onElementSelect(el); }}>
+                  onMouseEnter={() => setHoveredElementId(el.id)}
+                  onMouseLeave={() => setHoveredElementId(null)}
+                  onClick={(e) => {
+                    if (isLocked) return;
+                    e.stopPropagation();
+                    if (activeTool === 'redact') {
+                      const updated = canvasElements.map(x => x.id === el.id ? { ...x, isRedacted: !x.isRedacted } : x);
+                      setCanvasElements(updated); onSaveHistory(updated); return;
+                    }
+                    if (activeTool === 'highlighter') {
+                      const alreadyHighlighted = el.isHighlighted;
+                      const updated = canvasElements.map(x => x.id === el.id ? { ...x, isHighlighted: !alreadyHighlighted, highlightColor: alreadyHighlighted ? undefined : (markingColor || '#fbbf24') } : x);
+                      setCanvasElements(updated); onSaveHistory(updated); return;
+                    }
+                    setSelectedElement(el.id); if (idx !== currentPage) changePage(idx); if (onElementSelect) onElementSelect(el);
+                  }}>
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
@@ -1181,7 +1393,9 @@ export const CanvasArea = ({
                   </>}
                   {(el.type === 'image' || el.type === 'chart') && (
                     <div className="relative w-full h-full group">
-                      <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
+                      <img src={el.src} alt="" className={`w-full h-full object-contain ${el.isRedacted ? 'invisible' : ''}`} draggable={false} />
+                      {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
+                      {el.isHighlighted && !el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: el.highlightColor || '#fbbf24', opacity: 0.35, zIndex: 1, borderRadius: 2, pointerEvents: 'none' }} />}
                       {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                         {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
@@ -1236,12 +1450,23 @@ export const CanvasArea = ({
                     </div>
                   )}
                   {el.type === 'shape' && (
-                    <div className="relative w-full h-full group"><ShapeRenderer el={el} />
+                    <div className="relative w-full h-full group">
+                      <ShapeRenderer el={el} />
+                      {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
+                      {el.isHighlighted && !el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: el.highlightColor || '#fbbf24', opacity: 0.35, zIndex: 1, borderRadius: 2, pointerEvents: 'none' }} />}
                       {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                         {elementMenu === el.id && <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={onAddImageToShape} onAddAiImage={onAddAiImageToShape} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
                       </>)}
                     </div>
+                  )}
+                  {hoveredElementId === el.id && (el.isRedacted || el.isHighlighted) && editingId !== el.id && (
+                    <button
+                      className="absolute z-30 rounded-full flex items-center justify-center text-xs font-bold shadow-lg"
+                      style={{ top: -8, right: -8, width: 20, height: 20, background: el.isRedacted ? '#ef4444' : '#f59e0b', color: '#fff', border: '2px solid rgba(255,255,255,0.8)' }}
+                      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                      onClick={(e) => { e.stopPropagation(); if (el.isRedacted) handleRemoveRedact(el.id); else handleRemoveHighlight(el.id); }}
+                    >✕</button>
                   )}
                 </div>
               );

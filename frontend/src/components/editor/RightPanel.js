@@ -4,6 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
+import SelfTestPanel from './SelfTestPanel';
 
 const CEO_EMAIL = 'muhammadbahaddinyilmaz@gmail.com';
 
@@ -46,6 +47,7 @@ export const RightPanel = ({
   const [isCEO, setIsCEO] = useState(() => localStorage.getItem('zet_ceo_mode') === 'true');
   const [isAdmin, setIsAdmin] = useState(() => localStorage.getItem('zet_admin_mode') === 'true');
   const [showConsole, setShowConsole] = useState(false);
+  const [showSelfTest, setShowSelfTest] = useState(false);
   const [consoleLines, setConsoleLines] = useState([
     { type: 'system', text: 'ZET MINDSHARE TERMINAL v1.0' },
     { type: 'system', text: 'Type a command and press Enter.' },
@@ -557,8 +559,15 @@ export const RightPanel = ({
 
         {/* ── Status banners ── */}
         {isCEO && (
-          <div className="flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
-            👑 CEO MODU AKTİF
+          <div className="flex items-center justify-between px-3 py-1 text-[10px] font-semibold flex-shrink-0" style={{ background: 'rgba(245,158,11,0.15)', borderBottom: '1px solid rgba(245,158,11,0.3)', color: '#f59e0b' }}>
+            <span>👑 CEO MODU AKTİF</span>
+            <button
+              onClick={() => setShowSelfTest(true)}
+              className="flex items-center gap-1"
+              style={{ background: 'rgba(245,158,11,0.2)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 5, padding: '1px 7px', color: '#f59e0b', fontSize: 9, fontWeight: 700, cursor: 'pointer', letterSpacing: '0.04em' }}
+            >
+              🧪 Self Test
+            </button>
           </div>
         )}
         {!isCEO && isAdmin && (
@@ -598,37 +607,56 @@ export const RightPanel = ({
                   )}
                 </div>
               )}
-              {zetaMessages.map((msg, i) => (
-                <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
-                  {msg.image && (
-                    <div className="mb-1">
-                      <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
-                    </div>
-                  )}
-                  <div className="inline-flex items-start gap-1 max-w-[90%]">
-                    {msg.role === 'assistant' && (
-                      <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5" style={{ background: 'var(--zet-primary)', minWidth: 20 }}>
-                        <img src="/zeta-icon.svg" alt="Z" style={{ width: 11, height: 11 }} />
+              {zetaMessages.map((msg, i) => {
+                const patchMatch = msg.role === 'assistant' ? msg.content.match(/\[PATCH_START\]([\s\S]*?)\[PATCH_END\]/) : null;
+                const patchContent = patchMatch ? patchMatch[1].trim() : null;
+                const displayContent = patchContent
+                  ? msg.content.replace(/\[PATCH_START\][\s\S]*?\[PATCH_END\]/, '✅ Düzeltilmiş metin hazır.')
+                  : msg.content;
+                return (
+                  <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                    {msg.image && (
+                      <div className="mb-1">
+                        <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
                       </div>
                     )}
-                    <div className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap" style={{ background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}>
-                      {msg.content}
-                    </div>
-                    {msg.role === 'assistant' && (
-                      <div className="flex flex-col gap-0.5 flex-shrink-0">
-                        <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
-                          <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
-                        </button>
-                        {onApplyEdit && (
-                          <button onClick={() => onApplyEdit(msg.content)} className="p-1 rounded hover:bg-white/10" title="Belgeye uygula">
-                            <Check className="h-3 w-3" style={{ color: '#22c55e' }} />
+                    <div className="inline-flex items-start gap-1 max-w-[90%]">
+                      {msg.role === 'assistant' && (
+                        <div className="flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center mt-0.5" style={{ background: 'var(--zet-primary)', minWidth: 20 }}>
+                          <img src="/zeta-icon.svg" alt="Z" style={{ width: 11, height: 11 }} />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <div className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap" style={{ background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}>
+                          {displayContent}
+                        </div>
+                        {patchContent && onApplyEdit && (
+                          <button
+                            onClick={() => onApplyEdit(patchContent)}
+                            className="mt-1.5 w-full text-xs px-2 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all hover:opacity-90"
+                            style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.35)' }}
+                          >
+                            <Check className="h-3 w-3" />
+                            Belgeye Uygula
                           </button>
                         )}
                       </div>
-                    )}
+                      {msg.role === 'assistant' && (
+                        <div className="flex flex-col gap-0.5 flex-shrink-0">
+                          <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
+                            <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
+                          </button>
+                          {onApplyEdit && !patchContent && (
+                            <button onClick={() => onApplyEdit(msg.content)} className="p-1 rounded hover:bg-white/10" title="Belgeye uygula">
+                              <Check className="h-3 w-3" style={{ color: '#22c55e' }} />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {zetaLoading && <ZetaTypingIndicator className="py-1" />}
               <div ref={chatEndRef} />
               <audio ref={audioRef} hidden />
@@ -804,6 +832,9 @@ export const RightPanel = ({
 
       </div>
       )}
+
+      {/* ===== SELF TEST PANEL ===== */}
+      {showSelfTest && <SelfTestPanel onClose={() => setShowSelfTest(false)} />}
 
       {/* ===== ZETA TERMINAL CONSOLE ===== */}
       {showConsole && (

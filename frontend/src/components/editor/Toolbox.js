@@ -3,17 +3,44 @@ import { Search, PanelLeftClose, PanelLeftOpen, Lock } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
 
 export const SHAPE_LIST = [
-  { id: 'triangle', label: 'Üçgen' },
-  { id: 'square', label: 'Kare' },
-  { id: 'circle', label: 'Daire' },
-  { id: 'ring', label: 'Halka' },
-  { id: 'star', label: 'Yıldız' },
-  { id: 'hexagon', label: 'Altıgen' },
-  { id: 'diamond', label: 'Elmas' },
-  { id: 'pentagon', label: 'Beşgen' },
-  { id: 'heart', label: 'Kalp' },
-  { id: 'arrow', label: 'Ok' },
-  { id: 'parallelogram', label: 'Paralelkenar' },
+  // Temel
+  { id: 'square', label: 'Kare', group: 'Temel' },
+  { id: 'circle', label: 'Daire', group: 'Temel' },
+  { id: 'triangle', label: 'Üçgen', group: 'Temel' },
+  { id: 'ring', label: 'Halka', group: 'Temel' },
+  { id: 'heart', label: 'Kalp', group: 'Temel' },
+  { id: 'diamond', label: 'Elmas', group: 'Temel' },
+  { id: 'hexagon', label: 'Altıgen', group: 'Temel' },
+  { id: 'pentagon', label: 'Beşgen', group: 'Temel' },
+  { id: 'parallelogram', label: 'Paralel', group: 'Temel' },
+  { id: 'oval', label: 'Oval', group: 'Temel' },
+  // Oklar
+  { id: 'arrow', label: '→ Ok', group: 'Oklar' },
+  { id: 'arrow-right', label: '→ Sağ', group: 'Oklar' },
+  { id: 'arrow-left', label: '← Sol', group: 'Oklar' },
+  { id: 'arrow-up', label: '↑ Üst', group: 'Oklar' },
+  { id: 'arrow-down', label: '↓ Alt', group: 'Oklar' },
+  { id: 'arrow-double', label: '↔ Çift', group: 'Oklar' },
+  // Yıldızlar
+  { id: 'star', label: '★ 5pt', group: 'Yıldız' },
+  { id: 'star3', label: '⚡ 3pt', group: 'Yıldız' },
+  { id: 'star4', label: '✦ 4pt', group: 'Yıldız' },
+  { id: 'star6', label: '✡ 6pt', group: 'Yıldız' },
+  // Konuşma balonları
+  { id: 'bubble', label: '💬 Sağ', group: 'Balon' },
+  { id: 'bubble-left', label: '💬 Sol', group: 'Balon' },
+  // Akış şeması
+  { id: 'diamond-flow', label: '◆ Karar', group: 'Akış' },
+  { id: 'cylinder', label: '⬤ DB', group: 'Akış' },
+  // Matematik
+  { id: 'math-sum', label: '∑ Sigma', group: 'Matematik' },
+  { id: 'math-pi', label: 'π Pi', group: 'Matematik' },
+  { id: 'math-sqrt', label: '√ Kök', group: 'Matematik' },
+  { id: 'math-inf', label: '∞ Sonsuz', group: 'Matematik' },
+  { id: 'math-int', label: '∫ İntegral', group: 'Matematik' },
+  // Parantezler
+  { id: 'bracket-sq', label: '[ ] Köşeli', group: 'Parantez' },
+  { id: 'brace-curly', label: '{ } Süslü', group: 'Parantez' },
 ];
 
 export const PUNCTUATION_LIST = [
