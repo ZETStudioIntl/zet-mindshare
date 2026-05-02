@@ -746,6 +746,48 @@ const Editor = () => {
     });
   };
 
+  // === TEXT FLOW — carries overflow content to next page ===
+  const handleTextFlow = useCallback(({ elementId, overflowHtml, el: srcEl }) => {
+    const nextPageIdx = currentPage + 1;
+    const overflowEl = {
+      id: `el_${Date.now()}`,
+      type: 'text',
+      x: srcEl.x || marginLeft,
+      y: marginTop,
+      content: overflowHtml.replace(/<[^>]*>/g, ''),
+      htmlContent: overflowHtml,
+      fontSize: srcEl.fontSize || currentFontSize,
+      fontFamily: srcEl.fontFamily || currentFont,
+      color: srcEl.color || currentColor,
+      width: srcEl.width || (pageSize.width - marginLeft - marginRight),
+      lineHeight: srcEl.lineHeight || currentLineHeight,
+      textAlign: srcEl.textAlign || 'left',
+      bold: srcEl.bold, italic: srcEl.italic,
+    };
+    setDocument(prev => {
+      if (!prev?.pages) return prev;
+      const pages = [...prev.pages];
+      // save current page
+      if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths };
+      if (pages[nextPageIdx]) {
+        // flow into existing next page (prepend)
+        pages[nextPageIdx] = { ...pages[nextPageIdx], elements: [overflowEl, ...(pages[nextPageIdx].elements || [])] };
+      } else {
+        // create new page
+        pages.push({ page_id: `page_${Date.now()}`, elements: [overflowEl], drawPaths: [], pageSize });
+      }
+      return { ...prev, pages };
+    });
+    setTimeout(() => {
+      setCurrentPage(nextPageIdx);
+      setCanvasElements(prev => {
+        const next = document?.pages?.[nextPageIdx]?.elements || [overflowEl];
+        history.reset(next);
+        return next;
+      });
+    }, 60);
+  }, [currentPage, canvasElements, drawPaths, document, marginLeft, marginTop, marginRight, pageSize, currentFontSize, currentFont, currentColor, currentLineHeight, history]);
+
   const handleUpdateSettings = (updates) => {
     if (updates.zetaMood !== undefined) setZetaMood(updates.zetaMood);
     if (updates.zetaEmoji !== undefined) setZetaEmoji(updates.zetaEmoji);
@@ -4181,7 +4223,7 @@ const Editor = () => {
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             magnifierBorderColor={magnifierBorderColor} magnifierGradientStart={magnifierGradientStart}
             magnifierGradientEnd={magnifierGradientEnd} useMagnifierGradient={useMagnifierGradient}
-            onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
+            onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} onFlowText={handleTextFlow}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
@@ -4505,7 +4547,7 @@ const Editor = () => {
             isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
             pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
-            onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById}
+            onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} onFlowText={handleTextFlow}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode} />
         </div>

@@ -179,7 +179,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onRemoveRedact }) => {
+const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const [removeTarget, setRemoveTarget] = useState(null); // 'redact' | 'highlight' | null
@@ -199,11 +199,31 @@ const EditableText = ({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit
   }, [isEditing, el.htmlContent, el.content]);
   
   const checkOverflow = useCallback(() => {
-    if (!ref.current || !pageHeight || !onAutoAddPage) return;
-    const rect = ref.current.getBoundingClientRect();
-    const elBottom = el.y + (rect.height / zoom);
-    if (elBottom > pageHeight - 40) { onAutoAddPage(); }
-  }, [el.y, pageHeight, zoom, onAutoAddPage]);
+    if (!ref.current || !pageHeight) return;
+    const margins = pageMargins || {};
+    const availableH = (pageHeight - el.y - (margins.bottom || 40)) * zoom;
+    if (ref.current.scrollHeight <= availableH + 4) return;
+
+    // Try to split at <br> boundaries
+    const lineHeightPx = (el.fontSize || 16) * (el.lineHeight || 1.5) * zoom;
+    const maxLines = Math.max(1, Math.floor(availableH / lineHeightPx));
+    const html = ref.current.innerHTML;
+    const parts = html.split(/<br\s*\/?>/gi);
+
+    if (onFlowText && parts.length > maxLines) {
+      const keepHtml = parts.slice(0, maxLines).join('<br>');
+      const overflowHtml = parts.slice(maxLines).join('<br>');
+      const overflowText = overflowHtml.replace(/<[^>]*>/g, '').trim();
+      if (overflowText) {
+        ref.current.innerHTML = keepHtml;
+        onCommit(el.id, keepHtml, true);
+        onFlowText(overflowHtml);
+        return;
+      }
+    }
+    // No clean split possible — just add a new page
+    if (onAutoAddPage) onAutoAddPage();
+  }, [el.id, el.y, el.fontSize, el.lineHeight, pageHeight, pageMargins, zoom, onAutoAddPage, onFlowText, onCommit]);
 
   const handleClick = useCallback((e) => {
     e.stopPropagation();
@@ -352,7 +372,7 @@ export const CanvasArea = ({
   onAddAiImageToShape, isBold, isItalic, isUnderline, isStrikethrough, pageBackground, gradientStart, gradientEnd, useGradient,
   zoomLevel, zoomRadius, magnifierPos, setMagnifierPos,
   magnifierBorderColor, magnifierGradientStart, magnifierGradientEnd, useMagnifierGradient,
-  onAddPage, onCopyElement, onMirrorElement,
+  onAddPage, onCopyElement, onMirrorElement, onFlowText,
   rulerVisible, gridVisible, gridSize, snapToGrid, pageMargins: pageMarginsProp, eraserDragMode,
 }) => {
   const canvasRef = useRef(null);
@@ -378,6 +398,7 @@ export const CanvasArea = ({
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
   const [elementMenu, setElementMenu] = useState(null);
+  const [tableMenu, setTableMenu] = useState(null); // { elId, ri, ci, x, y }
   const [eraserTrail, setEraserTrail] = useState([]);
   const [selectedVector, setSelectedVector] = useState(null);
   const [vectorMenu, setVectorMenu] = useState(null);
@@ -1472,7 +1493,7 @@ export const CanvasArea = ({
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
-                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onRemoveRedact={handleRemoveRedact} />
+                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml) => onFlowText({ elementId: el.id, overflowHtml, el }) : undefined} onRemoveRedact={handleRemoveRedact} />
                     {isSel && !isLocked && editingId !== el.id && (
                       <div data-testid={`text-resize-${el.id}`} className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm opacity-70 hover:opacity-100" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} />
                     )}
@@ -1488,44 +1509,57 @@ export const CanvasArea = ({
                       </>)}
                     </div>
                   )}
-                  {el.type === 'table' && el.tableData && (
-                    <div className="relative w-full h-full group" data-testid={`editable-table-${el.id}`}>
-                      <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: Math.max(8, (el.tableFontSize || 12) * zoom) + 'px', tableLayout: 'fixed' }}>
-                        <tbody>
-                          {el.tableData.map((row, ri) => (
-                            <tr key={ri}>
-                              {row.map((cell, ci) => (
-                                <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
-                                  contentEditable suppressContentEditableWarning
-                                  style={{ border: '1px solid #999', padding: '3px 5px', background: 'transparent', color: '#111', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap' }}
-                                  ref={(node) => {
-                                    // Only set innerHTML when the cell is NOT focused to avoid overwriting user input
-                                    if (node && document.activeElement !== node) {
-                                      node.innerHTML = cell;
-                                    }
-                                  }}
-                                  onFocus={(e) => { e.stopPropagation(); }}
-                                  onBlur={(e) => {
-                                    const val = e.target.innerText;
-                                    setCanvasElements(prev => prev.map(x => {
-                                      if (x.id !== el.id) return x;
-                                      const newData = x.tableData.map((r, rri) => r.map((c, cci) => (rri === ri && cci === ci) ? val : c));
-                                      return { ...x, tableData: newData };
-                                    }));
-                                  }}
-                                  onMouseDown={(e) => { e.stopPropagation(); }}
-                                />
-                              ))}
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} />
-                        <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
-                        {elementMenu === el.id && <ElementMenu el={{...el, type: 'table'}} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
-                      </>)}
-                    </div>
-                  )}
+                  {el.type === 'table' && el.tableData && (() => {
+                    const tblOps = {
+                      addRow: (after) => { setCanvasElements(prev => prev.map(x => { if (x.id !== el.id) return x; const cols = x.tableData[0]?.length || 1; const blank = Array(cols).fill(''); const d = [...x.tableData]; d.splice(after + 1, 0, blank); return { ...x, tableData: d, rows: d.length }; })); setTableMenu(null); },
+                      delRow: (ri) => { setCanvasElements(prev => prev.map(x => { if (x.id !== el.id || x.tableData.length <= 1) return x; const d = x.tableData.filter((_, i) => i !== ri); return { ...x, tableData: d, rows: d.length }; })); setTableMenu(null); },
+                      addCol: (after) => { setCanvasElements(prev => prev.map(x => { if (x.id !== el.id) return x; const d = x.tableData.map(r => { const nr = [...r]; nr.splice(after + 1, 0, ''); return nr; }); return { ...x, tableData: d, cols: d[0].length }; })); setTableMenu(null); },
+                      delCol: (ci) => { setCanvasElements(prev => prev.map(x => { if (x.id !== el.id || (x.tableData[0]?.length || 0) <= 1) return x; const d = x.tableData.map(r => r.filter((_, i) => i !== ci)); return { ...x, tableData: d, cols: d[0].length }; })); setTableMenu(null); },
+                      toggleHeader: () => { setCanvasElements(prev => prev.map(x => x.id === el.id ? { ...x, tableHeader: !x.tableHeader } : x)); setTableMenu(null); },
+                    };
+                    return (
+                      <div className="relative w-full h-full group" data-testid={`editable-table-${el.id}`} onClick={() => tableMenu?.elId === el.id && setTableMenu(null)}>
+                        <table style={{ width: '100%', height: '100%', borderCollapse: 'collapse', fontSize: Math.max(8, (el.tableFontSize || 12) * zoom) + 'px', tableLayout: 'fixed' }}>
+                          <tbody>
+                            {el.tableData.map((row, ri) => (
+                              <tr key={ri}>
+                                {row.map((cell, ci) => (
+                                  <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
+                                    contentEditable suppressContentEditableWarning
+                                    style={{ border: '1px solid rgba(150,150,150,0.6)', padding: '3px 6px', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: ri === 0 && el.tableHeader ? 'rgba(76,168,173,0.25)' : 'transparent', color: 'var(--zet-text)', fontWeight: ri === 0 && el.tableHeader ? 'bold' : 'normal' }}
+                                    ref={(node) => { if (node && document.activeElement !== node) node.innerHTML = cell; }}
+                                    onFocus={e => e.stopPropagation()}
+                                    onBlur={e => { const val = e.target.innerText; setCanvasElements(prev => prev.map(x => { if (x.id !== el.id) return x; const newData = x.tableData.map((r, rri) => r.map((c, cci) => (rri === ri && cci === ci) ? val : c)); return { ...x, tableData: newData }; })); }}
+                                    onMouseDown={e => e.stopPropagation()}
+                                    onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableMenu({ elId: el.id, ri, ci, x: e.clientX, y: e.clientY }); }}
+                                  />
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {/* Table context menu */}
+                        {tableMenu?.elId === el.id && (
+                          <div className="fixed z-[9999] rounded-lg shadow-xl py-1 min-w-[160px]" style={{ left: tableMenu.x, top: tableMenu.y, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }} onMouseDown={e => e.stopPropagation()}>
+                            {[
+                              { label: '+ Satır Ekle (Alta)', action: () => tblOps.addRow(tableMenu.ri) },
+                              { label: '− Satırı Sil', action: () => tblOps.delRow(tableMenu.ri) },
+                              { label: '+ Sütun Ekle (Sağa)', action: () => tblOps.addCol(tableMenu.ci) },
+                              { label: '− Sütunu Sil', action: () => tblOps.delCol(tableMenu.ci) },
+                              null,
+                              { label: el.tableHeader ? '✓ Başlık Satırı Kaldır' : '☐ Başlık Satırı Yap', action: tblOps.toggleHeader },
+                            ].map((item, i) => item ? (
+                              <button key={i} onClick={item.action} className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 transition-colors" style={{ color: 'var(--zet-text)' }}>{item.label}</button>
+                            ) : <div key={i} className="border-t my-1" style={{ borderColor: 'var(--zet-border)' }} />)}
+                          </div>
+                        )}
+                        {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} />
+                          <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+                          {elementMenu === el.id && <ElementMenu el={{...el, type: 'table'}} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onClose={() => setElementMenu(null)} />}
+                        </>)}
+                      </div>
+                    );
+                  })()}
                   {el.type === 'table' && !el.tableData && el.src && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
