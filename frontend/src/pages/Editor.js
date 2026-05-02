@@ -412,6 +412,17 @@ const Editor = () => {
   // Header/Footer state
   const [headerText, setHeaderText] = useState('');
   const [footerText, setFooterText] = useState('');
+  const [headerFooterMode, setHeaderFooterMode] = useState('all');
+  const [headerOdd, setHeaderOdd] = useState('');
+  const [headerEven, setHeaderEven] = useState('');
+  const [footerOdd, setFooterOdd] = useState('');
+  const [footerEven, setFooterEven] = useState('');
+
+  // Paragraph styles panel
+  const [showStyles, setShowStyles] = useState(false);
+
+  // Spell check
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
 
   // Copy/Paste state
   const [clipboard, setClipboard] = useState(null);
@@ -934,6 +945,7 @@ const Editor = () => {
       watermark: () => setShowWatermark(true), pagenumbers: () => setShowPageNumbers(true),
       headerfooter: () => setShowHeaderFooter(true), findreplace: () => setShowFindReplace(true),
       footnote: () => setShowFootnote(true), toc: () => setShowTOC(true),
+      styles: () => setShowStyles(true),
       copy: () => copyElement(), 
       mirror: () => setShowMirror(true),
       voiceinput: () => setShowVoiceInput(true),
@@ -1199,17 +1211,33 @@ const Editor = () => {
     setExporting(true);
     try {
       const pdf = new jsPDF({ orientation: pageSize.width > pageSize.height ? 'l' : 'p', unit: 'px', format: [pageSize.width, pageSize.height] });
+      const allPages = document?.pages || [{ elements: canvasElements }];
       const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
       for (let i = 0; i < pageElements.length; i++) {
         if (i > 0) pdf.addPage([pageSize.width, pageSize.height], pageSize.width > pageSize.height ? 'l' : 'p');
         const canvas = await html2canvas(pageElements[i], { scale: 2, useCORS: true, backgroundColor: pageBackground });
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', 0, 0, pageSize.width, pageSize.height);
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pageSize.width, pageSize.height);
+        // Invisible text layer for searchability
+        const pageEls = i === currentPage ? canvasElements : (allPages[i]?.elements || []);
+        pdf.setTextColor(0, 0, 0);
+        pdf.setGState(new pdf.GState({ opacity: 0 }));
+        pageEls.forEach(el => {
+          if (el.type === 'text' && el.content) {
+            const fs = (el.fontSize || 14);
+            pdf.setFontSize(fs);
+            const lines = (el.content || '').split('\n');
+            lines.forEach((line, li) => {
+              pdf.text(line, el.x, el.y + fs + li * fs * (el.lineHeight || 1.5));
+            });
+          }
+        });
+        pdf.setGState(new pdf.GState({ opacity: 1 }));
       }
-      pdf.save(`${document.title || 'document'}.pdf`);
+      pdf.save(`${document?.title || 'document'}.pdf`);
     } catch (err) { console.error('Export failed:', err); } finally {
-    setExporting(false);
-    setShowExport(false);
+      setExporting(false);
+      setShowExport(false);
     }
   };
 
@@ -2095,8 +2123,43 @@ const Editor = () => {
 
   // === HEADER/FOOTER ===
   const applyHeaderFooter = () => {
-    setDocument(prev => ({ ...prev, header: headerText, footer: footerText }));
+    setDocument(prev => ({ ...prev, header: headerText, footer: footerText, headerFooterMode, headerOdd, headerEven, footerOdd, footerEven }));
     setShowHeaderFooter(false);
+  };
+
+  // === PARAGRAPH STYLES ===
+  const PARA_STYLES = [
+    { id: 'h1', label: 'Başlık 1', fontSize: 32, bold: true, lineHeight: 1.3 },
+    { id: 'h2', label: 'Başlık 2', fontSize: 24, bold: true, lineHeight: 1.3 },
+    { id: 'h3', label: 'Başlık 3', fontSize: 18, bold: true, lineHeight: 1.4 },
+    { id: 'normal', label: 'Normal', fontSize: 14, bold: false, lineHeight: 1.5 },
+    { id: 'small', label: 'Küçük', fontSize: 11, bold: false, lineHeight: 1.4 },
+    { id: 'caption', label: 'Alt Yazı', fontSize: 10, bold: false, lineHeight: 1.3 },
+    { id: 'quote', label: 'Alıntı', fontSize: 14, bold: false, lineHeight: 1.8 },
+  ];
+
+  const applyParaStyle = (style) => {
+    const target = selectedElement || lastSelectedRef?.current;
+    if (!target) return;
+    setCanvasElements(prev => prev.map(el => el.id === target ? { ...el, fontSize: style.fontSize, bold: style.bold, lineHeight: style.lineHeight } : el));
+  };
+
+  // === TEXT WRAP ===
+  const handleSetTextWrap = (elementId, wrap) => {
+    setCanvasElements(prev => prev.map(el => el.id === elementId ? { ...el, textWrap: wrap } : el));
+  };
+
+  // === CONTENT LINK CLICK ===
+  const handleLinkClick = ({ type, id, page }) => {
+    if (type === 'footnote') {
+      const fnEl = canvasElements.find(el => el.footnoteNum === Number(id));
+      if (fnEl) {
+        const pageIdx = (document?.pages || []).findIndex(p => (p.elements || []).some(e => e.id === fnEl.id));
+        if (pageIdx >= 0) changePage(pageIdx);
+      }
+    } else if (type === 'toc') {
+      if (typeof page === 'number') changePage(page);
+    }
   };
 
   // === FIND & REPLACE ===
@@ -4136,10 +4199,40 @@ const Editor = () => {
 
     {/* Header/Footer Panel */}
     {showHeaderFooter && <DraggablePanel title="Header & Footer" onClose={() => setShowHeaderFooter(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-64 space-y-3">
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Header</label><input type="text" value={headerText} onChange={e => setHeaderText(e.target.value)} placeholder="Header text" className="zet-input text-xs w-full" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Footer</label><input type="text" value={footerText} onChange={e => setFooterText(e.target.value)} placeholder="Footer text" className="zet-input text-xs w-full" /></div>
-        <button onClick={applyHeaderFooter} className="zet-btn w-full">Apply</button>
+      <div className="w-72 space-y-3">
+        <div className="flex gap-2">
+          <button onClick={() => setHeaderFooterMode('all')} className={`flex-1 py-1 rounded text-xs transition-colors ${headerFooterMode === 'all' ? 'zet-btn' : 'zet-btn-outline'}`}>Tüm Sayfalar</button>
+          <button onClick={() => setHeaderFooterMode('odd-even')} className={`flex-1 py-1 rounded text-xs transition-colors ${headerFooterMode === 'odd-even' ? 'zet-btn' : 'zet-btn-outline'}`}>Tek/Çift</button>
+        </div>
+        {headerFooterMode === 'all' ? (<>
+          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Header</label><input type="text" value={headerText} onChange={e => setHeaderText(e.target.value)} placeholder="Header text" className="zet-input text-xs w-full" /></div>
+          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Footer</label><input type="text" value={footerText} onChange={e => setFooterText(e.target.value)} placeholder="Footer text" className="zet-input text-xs w-full" /></div>
+        </>) : (<>
+          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Tek Sayfa Header</label><input type="text" value={headerOdd} onChange={e => setHeaderOdd(e.target.value)} placeholder="Tek sayfa başlık" className="zet-input text-xs w-full" /></div>
+          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Çift Sayfa Header</label><input type="text" value={headerEven} onChange={e => setHeaderEven(e.target.value)} placeholder="Çift sayfa başlık" className="zet-input text-xs w-full" /></div>
+          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Tek Sayfa Footer</label><input type="text" value={footerOdd} onChange={e => setFooterOdd(e.target.value)} placeholder="Tek sayfa alt" className="zet-input text-xs w-full" /></div>
+          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Çift Sayfa Footer</label><input type="text" value={footerEven} onChange={e => setFooterEven(e.target.value)} placeholder="Çift sayfa alt" className="zet-input text-xs w-full" /></div>
+        </>)}
+        <button onClick={applyHeaderFooter} className="zet-btn w-full">Uygula</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Paragraph Styles Panel */}
+    {showStyles && <DraggablePanel title="Paragraf Stilleri" onClose={() => setShowStyles(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-56 space-y-1">
+        <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>Seçili metin elementine stil uygula</p>
+        {PARA_STYLES.map(style => (
+          <button key={style.id} onClick={() => applyParaStyle(style)} className="w-full text-left px-3 py-2 rounded text-xs hover:bg-white/10 transition-colors border" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text)', fontWeight: style.bold ? 'bold' : 'normal', fontSize: style.fontSize > 20 ? 14 : 12 }}>
+            <span style={{ fontSize: style.id === 'h1' ? 16 : style.id === 'h2' ? 14 : 12 }}>{style.label}</span>
+            <span className="ml-2 opacity-50" style={{ fontWeight: 'normal', fontSize: 10 }}>{style.fontSize}px · {style.lineHeight}lh</span>
+          </button>
+        ))}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <label className="text-xs flex items-center gap-2 cursor-pointer" style={{ color: 'var(--zet-text)' }}>
+            <input type="checkbox" checked={spellCheckEnabled} onChange={e => setSpellCheckEnabled(e.target.checked)} className="rounded" />
+            Yazım Denetimi
+          </label>
+        </div>
       </div>
     </DraggablePanel>}
 
@@ -4157,7 +4250,7 @@ const Editor = () => {
             // Insert superscript marker into selected text element
             const el = canvasElements.find(e => e.id === target);
             if (el?.type === 'text') {
-              const marker = `<sup style="color:#4ca8ad;font-size:0.7em">[${footnoteNum}]</sup>`;
+              const marker = `<sup data-footnote-id="${footnoteNum}" style="color:#4ca8ad;font-size:0.7em;cursor:pointer">[${footnoteNum}]</sup>`;
               const updated = canvasElements.map(e => e.id === target ? { ...e, htmlContent: (e.htmlContent || e.content || '') + marker, content: (e.content || '') + `[${footnoteNum}]` } : e);
               setCanvasElements(updated);
               handleSaveHistory(updated);
@@ -4201,7 +4294,7 @@ const Editor = () => {
               </div>
               <button onClick={() => {
                 const lines = headings.map(h => `${'  '.repeat(h.level - 1)}${h.text}${'·'.repeat(Math.max(1, 40 - h.text.length - (h.level - 1) * 2))}${h.page}`).join('\n');
-                const tocEl = { id: `toc_${Date.now()}`, type: 'text', x: marginLeft, y: marginTop, content: 'İÇİNDEKİLER\n' + lines, htmlContent: '<b>İÇİNDEKİLER</b><br>' + headings.map(h => `<span style="padding-left:${(h.level-1)*12}px;display:block">${h.text} <span style="float:right;color:var(--zet-text-muted)">${h.page}</span></span>`).join(''), fontSize: 13, fontFamily: currentFont, color: currentColor, width: pageSize.width - marginLeft - marginRight, lineHeight: 1.6 };
+                const tocEl = { id: `toc_${Date.now()}`, type: 'text', x: marginLeft, y: marginTop, content: 'İÇİNDEKİLER\n' + lines, htmlContent: '<b>İÇİNDEKİLER</b><br>' + headings.map(h => `<span data-toc-page="${h.page}" style="padding-left:${(h.level-1)*12}px;display:block;cursor:pointer">${h.text} <span style="float:right;color:var(--zet-text-muted)">${h.page}</span></span>`).join(''), fontSize: 13, fontFamily: currentFont, color: currentColor, width: pageSize.width - marginLeft - marginRight, lineHeight: 1.6 };
                 const updated = [...canvasElements, tocEl];
                 setCanvasElements(updated);
                 handleSaveHistory(updated);
@@ -4388,7 +4481,8 @@ const Editor = () => {
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode}
             columnCount={columnCount} columnGap={columnGap}
-            pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
+            pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }}
+            onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled} />
         </div>
 
         {/* Multi-select Alignment Toolbar */}
@@ -4711,7 +4805,8 @@ const Editor = () => {
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} onFlowText={handleTextFlow}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
-            eraserDragMode={eraserDragMode} columnCount={columnCount} columnGap={columnGap} />
+            eraserDragMode={eraserDragMode} columnCount={columnCount} columnGap={columnGap}
+            onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled} />
         </div>
 
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />

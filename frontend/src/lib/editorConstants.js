@@ -7,7 +7,7 @@ import {
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
   IndentIncrease, Maximize, ShieldOff, FileUp, List, ListOrdered, SmilePlus,
-  Shapes, Pilcrow, ZoomIn, Columns3
+  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen
 } from 'lucide-react';
 
 // 96 DPI screen pixels — matches Word/browser 100% zoom (1pt = 96/72 = 1.333px)
@@ -244,6 +244,7 @@ export const TOOLS = [
   { id: 'numberedlist', icon: ListOrdered, nameKey: 'numberedList', shortcut: null },
   { id: 'margins', icon: Maximize, nameKey: 'margins', shortcut: null },
   { id: 'columns', icon: Columns3, nameKey: 'columns', shortcut: null },
+  { id: 'styles', icon: BookOpen, nameKey: 'paragraphStyles', shortcut: null },
   { id: 'color', icon: Palette, nameKey: 'colorPicker', shortcut: 'C' },
   { id: 'text', icon: Type, nameKey: 'text', shortcut: 'T' },
   { id: 'hand', icon: Hand, nameKey: 'pan', shortcut: 'H' },
