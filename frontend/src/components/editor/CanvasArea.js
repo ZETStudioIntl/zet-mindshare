@@ -12,6 +12,23 @@ const isPointInElement = (x, y, el) => {
 
 const dist = (a, b) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 
+const computeBezierPath = (anchors, zoom, isClosed) => {
+  if (!anchors || anchors.length < 1) return '';
+  const z = zoom;
+  const pts = anchors.map(a => ({ x: a.x * z, y: a.y * z, hx: (a.hx || 0) * z, hy: (a.hy || 0) * z }));
+  if (pts.length === 1) return `M ${pts[0].x} ${pts[0].y}`;
+  let d = `M ${pts[0].x} ${pts[0].y}`;
+  for (let i = 1; i < pts.length; i++) {
+    const p = pts[i - 1], c = pts[i];
+    d += ` C ${p.x + p.hx} ${p.y + p.hy} ${c.x - c.hx} ${c.y - c.hy} ${c.x} ${c.y}`;
+  }
+  if (isClosed) {
+    const last = pts[pts.length - 1], first = pts[0];
+    d += ` C ${last.x + last.hx} ${last.y + last.hy} ${first.x - first.hx} ${first.y - first.hy} ${first.x} ${first.y} Z`;
+  }
+  return d;
+};
+
 // Check if point is near a pen/vector path
 const isPointNearPath = (x, y, path, threshold = 15) => {
   if (!path.points || path.points.length < 2) return false;
@@ -349,7 +366,9 @@ export const CanvasArea = ({
   const [currentPath, setCurrentPath] = useState([]);
   const [selectionRect, setSelectionRect] = useState(null);
   const [selectionStart, setSelectionStart] = useState(null);
-  const [penPoints, setPenPoints] = useState([]);
+  const [penAnchors, setPenAnchors] = useState([]); // [{x,y,hx,hy}] bezier anchors
+  const penDragRef = useRef(null); // tracks drag state for handle creation
+  const [penHandlePreview, setPenHandlePreview] = useState(null); // {x,y,hx,hy}
   const [cropTarget, setCropTarget] = useState(null);
   const [cropRect, setCropRect] = useState(null);
   const [cropDragging, setCropDragging] = useState(false);
@@ -429,7 +448,7 @@ export const CanvasArea = ({
     }
     if (activeTool !== 'cut') { setCropTarget(null); setCropRect(null); }
     if (activeTool !== 'hand' && activeTool !== 'select') setEditingId(null);
-    if (activeTool !== 'pen') setPenPoints([]);
+    if (activeTool !== 'pen') { setPenAnchors([]); setPenHandlePreview(null); }
     setElementMenu(null);
     setVectorMenu(null);
     if (activeTool !== 'hand') { setSelectedVector(null); }
@@ -610,16 +629,23 @@ export const CanvasArea = ({
       if (cl?.type === 'image' && !cropTarget) { setCropTarget(cl.id); setSelectedElement(cl.id); setCropRect({ x: cl.x + 10, y: cl.y + 10, w: cl.width - 20, h: cl.height - 20 }); }
       else if (!cropTarget || (cl && cl.id !== cropTarget)) { if (cl) { const u = canvasElements.filter(el => el.id !== cl.id); setCanvasElements(u); onSaveHistory(u); setSelectedElement(null); } setCropTarget(null); setCropRect(null); }
     } else if (activeTool === 'pen') {
+      // Skip if this was a drag (smooth anchor already committed in mouseUp)
+      if (penDragRef.current?.wasDrag) { penDragRef.current = null; return; }
       // Auto-close: if near first point, close the path
-      if (penPoints.length > 2 && dist({ x, y }, penPoints[0]) < 15 / zoom) {
+      if (penAnchors.length > 2 && dist({ x, y }, penAnchors[0]) < 15 / zoom) {
         const newPath = {
-          id: `vec_${Date.now()}`, points: [...penPoints, penPoints[0]],
+          id: `vec_${Date.now()}`,
+          anchors: penAnchors,
+          points: penAnchors.map(a => ({ x: a.x, y: a.y })),
           size: 2, opacity: 100, color: currentColor, isPen: true, isClosed: true,
           fillColor: currentColor, fillOpacity: 30, image: null,
         };
         setDrawPaths(prev => [...prev, newPath]);
-        setPenPoints([]);
-      } else { setPenPoints(prev => [...prev, { x, y }]); }
+        setPenAnchors([]);
+      } else {
+        const anchor = { x, y, hx: 0, hy: 0 };
+        setPenAnchors(prev => [...prev, anchor]);
+      }
     } else if (activeTool === 'translate') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setSelectedElement(cl.id); if (onElementSelect) onElementSelect(cl); }
@@ -650,12 +676,17 @@ export const CanvasArea = ({
   };
 
   const handleCanvasDoubleClick = useCallback((e, pageIdx) => {
-    if (activeTool === 'pen' && penPoints.length > 1 && pageIdx === currentPage) {
-      const newPath = { id: `vec_${Date.now()}`, points: penPoints, size: 2, opacity: 100, color: currentColor, isPen: true, image: null };
+    if (activeTool === 'pen' && penAnchors.length > 1 && pageIdx === currentPage) {
+      const newPath = {
+        id: `vec_${Date.now()}`,
+        anchors: penAnchors,
+        points: penAnchors.map(a => ({ x: a.x, y: a.y })),
+        size: 2, opacity: 100, color: currentColor, isPen: true, image: null,
+      };
       setDrawPaths(prev => [...prev, newPath]);
-      setPenPoints([]);
+      setPenAnchors([]);
     }
-  }, [activeTool, currentColor, currentPage, penPoints, setDrawPaths]);
+  }, [activeTool, currentColor, currentPage, penAnchors, setDrawPaths]);
 
   const handleMouseDown = useCallback((e, pageIdx) => {
     if (pageIdx !== currentPage) return;
@@ -678,6 +709,11 @@ export const CanvasArea = ({
       return;
     }
     
+    if (activeTool === 'pen') {
+      penDragRef.current = { startX: x, startY: y, wasDrag: false };
+      setIsDrawing(true);
+      return;
+    }
     if (activeTool === 'draw' || activeTool === 'marking') { setIsDrawing(true); setCurrentPath([{ x, y }]); return; }
     if (activeTool === 'eraser') { setIsDrawing(true); setEraserTrail([{ x, y }]); return; }
     if (activeTool === 'select') { 
@@ -781,6 +817,19 @@ export const CanvasArea = ({
       return;
     }
     
+    if (activeTool === 'pen' && penDragRef.current && isDrawing) {
+      const dx = x - penDragRef.current.startX;
+      const dy = y - penDragRef.current.startY;
+      if (!penDragRef.current.wasDrag && Math.sqrt(dx * dx + dy * dy) > 4) {
+        penDragRef.current.wasDrag = true;
+      }
+      if (penDragRef.current.wasDrag) {
+        penDragRef.current.currentHx = dx;
+        penDragRef.current.currentHy = dy;
+        setPenHandlePreview({ x: penDragRef.current.startX, y: penDragRef.current.startY, hx: dx, hy: dy });
+      }
+      return;
+    }
     if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) { setCurrentPath(p => [...p, { x, y }]); return; }
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
     if (activeTool === 'select' && isDrawing) { 
@@ -973,6 +1022,16 @@ export const CanvasArea = ({
       }).map(({ i }) => i);
       if (selectedIds.length > 0) { setSelectedElements(selectedIds); justSelectedRef.current = true; }
       if (selectedVecIdxs.length > 0) { setSelectedVectors(selectedVecIdxs); justSelectedRef.current = true; }
+    }
+    if (activeTool === 'pen' && penDragRef.current) {
+      if (penDragRef.current.wasDrag) {
+        const hx = penDragRef.current.currentHx || 0;
+        const hy = penDragRef.current.currentHy || 0;
+        const anchor = { x: penDragRef.current.startX, y: penDragRef.current.startY, hx, hy };
+        setPenAnchors(prev => [...prev, anchor]);
+      }
+      setPenHandlePreview(null);
+      penDragRef.current = penDragRef.current.wasDrag ? { wasDrag: true } : null;
     }
     if (dragging || resizing) onSaveHistory(canvasElements);
     if (draggingVector !== null) setDraggingVector(null);
@@ -1177,7 +1236,9 @@ export const CanvasArea = ({
               {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight).map((path, i) => {
                 const isSelected = idx === currentPage && selectedVector === i && path.isPen;
                 const bounds = path.isPen ? getPathBounds(path) : null;
-                const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}${path.isClosed ? ' Z' : ''}` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
+                const pathD = path.isPen
+                  ? (path.anchors ? computeBezierPath(path.anchors, zoom, path.isClosed) : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}${path.isClosed ? ' Z' : ''}`)
+                  : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
                 
                 return (
                   <g key={`d${i}`}>
@@ -1213,8 +1274,29 @@ export const CanvasArea = ({
               })}
               {/* Active drawing — only on current page */}
               {idx === currentPage && isDrawing && (activeTool === 'draw' || activeTool === 'marking') && currentPath.length > 1 && <path d={`M ${currentPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={activeTool === 'marking' ? (markingColor || '#FFFF00') : currentColor} strokeWidth={(activeTool === 'marking' ? (markingSize || 20) : drawSize) * zoom} strokeOpacity={activeTool === 'marking' ? (markingOpacity || 40) / 100 : drawOpacity / 100} fill="none" strokeLinecap={activeTool === 'marking' ? 'butt' : 'round'} />}
-              {/* Pen tool preview — only on current page */}
-              {idx === currentPage && penPoints.length > 0 && (<><path d={`M ${penPoints.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />{penPoints.map((p, i) => <circle key={i} cx={p.x * zoom} cy={p.y * zoom} r={4} fill={i === 0 ? '#4ca8ad' : currentColor} stroke="#fff" strokeWidth={1} />)}</>)}
+              {/* Pen tool preview — bezier with control handles */}
+              {idx === currentPage && penAnchors.length > 0 && (
+                <>
+                  <path d={computeBezierPath(penAnchors, zoom, false)} stroke={currentColor} strokeWidth={2 * zoom} fill="none" strokeDasharray="4,4" />
+                  {penAnchors.map((a, i) => (
+                    <g key={i}>
+                      {(a.hx !== 0 || a.hy !== 0) && (<>
+                        <line x1={a.x*zoom} y1={a.y*zoom} x2={(a.x+a.hx)*zoom} y2={(a.y+a.hy)*zoom} stroke="#fff" strokeWidth={1} strokeOpacity={0.7} />
+                        <line x1={a.x*zoom} y1={a.y*zoom} x2={(a.x-a.hx)*zoom} y2={(a.y-a.hy)*zoom} stroke="#fff" strokeWidth={1} strokeOpacity={0.7} />
+                        <circle cx={(a.x+a.hx)*zoom} cy={(a.y+a.hy)*zoom} r={3} fill="#fff" stroke={currentColor} strokeWidth={1} />
+                        <circle cx={(a.x-a.hx)*zoom} cy={(a.y-a.hy)*zoom} r={3} fill="#fff" stroke={currentColor} strokeWidth={1} />
+                      </>)}
+                      <circle cx={a.x*zoom} cy={a.y*zoom} r={i === 0 ? 6 : 4} fill={i === 0 ? '#4ca8ad' : currentColor} stroke="#fff" strokeWidth={1.5} />
+                    </g>
+                  ))}
+                  {penHandlePreview && (<>
+                    <line x1={penHandlePreview.x*zoom} y1={penHandlePreview.y*zoom} x2={(penHandlePreview.x+penHandlePreview.hx)*zoom} y2={(penHandlePreview.y+penHandlePreview.hy)*zoom} stroke="#4ca8ad" strokeWidth={1.5} />
+                    <line x1={penHandlePreview.x*zoom} y1={penHandlePreview.y*zoom} x2={(penHandlePreview.x-penHandlePreview.hx)*zoom} y2={(penHandlePreview.y-penHandlePreview.hy)*zoom} stroke="#4ca8ad" strokeWidth={1.5} />
+                    <circle cx={(penHandlePreview.x+penHandlePreview.hx)*zoom} cy={(penHandlePreview.y+penHandlePreview.hy)*zoom} r={4} fill="#4ca8ad" />
+                    <circle cx={(penHandlePreview.x-penHandlePreview.hx)*zoom} cy={(penHandlePreview.y-penHandlePreview.hy)*zoom} r={4} fill="#4ca8ad" />
+                  </>)}
+                </>
+              )}
               {/* Lasso selection path */}
               {isDrawing && activeTool === 'select' && lassoPath.length > 1 && (
                 <path d={`M ${lassoPath.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')} Z`} stroke="#4ca8ad" strokeWidth={2} strokeDasharray="4,4" fill="rgba(76,168,173,0.15)" />

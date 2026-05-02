@@ -1009,39 +1009,56 @@ const Editor = () => {
 
   const applyListFormat = useCallback((listType) => {
     const target = selectedElement || lastSelectedRef.current;
-    if (!target) { alert('Lutfen once bir metin elementi secin!'); return; }
+    const tag = listType === 'ol' ? 'ol' : 'ul';
+    const listStyle = listType === 'ol'
+      ? 'style="margin:0;padding-left:24px;list-style-type:decimal;"'
+      : 'style="margin:0;padding-left:24px;list-style-type:disc;"';
+
+    // No text element selected — create a new one with a starter list
+    if (!target) {
+      const pageIdx = currentPage;
+      const existingCount = canvasElements.filter(e => e.type === 'text').length;
+      const newEl = {
+        id: `el_${Date.now()}`, type: 'text',
+        x: pageMargins?.left ?? 40,
+        y: (pageMargins?.top ?? 40) + existingCount * 40,
+        htmlContent: `<${tag} ${listStyle}><li>Madde 1</li><li>Madde 2</li><li>Madde 3</li></${tag}>`,
+        content: 'Madde 1\nMadde 2\nMadde 3',
+        fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
+        width: (pageSize?.width ?? 595) - ((pageMargins?.left ?? 40) + (pageMargins?.right ?? 40)),
+        lineHeight: currentLineHeight, textAlign: 'left',
+        bold: false, italic: false, underline: false, strikethrough: false,
+      };
+      const updated = [...canvasElements, newEl];
+      setCanvasElements(updated); handleSaveHistory(updated);
+      setSelectedElement(newEl.id);
+      return;
+    }
+
     const el = canvasElements.find(e => e.id === target);
     if (!el || el.type !== 'text') return;
     const content = el.htmlContent || el.content || '';
-    // Strip existing list tags if toggling off
     const hasExistingList = content.includes('<ul') || content.includes('<ol');
     let newHtml;
     if (hasExistingList) {
-      // Remove list formatting - convert back to plain lines
       newHtml = content
         .replace(/<\/?[uo]l[^>]*>/gi, '')
         .replace(/<li[^>]*>/gi, '')
         .replace(/<\/li>/gi, '\n')
-        .replace(/\n+/g, '\n')
-        .trim();
+        .replace(/\n+/g, '\n').trim();
     } else {
-      // Split content into lines and wrap each in <li>
       const plainText = content.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
       const lines = plainText.split('\n').filter(l => l.trim());
-      if (lines.length === 0) lines.push('');
-      const tag = listType === 'ol' ? 'ol' : 'ul';
-      const listStyle = listType === 'ol' 
-        ? 'style="margin:0;padding-left:24px;list-style-type:decimal;"'
-        : 'style="margin:0;padding-left:24px;list-style-type:disc;"';
+      if (lines.length === 0) lines.push('Madde 1');
       newHtml = `<${tag} ${listStyle}>${lines.map(l => `<li>${l}</li>`).join('')}</${tag}>`;
     }
-    const updated = canvasElements.map(e => e.id === target 
-      ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') } 
+    const updated = canvasElements.map(e => e.id === target
+      ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') }
       : e
     );
     setCanvasElements(updated);
     handleSaveHistory(updated);
-  }, [selectedElement, canvasElements, handleSaveHistory]);
+  }, [selectedElement, canvasElements, handleSaveHistory, currentPage, currentFontSize, currentFont, currentColor, currentLineHeight, pageMargins, pageSize]);
 
   // === GROUP / UNGROUP ===
   const groupElements = useCallback(() => {
