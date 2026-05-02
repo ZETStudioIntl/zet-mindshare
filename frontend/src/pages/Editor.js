@@ -347,6 +347,8 @@ const Editor = () => {
   const [showMargins, setShowMargins] = useState(false);
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showFootnote, setShowFootnote] = useState(false);
+  const [showTOC, setShowTOC] = useState(false);
 
   // Collaboration state
   const [showShareDialog, setShowShareDialog] = useState(false);
@@ -923,6 +925,7 @@ const Editor = () => {
       templates: () => setShowTemplates(true), qrcode: () => setShowQRCode(true),
       watermark: () => setShowWatermark(true), pagenumbers: () => setShowPageNumbers(true),
       headerfooter: () => setShowHeaderFooter(true), findreplace: () => setShowFindReplace(true),
+      footnote: () => setShowFootnote(true), toc: () => setShowTOC(true),
       copy: () => copyElement(), 
       mirror: () => setShowMirror(true),
       voiceinput: () => setShowVoiceInput(true),
@@ -4049,6 +4052,76 @@ const Editor = () => {
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Header</label><input type="text" value={headerText} onChange={e => setHeaderText(e.target.value)} placeholder="Header text" className="zet-input text-xs w-full" /></div>
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Footer</label><input type="text" value={footerText} onChange={e => setFooterText(e.target.value)} placeholder="Footer text" className="zet-input text-xs w-full" /></div>
         <button onClick={applyHeaderFooter} className="zet-btn w-full">Apply</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* Footnote Panel */}
+    {showFootnote && <DraggablePanel title="Dipnot" onClose={() => setShowFootnote(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-64 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Seçili metne dipnot numarası ekler ve sayfanın altına dipnot alanı oluşturur.</p>
+        <textarea id="footnote-text" placeholder="Dipnot metni..." rows={3} className="zet-input text-xs w-full resize-none" />
+        <button onClick={() => {
+          const text = document.getElementById('footnote-text')?.value?.trim();
+          if (!text) return;
+          const target = selectedElement || lastSelectedRef.current;
+          const footnoteNum = (canvasElements.filter(e => e.footnoteNum).length) + 1;
+          if (target) {
+            // Insert superscript marker into selected text element
+            const el = canvasElements.find(e => e.id === target);
+            if (el?.type === 'text') {
+              const marker = `<sup style="color:#4ca8ad;font-size:0.7em">[${footnoteNum}]</sup>`;
+              const updated = canvasElements.map(e => e.id === target ? { ...e, htmlContent: (e.htmlContent || e.content || '') + marker, content: (e.content || '') + `[${footnoteNum}]` } : e);
+              setCanvasElements(updated);
+              handleSaveHistory(updated);
+            }
+          }
+          // Add footnote element at page bottom
+          const fnEl = { id: `fn_${Date.now()}`, type: 'text', x: marginLeft, y: pageSize.height - marginBottom - 40, content: `[${footnoteNum}] ${text}`, htmlContent: `<span style="color:#4ca8ad;font-size:0.8em">[${footnoteNum}]</span> <span style="font-size:0.85em">${text}</span>`, fontSize: 11, fontFamily: currentFont, color: currentColor, width: pageSize.width - marginLeft - marginRight, lineHeight: 1.4, footnoteNum };
+          const updated2 = [...canvasElements, fnEl];
+          setCanvasElements(updated2);
+          handleSaveHistory(updated2);
+          setShowFootnote(false);
+        }} className="zet-btn w-full text-xs">Dipnot Ekle</button>
+      </div>
+    </DraggablePanel>}
+
+    {/* TOC Panel */}
+    {showTOC && <DraggablePanel title="İçindekiler" onClose={() => setShowTOC(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-72 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Büyük/kalın metin elementlerinden başlıklar algılanır.</p>
+        {(() => {
+          const headings = [];
+          (document?.pages || []).forEach((page, pi) => {
+            (page.elements || []).forEach(el => {
+              if (el.type === 'text' && (el.bold || (el.fontSize || 16) >= 21)) {
+                const text = (el.content || '').replace(/<[^>]*>/g, '').trim().slice(0, 60);
+                if (text) headings.push({ text, page: pi + 1, level: (el.fontSize || 16) >= 29 ? 1 : (el.fontSize || 16) >= 21 ? 2 : 3 });
+              }
+            });
+          });
+          return headings.length === 0 ? (
+            <p className="text-xs text-center py-2" style={{ color: 'var(--zet-text-muted)' }}>Başlık bulunamadı.</p>
+          ) : (
+            <>
+              <div className="max-h-48 overflow-y-auto space-y-0.5">
+                {headings.map((h, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs py-1" style={{ paddingLeft: (h.level - 1) * 12 }}>
+                    <span className="font-medium truncate flex-1" style={{ color: 'var(--zet-text)' }}>{h.text}</span>
+                    <span className="flex-shrink-0 text-xs" style={{ color: 'var(--zet-text-muted)' }}>s.{h.page}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={() => {
+                const lines = headings.map(h => `${'  '.repeat(h.level - 1)}${h.text}${'·'.repeat(Math.max(1, 40 - h.text.length - (h.level - 1) * 2))}${h.page}`).join('\n');
+                const tocEl = { id: `toc_${Date.now()}`, type: 'text', x: marginLeft, y: marginTop, content: 'İÇİNDEKİLER\n' + lines, htmlContent: '<b>İÇİNDEKİLER</b><br>' + headings.map(h => `<span style="padding-left:${(h.level-1)*12}px;display:block">${h.text} <span style="float:right;color:var(--zet-text-muted)">${h.page}</span></span>`).join(''), fontSize: 13, fontFamily: currentFont, color: currentColor, width: pageSize.width - marginLeft - marginRight, lineHeight: 1.6 };
+                const updated = [...canvasElements, tocEl];
+                setCanvasElements(updated);
+                handleSaveHistory(updated);
+                setShowTOC(false);
+              }} className="zet-btn w-full text-xs">Canvas'a Ekle</button>
+            </>
+          );
+        })()}
       </div>
     </DraggablePanel>}
 
