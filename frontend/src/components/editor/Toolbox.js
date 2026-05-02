@@ -32,23 +32,20 @@ export const SHAPE_LIST = [
   // Akış şeması
   { id: 'diamond-flow', label: '◆ Karar', group: 'Akış' },
   { id: 'cylinder', label: '⬤ DB', group: 'Akış' },
-  // Matematik
-  { id: 'math-sum', label: '∑ Sigma', group: 'Matematik' },
-  { id: 'math-pi', label: 'π Pi', group: 'Matematik' },
-  { id: 'math-sqrt', label: '√ Kök', group: 'Matematik' },
-  { id: 'math-inf', label: '∞ Sonsuz', group: 'Matematik' },
-  { id: 'math-int', label: '∫ İntegral', group: 'Matematik' },
   // Parantezler
   { id: 'bracket-sq', label: '[ ] Köşeli', group: 'Parantez' },
   { id: 'brace-curly', label: '{ } Süslü', group: 'Parantez' },
 ];
 
 export const PUNCTUATION_LIST = [
-  '.', ',', ';', ':', '!', '?', "'", '"', '`', '-',
-  '—', '–', '…', '‘', '’', '“', '”',
-  '(', ')', '[', ']', '{', '}', '/', '\\', '|',
-  '@', '#', '$', '%', '&', '*', '+', '=', '<', '>',
-  '~', '^', '©', '®', '™', '§', '¶', '°', '±', '×', '÷',
+  ‘.’, ‘,’, ‘;’, ‘:’, ‘!’, ‘?’, “’”, ‘”’, ‘`’, ‘-’,
+  ‘—‘, ‘–‘, ‘…’, ‘’’, ‘’’, ‘”’, ‘”’,
+  ‘(‘, ‘)’, ‘[‘, ‘]’, ‘{‘, ‘}’, ‘/’, ‘\\’, ‘|’,
+  ‘@’, ‘#’, ‘$’, ‘%’, ‘&’, ‘*’, ‘+’, ‘=’, ‘<’, ‘>’,
+  ‘~’, ‘^’, ‘©’, ‘®’, ‘™’, ‘§’, ‘¶’, ‘°’, ‘±’, ‘×’, ‘÷’,
+  ‘∑’, ‘∫’, ‘√’, ‘π’, ‘∞’, ‘Δ’, ‘θ’, ‘λ’, ‘μ’, ‘σ’,
+  ‘∂’, ‘∇’, ‘∈’, ‘∉’, ‘∩’, ‘∪’, ‘⊂’, ‘⊃’, ‘≈’, ‘≠’,
+  ‘≤’, ‘≥’, ‘→’, ‘←’, ‘↑’, ‘↓’, ‘↔’, ‘⇒’, ‘⇔’, ‘∀’, ‘∃’,
 ];
 
 const SHAPE_TOOL_IDS = new Set(SHAPE_LIST.map(s => s.id));

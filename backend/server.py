@@ -3947,6 +3947,26 @@ async def generate_tts(req: TTSRequest, user: User = Depends(get_current_user)):
         logging.error(f"Error generating TTS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating TTS: {str(e)}")
 
+@api_router.post("/pdf/extract-text")
+async def extract_pdf_text(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """Extract text from PDF per page using pypdf for editable canvas import"""
+    raw = await file.read()
+    try:
+        try:
+            from pypdf import PdfReader as _PR
+        except ImportError:
+            from PyPDF2 import PdfReader as _PR
+        import io as _io
+        reader = _PR(_io.BytesIO(raw))
+        pages = []
+        for i, page in enumerate(reader.pages):
+            text = (page.extract_text() or "").strip()
+            pages.append({"page_num": i + 1, "text": text})
+        return {"pages": pages, "total": len(pages)}
+    except Exception as e:
+        logging.error(f"PDF extract error: {e}")
+        raise HTTPException(status_code=500, detail=f"PDF parse error: {str(e)}")
+
 @api_router.post("/voice/stt")
 async def speech_to_text(audio: UploadFile = File(...), language: str = "tr", user: User = Depends(get_current_user)):
     """Convert speech to text using ElevenLabs Scribe STT"""

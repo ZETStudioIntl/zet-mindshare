@@ -217,6 +217,7 @@ const Editor = () => {
   // Panel visibility
   const [showImageUpload, setShowImageUpload] = useState(false);
   const [showPageSize, setShowPageSize] = useState(false);
+  const [pageSizeScope, setPageSizeScope] = useState('current'); // 'current' | 'all'
   const [showTextSize, setShowTextSize] = useState(false);
   const [showFont, setShowFont] = useState(false);
   const [showVoice, setShowVoice] = useState(false);
@@ -995,16 +996,7 @@ const Editor = () => {
         return;
       }
     }
-    // No text element selected - create a new text element with the emoji
-    const newEl = {
-      id: `el_${Date.now()}`, type: 'text', x: 100, y: 100,
-      content: emoji, htmlContent: emoji,
-      fontSize: 24, fontFamily: 'Georgia', color: '#000000',
-      textAlign: 'left', lineHeight: 1.5
-    };
-    const updated = [...canvasElements, newEl];
-    setCanvasElements(updated);
-    handleSaveHistory(updated);
+    // No text element selected — emoji can only be inserted into existing text
   }, [selectedElement, canvasElements, handleSaveHistory]);
 
   const applyListFormat = useCallback((listType) => {
@@ -1432,47 +1424,46 @@ const Editor = () => {
   const [pdfImporting, setPdfImporting] = useState(false);
   const pdfInputRef = useRef(null);
   const importPDF = async (file) => {
-    if (!file || !file.name.endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
+    if (!file || !file.name.toLowerCase().endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
     setPdfImporting(true);
     try {
-      const pdfjsLib = await import('pdfjs-dist/build/pdf');
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
-      const arrayBuf = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuf }).promise;
+      const formData = new FormData();
+      formData.append('file', file, file.name);
+      const res = await axios.post(`${API}/pdf/extract-text`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
+      const pages = res.data.pages || [];
+      const ml = marginLeft || 40, mr = marginRight || 40, mt = marginTop || 40;
+      const textWidth = pageSize.width - ml - mr;
       const newElements = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = window.document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const ctx = canvas.getContext('2d');
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        const imgSrc = canvas.toDataURL('image/png');
-        newElements.push({
-          id: `el_pdf_${Date.now()}_${i}`,
-          type: 'image',
-          x: 20,
-          y: 20 + (i - 1) * (pageSize.height - 40),
-          width: Math.min(pageSize.width - 40, viewport.width),
-          height: Math.min(pageSize.height - 40, viewport.height * ((pageSize.width - 40) / viewport.width)),
-          src: imgSrc,
-        });
-        // Add new pages if needed
-        if (i > 1 && document.pages && i > document.pages.length) {
+      pages.forEach((pg, idx) => {
+        if (!pg.text) return;
+        // Add extra pages to document if needed
+        if (idx > 0) {
           setDocument(prev => ({
             ...prev,
-            pages: [...(prev.pages || []), { page_id: `page_${Date.now()}_${i}`, elements: [], drawPaths: [] }]
+            pages: prev.pages.length <= idx
+              ? [...(prev.pages || []), { page_id: `page_pdf_${Date.now()}_${idx}`, elements: [], drawPaths: [] }]
+              : prev.pages
           }));
         }
-      }
+        newElements.push({
+          id: `el_pdf_${Date.now()}_${idx}`,
+          type: 'text',
+          x: ml, y: mt,
+          content: pg.text,
+          htmlContent: pg.text.replace(/\n/g, '<br>'),
+          fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
+          width: textWidth, lineHeight: currentLineHeight,
+          textAlign: 'left', bold: false, italic: false, underline: false,
+        });
+      });
+      if (newElements.length === 0) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
       const updated = [...canvasElements, ...newElements];
       setCanvasElements(updated);
-      history.push(updated);
-      alert(`PDF başarıyla içe aktarıldı! (${pdf.numPages} sayfa)`);
+      handleSaveHistory(updated);
+      alert(`PDF içe aktarıldı — ${pages.length} sayfa düzenlenebilir metin olarak eklendi.`);
     } catch (err) {
       console.error('PDF import failed:', err);
-      alert('PDF içe aktarma başarısız: ' + err.message);
+      alert('PDF içe aktarma başarısız: ' + (err.response?.data?.detail || err.message));
     } finally {
       setPdfImporting(false);
     }
@@ -2904,16 +2895,29 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showPageSize && <DraggablePanel title={t('pageSize')} onClose={() => setShowPageSize(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 200 }}>
-      <div className="space-y-2 w-48">{PAGE_SIZES.map(s => <button key={s.name} onClick={() => {
-        setPageSize(s);
-        setDocument(prev => {
-          if (!prev) return prev;
-          const pages = [...(prev.pages || [])];
-          if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
-          return { ...prev, pages };
-        });
-        setShowPageSize(false);
-      }} className={`w-full p-2 rounded text-left text-sm transition-colors ${pageSize.name === s.name ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: pageSize.name === s.name ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{s.name} <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{s.width}×{s.height}</span></button>)}
+      <div className="space-y-2 w-52">
+        {/* Scope selector */}
+        <div className="flex rounded overflow-hidden border" style={{ borderColor: 'var(--zet-border)' }}>
+          <button onClick={() => setPageSizeScope('current')} className="flex-1 py-1.5 text-xs transition-colors" style={{ background: pageSizeScope === 'current' ? 'var(--zet-primary)' : 'var(--zet-bg)', color: pageSizeScope === 'current' ? '#fff' : 'var(--zet-text-muted)' }}>
+            Yalnızca bu sayfa
+          </button>
+          <button onClick={() => setPageSizeScope('all')} className="flex-1 py-1.5 text-xs transition-colors" style={{ background: pageSizeScope === 'all' ? 'var(--zet-primary)' : 'var(--zet-bg)', color: pageSizeScope === 'all' ? '#fff' : 'var(--zet-text-muted)' }}>
+            Tüm sayfalar
+          </button>
+        </div>
+        {PAGE_SIZES.map(s => <button key={s.name} onClick={() => {
+          setPageSize(s);
+          setDocument(prev => {
+            if (!prev) return prev;
+            const pages = [...(prev.pages || [])];
+            if (pageSizeScope === 'all') {
+              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s })) };
+            }
+            if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
+            return { ...prev, pages };
+          });
+          setShowPageSize(false);
+        }} className={`w-full p-2 rounded text-left text-sm transition-colors ${pageSize.name === s.name ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: pageSize.name === s.name ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{s.name} <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{s.width}×{s.height}</span></button>)}
         <div className="flex gap-1 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}><input type="number" value={customWidth} onChange={e => setCustomWidth(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="W" /><input type="number" value={customHeight} onChange={e => setCustomHeight(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="H" /></div>
         <button onClick={() => {
           const s = { name: 'Custom', width: customWidth, height: customHeight };
@@ -2921,6 +2925,9 @@ const Editor = () => {
           setDocument(prev => {
             if (!prev) return prev;
             const pages = [...(prev.pages || [])];
+            if (pageSizeScope === 'all') {
+              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s })) };
+            }
             if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
             return { ...prev, pages };
           });
@@ -3143,7 +3150,7 @@ const Editor = () => {
             <button
               key={i}
               title={char}
-              onClick={() => document.execCommand('insertText', false, char)}
+              onMouseDown={(e) => { e.preventDefault(); document.execCommand('insertText', false, char); }}
               className="w-8 h-8 rounded font-mono text-sm flex items-center justify-center hover:bg-white/15 transition-colors"
               style={{ border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
             >
@@ -3151,7 +3158,7 @@ const Editor = () => {
             </button>
           ))}
         </div>
-        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Metin kutusuna odaklanıp tıklayın</p>
+        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Metni seçin ve sembolü tıklayın</p>
       </div>
     </DraggablePanel>}
 
@@ -3450,26 +3457,51 @@ const Editor = () => {
           <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</label>
           <div className="grid grid-cols-3 gap-1">
             <button onClick={() => {
-              const ml = 40, mr = 40;
-              setMarginTop(40); setMarginBottom(40); setMarginLeft(ml); setMarginRight(mr);
+              const ml = 71, mr = 71;
+              setMarginTop(71); setMarginBottom(71); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
               setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Normal</button>
             <button onClick={() => {
-              const ml = 20, mr = 20;
-              setMarginTop(20); setMarginBottom(20); setMarginLeft(ml); setMarginRight(mr);
+              const ml = 36, mr = 36;
+              setMarginTop(36); setMarginBottom(36); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
               setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Dar</button>
             <button onClick={() => {
-              const ml = 60, mr = 60;
-              setMarginTop(60); setMarginBottom(60); setMarginLeft(ml); setMarginRight(mr);
+              const ml = 142, mr = 142;
+              setMarginTop(142); setMarginBottom(142); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
               setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Geniş</button>
+            <button onClick={() => {
+              // Senaryo Modu: sol 3.8cm=108px, üst/alt 2.5cm=71px, sağ 2.5cm=71px + Courier 12pt
+              const ml = 108, mr = 71, mt = 71, mb = 71;
+              setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
+              setCurrentFont('Courier New'); setCurrentFontSize(16);
+              const w = pageSize.width - ml - mr;
+              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w, fontFamily: 'Courier New', fontSize: 16 } : el));
+              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
+            }} className="zet-btn text-xs py-1.5">Senaryo</button>
+            <button onClick={() => {
+              // Akademik (APA/MLA): sol 3.2cm=91px, üst/alt 2.5cm=71px
+              const ml = 91, mr = 71, mt = 71, mb = 71;
+              setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
+              const w = pageSize.width - ml - mr;
+              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
+              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
+            }} className="zet-btn text-xs py-1.5">Akademik</button>
+            <button onClick={() => {
+              // Kitap: üst/alt 2cm=57px, sol 3cm=85px, sağ 2.5cm=71px
+              const ml = 85, mr = 71, mt = 57, mb = 57;
+              setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
+              const w = pageSize.width - ml - mr;
+              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
+              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
+            }} className="zet-btn text-xs py-1.5">Kitap</button>
           </div>
         </div>
         <div className="pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--zet-border)' }}>
@@ -3992,20 +4024,23 @@ const Editor = () => {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Rotate: {mirrorAngle}°</label>
-              <input type="range" min="-180" max="180" value={mirrorAngle} onChange={e => setMirrorAngle(Number(e.target.value))} className="w-full accent-blue-500" />
+              <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Döndür: {mirrorAngle}°</label>
+              <input
+                type="range" min="-180" max="180" value={mirrorAngle}
+                onChange={e => {
+                  const angle = Number(e.target.value);
+                  setMirrorAngle(angle);
+                  if (selectedElement) setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, rotation: angle } : el));
+                }}
+                onMouseUp={() => { if (selectedElement) handleSaveHistory(canvasElements); }}
+                className="w-full accent-blue-500"
+              />
               <div className="grid grid-cols-4 gap-1">
-                <button onClick={() => rotateElement(-90)} className="zet-btn text-xs py-1">-90°</button>
-                <button onClick={() => rotateElement(-45)} className="zet-btn text-xs py-1">-45°</button>
-                <button onClick={() => rotateElement(45)} className="zet-btn text-xs py-1">+45°</button>
-                <button onClick={() => rotateElement(90)} className="zet-btn text-xs py-1">+90°</button>
+                <button onClick={() => { rotateElement(-90); setMirrorAngle(a => a - 90); }} className="zet-btn text-xs py-1">-90°</button>
+                <button onClick={() => { rotateElement(-45); setMirrorAngle(a => a - 45); }} className="zet-btn text-xs py-1">-45°</button>
+                <button onClick={() => { rotateElement(45); setMirrorAngle(a => a + 45); }} className="zet-btn text-xs py-1">+45°</button>
+                <button onClick={() => { rotateElement(90); setMirrorAngle(a => a + 90); }} className="zet-btn text-xs py-1">+90°</button>
               </div>
-              <button onClick={() => {
-                if (selectedElement) {
-                  const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, rotation: mirrorAngle } : el);
-                  setCanvasElements(updated); history.push(updated);
-                }
-              }} className="zet-btn w-full text-xs py-2">Set Rotation to {mirrorAngle}°</button>
             </div>
           </>
         )}

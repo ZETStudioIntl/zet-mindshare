@@ -368,6 +368,7 @@ export const CanvasArea = ({
   const [selectionStart, setSelectionStart] = useState(null);
   const [penAnchors, setPenAnchors] = useState([]); // [{x,y,hx,hy}] bezier anchors
   const penDragRef = useRef(null); // tracks drag state for handle creation
+  const cropWasDraggedRef = useRef(false); // tracks if a crop handle was dragged this gesture
   const [penHandlePreview, setPenHandlePreview] = useState(null); // {x,y,hx,hy}
   const [cropTarget, setCropTarget] = useState(null);
   const [cropRect, setCropRect] = useState(null);
@@ -851,6 +852,7 @@ export const CanvasArea = ({
       return;
     }
     if ((cropDragging || cropHandle) && cropStart) {
+      cropWasDraggedRef.current = true;
       const dx = x - cropStart.x;
       const dy = y - cropStart.y;
       const r = cropStart.rect;
@@ -1039,11 +1041,13 @@ export const CanvasArea = ({
     if (activeTool !== 'zoom') setMagnifierActive(false);
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
+    if (cropWasDraggedRef.current) { applyCrop(); }
+    cropWasDraggedRef.current = false;
     setCropDragging(false); setCropStart(null); setCropHandle(null);
     setIsPanning(false); panStartRef.current = null;
     setDragging(null); setResizing(null);
     setSnapIndicator(null);
-  }, [activeTool, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -1429,9 +1433,8 @@ export const CanvasArea = ({
               />
             )}
             
-            {cropTarget && cropRect && idx === currentPage && <button data-testid="crop-apply-btn" onClick={(e) => { e.stopPropagation(); applyCrop(); }} className="absolute z-20 zet-btn text-xs px-3 py-1" style={{ left: (cropRect.x + cropRect.w) * zoom + 8, top: cropRect.y * zoom }}>Apply Crop</button>}
             {(idx === currentPage ? canvasElements : page.elements || []).filter(el => !el.hidden).map(el => {
-              const isSel = selectedElement === el.id || selectedElements.includes(el.id);
+              const isSel = (selectedElement === el.id || selectedElements.includes(el.id)) && editingId !== el.id;
               const isLocked = el.locked;
               // Mirror transform
               const scaleX = el.scaleX || 1;
