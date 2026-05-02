@@ -396,6 +396,14 @@ const Editor = () => {
   // Page numbers state
   const [pageNumbersEnabled, setPageNumbersEnabled] = useState(false);
   const [pageNumberPosition, setPageNumberPosition] = useState('bottom-center');
+  const [pageNumberFormat, setPageNumberFormat] = useState('numeric'); // 'numeric'|'roman'|'ROMAN'|'alpha'
+  const [pageNumberStyle, setPageNumberStyle] = useState('n'); // 'n'|'n/total'|'page-n'|'page-n-of-total'
+  const [pageNumberStart, setPageNumberStart] = useState(1);
+
+  // Column layout state
+  const [columnCount, setColumnCount] = useState(1);
+  const [columnGap, setColumnGap] = useState(20);
+  const [showColumns, setShowColumns] = useState(false);
 
   // Export format and quality state
   const [exportFormat, setExportFormat] = useState('pdf');
@@ -936,6 +944,7 @@ const Editor = () => {
       signature: () => setShowSignature(true),
       indent: () => setShowIndent(true),
       margins: () => setShowMargins(true),
+      columns: () => setShowColumns(true),
       redact: () => applyRedaction(),
       highlighter: () => applyHighlight(),
       importpdf: () => pdfInputRef.current?.click(),
@@ -1684,9 +1693,13 @@ const Editor = () => {
 
   // === PAGE NUMBERS ===
   const togglePageNumbers = () => {
-    setPageNumbersEnabled(!pageNumbersEnabled);
-    setDocument(prev => ({ ...prev, pageNumbers: { enabled: !pageNumbersEnabled, position: pageNumberPosition } }));
+    const newEnabled = !pageNumbersEnabled;
+    setPageNumbersEnabled(newEnabled);
+    setDocument(prev => ({ ...prev, pageNumbers: { enabled: newEnabled, position: pageNumberPosition, format: pageNumberFormat, style: pageNumberStyle, start: pageNumberStart } }));
   };
+  const updatePageNumberSettings = useCallback((updates) => {
+    setDocument(prev => ({ ...prev, pageNumbers: { enabled: pageNumbersEnabled, position: pageNumberPosition, format: pageNumberFormat, style: pageNumberStyle, start: pageNumberStart, ...updates } }));
+  }, [pageNumbersEnabled, pageNumberPosition, pageNumberFormat, pageNumberStyle, pageNumberStart]);
 
   // === TEMPLATES ===
   const applyTemplate = (templateId) => {
@@ -3612,6 +3625,54 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
+    {/* Columns Panel */}
+    {showColumns && <DraggablePanel title="Sütun Düzeni" onClose={() => setShowColumns(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+      <div className="w-60 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Sayfa sütun düzenini ayarlayın. Kılavuz çizgileri canvas'ta gösterilir.</p>
+        <div>
+          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Sütun Sayısı</label>
+          <div className="grid grid-cols-3 gap-2">
+            {[1, 2, 3].map(n => (
+              <button key={n} onClick={() => setColumnCount(n)}
+                className="zet-btn py-2 text-sm font-semibold"
+                style={columnCount === n ? { background: 'var(--zet-primary)', color: '#fff' } : {}}>
+                {n === 1 ? '1 Sütun' : n === 2 ? '2 Sütun' : '3 Sütun'}
+              </button>
+            ))}
+          </div>
+        </div>
+        {columnCount > 1 && (
+          <div>
+            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sütun Aralığı: {columnGap}px</label>
+            <input type="range" min="10" max="80" value={columnGap} onChange={e => setColumnGap(parseInt(e.target.value))} className="w-full" />
+          </div>
+        )}
+        {columnCount > 1 && (
+          <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+            <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>
+              Sütun genişliği: {Math.round((pageSize.width - marginLeft - marginRight - (columnCount - 1) * columnGap) / columnCount)}px
+            </p>
+            <button onClick={() => {
+              const availW = pageSize.width - marginLeft - marginRight;
+              const colW = Math.round((availW - (columnCount - 1) * columnGap) / columnCount);
+              const cols = Array.from({ length: columnCount }, (_, i) => ({
+                id: `col_${Date.now()}_${i}`, type: 'text',
+                x: marginLeft + i * (colW + columnGap),
+                y: marginTop, content: '',
+                fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
+                width: colW, lineHeight: currentLineHeight, textAlign: 'left',
+              }));
+              const updated = [...canvasElements, ...cols];
+              setCanvasElements(updated);
+              handleSaveHistory(updated);
+            }} className="zet-btn w-full text-xs py-2" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
+              Sütun Metin Alanları Ekle
+            </button>
+          </div>
+        )}
+      </div>
+    </DraggablePanel>}
+
     {/* Chat Settings Panel */}
     {showChatSettings && <DraggablePanel title="Chat Ayarları" onClose={() => setShowChatSettings(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-80 space-y-4">
@@ -4031,18 +4092,45 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Page Numbers Panel */}
-    {showPageNumbers && <DraggablePanel title="Page Numbers" onClose={() => setShowPageNumbers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-52 space-y-3">
+    {showPageNumbers && <DraggablePanel title="Sayfa Numaraları" onClose={() => setShowPageNumbers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-60 space-y-3">
         <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--zet-text)' }}>
           <input type="checkbox" checked={pageNumbersEnabled} onChange={togglePageNumbers} className="rounded" />
-          Enable Page Numbers
+          Sayfa Numaralarını Göster
         </label>
-        <select value={pageNumberPosition} onChange={e => setPageNumberPosition(e.target.value)} className="zet-input text-xs w-full">
-          <option value="bottom-center">Bottom Center</option>
-          <option value="bottom-right">Bottom Right</option>
-          <option value="bottom-left">Bottom Left</option>
-          <option value="top-center">Top Center</option>
-        </select>
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Konum</label>
+          <select value={pageNumberPosition} onChange={e => { setPageNumberPosition(e.target.value); updatePageNumberSettings({ position: e.target.value }); }} className="zet-input text-xs w-full">
+            <option value="bottom-center">Altta Orta</option>
+            <option value="bottom-right">Altta Sağ</option>
+            <option value="bottom-left">Altta Sol</option>
+            <option value="top-center">Üstte Orta</option>
+            <option value="top-right">Üstte Sağ</option>
+            <option value="top-left">Üstte Sol</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Numara Biçimi</label>
+          <select value={pageNumberFormat} onChange={e => { setPageNumberFormat(e.target.value); updatePageNumberSettings({ format: e.target.value }); }} className="zet-input text-xs w-full">
+            <option value="numeric">1, 2, 3 (Sayısal)</option>
+            <option value="roman">i, ii, iii (Roma - Küçük)</option>
+            <option value="ROMAN">I, II, III (Roma - Büyük)</option>
+            <option value="alpha">a, b, c (Alfabe)</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Görünüm Stili</label>
+          <select value={pageNumberStyle} onChange={e => { setPageNumberStyle(e.target.value); updatePageNumberSettings({ style: e.target.value }); }} className="zet-input text-xs w-full">
+            <option value="n">1</option>
+            <option value="n/total">1 / 5</option>
+            <option value="page-n">Sayfa 1</option>
+            <option value="page-n-of-total">Sayfa 1 / 5</option>
+          </select>
+        </div>
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç Numarası</label>
+          <input type="number" min="1" max="999" value={pageNumberStart} onChange={e => { const v = Math.max(1, parseInt(e.target.value) || 1); setPageNumberStart(v); updatePageNumberSettings({ start: v }); }} className="zet-input text-xs w-full" />
+        </div>
       </div>
     </DraggablePanel>}
 
@@ -4299,6 +4387,7 @@ const Editor = () => {
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} onFlowText={handleTextFlow}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode}
+            columnCount={columnCount} columnGap={columnGap}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
         </div>
 
@@ -4622,7 +4711,7 @@ const Editor = () => {
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} onFlowText={handleTextFlow}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
-            eraserDragMode={eraserDragMode} />
+            eraserDragMode={eraserDragMode} columnCount={columnCount} columnGap={columnGap} />
         </div>
 
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />

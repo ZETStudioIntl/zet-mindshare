@@ -374,7 +374,22 @@ export const CanvasArea = ({
   magnifierBorderColor, magnifierGradientStart, magnifierGradientEnd, useMagnifierGradient,
   onAddPage, onCopyElement, onMirrorElement, onFlowText,
   rulerVisible, gridVisible, gridSize, snapToGrid, pageMargins: pageMarginsProp, eraserDragMode,
+  columnCount = 1, columnGap = 20,
 }) => {
+  const toRoman = (n) => {
+    const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
+    const syms = ['M','CM','D','CD','C','XC','L','XL','X','IX','V','IV','I'];
+    let r = ''; let num = n;
+    for (let i = 0; i < vals.length; i++) { while (num >= vals[i]) { r += syms[i]; num -= vals[i]; } }
+    return r;
+  };
+  const colSnap = (clickX) => {
+    if (columnCount <= 1) return { x: margins.left, width: pageSize.width - margins.left - margins.right };
+    const availW = pageSize.width - margins.left - margins.right;
+    const colW = (availW - (columnCount - 1) * columnGap) / columnCount;
+    const col = Math.max(0, Math.min(columnCount - 1, Math.floor((clickX - margins.left) / (colW + columnGap))));
+    return { x: margins.left + col * (colW + columnGap), width: colW };
+  };
   const canvasRef = useRef(null);
   const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
   const [editingId, setEditingId] = useState(null);
@@ -602,11 +617,11 @@ export const CanvasArea = ({
     if (activeTool === 'text') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
-      const ml = margins.left; // left margin
+      const { x: colX, width: colWidth } = colSnap(x);
       const ne = {
         id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-        x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
-        fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
+        x: colX, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+        fontFamily: currentFont, color: currentColor, width: colWidth,
         lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
         bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -635,11 +650,11 @@ export const CanvasArea = ({
       else {
         // Empty area clicked - create new text at cursor Y, margin-aligned X (Word-like)
         setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null);
-        const ml = margins.left;
+        const { x: colX2, width: colWidth2 } = colSnap(x);
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
+          x: colX2, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: colWidth2,
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -680,11 +695,11 @@ export const CanvasArea = ({
       else {
         setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]);
         // Empty area: create new text element at cursor Y, margin-aligned (Word-like)
-        const ml = margins.left;
+        const { x: colX3, width: colWidth3 } = colSnap(x);
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: pageSize.width - margins.left - margins.right,
+          x: colX3, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
+          fontFamily: currentFont, color: currentColor, width: colWidth3,
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
@@ -1610,11 +1625,48 @@ export const CanvasArea = ({
             )}
             
             {/* Page Numbers */}
-            {doc.pageNumbers?.enabled && (
-              <div className={`absolute ${doc.pageNumbers.position?.includes('top') ? 'top-2' : 'bottom-2'} ${doc.pageNumbers.position?.includes('left') ? 'left-4' : doc.pageNumbers.position?.includes('right') ? 'right-4' : 'left-0 right-0 text-center'} text-sm pointer-events-none`} style={{ color: 'var(--zet-text-muted)' }}>
-                {idx + 1}
-              </div>
-            )}
+            {doc.pageNumbers?.enabled && (() => {
+              const pn = doc.pageNumbers;
+              const start = pn.start || 1;
+              const num = idx + start;
+              const total = (doc.pages?.length || 1) + start - 1;
+              const fmt = (n) => {
+                if (pn.format === 'roman') return toRoman(n).toLowerCase();
+                if (pn.format === 'ROMAN') return toRoman(n);
+                if (pn.format === 'alpha') return String.fromCharCode(96 + ((n - 1) % 26) + 1);
+                return String(n);
+              };
+              const label = pn.style === 'n/total' ? `${fmt(num)} / ${fmt(total)}`
+                : pn.style === 'page-n' ? `Sayfa ${fmt(num)}`
+                : pn.style === 'page-n-of-total' ? `Sayfa ${fmt(num)} / ${fmt(total)}`
+                : fmt(num);
+              const isTop = pn.position?.includes('top');
+              const isLeft = pn.position?.includes('left');
+              const isRight = pn.position?.includes('right');
+              return (
+                <div className={`absolute ${isTop ? 'top-2' : 'bottom-2'} ${isLeft ? 'left-4' : isRight ? 'right-4' : 'left-0 right-0 text-center'} text-sm pointer-events-none`} style={{ color: 'var(--zet-text-muted)' }}>
+                  {label}
+                </div>
+              );
+            })()}
+
+            {/* Column guides */}
+            {columnCount > 1 && (() => {
+              const availW = pageSize.width - margins.left - margins.right;
+              const colW = (availW - (columnCount - 1) * columnGap) / columnCount;
+              return Array.from({ length: columnCount - 1 }, (_, i) => {
+                const x = (margins.left + (i + 1) * colW + i * columnGap + columnGap / 2) * zoom;
+                return (
+                  <div key={i} className="absolute pointer-events-none" style={{
+                    left: x,
+                    top: margins.top * zoom,
+                    height: (pageSize.height - margins.top - margins.bottom) * zoom,
+                    width: 1,
+                    borderLeft: '1.5px dashed rgba(76,168,173,0.45)',
+                  }} />
+                );
+              });
+            })()}
           </div>
         ))}
       </div>
