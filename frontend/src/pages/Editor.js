@@ -948,35 +948,15 @@ const Editor = () => {
   }, [setCanvasElements]);
 
   const applyHighlight = useCallback(() => {
-    // Try text selection first
     if (wrapSelection(`background:${highlighterColor};border-radius:2px;`, { 'data-highlight': 'true' })) return;
-    // Fallback: highlight entire element
-    const target = selectedElement || lastSelectedRef.current;
-    if (!target) { alert('Lütfen önce işaretlemek istediğiniz metni seçin!'); return; }
-    const el = canvasElements.find(e => e.id === target);
-    if (!el || el.type !== 'text') { alert('Sadece metin elementleri işaretlenebilir!'); return; }
-    const updated = canvasElements.map(e => e.id === target ? { ...e, highlightColor: highlighterColor } : e);
-    setCanvasElements(updated);
-    history.push(updated);
-  }, [selectedElement, canvasElements, highlighterColor, wrapSelection]);
+    alert('Lütfen önce işaretlemek istediğiniz metni seçin.');
+  }, [highlighterColor, wrapSelection]);
 
   // === REDACT (Security) Tool ===
   const applyRedaction = useCallback(() => {
-    // Try text selection first
     if (wrapSelection('background:#000;color:#000;border-radius:2px;user-select:none;cursor:pointer;', { 'data-redacted': 'true' })) return;
-    // Fallback: redact entire element  
-    const target = selectedElement || lastSelectedRef.current;
-    if (!target) { alert('Lütfen önce sansürlemek istediğiniz metni seçin!'); return; }
-    const el = canvasElements.find(e => e.id === target);
-    if (!el || el.type !== 'text') { alert('Sadece metin elementleri sansürlenebilir!'); return; }
-    const updated = canvasElements.map(e => 
-      e.id === target 
-        ? { ...e, isRedacted: true, originalContent: e.content, color: '#000000', background: '#000000' }
-        : e
-    );
-    setCanvasElements(updated);
-    history.push(updated);
-  }, [canvasElements, selectedElement, wrapSelection]);
+    alert('Lütfen önce sansürlemek istediğiniz metni seçin.');
+  }, [wrapSelection]);
 
   // === PHOTO EDIT ===
   // === BULLET/NUMBERED LIST ===
@@ -2161,25 +2141,81 @@ const Editor = () => {
 
   // === COPY / PASTE ===
   const copyElement = () => {
-    if (selectedElement) {
+    if (selectedElements.length > 0) {
+      const els = canvasElements.filter(e => selectedElements.includes(e.id));
+      setClipboard(els.map(el => ({ ...el, id: null })));
+    } else if (selectedElement) {
       const el = canvasElements.find(e => e.id === selectedElement);
-      if (el) setClipboard({ ...el, id: null }); // Remove id for new copy
+      if (el) setClipboard({ ...el, id: null });
     }
   };
 
   const pasteElement = () => {
-    if (clipboard) {
-      const newEl = { 
-        ...clipboard, 
-        id: `el_${Date.now()}`, 
-        x: (clipboard.x || 0) + 20, 
-        y: (clipboard.y || 0) + 20 
-      };
+    if (!clipboard) return;
+    if (Array.isArray(clipboard)) {
+      const now = Date.now();
+      const newEls = clipboard.map((el, i) => ({ ...el, id: `el_${now}_${i}`, x: (el.x || 0) + 20, y: (el.y || 0) + 20 }));
+      const updated = [...canvasElements, ...newEls];
+      setCanvasElements(updated);
+      history.push(updated);
+      setSelectedElements(newEls.map(e => e.id));
+      setSelectedElement(null);
+    } else {
+      const newEl = { ...clipboard, id: `el_${Date.now()}`, x: (clipboard.x || 0) + 20, y: (clipboard.y || 0) + 20 };
       const updated = [...canvasElements, newEl];
       setCanvasElements(updated);
       history.push(updated);
       setSelectedElement(newEl.id);
+      setSelectedElements([]);
     }
+  };
+
+  // === ALIGN (multi-select) ===
+  const alignElements = (direction) => {
+    if (selectedElements.length < 2) return;
+    const els = canvasElements.filter(e => selectedElements.includes(e.id));
+    const getW = e => e.width || 80;
+    const getH = e => e.type === 'text' ? (e.fontSize || 16) * Math.max(1, (e.content || '').split('\n').length) * (e.lineHeight || 1.5) : (e.height || 80);
+    let updated;
+    if (direction === 'left') {
+      const minX = Math.min(...els.map(e => e.x));
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: minX } : e);
+    } else if (direction === 'right') {
+      const maxR = Math.max(...els.map(e => e.x + getW(e)));
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: maxR - getW(e) } : e);
+    } else if (direction === 'center-h') {
+      const minX = Math.min(...els.map(e => e.x)); const maxR = Math.max(...els.map(e => e.x + getW(e)));
+      const cx = (minX + maxR) / 2;
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: cx - getW(e) / 2 } : e);
+    } else if (direction === 'top') {
+      const minY = Math.min(...els.map(e => e.y));
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: minY } : e);
+    } else if (direction === 'bottom') {
+      const maxB = Math.max(...els.map(e => e.y + getH(e)));
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: maxB - getH(e) } : e);
+    } else if (direction === 'center-v') {
+      const minY = Math.min(...els.map(e => e.y)); const maxB = Math.max(...els.map(e => e.y + getH(e)));
+      const cy = (minY + maxB) / 2;
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: cy - getH(e) / 2 } : e);
+    } else if (direction === 'dist-h') {
+      const sorted = [...els].sort((a, b) => a.x - b.x);
+      const totalW = sorted.reduce((s, e) => s + getW(e), 0);
+      const span = sorted[sorted.length - 1].x + getW(sorted[sorted.length - 1]) - sorted[0].x;
+      const gap = (span - totalW) / (sorted.length - 1);
+      let cursor = sorted[0].x;
+      const positions = Object.fromEntries(sorted.map(e => { const x = cursor; cursor += getW(e) + gap; return [e.id, x]; }));
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: positions[e.id] } : e);
+    } else if (direction === 'dist-v') {
+      const sorted = [...els].sort((a, b) => a.y - b.y);
+      const totalH = sorted.reduce((s, e) => s + getH(e), 0);
+      const span = sorted[sorted.length - 1].y + getH(sorted[sorted.length - 1]) - sorted[0].y;
+      const gap = (span - totalH) / (sorted.length - 1);
+      let cursor = sorted[0].y;
+      const positions = Object.fromEntries(sorted.map(e => { const y = cursor; cursor += getH(e) + gap; return [e.id, y]; }));
+      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: positions[e.id] } : e);
+    } else return;
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
   };
 
   // === MIRROR ===
@@ -2820,9 +2856,15 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showTextSize && <DraggablePanel title={t('textSize')} onClose={() => setShowTextSize(false)} initialPosition={{ x: isMobile ? 20 : 370, y: 100 }}>
-      <div className="space-y-3 w-48"><input type="range" min="8" max="72" value={currentFontSize} onChange={e => { const v = Number(e.target.value); setCurrentFontSize(v); applyInlineStyle('fontSize', v); }} className="w-full accent-blue-500" />
-        <div className="flex items-center gap-2"><input type="number" min="8" max="100" value={currentFontSize} onChange={e => { const v = Math.max(8, Number(e.target.value) || 16); setCurrentFontSize(v); applyInlineStyle('fontSize', v); }} className="zet-input w-16 text-center text-sm" /><span className="text-sm" style={{ color: 'var(--zet-text)' }}>pt</span></div>
-        <div className="p-2 rounded text-center" style={{ background: 'var(--zet-bg)' }}><span style={{ fontSize: Math.min(currentFontSize, 36), color: 'var(--zet-text)', fontFamily: currentFont }}>Aa</span></div>
+      <div className="space-y-3 w-48">
+        {/* Slider in pt (6–96pt), stored internally as px: px = pt * 96/72 */}
+        <input type="range" min="6" max="96" step="1" value={Math.round(currentFontSize * 72 / 96)} onChange={e => { const px = Math.round(Number(e.target.value) * 96 / 72); setCurrentFontSize(px); applyInlineStyle('fontSize', px); }} className="w-full accent-blue-500" />
+        <div className="flex items-center gap-2">
+          <input type="number" min="6" max="144" step="1" value={Math.round(currentFontSize * 72 / 96)} onChange={e => { const px = Math.round(Math.max(6, Number(e.target.value) || 12) * 96 / 72); setCurrentFontSize(px); applyInlineStyle('fontSize', px); }} className="zet-input w-16 text-center text-sm" />
+          <span className="text-sm" style={{ color: 'var(--zet-text)' }}>pt</span>
+        </div>
+        <div className="flex flex-wrap gap-1">{[8,9,10,11,12,14,16,18,20,24,28,32,36,48,72].map(pt => (<button key={pt} onClick={() => { const px = Math.round(pt * 96/72); setCurrentFontSize(px); applyInlineStyle('fontSize', px); }} className={`text-xs px-1.5 py-0.5 rounded transition-colors ${Math.round(currentFontSize*72/96) === pt ? 'glow-sm' : 'hover:bg-white/10'}`} style={{ background: Math.round(currentFontSize*72/96) === pt ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{pt}</button>))}</div>
+        <div className="p-2 rounded text-center" style={{ background: 'var(--zet-bg)' }}><span style={{ fontSize: Math.min(currentFontSize, 48), color: 'var(--zet-text)', fontFamily: currentFont }}>Aa</span></div>
       </div>
     </DraggablePanel>}
     {showFont && <DraggablePanel title={`${t('font')} (${allFonts.length}+)`} onClose={() => setShowFont(false)} initialPosition={{ x: isMobile ? 20 : 420, y: 100 }}>
@@ -3455,52 +3497,47 @@ const Editor = () => {
         </div>
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
           <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</label>
+          {/* Presets — 1cm = 37.8px at 96 DPI */}
           <div className="grid grid-cols-3 gap-1">
             <button onClick={() => {
-              const ml = 71, mr = 71;
-              setMarginTop(71); setMarginBottom(71); setMarginLeft(ml); setMarginRight(mr);
+              const ml = 95, mr = 95; // 2.5cm
+              setMarginTop(95); setMarginBottom(95); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Normal</button>
             <button onClick={() => {
-              const ml = 36, mr = 36;
-              setMarginTop(36); setMarginBottom(36); setMarginLeft(ml); setMarginRight(mr);
+              const ml = 48, mr = 48; // 1.27cm
+              setMarginTop(48); setMarginBottom(48); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Dar</button>
             <button onClick={() => {
-              const ml = 142, mr = 142;
-              setMarginTop(142); setMarginBottom(142); setMarginLeft(ml); setMarginRight(mr);
+              const ml = 189, mr = 189; // 5cm
+              setMarginTop(189); setMarginBottom(189); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Geniş</button>
             <button onClick={() => {
-              // Senaryo Modu: sol 3.8cm=108px, üst/alt 2.5cm=71px, sağ 2.5cm=71px + Courier 12pt
-              const ml = 108, mr = 71, mt = 71, mb = 71;
+              // Senaryo: sol 3.8cm=144px, üst/alt 2.5cm=95px, sağ 2.5cm=95px, Courier 12pt
+              const ml = 144, mr = 95, mt = 95, mb = 95;
               setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
               setCurrentFont('Courier New'); setCurrentFontSize(16);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w, fontFamily: 'Courier New', fontSize: 16 } : el));
-              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Senaryo</button>
             <button onClick={() => {
-              // Akademik (APA/MLA): sol 3.2cm=91px, üst/alt 2.5cm=71px
-              const ml = 91, mr = 71, mt = 71, mb = 71;
+              // Akademik APA/MLA: sol 3.2cm=121px, üst/alt 2.5cm=95px
+              const ml = 121, mr = 95, mt = 95, mb = 95;
               setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Akademik</button>
             <button onClick={() => {
-              // Kitap: üst/alt 2cm=57px, sol 3cm=85px, sağ 2.5cm=71px
-              const ml = 85, mr = 71, mt = 57, mb = 57;
+              // Kitap: üst/alt 2cm=76px, sol 3cm=113px, sağ 2.5cm=95px
+              const ml = 113, mr = 95, mt = 76, mb = 76;
               setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
               const w = pageSize.width - ml - mr;
               setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-              setDocument(prev => { if (!prev?.pages) return prev; return { ...prev, pages: prev.pages.map((page, idx) => { if (idx === currentPage) return page; return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el) }; }) }; });
             }} className="zet-btn text-xs py-1.5">Kitap</button>
           </div>
         </div>
@@ -4149,6 +4186,26 @@ const Editor = () => {
             eraserDragMode={eraserDragMode}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
         </div>
+
+        {/* Multi-select Alignment Toolbar */}
+        {selectedElements.length > 1 && (
+          <div className="flex-shrink-0 border-t px-2 py-1 flex items-center gap-1 overflow-x-auto flex-wrap" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
+            <span className="text-xs mr-1 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}>{selectedElements.length} seçili</span>
+            {[
+              { key: 'left',     label: '⇤ Sol' },
+              { key: 'center-h', label: '↔ Orta' },
+              { key: 'right',    label: '⇥ Sağ' },
+              { key: 'top',      label: '⇡ Üst' },
+              { key: 'center-v', label: '↕ Orta' },
+              { key: 'bottom',   label: '⇣ Alt' },
+              { key: 'dist-h',   label: '|⇔| Y.Dağıt' },
+              { key: 'dist-v',   label: '⇕ D.Dağıt' },
+            ].map(({ key, label }) => (
+              <button key={key} onClick={() => alignElements(key)} className="tool-btn text-xs px-2 h-7 flex-shrink-0" style={{ fontSize: 11 }}>{label}</button>
+            ))}
+            <button onClick={() => { setSelectedElements([]); setSelectedElement(null); }} className="tool-btn text-xs px-2 h-7 flex-shrink-0 ml-1" style={{ color: 'var(--zet-text-muted)' }}>✕ Temizle</button>
+          </div>
+        )}
 
         {/* Fast Select Bar */}
         {fastSelectTools.length > 0 && (

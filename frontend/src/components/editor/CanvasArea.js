@@ -162,14 +162,14 @@ const ShapeRenderer = ({ el }) => {
     'bubble-left': <path d="M90,10 Q90,5 85,5 L15,5 Q10,5 10,10 L10,65 Q10,70 15,70 L58,70 L74,90 L69,70 L85,70 Q90,70 90,65 Z" fill={svgFill} />,
     'diamond-flow':<polygon points="50,5 95,50 50,95 5,50" fill={svgFill} />,
     'oval':        <ellipse cx="50" cy="50" rx="48" ry="32" fill={svgFill} />,
-    'cylinder':    <><path d="M10,22 Q10,8 50,8 Q90,8 90,22 L90,78 Q90,92 50,92 Q10,92 10,78 Z" fill={svgFill} /><ellipse cx="50" cy="22" rx="40" ry="13" fill="rgba(0,0,0,0.2)" /></>,
+    'cylinder':    <><ellipse cx="50" cy="18" rx="40" ry="12" fill={svgFill} /><rect x="10" y="18" width="80" height="64" fill={svgFill} /><ellipse cx="50" cy="82" rx="40" ry="12" fill={svgFill} /><ellipse cx="50" cy="18" rx="40" ry="12" fill="rgba(255,255,255,0.18)" /></>,
     'math-sum':    <text x="50" y="78" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>∑</text>,
     'math-pi':     <text x="50" y="80" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>π</text>,
     'math-sqrt':   <text x="50" y="80" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>√</text>,
     'math-inf':    <text x="50" y="70" textAnchor="middle" fontSize="72" fontFamily="serif" fill={svgFill}>∞</text>,
     'math-int':    <text x="50" y="80" textAnchor="middle" fontSize="80" fontFamily="serif" fill={svgFill}>∫</text>,
-    'bracket-sq':  <text x="50" y="82" textAnchor="middle" fontSize="90" fontFamily="serif" fontWeight="bold" fill={svgFill}>[ ]</text>,
-    'brace-curly': <text x="50" y="82" textAnchor="middle" fontSize="90" fontFamily="serif" fontWeight="bold" fill={svgFill}>{"{ }"}</text>,
+    'bracket-sq':  <><path d="M38,8 L24,8 L24,92 L38,92" fill="none" stroke={svgFill} strokeWidth="7" strokeLinecap="square" /><path d="M62,8 L76,8 L76,92 L62,92" fill="none" stroke={svgFill} strokeWidth="7" strokeLinecap="square" /></>,
+    'brace-curly': <><path d="M48,8 Q34,8 34,22 L34,42 Q34,50 22,50 Q34,50 34,58 L34,78 Q34,92 48,92" fill="none" stroke={svgFill} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /><path d="M52,8 Q66,8 66,22 L66,42 Q66,50 78,50 Q66,50 66,58 L66,78 Q66,92 52,92" fill="none" stroke={svgFill} strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" /></>,
   };
 
   if (svgShapes[el.shapeType]) {
@@ -1123,6 +1123,7 @@ export const CanvasArea = ({
 
   return (
     <div ref={canvasContainerRef} data-testid="canvas-container" className="h-full overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+      <style>{`[contenteditable]::selection { background: rgba(76,168,173,0.35); } [contenteditable] *::selection { background: rgba(76,168,173,0.35); }`}</style>
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
           <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
