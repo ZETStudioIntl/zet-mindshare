@@ -451,6 +451,7 @@ export const CanvasArea = ({
   const [penAnchors, setPenAnchors] = useState([]); // [{x,y,hx,hy}] bezier anchors
   const penDragRef = useRef(null); // tracks drag state for handle creation
   const cropWasDraggedRef = useRef(false); // tracks if a crop handle was dragged this gesture
+  const activeDragRef = useRef(null); // sync mirror of dragging — avoids async state race on touchmove
   const [penHandlePreview, setPenHandlePreview] = useState(null); // {x,y,hx,hy}
   const [cropTarget, setCropTarget] = useState(null);
   const [cropRect, setCropRect] = useState(null);
@@ -858,6 +859,7 @@ export const CanvasArea = ({
         setSelectedElement(hitEl.id);
         setSelectedElements([hitEl.id]);
         setDragging(hitEl.id);
+        activeDragRef.current = hitEl.id;
         setDragOffset({ x: x - hitEl.x, y: y - hitEl.y });
       } else if (!hitEl) {
         setSelectedElement(null);
@@ -1116,7 +1118,7 @@ export const CanvasArea = ({
     cropWasDraggedRef.current = false;
     setCropDragging(false); setCropStart(null); setCropHandle(null);
     setIsPanning(false); panStartRef.current = null;
-    setDragging(null); setResizing(null);
+    setDragging(null); activeDragRef.current = null; setResizing(null);
     setSnapIndicator(null);
   }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
@@ -1232,7 +1234,7 @@ export const CanvasArea = ({
                 lastTouchDistRef.current = d; return;
               }
               if (['draw', 'pen', 'eraser'].includes(activeTool)) { e.stopPropagation(); handleMouseMove(e, idx); return; }
-              if (activeTool === 'hand') { if (dragging || resizing) { e.preventDefault(); handleMouseMove(e, idx); } return; }
+              if (activeTool === 'hand') { if (dragging || resizing || activeDragRef.current) { e.preventDefault(); handleMouseMove(e, idx); } return; }
               handleMouseMove(e, idx);
             }}
             onTouchEnd={(e) => {
