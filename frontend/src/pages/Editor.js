@@ -5060,4 +5060,28 @@ const Editor = () => {
   );
 };
 
-export default Editor;
+class EditorErrorBoundary extends React.Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(err) { return { error: err }; }
+  componentDidCatch(err, info) { console.error('Editor crash:', err, info); }
+  render() {
+    if (this.state.error) {
+      return (
+        <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f0f1a', color: '#ef4444', padding: 32 }}>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Editor crashed</div>
+          <pre style={{ background: '#1a1a2e', color: '#fca5a5', padding: 16, borderRadius: 8, fontSize: 12, maxWidth: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{String(this.state.error)}</pre>
+          <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: '8px 24px', background: '#4ca8ad', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer' }}>Reload</button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
+const EditorWithBoundary = () => (
+  <EditorErrorBoundary>
+    <Editor />
+  </EditorErrorBoundary>
+);
+
+export default EditorWithBoundary;
