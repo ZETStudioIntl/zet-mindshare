@@ -16,10 +16,6 @@ export const SHAPE_LIST = [
   { id: 'oval', label: 'Oval', group: 'Temel' },
   // Oklar
   { id: 'arrow', label: '→ Ok', group: 'Oklar' },
-  { id: 'arrow-right', label: '→ Sağ', group: 'Oklar' },
-  { id: 'arrow-left', label: '← Sol', group: 'Oklar' },
-  { id: 'arrow-up', label: '↑ Üst', group: 'Oklar' },
-  { id: 'arrow-down', label: '↓ Alt', group: 'Oklar' },
   { id: 'arrow-double', label: '↔ Çift', group: 'Oklar' },
   // Yıldızlar
   { id: 'star', label: '★ 5pt', group: 'Yıldız' },
@@ -32,9 +28,6 @@ export const SHAPE_LIST = [
   // Akış şeması
   { id: 'diamond-flow', label: '◆ Karar', group: 'Akış' },
   { id: 'cylinder', label: '⬤ DB', group: 'Akış' },
-  // Parantezler
-  { id: 'bracket-sq', label: '[ ] Köşeli', group: 'Parantez' },
-  { id: 'brace-curly', label: '{ } Süslü', group: 'Parantez' },
 ];
 
 export const PUNCTUATION_LIST = [

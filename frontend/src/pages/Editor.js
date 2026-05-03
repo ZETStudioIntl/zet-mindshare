@@ -983,7 +983,7 @@ const Editor = () => {
       sel.removeAllRanges();
       sel.addRange(range);
 
-      const span = document.createElement('span');
+      const span = window.document.createElement('span');
       span.setAttribute('style', styleStr);
       Object.entries(attributes).forEach(([k, v]) => span.setAttribute(k, v));
 
@@ -2642,22 +2642,22 @@ const Editor = () => {
         // Escape HTML entities in selected text for safe insertion
         const esc = (t) => t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
         switch (type) {
-          case 'bold':          document.execCommand('bold', false, null); break;
-          case 'italic':        document.execCommand('italic', false, null); break;
-          case 'underline':     document.execCommand('underline', false, null); break;
-          case 'strikethrough': document.execCommand('strikeThrough', false, null); break;
-          case 'fontSize':      document.execCommand('insertHTML', false, `<span style="font-size:${value}px">${esc(selText)}</span>`); break;
-          case 'fontFamily':    document.execCommand('insertHTML', false, `<span style="font-family:'${value}'">${esc(selText)}</span>`); break;
-          case 'lineHeight':    document.execCommand('insertHTML', false, `<span style="line-height:${value}">${esc(selText)}</span>`); break;
+          case 'bold':          window.document.execCommand('bold', false, null); break;
+          case 'italic':        window.document.execCommand('italic', false, null); break;
+          case 'underline':     window.document.execCommand('underline', false, null); break;
+          case 'strikethrough': window.document.execCommand('strikeThrough', false, null); break;
+          case 'fontSize':      window.document.execCommand('insertHTML', false, `<span style="font-size:${value}px">${esc(selText)}</span>`); break;
+          case 'fontFamily':    window.document.execCommand('insertHTML', false, `<span style="font-family:'${value}'">${esc(selText)}</span>`); break;
+          case 'lineHeight':    window.document.execCommand('insertHTML', false, `<span style="line-height:${value}">${esc(selText)}</span>`); break;
           default: break;
         }
       } else {
         // ── Cursor only: set format for next typed characters ──
         switch (type) {
-          case 'bold':          document.execCommand('bold', false, null); break;
-          case 'italic':        document.execCommand('italic', false, null); break;
-          case 'underline':     document.execCommand('underline', false, null); break;
-          case 'strikethrough': document.execCommand('strikeThrough', false, null); break;
+          case 'bold':          window.document.execCommand('bold', false, null); break;
+          case 'italic':        window.document.execCommand('italic', false, null); break;
+          case 'underline':     window.document.execCommand('underline', false, null); break;
+          case 'strikethrough': window.document.execCommand('strikeThrough', false, null); break;
           default:
             // font/size/lineHeight with cursor only → apply to whole element
             applyTextStyle(type, value);
@@ -3313,7 +3313,7 @@ const Editor = () => {
             <button
               key={i}
               title={char}
-              onMouseDown={(e) => { e.preventDefault(); document.execCommand('insertText', false, char); }}
+              onMouseDown={(e) => { e.preventDefault(); window.document.execCommand('insertText', false, char); }}
               className="w-8 h-8 rounded font-mono text-sm flex items-center justify-center hover:bg-white/15 transition-colors"
               style={{ border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
             >

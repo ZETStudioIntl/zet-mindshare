@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useCallback, useState, memo } from 'react';
+import { SHAPE_LIST } from './Toolbox';
 import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff } from 'lucide-react';
 
 const isPointInElement = (x, y, el) => {
@@ -297,7 +298,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
         onBlur={(e) => {
           const rt = e.relatedTarget;
           // Toolbar butonuna tıklanınca blur olmasın — editingId korunur
-          if (isEditing && rt && (rt.tagName === 'BUTTON' || rt.tagName === 'SELECT' || rt.tagName === 'INPUT' || rt.getAttribute?.('role') === 'button')) {
+          if (isEditing && rt && (rt.tagName === 'BUTTON' || rt.tagName === 'SELECT' || rt.tagName === 'INPUT' || rt.getAttribute?.('role') === 'button' || rt.closest?.('button, [role="button"]'))) {
             setTimeout(() => { if (ref.current) ref.current.focus(); }, 0);
             return;
           }
@@ -666,7 +667,7 @@ export const CanvasArea = ({
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
       };
       const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
-    } else if (['triangle', 'square', 'circle', 'star', 'ring', 'hexagon', 'diamond', 'pentagon', 'heart', 'arrow', 'parallelogram'].includes(activeTool)) {
+    } else if (SHAPE_LIST.some(s => s.id === activeTool)) {
       const shapeEl = { id: `el_${Date.now()}`, type: 'shape', shapeType: activeTool, x: x - 40, y: y - 40, width: 80, height: 80, fill: currentColor, image: null };
       if (useGradient && gradientStart && gradientEnd) { shapeEl.gradientStart = gradientStart; shapeEl.gradientEnd = gradientEnd; }
       const u = [...canvasElements, shapeEl];
@@ -687,18 +688,7 @@ export const CanvasArea = ({
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
       if (cl) { setSelectedElement(cl.id); setSelectedVector(null); if (cl.type === 'text') setEditingId(cl.id); if (onElementSelect) onElementSelect(cl); }
       else {
-        // Empty area clicked - create new text at cursor Y, margin-aligned X (Word-like)
         setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null);
-        const { x: colX2, width: colWidth2 } = colSnap(x);
-        const ne = {
-          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: colX2, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: colWidth2,
-          lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
-          bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
-          gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
-        };
-        const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
       }
     } else if (activeTool === 'cut') {
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
@@ -708,7 +698,7 @@ export const CanvasArea = ({
       // Skip if this was a drag (smooth anchor already committed in mouseUp)
       if (penDragRef.current?.wasDrag) { penDragRef.current = null; return; }
       // Auto-close: if near first point, close the path
-      if (penAnchors.length > 2 && dist({ x, y }, penAnchors[0]) < 15 / zoom) {
+      if (penAnchors.length > 2 && dist({ x, y }, penAnchors[0]) < 25 / zoom) {
         const newPath = {
           id: `vec_${Date.now()}`,
           anchors: penAnchors,
@@ -733,17 +723,6 @@ export const CanvasArea = ({
       else if (vIdx !== -1) { setSelectedVector(vIdx); setSelectedVectors([vIdx]); }
       else {
         setSelectedElement(null); setSelectedElements([]); setSelectedVector(null); setSelectedVectors([]);
-        // Empty area: create new text element at cursor Y, margin-aligned (Word-like)
-        const { x: colX3, width: colWidth3 } = colSnap(x);
-        const ne = {
-          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
-          x: colX3, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
-          fontFamily: currentFont, color: currentColor, width: colWidth3,
-          lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
-          bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
-          gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
-        };
-        const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
       }
     } else if (activeTool === 'zoom') {
       // Zoom tool - just set active, mouse move handles position
@@ -1202,7 +1181,7 @@ export const CanvasArea = ({
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
           <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
-            className={`shadow-xl relative select-none transition-all duration-200 ${idx === currentPage ? 'ring-2' : 'opacity-70 hover:opacity-90'}`}
+            className={`shadow-xl relative select-none transition-all duration-200 ${idx === currentPage ? 'ring-2' : 'ring-1 ring-white/20'}`}
             style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'manipulation' : (['draw', 'pen', 'eraser'].includes(activeTool) ? 'none' : 'pan-y') }}
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
