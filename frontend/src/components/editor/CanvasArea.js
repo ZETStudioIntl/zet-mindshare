@@ -156,7 +156,7 @@ const ShapeRenderer = ({ el }) => {
     'arrow-up':    <path d="M35,90 L35,45 L15,45 L50,5 L85,45 L65,45 L65,90 Z" fill={svgFill} />,
     'arrow-down':  <path d="M35,10 L35,55 L15,55 L50,95 L85,55 L65,55 L65,10 Z" fill={svgFill} />,
     'arrow-double':<path d="M5,50 L22,20 L22,37 L78,37 L78,20 L95,50 L78,80 L78,63 L22,63 L22,80 Z" fill={svgFill} />,
-    'star3':       <polygon points="50,5 61,40 97,40 68,60 79,95 50,73 21,95 32,60 3,40 39,40" fill={svgFill} />,
+    'star3':       <polygon points="62,3 32,50 54,50 38,97 68,50 46,50" fill={svgFill} />,
     'star4':       <polygon points="50,5 57,43 95,50 57,57 50,95 43,57 5,50 43,43" fill={svgFill} />,
     'star6':       <polygon points="50,3 61,28 90,22 74,46 90,70 61,64 50,90 39,64 10,70 26,46 10,22 39,28" fill={svgFill} />,
     'bubble':      <path d="M10,10 Q10,5 15,5 L85,5 Q90,5 90,10 L90,65 Q90,70 85,70 L42,70 L26,90 L31,70 L15,70 Q10,70 10,65 Z" fill={svgFill} />,
@@ -244,7 +244,13 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   const handleRemoveFormatting = useCallback(() => {
     let html = el.htmlContent || el.content || '';
     if (removeTarget === 'redact') {
-      html = html.replace(/<span[^>]*data-redacted="true"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
+      // Restore original text from base64-encoded data-original attribute
+      html = html.replace(/<span([^>]*)data-redacted="true"([^>]*)>([\s\S]*?)<\/span>/gi, (match, pre, post) => {
+        const attrs = pre + post;
+        const m = attrs.match(/data-original="([^"]*)"/);
+        if (m) { try { return decodeURIComponent(escape(atob(m[1]))); } catch { return ''; } }
+        return ''; // old-style span with no data-original → remove
+      });
     } else if (removeTarget === 'highlight') {
       html = html.replace(/<span[^>]*data-highlight="true"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
     }
@@ -1289,7 +1295,7 @@ export const CanvasArea = ({
               </div>
             )}
             
-            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible' }}>
+            <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: cropTarget && idx === currentPage ? 20 : 0 }}>
               {/* Highlight paths */}
               {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => (
                 <path key={`h${i}`} d={`M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100} fill="none" strokeLinecap="butt" />

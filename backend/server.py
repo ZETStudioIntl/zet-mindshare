@@ -3718,7 +3718,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
             imagen_resp = await asyncio.get_event_loop().run_in_executor(
                 None,
                 lambda: client.models.generate_images(
-                    model="imagen-3.0-generate-002",
+                    model="imagen-3.0-generate-001",
                     prompt=full_prompt,
                     config=_gtypes.GenerateImagesConfig(
                         number_of_images=1,

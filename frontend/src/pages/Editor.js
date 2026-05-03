@@ -1020,9 +1020,36 @@ const Editor = () => {
 
   // === REDACT (Security) Tool ===
   const applyRedaction = useCallback(() => {
-    if (wrapSelection('background:#000;color:#000;border-radius:2px;user-select:none;cursor:pointer;', { 'data-redacted': 'true' })) return;
-    alert('Lütfen önce sansürlemek istediğiniz metni seçin.');
-  }, [wrapSelection]);
+    if (!savedSelectionRef.current) { alert('Lütfen önce sansürlemek istediğiniz metni seçin.'); return; }
+    const { elementId, range, editableDiv, isCollapsed, text } = savedSelectionRef.current;
+    if (isCollapsed || !range || !elementId || !editableDiv || !text?.trim()) {
+      alert('Lütfen önce sansürlemek istediğiniz metni seçin.'); return;
+    }
+    try {
+      editableDiv.focus();
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      // Encode original text as base64 — not visible in DOM, restorable on demand
+      const encoded = btoa(unescape(encodeURIComponent(text)));
+      const span = window.document.createElement('span');
+      span.setAttribute('data-redacted', 'true');
+      span.setAttribute('data-original', encoded);
+      // Visible as black censor bar; text itself is gone from DOM
+      span.setAttribute('style', `background:#000;color:#000;border-radius:2px;user-select:none;display:inline-block;min-width:${Math.max(1, Math.round(text.length * 0.55))}em;`);
+      span.textContent = ' ';
+      try { range.surroundContents(span); } catch { range.deleteContents(); range.insertNode(span); }
+      const newHtml = editableDiv.innerHTML;
+      sel.removeAllRanges();
+      savedSelectionRef.current = null;
+      setCanvasElements(prev => prev.map(e =>
+        e.id === elementId ? { ...e, htmlContent: newHtml, content: newHtml.replace(/<[^>]*>/g, '') } : e
+      ));
+    } catch (err) {
+      console.warn('applyRedaction failed:', err);
+      alert('Lütfen önce sansürlemek istediğiniz metni seçin.');
+    }
+  }, [savedSelectionRef, setCanvasElements]);
 
   // === PHOTO EDIT ===
   // === BULLET/NUMBERED LIST ===
@@ -3313,7 +3340,21 @@ const Editor = () => {
             <button
               key={i}
               title={char}
-              onMouseDown={(e) => { e.preventDefault(); window.document.execCommand('insertText', false, char); }}
+              onMouseDown={(e) => {
+                e.preventDefault();
+                const sel = window.getSelection();
+                if (sel && sel.rangeCount > 0) {
+                  const range = sel.getRangeAt(0);
+                  range.deleteContents();
+                  const tn = window.document.createTextNode(char);
+                  range.insertNode(tn);
+                  range.setStartAfter(tn);
+                  range.collapse(true);
+                  sel.removeAllRanges();
+                  sel.addRange(range);
+                  tn.parentElement?.closest('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+              }}
               className="w-8 h-8 rounded font-mono text-sm flex items-center justify-center hover:bg-white/15 transition-colors"
               style={{ border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
             >
