@@ -1096,7 +1096,7 @@ const Editor = () => {
     );
     setCanvasElements(updated);
     handleSaveHistory(updated);
-  }, [selectedElement, canvasElements, handleSaveHistory, currentPage, currentFontSize, currentFont, currentColor, currentLineHeight, pageMargins, pageSize]);
+  }, [selectedElement, canvasElements, handleSaveHistory, currentPage, currentFontSize, currentFont, currentColor, currentLineHeight, pageSize]);
 
   // === GROUP / UNGROUP ===
   const groupElements = useCallback(() => {
