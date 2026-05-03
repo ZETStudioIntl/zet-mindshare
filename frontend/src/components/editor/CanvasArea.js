@@ -129,10 +129,11 @@ const ShapeRenderer = ({ el }) => {
     return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: `4px solid ${el.fill || '#000'}`, backgroundColor: 'transparent', backgroundImage: hasImage ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' }} />;
   }
   if (el.shapeType === 'heart') {
-    const fill = el.fill || '#000';
+    const heartFill = hasGradient ? `url(#sg-heart-${el.id})` : (el.fill || '#000');
     return (
       <svg viewBox="0 0 100 90" style={{ width: '100%', height: '100%' }}>
-        <path d="M50,80 L12,42 C2,28 12,10 30,14 C38,16 45,24 50,32 C55,24 62,16 70,14 C88,10 98,28 88,42 Z" fill={fill} />
+        {hasGradient && <defs><linearGradient id={`sg-heart-${el.id}`} x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor={el.gradientStart} /><stop offset="100%" stopColor={el.gradientEnd} /></linearGradient></defs>}
+        <path d="M50,80 L12,42 C2,28 12,10 30,14 C38,16 45,24 50,32 C55,24 62,16 70,14 C88,10 98,28 88,42 Z" fill={heartFill} />
       </svg>
     );
   }
@@ -567,6 +568,16 @@ export const CanvasArea = ({
     return () => clearTimeout(timer);
   }, [currentPage, canvasElements]); // eslint-disable-line react-hooks/exhaustive-deps
 
+
+  // Global mouseup/mousemove so drag doesn't stop when cursor briefly leaves the page div
+  const handleMouseUpRef = useRef(null);
+  useEffect(() => { handleMouseUpRef.current = handleMouseUp; });
+  useEffect(() => {
+    if (!dragging && !resizing && draggingVector === null) return;
+    const onGlobalUp = () => handleMouseUpRef.current?.();
+    window.addEventListener('mouseup', onGlobalUp);
+    return () => window.removeEventListener('mouseup', onGlobalUp);
+  }, [dragging, resizing, draggingVector]);
 
   const getCoords = useCallback((e, el) => {
     const r = el.getBoundingClientRect();
@@ -1191,7 +1202,7 @@ export const CanvasArea = ({
             style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'manipulation' : (['draw', 'pen', 'eraser'].includes(activeTool) ? 'none' : 'pan-y') }}
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
-            onMouseUp={handleMouseUp} onMouseLeave={handleMouseUp}
+            onMouseUp={handleMouseUp} onMouseLeave={dragging || resizing || draggingVector !== null ? undefined : handleMouseUp}
             onContextMenu={(e) => {
               // Allow context menu on text elements for copy/paste
               const rect = e.currentTarget.getBoundingClientRect();
