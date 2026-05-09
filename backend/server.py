@@ -3710,37 +3710,18 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
 
     client = google_genai.Client(api_key=imagen_key)
 
-    # No reference image → Imagen 3 (text-to-image); Reference image → Gemini flash multimodal
+    # Both paths use Gemini 2.0 Flash image generation — no separate Imagen API access needed
+    client_alpha = google_genai.Client(api_key=gemini_key or imagen_key, http_options={"api_version": "v1alpha"})
     try:
         if not req.reference_image:
-            # Imagen 3 — generate_images API (text-to-image, no reference support)
-            from google.genai import types as _gtypes
-            imagen_resp = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: client.models.generate_images(
-                    model="imagen-3.0-generate-001",
-                    prompt=full_prompt,
-                    config=_gtypes.GenerateImagesConfig(
-                        number_of_images=1,
-                        aspect_ratio=req.aspect_ratio or "1:1",
-                        safety_filter_level="block_only_high",
-                    )
-                )
+            # Text-to-image
+            resp = await gemini_generate(
+                client_alpha, "gemini-2.0-flash-exp-image-generation",
+                [genai_types.Content(role="user", parts=[genai_types.Part(text=full_prompt)])],
+                genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
-            text_out = ""
-            images = []
-            if imagen_resp.generated_images:
-                raw = imagen_resp.generated_images[0].image.image_bytes
-                encoded = base64.b64encode(raw).decode() if isinstance(raw, bytes) else raw
-                images.append({"mime_type": "image/png", "data": encoded})
-            if not images:
-                today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-                await db.usage.update_one({"user_id": user.user_id, "date": today}, {"$inc": {"credits_used": -credit_result['cost']}}, upsert=True)
-                raise HTTPException(status_code=500, detail="Görsel oluşturulamadı, kredi iade edildi.")
-            return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
         else:
-            # Gemini flash for reference-guided generation — requires v1alpha for response_modalities
-            client_alpha = google_genai.Client(api_key=gemini_key or imagen_key, http_options={"api_version": "v1alpha"})
+            # Reference-guided generation
             img_b64 = req.reference_image
             mime_type = "image/png"
             if "," in img_b64:
@@ -3752,7 +3733,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 genai_types.Part(text=full_prompt),
             ]
             resp = await gemini_generate(
-                client_alpha, "gemini-2.0-flash",
+                client_alpha, "gemini-2.0-flash-exp-image-generation",
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )

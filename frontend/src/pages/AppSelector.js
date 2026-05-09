@@ -66,9 +66,9 @@ const AppSelector = () => {
       }}
     >
       <div style={{ textAlign: 'center', marginBottom: 56 }}>
-        <img src="/logo-cs.svg" alt="ZET Creative Station" style={{ height: 64, width: 64, margin: '0 auto 16px' }} />
+        <img src="/logo-cs.svg" alt="ZET Portal" style={{ height: 64, width: 64, margin: '0 auto 16px' }} />
         <h1 style={{ color: '#fff', fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px', marginBottom: 10 }}>
-          ZET Creative Station
+          ZET Portal
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15 }}>
           Hangi uygulamayı kullanmak istiyorsunuz?
