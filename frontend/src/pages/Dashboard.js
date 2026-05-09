@@ -448,7 +448,8 @@ const Dashboard = () => {
           const res = await axios.post(`${API}/checkout/lemonsqueezy`, { plan: planId, billing_cycle: billingCycle }, { withCredentials: true });
           window.location.href = res.data.checkout_url;
         } catch (err) {
-          const msg = err?.response?.data?.detail || 'Ödeme sayfası açılamadı';
+          const msg = err?.response?.data?.detail || err?.message || 'Ödeme sayfası açılamadı';
+          alert('HATA: ' + msg + '\nStatus: ' + (err?.response?.status || 'network error'));
           showToast(msg, 'error');
           setSubscribing(false);
         }
