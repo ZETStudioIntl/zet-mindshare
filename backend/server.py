@@ -448,10 +448,9 @@ LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
 LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
 LS_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "")
 LS_VARIANTS: Dict[str, Dict[str, str]] = {
-    "plus":             {"monthly": os.getenv("LS_VARIANT_PLUS_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_PLUS_YEARLY", "")},
-    "pro":              {"monthly": os.getenv("LS_VARIANT_PRO_MONTHLY", ""),   "yearly": os.getenv("LS_VARIANT_PRO_YEARLY", "")},
-    "creative_station": {"monthly": os.getenv("LS_VARIANT_CS_MONTHLY", ""),    "yearly": os.getenv("LS_VARIANT_CS_YEARLY", "")},
-    "ultra":            {"monthly": os.getenv("LS_VARIANT_ULTRA_MONTHLY", ""), "yearly": os.getenv("LS_VARIANT_ULTRA_YEARLY", "")},
+    "plus":             {"monthly": os.getenv("LS_VARIANT_PLUS_MONTHLY", ""), "yearly": os.getenv("LS_VARIANT_PLUS_YEARLY", "")},
+    "pro":              {"monthly": os.getenv("LS_VARIANT_PRO_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_PRO_YEARLY", "")},
+    "creative_station": {"monthly": os.getenv("LS_VARIANT_CS_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_CS_YEARLY", "")},
 }
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
@@ -943,7 +942,7 @@ async def admin_list_users(user: User = Depends(get_current_user)):
 
 class AdminUserUpdate(BaseModel):
     verified_type: Optional[str] = None   # "red", "gold", "blue", "" = kaldır
-    subscription_plan: Optional[str] = None  # "free", "pro", "ultra", "creative_station", "entertainment_pocket"
+    subscription_plan: Optional[str] = None  # "free", "plus", "pro", "creative_station", "entertainment_pocket"
 
 @api_router.patch("/admin/users/{user_id}")
 async def admin_update_user(user_id: str, body: AdminUserUpdate, user: User = Depends(get_current_user)):
@@ -2242,7 +2241,7 @@ async def check_subscription_renewals():
 SP_PLAN_COSTS = {
     'plus': 10000,
     'pro': 30000,
-    'ultra': 50000,
+    'creative_station': 50000,
 }
 
 class SPPurchaseRequest(BaseModel):
@@ -2256,7 +2255,7 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
     user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "quest_xp": 1, "subscription": 1})
     current_sp = user_data.get("quest_xp", 0) if user_data else 0
     current_plan = user_data.get("subscription", "free") if user_data else "free"
-    plan_rank = {"free": 0, "plus": 1, "pro": 2, "ultra": 3}
+    plan_rank = {"free": 0, "plus": 1, "pro": 2, "creative_station": 3}
     if plan_rank.get(req.plan, 0) <= plan_rank.get(current_plan, 0):
         raise HTTPException(status_code=400, detail="Zaten bu plan veya daha ust bir plana sahipsiniz")
     if current_sp < cost:
@@ -2586,7 +2585,7 @@ PLAN_LIMITS = {
         'page_color': True,
         'charts': True,
     },
-    'ultra': {
+    'creative_station': {
         'daily_credits': 1200,
         'judge_enabled': True,
         'judge_deep': True,
@@ -3336,8 +3335,8 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     user_data = await db.users.find_one({"user_id": user.user_id})
     plan = user_data.get("subscription", "free") if user_data else "free"
 
-    if plan not in ("pro", "ultra"):
-        raise HTTPException(status_code=403, detail="Derin Analiz sadece Pro ve Ultra aboneler için kullanılabilir.")
+    if plan not in ("pro", "creative_station"):
+        raise HTTPException(status_code=403, detail="Derin Analiz sadece Pro ve Creative Station aboneler için kullanılabilir.")
 
     credit_result = await spend_credits(user.user_id, "deep_analysis")
     if not credit_result['success']:

@@ -239,7 +239,7 @@ const Dashboard = () => {
   };
 
   // Fast select limits based on subscription
-  const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, ultra: 8 };
+  const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, creative_station: 8 };
   const fastSelectLimit = FAST_SELECT_LIMITS[userSubscription] || 3;
 
   // Enforce FastSelect limit when plan changes (downgrade)
@@ -254,7 +254,7 @@ const Dashboard = () => {
   }, [userSubscription, fastSelectTools.length]);
 
   // Subscription plans data - ordered from biggest to smallest
-  const ZP_PLAN_COSTS = { plus: 10000, pro: 30000, ultra: 50000 };
+  const ZP_PLAN_COSTS = { plus: 10000, pro: 30000, creative_station: 50000 };
   const SUBSCRIPTION_PLANS = [
     {
       id: 'plus',
@@ -296,7 +296,7 @@ const Dashboard = () => {
       recommended: true
     },
     {
-      id: 'ultra',
+      id: 'creative_station',
       name: 'Creative Station',
       monthlyPrice: 40,
       yearlyPrice: 400,
@@ -1690,8 +1690,8 @@ MATCHES:[1,3,5]`;
                     <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>{t('plan')}</p>
                     <div className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)' }}>
                       <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan')}</span>
-                      <span className="font-bold text-lg" style={{ color: userSubscription === 'ultra' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
-                        {userSubscription === 'ultra' ? 'ZET Creative Station' : userSubscription === 'free' ? 'Ücretsiz' : userSubscription.charAt(0).toUpperCase() + userSubscription.slice(1)}
+                      <span className="font-bold text-lg" style={{ color: userSubscription === 'creative_station' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
+                        {userSubscription === 'creative_station' ? 'ZET Creative Station' : userSubscription === 'free' ? 'Ücretsiz' : userSubscription.charAt(0).toUpperCase() + userSubscription.slice(1)}
                       </span>
                     </div>
                     {userSubscription !== 'free' && (
@@ -2232,7 +2232,7 @@ MATCHES:[1,3,5]`;
               )}
 
               {settingsTab === 'primedrive' && (() => {
-                const QUOTA_MAP = { free: 1, plus: 10, pro: 30, ultra: 1024 };
+                const QUOTA_MAP = { free: 1, plus: 10, pro: 30, creative_station: 1024 };
                 const quotaGB = QUOTA_MAP[userSubscription] || 1;
                 const usedBytes = primeDriveDocs.reduce((sum, d) => sum + (d.size || 0), 0);
                 const usedGB = usedBytes / (1024 * 1024 * 1024);
@@ -2249,7 +2249,7 @@ MATCHES:[1,3,5]`;
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>Depolama Alanı</span>
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}>
-                          {userSubscription === 'ultra' ? '1 TB — Creative Station' : userSubscription === 'pro' ? '30 GB — Pro' : userSubscription === 'plus' ? '10 GB — Plus' : '1 GB — Free'}
+                          {userSubscription === 'creative_station' ? '1 TB — Creative Station' : userSubscription === 'pro' ? '30 GB — Pro' : userSubscription === 'plus' ? '10 GB — Plus' : '1 GB — Free'}
                         </span>
                       </div>
                       <div className="w-full h-3 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
@@ -2261,7 +2261,7 @@ MATCHES:[1,3,5]`;
                       </div>
                     </div>
                     {/* Shared pool badge for Creative Station */}
-                    {userSubscription === 'ultra' && (
+                    {userSubscription === 'creative_station' && (
                       <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl mb-4" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
                         <span style={{ color: '#f59e0b', fontSize: 13 }}>✦</span>
                         <span className="text-sm" style={{ color: '#f59e0b' }}>ZET Mindshare ve ZET Judge için ortak 1 TB havuz</span>
@@ -2522,7 +2522,7 @@ MATCHES:[1,3,5]`;
                                 >
                                   <option value="free">Free</option>
                                   <option value="pro">Pro</option>
-                                  <option value="ultra">Ultra</option>
+                                  <option value="plus">Plus</option>
                                   <option value="creative_station">Creative Station</option>
                                   <option value="entertainment_pocket">Entertainment Pocket</option>
                                 </select>
