@@ -16,6 +16,7 @@ import ConfirmDelete from "./pages/ConfirmDelete";
 import ConfirmEmailChange from "./pages/ConfirmEmailChange";
 import AppSelector from "./pages/AppSelector";
 import JudgeDashboard from "./pages/JudgeDashboard";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import axios from "axios";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -92,6 +93,7 @@ const AppRouter = () => {
           <JudgeDashboard />
         </ProtectedRoute>
       } />
+      <Route path="/payment/success" element={<PaymentSuccess />} />
       <Route path="/auth-callback" element={<AuthCallback />} />
       <Route path="/shared/:shareId" element={<SharedView />} />
       <Route path="/confirm-delete" element={<ConfirmDelete />} />

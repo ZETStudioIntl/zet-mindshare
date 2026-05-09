@@ -14,6 +14,8 @@ import secrets
 from datetime import datetime, timezone, timedelta, date
 import base64
 import asyncio
+import hmac
+import hashlib
 import resend
 import json
 from dateutil.relativedelta import relativedelta
@@ -274,6 +276,10 @@ class SubscriptionCreate(BaseModel):
     payment_provider: str           # lemonsqueezy, stripe
     external_subscription_id: str
 
+class CheckoutRequest(BaseModel):
+    plan: str
+    billing_cycle: str = "monthly"
+
 class DocumentUpdate(BaseModel):
     title: Optional[str] = None
     subtitle: Optional[str] = None
@@ -436,6 +442,17 @@ collab_manager = CollaborationManager()
 
 resend.api_key = os.environ.get("RESEND_API_KEY")
 SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <info@zetstudiointl.com>")
+
+# ── Lemon Squeezy ─────────────────────────────────────────────────────────────
+LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
+LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
+LS_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "")
+LS_VARIANTS: Dict[str, Dict[str, str]] = {
+    "plus":             {"monthly": os.getenv("LS_VARIANT_PLUS_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_PLUS_YEARLY", "")},
+    "pro":              {"monthly": os.getenv("LS_VARIANT_PRO_MONTHLY", ""),   "yearly": os.getenv("LS_VARIANT_PRO_YEARLY", "")},
+    "creative_station": {"monthly": os.getenv("LS_VARIANT_CS_MONTHLY", ""),    "yearly": os.getenv("LS_VARIANT_CS_YEARLY", "")},
+    "ultra":            {"monthly": os.getenv("LS_VARIANT_ULTRA_MONTHLY", ""), "yearly": os.getenv("LS_VARIANT_ULTRA_YEARLY", "")},
+}
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     """Send email using Resend API"""
@@ -2117,7 +2134,7 @@ async def create_subscription(data: SubscriptionCreate, user: User = Depends(get
         <div style="background: rgba(255,255,255,0.08); padding: 16px; border-radius: 8px; margin: 20px 0;">
             <p style="margin: 4px 0; color: #4ca8ad;"><strong>Plan:</strong> {data.plan.upper()}</p>
             <p style="margin: 4px 0; color: #4ca8ad;"><strong>Dönem:</strong> {cycle_label}</p>
-            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Bitiş:</strong> {period_end.strftime('%d.%m.%Y')}</p>
+            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Bitiş:</strong> {next_renewal.strftime('%d.%m.%Y')}</p>
         </div>
         <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">ZET Mindshare'i Aç</a>
     </div>
@@ -2250,6 +2267,193 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
         {"$set": {"quest_xp": new_sp, "subscription": req.plan, "subscription_date": datetime.now(timezone.utc).isoformat(), "cancel_pending": False}}
     )
     return {"message": f"{req.plan.upper()} planina ZP ile yukseltildi", "plan": req.plan, "remaining_sp": new_sp}
+
+# ============ LEMON SQUEEZY ============
+
+@api_router.post("/checkout/lemonsqueezy")
+async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depends(get_current_user)):
+    if not LS_API_KEY or not LS_STORE_ID:
+        raise HTTPException(status_code=503, detail="Ödeme servisi yapılandırılmamış")
+    variant_id = LS_VARIANTS.get(data.plan, {}).get(data.billing_cycle)
+    if not variant_id:
+        raise HTTPException(status_code=400, detail=f"Bu plan/dönem için Lemon Squeezy varyant ID tanımlı değil")
+
+    frontend_url = os.getenv("FRONTEND_URL", "https://zetmindshare.com")
+    payload = {
+        "data": {
+            "type": "checkouts",
+            "attributes": {
+                "checkout_options": {"dark": True, "subscription_preview": True},
+                "checkout_data": {
+                    "email": user.email,
+                    "custom": {
+                        "user_id": user.user_id,
+                        "plan": data.plan,
+                        "billing_cycle": data.billing_cycle,
+                    },
+                },
+                "product_options": {
+                    "redirect_url": f"{frontend_url}/payment/success",
+                    "receipt_link_url": f"{frontend_url}/payment/success",
+                },
+            },
+            "relationships": {
+                "store":   {"data": {"type": "stores",   "id": str(LS_STORE_ID)}},
+                "variant": {"data": {"type": "variants", "id": str(variant_id)}},
+            },
+        }
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.lemonsqueezy.com/v1/checkouts",
+            headers={
+                "Authorization": f"Bearer {LS_API_KEY}",
+                "Accept": "application/vnd.api+json",
+                "Content-Type": "application/vnd.api+json",
+            },
+            json=payload,
+            timeout=15.0,
+        )
+    if resp.status_code not in (200, 201):
+        raise HTTPException(status_code=502, detail=f"Lemon Squeezy checkout oluşturulamadı: {resp.text[:200]}")
+    checkout_url = resp.json()["data"]["attributes"]["url"]
+    return {"checkout_url": checkout_url}
+
+
+@api_router.post("/webhooks/lemonsqueezy")
+async def lemonsqueezy_webhook(request: Request):
+    raw_body = await request.body()
+
+    # Signature verification
+    if LS_WEBHOOK_SECRET:
+        sig = request.headers.get("X-Signature", "")
+        expected = hmac.new(LS_WEBHOOK_SECRET.encode(), raw_body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, sig):
+            raise HTTPException(status_code=401, detail="Invalid webhook signature")
+
+    try:
+        event = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_name = event.get("meta", {}).get("event_name", "")
+    custom    = event.get("meta", {}).get("custom_data", {}) or {}
+    obj       = event.get("data", {}).get("attributes", {}) or {}
+    ls_id     = str(event.get("data", {}).get("id", ""))
+
+    user_id      = custom.get("user_id")
+    plan         = custom.get("plan", "")
+    billing_cycle = custom.get("billing_cycle", "monthly")
+
+    if not user_id:
+        return {"ok": True, "skipped": "no user_id in custom_data"}
+
+    now = datetime.now(timezone.utc)
+
+    if event_name == "subscription_created":
+        start_date   = now.date()
+        next_renewal = compute_next_renewal(start_date, billing_cycle)
+        plan_price   = PLAN_PRICES_USD.get(plan, {}).get(billing_cycle, 0.0)
+        subscription = {
+            "plan": plan,
+            "status": "active",
+            "billing_cycle": billing_cycle,
+            "current_period_start":  now.isoformat(),
+            "current_period_end":    next_renewal.isoformat(),
+            "subscription_start_date": start_date.isoformat(),
+            "next_renewal_date":     next_renewal.isoformat(),
+            "plan_price":            plan_price,
+            "cancel_at_period_end":  False,
+            "payment_provider":      "lemonsqueezy",
+            "external_subscription_id": ls_id,
+            "created_at": now.isoformat(),
+            "updated_at": now.isoformat(),
+        }
+        user_data = await db.users.find_one_and_update(
+            {"user_id": user_id},
+            {"$set": {"subscription": subscription, "cancel_pending": False,
+                      "next_renewal_date": next_renewal.isoformat()}},
+            return_document=True,
+        )
+        if user_data:
+            cycle_label = "Aylık" if billing_cycle == "monthly" else "Yıllık"
+            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
+                <h2 style="color:#4ca8ad;">🎉 ZET Mindshare {plan.upper()} Planına Hoş Geldiniz!</h2>
+                <div style="background:rgba(255,255,255,0.08);padding:16px;border-radius:8px;margin:16px 0;">
+                    <p style="margin:4px 0;color:#4ca8ad;"><strong>Plan:</strong> {plan.upper()}</p>
+                    <p style="margin:4px 0;color:#4ca8ad;"><strong>Dönem:</strong> {cycle_label}</p>
+                    <p style="margin:4px 0;color:#4ca8ad;"><strong>Bitiş:</strong> {next_renewal.strftime('%d.%m.%Y')}</p>
+                </div>
+                <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">ZET Mindshare'i Aç</a>
+            </div>"""
+            await send_email(user_data["email"], f"🎉 ZET Mindshare {plan.upper()} Planına Hoş Geldiniz!", html)
+
+    elif event_name == "subscription_updated":
+        ls_status = obj.get("status", "active")
+        status = "active" if ls_status in ("active", "past_due") else "cancelled"
+        update: Dict[str, Any] = {
+            "subscription.status":     status,
+            "subscription.updated_at": now.isoformat(),
+        }
+        renews_at = obj.get("renews_at")
+        if renews_at:
+            try:
+                renewal = datetime.fromisoformat(renews_at.replace("Z", "+00:00")).date()
+                update["subscription.next_renewal_date"] = renewal.isoformat()
+                update["next_renewal_date"] = renewal.isoformat()
+            except Exception:
+                pass
+        await db.users.update_one({"user_id": user_id}, {"$set": update})
+
+    elif event_name == "subscription_cancelled":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "subscription.cancel_at_period_end": True,
+                "subscription.status":               "cancelled",
+                "subscription.updated_at":           now.isoformat(),
+                "cancel_pending":                    True,
+            }},
+        )
+
+    elif event_name == "subscription_expired":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"subscription": "free", "cancel_pending": False, "next_renewal_date": None}},
+        )
+
+    elif event_name == "subscription_payment_success":
+        renews_at = obj.get("renews_at")
+        if renews_at:
+            try:
+                renewal = datetime.fromisoformat(renews_at.replace("Z", "+00:00")).date()
+                next_r   = compute_next_renewal(renewal, billing_cycle)
+                ud = await db.users.find_one_and_update(
+                    {"user_id": user_id},
+                    {"$set": {
+                        "subscription.next_renewal_date": next_r.isoformat(),
+                        "subscription.updated_at":        now.isoformat(),
+                        "next_renewal_date":              next_r.isoformat(),
+                    }},
+                    return_document=True,
+                )
+                if ud:
+                    price = PLAN_PRICES_USD.get(plan, {}).get(billing_cycle, 0.0)
+                    await send_renewal_email(ud["email"], plan, renewal, price, next_r)
+            except Exception:
+                pass
+
+    elif event_name == "subscription_payment_failed":
+        ud = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+        if ud:
+            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
+                <h2 style="color:#ef4444;">⚠️ Ödeme Başarısız</h2>
+                <p>ZET Mindshare {plan.upper()} abonelik ödemesi alınamadı. Lütfen ödeme bilgilerinizi güncelleyin.</p>
+                <a href="https://zetmindshare.com" style="display:inline-block;background:#ef4444;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;margin-top:12px;">Ödeme Bilgilerini Güncelle</a>
+            </div>"""
+            await send_email(ud["email"], "⚠️ ZET Mindshare Ödeme Başarısız", html)
+
+    return {"ok": True}
 
 # ============ CREDIT PACKAGES ============
 

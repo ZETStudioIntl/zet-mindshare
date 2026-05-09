@@ -441,17 +441,17 @@ const Dashboard = () => {
     const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
     showConfirm(
       'Abonelik Onayı',
-      `${plan?.name || planId.toUpperCase()} planına abone olmak istiyor musunuz?`,
+      `${plan?.name || planId.toUpperCase()} planına abone olmak istiyor musunuz?\n\nLemon Squeezy ödeme sayfasına yönlendirileceksiniz.`,
       async () => {
         setSubscribing(true);
         try {
-          const res = await axios.post(`${API}/subscription`, { plan: planId, action: 'subscribe' }, { withCredentials: true });
-          setUserSubscription(res.data.plan);
-          showToast(`${plan?.name || planId.toUpperCase()} planına başarıyla abone oldunuz!`, 'success');
-        } catch {
-          showToast('Abonelik başarısız', 'error');
+          const res = await axios.post(`${API}/checkout/lemonsqueezy`, { plan: planId, billing_cycle: billingCycle }, { withCredentials: true });
+          window.location.href = res.data.checkout_url;
+        } catch (err) {
+          const msg = err?.response?.data?.detail || 'Ödeme sayfası açılamadı';
+          showToast(msg, 'error');
+          setSubscribing(false);
         }
-        setSubscribing(false);
       }
     );
   };
