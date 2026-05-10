@@ -446,11 +446,11 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <info@zetstudiointl
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
 LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
 LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
-LS_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "")
+LS_STORE_ID = "342968"
 LS_VARIANTS: Dict[str, Dict[str, str]] = {
-    "plus":             {"monthly": os.getenv("LS_VARIANT_PLUS_MONTHLY", ""), "yearly": os.getenv("LS_VARIANT_PLUS_YEARLY", "")},
-    "pro":              {"monthly": os.getenv("LS_VARIANT_PRO_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_PRO_YEARLY", "")},
-    "creative_station": {"monthly": os.getenv("LS_VARIANT_CS_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_CS_YEARLY", "")},
+    "plus":             {"monthly": "1041737", "yearly": "1041762"},
+    "pro":              {"monthly": "1041749", "yearly": "1041765"},
+    "creative_station": {"monthly": "1041760", "yearly": "1041829"},
 }
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
@@ -2271,11 +2271,9 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
 
 @api_router.post("/checkout/lemonsqueezy")
 async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depends(get_current_user)):
-    if not LS_API_KEY or not LS_STORE_ID:
-        missing = []
-        if not LS_API_KEY: missing.append("LEMONSQUEEZY_API_KEY")
-        if not LS_STORE_ID: missing.append("LEMONSQUEEZY_STORE_ID")
-        raise HTTPException(status_code=503, detail=f"Eksik env var: {', '.join(missing)}")
+    ls_api_key = os.environ.get("LEMONSQUEEZY_API_KEY") or LS_API_KEY
+    if not ls_api_key:
+        raise HTTPException(status_code=503, detail="LEMONSQUEEZY_API_KEY eksik")
     variant_id = LS_VARIANTS.get(data.plan, {}).get(data.billing_cycle)
     if not variant_id:
         raise HTTPException(status_code=400, detail=f"Bu plan/dönem için Lemon Squeezy varyant ID tanımlı değil")
@@ -2309,7 +2307,7 @@ async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depen
         resp = await client.post(
             "https://api.lemonsqueezy.com/v1/checkouts",
             headers={
-                "Authorization": f"Bearer {LS_API_KEY}",
+                "Authorization": f"Bearer {ls_api_key}",
                 "Accept": "application/vnd.api+json",
                 "Content-Type": "application/vnd.api+json",
             },
