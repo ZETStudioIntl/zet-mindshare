@@ -468,6 +468,7 @@ const Editor = () => {
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
   const [findResults, setFindResults] = useState([]);
+  const [findScope, setFindScope] = useState('current');
 
   // History
   const history = useCanvasHistory();
@@ -2274,7 +2275,6 @@ const Editor = () => {
   };
 
   // === FIND & REPLACE ===
-  const [findScope, setFindScope] = useState('current');
   const findInDocument = () => {
     if (!findText.trim()) return;
     const results = [];

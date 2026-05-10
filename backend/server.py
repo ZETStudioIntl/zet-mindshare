@@ -447,11 +447,11 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <info@zetstudiointl
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
 LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
 LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
-LS_STORE_ID = "342968"
+LS_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "342968")
 LS_VARIANTS: Dict[str, Dict[str, str]] = {
-    "plus":             {"monthly": "1633716", "yearly": "1633755"},
-    "pro":              {"monthly": "1633736", "yearly": "1633759"},
-    "creative_station": {"monthly": "1633753", "yearly": "1633854"},
+    "plus":             {"monthly": os.getenv("LS_VARIANT_PLUS_MONTHLY", ""), "yearly": os.getenv("LS_VARIANT_PLUS_YEARLY", "")},
+    "pro":              {"monthly": os.getenv("LS_VARIANT_PRO_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_PRO_YEARLY", "")},
+    "creative_station": {"monthly": os.getenv("LS_VARIANT_CS_MONTHLY", ""),  "yearly": os.getenv("LS_VARIANT_CS_YEARLY", "")},
 }
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
