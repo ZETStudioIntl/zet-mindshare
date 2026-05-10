@@ -448,9 +448,9 @@ LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
 LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
 LS_STORE_ID = "342968"
 LS_VARIANTS: Dict[str, Dict[str, str]] = {
-    "plus":             {"monthly": "1041737", "yearly": "1041762"},
-    "pro":              {"monthly": "1041749", "yearly": "1041765"},
-    "creative_station": {"monthly": "1041760", "yearly": "1041829"},
+    "plus":             {"monthly": "1633716", "yearly": "1633755"},
+    "pro":              {"monthly": "1633736", "yearly": "1633759"},
+    "creative_station": {"monthly": "1633753", "yearly": "1633854"},
 }
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
