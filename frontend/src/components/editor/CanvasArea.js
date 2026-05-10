@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState, memo } from 'react';
 import { SHAPE_LIST } from './Toolbox';
-import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff } from 'lucide-react';
+import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff, Edit2 } from 'lucide-react';
 
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
@@ -12,6 +12,14 @@ const isPointInElement = (x, y, el) => {
 };
 
 const dist = (a, b) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+
+const isColorDark = (hex) => {
+  const h = (hex || '#ffffff').replace('#', '').padEnd(6, '0');
+  const r = parseInt(h.slice(0, 2), 16) || 0;
+  const g = parseInt(h.slice(2, 4), 16) || 0;
+  const b = parseInt(h.slice(4, 6), 16) || 0;
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255 < 0.5;
+};
 
 const computeBezierPath = (anchors, zoom, isClosed) => {
   if (!anchors || anchors.length < 1) return '';
@@ -30,10 +38,32 @@ const computeBezierPath = (anchors, zoom, isClosed) => {
   return d;
 };
 
-// Check if point is near a pen/vector path
+const distToSegment = (px, py, ax, ay, bx, by) => {
+  const dx = bx - ax, dy = by - ay;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.sqrt((px - ax) ** 2 + (py - ay) ** 2);
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / lenSq));
+  return Math.sqrt((px - ax - t * dx) ** 2 + (py - ay - t * dy) ** 2);
+};
+
+// Check if point is near a pen/vector path — checks segments and filled polygon interior
 const isPointNearPath = (x, y, path, threshold = 15) => {
   if (!path.points || path.points.length < 2) return false;
-  return path.points.some(p => dist({ x, y }, p) < threshold);
+  const pts = path.points;
+  for (let i = 0; i < pts.length - 1; i++) {
+    if (distToSegment(x, y, pts[i].x, pts[i].y, pts[i + 1].x, pts[i + 1].y) < threshold) return true;
+  }
+  if (path.isClosed) {
+    const last = pts[pts.length - 1];
+    if (distToSegment(x, y, last.x, last.y, pts[0].x, pts[0].y) < threshold) return true;
+    let inside = false;
+    for (let i = 0, j = pts.length - 1; i < pts.length; j = i++) {
+      const xi = pts[i].x, yi = pts[i].y, xj = pts[j].x, yj = pts[j].y;
+      if (((yi > y) !== (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) inside = !inside;
+    }
+    if (inside) return true;
+  }
+  return false;
 };
 
 // Get bounding box for a path
@@ -95,14 +125,26 @@ const isVectorInLasso = (path, lasso) => {
   return corners.some(c => isPointInLasso(c, lasso));
 };
 
+const buildGradientCss = (el, defaultAngle = 135) => {
+  if (el.gradientStops?.length >= 2) {
+    const sorted = [...el.gradientStops].sort((a, b) => a.pos - b.pos);
+    return `linear-gradient(${el.gradientAngle ?? defaultAngle}deg, ${sorted.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
+  }
+  if (el.gradientStart && el.gradientEnd) {
+    return `linear-gradient(${defaultAngle}deg, ${el.gradientStart}, ${el.gradientEnd})`;
+  }
+  return null;
+};
+
 const ShapeRenderer = ({ el }) => {
-  const hasGradient = el.gradientStart && el.gradientEnd;
+  const gradientCss = buildGradientCss(el);
+  const hasGradient = !!gradientCss;
   const hasImage = !!el.image;
-  
+
   const style = { width: '100%', height: '100%' };
-  
+
   if (hasGradient && !hasImage) {
-    style.backgroundImage = `linear-gradient(135deg, ${el.gradientStart}, ${el.gradientEnd})`;
+    style.backgroundImage = gradientCss;
   } else if (hasImage) {
     style.backgroundImage = `url(${el.image})`;
     style.backgroundSize = 'cover';
@@ -122,9 +164,15 @@ const ShapeRenderer = ({ el }) => {
   };
 
   if (el.shapeType === 'circle') return <div style={{ ...style, borderRadius: '50%' }} />;
+  const svgStops = hasGradient
+    ? (el.gradientStops?.length >= 2
+        ? [...el.gradientStops].sort((a, b) => a.pos - b.pos).map(s => <stop key={s.pos} offset={`${s.pos}%`} stopColor={s.color} />)
+        : [<stop key="0" offset="0%" stopColor={el.gradientStart} />, <stop key="1" offset="100%" stopColor={el.gradientEnd} />])
+    : null;
+
   if (el.shapeType === 'ring') {
     if (hasGradient) {
-      return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '4px solid transparent', background: `linear-gradient(white, white) padding-box, linear-gradient(135deg, ${el.gradientStart}, ${el.gradientEnd}) border-box`, boxSizing: 'border-box' }} />;
+      return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: '4px solid transparent', background: `linear-gradient(white, white) padding-box, ${gradientCss} border-box`, boxSizing: 'border-box' }} />;
     }
     return <div style={{ width: '100%', height: '100%', borderRadius: '50%', border: `4px solid ${el.fill || '#000'}`, backgroundColor: 'transparent', backgroundImage: hasImage ? `url(${el.image})` : 'none', backgroundSize: 'cover', backgroundPosition: 'center', boxSizing: 'border-box' }} />;
   }
@@ -132,7 +180,7 @@ const ShapeRenderer = ({ el }) => {
     const heartFill = hasGradient ? `url(#sg-heart-${el.id})` : (el.fill || '#000');
     return (
       <svg viewBox="0 0 100 90" style={{ width: '100%', height: '100%' }}>
-        {hasGradient && <defs><linearGradient id={`sg-heart-${el.id}`} x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stopColor={el.gradientStart} /><stop offset="100%" stopColor={el.gradientEnd} /></linearGradient></defs>}
+        {hasGradient && <defs><linearGradient id={`sg-heart-${el.id}`} x1="0%" y1="0%" x2="100%" y2="100%">{svgStops}</linearGradient></defs>}
         <path d="M50,80 L12,42 C2,28 12,10 30,14 C38,16 45,24 50,32 C55,24 62,16 70,14 C88,10 98,28 88,42 Z" fill={heartFill} />
       </svg>
     );
@@ -144,8 +192,7 @@ const ShapeRenderer = ({ el }) => {
   const gradDef = hasGradient ? (
     <defs>
       <linearGradient id={`sg-${el.id}`} x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stopColor={el.gradientStart} />
-        <stop offset="100%" stopColor={el.gradientEnd} />
+        {svgStops}
       </linearGradient>
     </defs>
   ) : null;
@@ -181,7 +228,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements }) => {
+const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const [removeTarget, setRemoveTarget] = useState(null); // 'redact' | 'highlight' | null
@@ -189,6 +236,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   useEffect(() => {
     if (isEditing && ref.current) {
       if (!prevEditingRef.current) {
+        // Entering edit mode — load content into DOM
         const html = el.htmlContent || (el.content ? el.content.replace(/\n/g, '<br>') : '');
         ref.current.innerHTML = html;
         setRemoveTarget(null);
@@ -196,14 +244,39 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
       ref.current.focus();
       const r = window.document.createRange(); const s = window.getSelection();
       r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
+    } else if (!isEditing && prevEditingRef.current && ref.current) {
+      // Exiting edit mode — commit BEFORE React resets dangerouslySetInnerHTML with old content
+      onCommit(el.id, ref.current.innerHTML, false);
     }
     prevEditingRef.current = isEditing;
-  }, [isEditing, el.htmlContent, el.content]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEditing]);
   
   const checkOverflow = useCallback(() => {
     if (!ref.current || !pageHeight) return;
     const margins = pageMargins || {};
-    const availableH = (pageHeight - el.y - (margins.bottom || 40)) * zoom;
+    const ml = margins.left || 40;
+    const mr = margins.right || 40;
+    const textLeft = el.x;
+    const textRight = el.x + (el.width || (pageWidth - ml - mr));
+
+    // Find nearest vertical obstacle (non-text element below this text box that overlaps horizontally)
+    let obstacleTop = pageHeight - (margins.bottom || 40);
+    let obstacleBottom = obstacleTop;
+    if (pageElements?.length) {
+      for (const obs of pageElements) {
+        if (obs.type === 'text' || obs.id === el.id) continue;
+        const obsLeft = obs.x;
+        const obsRight = obs.x + (obs.width || 80);
+        const obsTop = obs.y;
+        const obsBot = obs.y + (obs.height || 80);
+        if (obsRight <= textLeft || obsLeft >= textRight) continue; // no horizontal overlap
+        if (obsTop <= el.y) continue; // not below text start
+        if (obsTop < obstacleTop) { obstacleTop = obsTop; obstacleBottom = obsBot; }
+      }
+    }
+
+    const availableH = (obstacleTop - el.y) * zoom;
     if (ref.current.scrollHeight <= availableH + 4) return;
 
     // Try to split at <br> boundaries
@@ -219,13 +292,13 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
       if (overflowText) {
         ref.current.innerHTML = keepHtml;
         onCommit(el.id, keepHtml, true);
-        onFlowText(overflowHtml);
+        // Pass obstacleBottom so flow handler can place text below the obstacle
+        onFlowText(overflowHtml, obstacleBottom < pageHeight - (margins.bottom || 40) ? obstacleBottom : null);
         return;
       }
     }
-    // No clean split possible — just add a new page
     if (onAutoAddPage) onAutoAddPage();
-  }, [el.id, el.y, el.fontSize, el.lineHeight, pageHeight, pageMargins, zoom, onAutoAddPage, onFlowText, onCommit]);
+  }, [el.id, el.x, el.y, el.width, el.fontSize, el.lineHeight, pageHeight, pageWidth, pageMargins, zoom, onAutoAddPage, onFlowText, onCommit, pageElements]); // eslint-disable-line
 
   const handleClick = useCallback((e) => {
     e.stopPropagation();
@@ -263,27 +336,38 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   const mr = pageMargins?.right || 60;
   const fixedWidth = (el.width ? el.width * zoom : (pageWidth - ml - mr) * zoom);
 
-  // Image wrap padding — shift text content away from floated images
+  // Wrap padding — shift text away from overlapping elements (images with textWrap + all other non-text elements)
   let wrapPL = (el.paddingLeft || 0) * zoom;
   let wrapPR = (el.paddingRight || 0) * zoom;
-  if (wrapElements?.length) {
-    const tTop = el.y, tBot = el.y + (el.fontSize || 16) * (el.lineHeight || 1.5) * Math.max(1, (el.content || '').split('\n').length);
-    wrapElements.forEach(img => {
-      if (img.type !== 'image' || !img.textWrap || img.textWrap === 'none') return;
-      const iBot = img.y + (img.height || 80);
-      if (iBot < tTop || img.y > tBot) return;
-      const iRight = (img.x + (img.width || 80) - el.x) * zoom + 8;
-      const textRight = (el.width || pageWidth - ml - mr) * zoom;
-      const fromRight = (el.x + (el.width || pageWidth - ml - mr) - img.x) * zoom + 8;
-      if (img.textWrap === 'left' && img.x <= el.x + 20) wrapPL = Math.max(wrapPL, iRight);
-      if (img.textWrap === 'right' && img.x >= el.x + (el.width || pageWidth - ml - mr) / 2) wrapPR = Math.max(wrapPR, Math.min(fromRight, textRight - 20));
+  const allWrapSources = [...(wrapElements || []), ...(pageElements || []).filter(e => e.id !== el.id && e.type !== 'text' && !wrapElements?.find(w => w.id === e.id))];
+  if (allWrapSources.length) {
+    const tTop = el.y;
+    const tBot = el.y + (el.fontSize || 16) * (el.lineHeight || 1.5) * Math.max(1, (el.content || '').split('\n').length);
+    const textW = el.width || pageWidth - ml - mr;
+    allWrapSources.forEach(obs => {
+      const obsBot = obs.y + (obs.height || 80);
+      if (obsBot < tTop || obs.y > tBot) return; // no vertical overlap
+      const obsLeft = obs.x;
+      const obsRight = obs.x + (obs.width || 80);
+      if (obsRight <= el.x || obsLeft >= el.x + textW) return; // no horizontal overlap
+      // Determine wrap direction: element on left side → push text right, on right side → push text left
+      const obsCenterX = obsLeft + (obs.width || 80) / 2;
+      const textCenterX = el.x + textW / 2;
+      const iRight = (obsRight - el.x) * zoom + 8;
+      const fromRight = (el.x + textW - obsLeft) * zoom + 8;
+      if (obs.textWrap === 'left' || (obs.textWrap !== 'right' && obsCenterX < textCenterX)) {
+        wrapPL = Math.max(wrapPL, iRight);
+      } else {
+        wrapPR = Math.max(wrapPR, Math.min(fromRight, textW * zoom - 20));
+      }
     });
   }
   
-  const gradientStyle = el.gradientStart && el.gradientEnd ? {
-    background: `linear-gradient(90deg, ${el.gradientStart}, ${el.gradientEnd})`,
-    WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text',
-  } : {};
+  const gradientStyle = (() => {
+    const gCss = buildGradientCss(el, 90);
+    if (!gCss) return {};
+    return { background: gCss, WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' };
+  })();
 
   const htmlContent = el.htmlContent || (el.content ? el.content.replace(/\n/g, '<br>') : (isEditing ? '' : '\u00A0'));
 
@@ -314,12 +398,30 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
           }
         }}
         onInput={checkOverflow}
-        onKeyDown={isEditing ? (e) => { e.stopPropagation(); if (e.key === 'Escape') ref.current?.blur(); } : undefined}
+        onKeyDown={isEditing ? (e) => {
+          e.stopPropagation();
+          if (e.key === 'Escape') { ref.current?.blur(); return; }
+          if (e.key === 'Tab') {
+            e.preventDefault();
+            const sel = window.getSelection();
+            const node = sel?.focusNode;
+            const li = node?.nodeType === 3 ? node.parentElement?.closest('li') : node?.closest?.('li');
+            if (li) {
+              window.document.execCommand(e.shiftKey ? 'outdent' : 'indent', false, null);
+            } else if (!e.shiftKey) {
+              window.document.execCommand('insertText', false, '    ');
+            }
+          }
+        } : undefined}
         className={`outline-none ${isEditing ? 'min-h-[1em]' : ''}`}
         style={{
           visibility: el.isRedacted && !isEditing ? 'hidden' : undefined,
           fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial',
-          color: (el.gradientStart && el.gradientEnd) ? undefined : (el.color || '#000'),
+          color: (el.gradientStops?.length >= 2 || (el.gradientStart && el.gradientEnd)) ? undefined : (
+            el.color && el.color !== '#000000' && el.color !== '#000'
+              ? el.color
+              : pageDark ? '#ffffff' : '#000000'
+          ),
           fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal',
           textDecoration: [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none',
           textAlign: el.textAlign || 'left',
@@ -330,8 +432,9 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
           cursor: 'text', caretColor: 'var(--zet-primary)',
           paddingLeft: wrapPL,
           paddingRight: wrapPR,
-          paddingTop: (el.paddingTop || 0) * zoom,
-          paddingBottom: (el.paddingBottom || 0) * zoom,
+          paddingTop: ((el.paddingTop || 0) + (el.paragraphSpaceBefore || 0)) * zoom,
+          paddingBottom: ((el.paddingBottom || 0) + (el.paragraphSpaceAfter || 0)) * zoom,
+          textIndent: (el.textIndent || 0) * zoom,
           backgroundColor: el.highlightColor || undefined,
           '--lh': el.lineHeight || 1.5,
           ...gradientStyle,
@@ -364,8 +467,14 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   );
 });
 
-const ElementMenu = ({ el, onDelete, onChangeImage, onAddImageToShape, onAddAiImage, onCopy, onMirror, onSetTextWrap, onClose }) => (
+const ElementMenu = ({ el, onDelete, onChangeImage, onAddImageToShape, onAddAiImage, onCopy, onMirror, onSetTextWrap, onEditChart, onClose }) => (
   <div data-testid={`element-menu-${el.id}`} className="absolute top-5 right-0 zet-card p-1 z-50 min-w-[150px] shadow-xl animate-fadeIn" onClick={e => e.stopPropagation()}>
+    {el.type === 'chart' && onEditChart && (
+      <>
+        <button onClick={() => { onEditChart(el); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Edit2 className="h-3 w-3" /> Düzenle</button>
+        <div className="border-t my-0.5" style={{ borderColor: 'var(--zet-border)' }} />
+      </>
+    )}
     <button onClick={() => { if(onCopy) onCopy(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><Copy className="h-3 w-3" /> Kopyala</button>
     <button onClick={() => { if(onMirror) onMirror(el.id); onClose(); }} className="w-full text-left px-2.5 py-1.5 text-xs rounded hover:bg-white/10 flex items-center gap-2" style={{ color: 'var(--zet-text)' }}><FlipHorizontal2 className="h-3 w-3" /> Ayna</button>
     {el.type === 'image' && <>
@@ -421,6 +530,7 @@ export const CanvasArea = ({
   rulerVisible, gridVisible, gridSize, snapToGrid, pageMargins: pageMarginsProp, eraserDragMode,
   columnCount = 1, columnGap = 20,
   onSetTextWrap, onLinkClick, spellCheck = true,
+  userPlan = 'free', onEditChart,
 }) => {
   const toRoman = (n) => {
     const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
@@ -441,6 +551,7 @@ export const CanvasArea = ({
   const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
   const [editingId, setEditingId] = useState(null);
   const pendingEditRef = useRef(null);
+  const [imageNaturalRatios, setImageNaturalRatios] = useState({});
   const [dragging, setDragging] = useState(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [resizing, setResizing] = useState(null);
@@ -449,7 +560,11 @@ export const CanvasArea = ({
   const [selectionRect, setSelectionRect] = useState(null);
   const [selectionStart, setSelectionStart] = useState(null);
   const [penAnchors, setPenAnchors] = useState([]); // [{x,y,hx,hy}] bezier anchors
+  const penAnchorsRef = useRef([]); // stale-closure-safe mirror of penAnchors
+  const zoomRef = useRef(zoom);
+  const currentColorRef = useRef(currentColor);
   const penDragRef = useRef(null); // tracks drag state for handle creation
+  const [penCursorPos, setPenCursorPos] = useState(null);
   const cropWasDraggedRef = useRef(false); // tracks if a crop handle was dragged this gesture
   const activeDragRef = useRef(null); // sync mirror of dragging — avoids async state race on touchmove
   const [penHandlePreview, setPenHandlePreview] = useState(null); // {x,y,hx,hy}
@@ -526,21 +641,42 @@ export const CanvasArea = ({
     return () => window.removeEventListener('wheel', h);
   }, [activeTool, canvasContainerRef, setZoom, zoom]);
 
+  useEffect(() => { penAnchorsRef.current = penAnchors; }, [penAnchors]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { currentColorRef.current = currentColor; }, [currentColor]);
+
   useEffect(() => {
     if (activeTool === 'cut' && selectedElement) {
       const el = canvasElements.find(e => e.id === selectedElement);
       if (el?.type === 'image') { setCropTarget(el.id); setCropRect({ x: el.x + 10, y: el.y + 10, w: el.width - 20, h: el.height - 20 }); return; }
     }
     if (activeTool !== 'cut') { setCropTarget(null); setCropRect(null); }
-    if (activeTool !== 'hand' && activeTool !== 'select') setEditingId(null);
-    if (activeTool !== 'pen') { setPenAnchors([]); setPenHandlePreview(null); }
+    // Formatting tools keep editingId so user can type right after adjusting style
+    const formattingTools = new Set(['text','textsize','font','linespacing','wordtype','paragraph','indent','color','styles','bulletlist','numberedlist','margins','columns','punctuation']);
+    if (!formattingTools.has(activeTool) && activeTool !== 'select') setEditingId(null);
+    if (activeTool !== 'pen') {
+      // Save in-progress path instead of discarding it
+      if (penAnchorsRef.current.length > 1) {
+        const savedPath = {
+          id: `vec_${Date.now()}`,
+          anchors: penAnchorsRef.current,
+          points: penAnchorsRef.current.map(a => ({ x: a.x, y: a.y })),
+          size: 2, opacity: 100, color: currentColorRef.current, isPen: true, image: null,
+        };
+        setDrawPaths(prev => [...prev, savedPath]);
+      }
+      penAnchorsRef.current = [];
+      setPenAnchors([]);
+      setPenHandlePreview(null);
+      setPenCursorPos(null);
+    }
     setElementMenu(null);
     setVectorMenu(null);
     if (activeTool !== 'hand') { setSelectedVector(null); }
     // Auto-activate magnifier when zoom tool is selected
     if (activeTool === 'zoom') { setMagnifierActive(true); }
     else { setMagnifierActive(false); }
-  }, [activeTool, canvasElements, selectedElement]);
+  }, [activeTool, canvasElements, selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Process pending edit after page switch - uses element ID, not coordinates
   useEffect(() => {
@@ -704,7 +840,7 @@ export const CanvasArea = ({
       }
       // Then check canvas elements
       const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
-      if (cl) { setSelectedElement(cl.id); setSelectedVector(null); if (cl.type === 'text') setEditingId(cl.id); if (onElementSelect) onElementSelect(cl); }
+      if (cl) { setSelectedElement(cl.id); setSelectedElements([cl.id]); setSelectedVector(null); if (onElementSelect) onElementSelect(cl); }
       else {
         setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null);
       }
@@ -725,10 +861,13 @@ export const CanvasArea = ({
           fillColor: currentColor, fillOpacity: 30, image: null,
         };
         setDrawPaths(prev => [...prev, newPath]);
+        penAnchorsRef.current = [];
         setPenAnchors([]);
       } else {
         const anchor = { x, y, hx: 0, hy: 0 };
-        setPenAnchors(prev => [...prev, anchor]);
+        const newAnchors = [...penAnchors, anchor];
+        penAnchorsRef.current = newAnchors;
+        setPenAnchors(newAnchors);
       }
     } else if (activeTool === 'translate') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
@@ -757,6 +896,7 @@ export const CanvasArea = ({
         size: 2, opacity: 100, color: currentColor, isPen: true, image: null,
       };
       setDrawPaths(prev => [...prev, newPath]);
+      penAnchorsRef.current = [];
       setPenAnchors([]);
     }
   }, [activeTool, currentColor, currentPage, penAnchors, setDrawPaths]);
@@ -891,18 +1031,21 @@ export const CanvasArea = ({
       return;
     }
     
-    if (activeTool === 'pen' && penDragRef.current && isDrawing) {
-      const dx = x - penDragRef.current.startX;
-      const dy = y - penDragRef.current.startY;
-      if (!penDragRef.current.wasDrag && Math.sqrt(dx * dx + dy * dy) > 4) {
-        penDragRef.current.wasDrag = true;
+    if (activeTool === 'pen') {
+      setPenCursorPos({ x, y });
+      if (penDragRef.current && isDrawing) {
+        const dx = x - penDragRef.current.startX;
+        const dy = y - penDragRef.current.startY;
+        if (!penDragRef.current.wasDrag && Math.sqrt(dx * dx + dy * dy) > 4) {
+          penDragRef.current.wasDrag = true;
+        }
+        if (penDragRef.current.wasDrag) {
+          penDragRef.current.currentHx = dx;
+          penDragRef.current.currentHy = dy;
+          setPenHandlePreview({ x: penDragRef.current.startX, y: penDragRef.current.startY, hx: dx, hy: dy });
+        }
+        return;
       }
-      if (penDragRef.current.wasDrag) {
-        penDragRef.current.currentHx = dx;
-        penDragRef.current.currentHy = dy;
-        setPenHandlePreview({ x: penDragRef.current.startX, y: penDragRef.current.startY, hx: dx, hy: dy });
-      }
-      return;
     }
     if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) { setCurrentPath(p => [...p, { x, y }]); return; }
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
@@ -1103,7 +1246,24 @@ export const CanvasArea = ({
         const hx = penDragRef.current.currentHx || 0;
         const hy = penDragRef.current.currentHy || 0;
         const anchor = { x: penDragRef.current.startX, y: penDragRef.current.startY, hx, hy };
-        setPenAnchors(prev => [...prev, anchor]);
+        const currentAnchors = penAnchorsRef.current;
+        const newAnchors = [...currentAnchors, anchor];
+        // Auto-close: drag anchor placed near first point
+        if (currentAnchors.length > 1 && dist(anchor, currentAnchors[0]) < 25 / zoomRef.current) {
+          const newPath = {
+            id: `vec_${Date.now()}`,
+            anchors: newAnchors,
+            points: newAnchors.map(a => ({ x: a.x, y: a.y })),
+            size: 2, opacity: 100, color: currentColorRef.current, isPen: true, isClosed: true,
+            fillColor: currentColorRef.current, fillOpacity: 30, image: null,
+          };
+          setDrawPaths(prev => [...prev, newPath]);
+          penAnchorsRef.current = [];
+          setPenAnchors([]);
+        } else {
+          penAnchorsRef.current = newAnchors;
+          setPenAnchors(newAnchors);
+        }
       }
       setPenHandlePreview(null);
       penDragRef.current = penDragRef.current.wasDrag ? { wasDrag: true } : null;
@@ -1195,13 +1355,13 @@ export const CanvasArea = ({
   };
 
   return (
-    <div ref={canvasContainerRef} data-testid="canvas-container" className="h-full overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'pan-x pan-y' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+    <div ref={canvasContainerRef} data-testid="canvas-container" className="h-full overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'none' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
       <style>{`[contenteditable]::selection { background: rgba(76,168,173,0.35); } [contenteditable] *::selection { background: rgba(76,168,173,0.35); }`}</style>
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
           <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
             className={`shadow-xl relative select-none transition-all duration-200 ${idx === currentPage ? 'ring-2' : 'ring-1 ring-white/20'}`}
-            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'manipulation' : (['draw', 'pen', 'eraser'].includes(activeTool) ? 'none' : 'pan-y') }}
+            style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'none' : (['draw', 'pen', 'eraser'].includes(activeTool) ? 'none' : 'pan-y') }}
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
             onMouseDown={(e) => handleMouseDown(e, idx)} onMouseMove={(e) => handleMouseMove(e, idx)}
             onMouseUp={handleMouseUp} onMouseLeave={dragging || resizing || draggingVector !== null ? undefined : handleMouseUp}
@@ -1216,14 +1376,7 @@ export const CanvasArea = ({
             onTouchStart={(e) => {
               if (e.touches.length === 2) { lastTouchDistRef.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); return; }
               if (['draw', 'pen', 'eraser'].includes(activeTool)) { e.stopPropagation(); handleMouseDown(e, idx); return; }
-              if (activeTool === 'hand') {
-                const t = e.touches[0];
-                const rect = e.currentTarget.getBoundingClientRect();
-                const tx = (t.clientX - rect.left) / zoom, ty = (t.clientY - rect.top) / zoom;
-                const hit = [...canvasElements].reverse().find(el => isPointInElement(tx, ty, el));
-                if (hit) { e.preventDefault(); handleMouseDown(e, idx); }
-                return;
-              }
+              if (activeTool === 'hand') { e.stopPropagation(); handleMouseDown(e, idx); return; }
               handleMouseDown(e, idx);
             }}
             onTouchMove={(e) => {
@@ -1234,13 +1387,13 @@ export const CanvasArea = ({
                 lastTouchDistRef.current = d; return;
               }
               if (['draw', 'pen', 'eraser'].includes(activeTool)) { e.stopPropagation(); handleMouseMove(e, idx); return; }
-              if (activeTool === 'hand') { if (dragging || resizing || activeDragRef.current) { e.preventDefault(); handleMouseMove(e, idx); } return; }
+              if (activeTool === 'hand') { e.stopPropagation(); handleMouseMove(e, idx); return; }
               handleMouseMove(e, idx);
             }}
             onTouchEnd={(e) => {
               lastTouchDistRef.current = null;
-              if (activeTool === 'hand' && (dragging || resizing)) { handleMouseUp(e); return; }
-              if (activeTool !== 'hand') handleMouseUp(e);
+              if (activeTool === 'hand') { handleMouseUp(e); return; }
+              handleMouseUp(e);
             }}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
             
@@ -1259,7 +1412,7 @@ export const CanvasArea = ({
                     <div key={`rh${i}`} className="flex-shrink-0 relative" style={{ width: 50 * zoom }}>
                       <div style={{ position: 'absolute', left: 0, bottom: 0, height: i % 2 === 0 ? 10 : 5, width: 1, background: 'rgba(180,180,255,0.7)' }} />
                       {i > 0 && i % 2 === 0 && (
-                        <span style={{ position: 'absolute', left: 2, bottom: 11, fontSize: 7, color: 'rgba(200,200,255,0.95)', userSelect: 'none', whiteSpace: 'nowrap' }}>
+                        <span style={{ position: 'absolute', left: 2, bottom: 11, fontSize: 10, color: 'rgba(220,220,255,1)', userSelect: 'none', whiteSpace: 'nowrap' }}>
                           {i * 50}
                         </span>
                       )}
@@ -1278,7 +1431,7 @@ export const CanvasArea = ({
                     <div key={`rv${i}`} className="relative" style={{ position: 'absolute', top: i * 50 * zoom, left: 0, width: 20, height: 1 }}>
                       <div style={{ position: 'absolute', right: 0, top: 0, width: i % 2 === 0 ? 10 : 6, height: 1, background: 'rgba(180,180,255,0.7)' }} />
                       {i % 2 === 0 && (
-                        <span style={{ position: 'absolute', left: 2, top: -5, fontSize: 8, color: 'rgba(180,180,255,0.9)', userSelect: 'none', writingMode: 'horizontal-tb' }}>{i * 50}</span>
+                        <span style={{ position: 'absolute', left: 2, top: -5, fontSize: 10, color: 'rgba(220,220,255,1)', userSelect: 'none', writingMode: 'horizontal-tb' }}>{i * 50}</span>
                       )}
                     </div>
                   ))}
@@ -1376,6 +1529,24 @@ export const CanvasArea = ({
                     <circle cx={(penHandlePreview.x+penHandlePreview.hx)*zoom} cy={(penHandlePreview.y+penHandlePreview.hy)*zoom} r={4} fill="#4ca8ad" />
                     <circle cx={(penHandlePreview.x-penHandlePreview.hx)*zoom} cy={(penHandlePreview.y-penHandlePreview.hy)*zoom} r={4} fill="#4ca8ad" />
                   </>)}
+                  {/* Pro plan: Illustrator-style distance/angle readout */}
+                  {userPlan === 'pro' && penCursorPos && penAnchors.length > 0 && (() => {
+                    const last = penAnchors[penAnchors.length - 1];
+                    const dx = penCursorPos.x - last.x;
+                    const dy = penCursorPos.y - last.y;
+                    const px2mm = 210 / 794;
+                    const dmm = Math.sqrt(dx * dx + dy * dy) * px2mm;
+                    const angle = ((Math.atan2(-dy, dx) * 180 / Math.PI) + 360) % 360;
+                    const cx = penCursorPos.x * zoom + 14;
+                    const cy = penCursorPos.y * zoom - 14;
+                    const label = `${dmm.toFixed(1)}mm  ${angle.toFixed(0)}°`;
+                    return (
+                      <g>
+                        <rect x={cx - 2} y={cy - 12} width={label.length * 6 + 4} height={16} rx={3} fill="rgba(0,0,0,0.72)" />
+                        <text x={cx} y={cy} fill="#fff" fontSize={11} fontFamily="monospace">{label}</text>
+                      </g>
+                    );
+                  })()}
                 </>
               )}
               {/* Lasso selection path */}
@@ -1511,7 +1682,8 @@ export const CanvasArea = ({
             )}
             
             {(idx === currentPage ? canvasElements : page.elements || []).filter(el => !el.hidden).map(el => {
-              const isSel = (selectedElement === el.id || selectedElements.includes(el.id)) && editingId !== el.id;
+              // In text tool, text elements show no selection ring — cursor goes straight to edit
+              const isSel = (selectedElement === el.id || selectedElements.includes(el.id)) && editingId !== el.id && !(activeTool === 'text' && el.type === 'text');
               const isLocked = el.locked;
               // Mirror transform
               const scaleX = el.scaleX || 1;
@@ -1519,7 +1691,7 @@ export const CanvasArea = ({
               const rotation = el.rotation || 0;
               const transformStyle = `scaleX(${scaleX}) scaleY(${scaleY}) rotate(${rotation}deg)`;
               return (
-                <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${isSel ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''} ${el.groupId && isSel ? 'ring-blue-400 ring-opacity-60' : ''}`}
+                <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${(isSel && el.type !== 'image' && el.type !== 'chart') ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''} ${(el.groupId && isSel && el.type !== 'image' && el.type !== 'chart') ? 'ring-blue-400 ring-opacity-60' : ''}`}
                   style={{
                     left: el.x * zoom,
                     top: el.y * zoom,
@@ -1543,27 +1715,62 @@ export const CanvasArea = ({
                       const updated = canvasElements.map(x => x.id === el.id ? { ...x, isHighlighted: !alreadyHighlighted, highlightColor: alreadyHighlighted ? undefined : (markingColor || '#fbbf24') } : x);
                       setCanvasElements(updated); onSaveHistory(updated); return;
                     }
-                    setSelectedElement(el.id); if (idx !== currentPage) changePage(idx); if (onElementSelect) onElementSelect(el);
+                    setSelectedElement(el.id);
+                    // Text tool on text element → immediately enter edit mode
+                    if (activeTool === 'text' && el.type === 'text') {
+                      if (idx !== currentPage) { pendingEditRef.current = { elementId: el.id, x: 0, y: 0, pageIdx: idx }; changePage(idx); }
+                      else setEditingId(el.id);
+                    } else {
+                      if (idx !== currentPage) changePage(idx);
+                    }
+                    if (onElementSelect) onElementSelect(el);
                   }}>
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
-                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml) => onFlowText({ elementId: el.id, overflowHtml, el }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} />
+                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} />
                     {isSel && !isLocked && editingId !== el.id && (
                       <div data-testid={`text-resize-${el.id}`} className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm opacity-70 hover:opacity-100" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} />
                     )}
                   </>}
-                  {(el.type === 'image' || el.type === 'chart') && (
-                    <div className="relative w-full h-full group">
-                      <img src={el.src} alt="" className={`w-full h-full object-contain ${el.isRedacted ? 'invisible' : ''}`} draggable={false} />
-                      {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
-                      {el.isHighlighted && !el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: el.highlightColor || '#fbbf24', opacity: 0.35, zIndex: 1, borderRadius: 2, pointerEvents: 'none' }} />}
-                      {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
-                        <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
-                        {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onSetTextWrap={onSetTextWrap} onClose={() => setElementMenu(null)} />}
-                      </>)}
-                    </div>
-                  )}
+                  {el.type === 'chart' && (() => {
+                    return (
+                      <div className="relative w-full h-full group">
+                        {el.svgContent
+                          ? <div className={`w-full h-full ${el.isRedacted ? 'invisible' : ''}`} style={{ overflow: 'hidden' }} dangerouslySetInnerHTML={{ __html: el.svgContent }} />
+                          : <img src={el.src} alt="" className={`w-full h-full object-contain ${el.isRedacted ? 'invisible' : ''}`} draggable={false} />}
+                        {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
+                        {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                          <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+                          {elementMenu === el.id && <ElementMenu el={el} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onSetTextWrap={onSetTextWrap} onEditChart={onEditChart} onClose={() => setElementMenu(null)} />}
+                        </>)}
+                      </div>
+                    );
+                  })()}
+                  {el.type === 'image' && (() => {
+                    const nat = imageNaturalRatios[el.id];
+                    const cw = (el.width || 80) * zoom;
+                    const ch = (el.height || 80) * zoom;
+                    let ringStyle = null;
+                    if (nat) {
+                      const ca = cw / ch;
+                      if (ca > nat) { const rw = ch * nat; ringStyle = { left: (cw - rw) / 2, top: 0, width: rw, height: ch }; }
+                      else { const rh = cw / nat; ringStyle = { left: 0, top: (ch - rh) / 2, width: cw, height: rh }; }
+                    }
+                    return (
+                      <div className="relative w-full h-full group">
+                        <img src={el.src} alt="" className={`w-full h-full object-contain ${el.isRedacted ? 'invisible' : ''}`} draggable={false}
+                          onLoad={(e) => { const { naturalWidth: nw, naturalHeight: nh } = e.target; if (nw && nh) setImageNaturalRatios(prev => ({ ...prev, [el.id]: nw / nh })); }} />
+                        {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
+                        {el.isHighlighted && !el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: el.highlightColor || '#fbbf24', opacity: 0.35, zIndex: 1, borderRadius: 2, pointerEvents: 'none' }} />}
+                        {isSel && ringStyle && <div className="absolute ring-2 ring-blue-500 pointer-events-none" style={ringStyle} />}
+                        {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" style={ringStyle ? { left: ringStyle.left + ringStyle.width - 10, top: ringStyle.top + ringStyle.height - 10 } : {}} onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                          <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
+                          {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onSetTextWrap={onSetTextWrap} onClose={() => setElementMenu(null)} />}
+                        </>)}
+                      </div>
+                    );
+                  })()}
                   {el.type === 'table' && el.tableData && (() => {
                     const tblOps = {
                       addRow: (after) => { setCanvasElements(prev => prev.map(x => { if (x.id !== el.id) return x; const cols = x.tableData[0]?.length || 1; const blank = Array(cols).fill(''); const d = [...x.tableData]; d.splice(after + 1, 0, blank); return { ...x, tableData: d, rows: d.length }; })); setTableMenu(null); },
@@ -1581,11 +1788,11 @@ export const CanvasArea = ({
                                 {row.map((cell, ci) => (
                                   <td key={ci} data-testid={`table-cell-${el.id}-${ri}-${ci}`}
                                     contentEditable suppressContentEditableWarning
-                                    style={{ border: '1px solid rgba(150,150,150,0.6)', padding: '3px 6px', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: ri === 0 && el.tableHeader ? 'rgba(76,168,173,0.25)' : 'transparent', color: 'var(--zet-text)', fontWeight: ri === 0 && el.tableHeader ? 'bold' : 'normal' }}
+                                    style={{ border: `1px solid ${isColorDark(pageBg) ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.25)'}`, padding: '3px 6px', minWidth: 30, verticalAlign: 'top', outline: 'none', cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap', background: ri === 0 && el.tableHeader ? 'rgba(76,168,173,0.25)' : 'transparent', color: isColorDark(pageBg) ? '#ffffff' : '#000000', fontWeight: ri === 0 && el.tableHeader ? 'bold' : 'normal' }}
                                     ref={(node) => { if (node && document.activeElement !== node) node.innerHTML = cell; }}
                                     onFocus={e => e.stopPropagation()}
                                     onBlur={e => { const val = e.target.innerText; setCanvasElements(prev => prev.map(x => { if (x.id !== el.id) return x; const newData = x.tableData.map((r, rri) => r.map((c, cci) => (rri === ri && cci === ci) ? val : c)); return { ...x, tableData: newData }; })); }}
-                                    onMouseDown={e => e.stopPropagation()}
+                                    onMouseDown={e => { if (activeTool !== 'hand') e.stopPropagation(); }}
                                     onContextMenu={e => { e.preventDefault(); e.stopPropagation(); setTableMenu({ elId: el.id, ri, ci, x: e.clientX, y: e.clientY }); }}
                                   />
                                 ))}
@@ -1650,15 +1857,15 @@ export const CanvasArea = ({
             {/* Watermark overlay */}
             {doc.watermark && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ opacity: (doc.watermark.opacity || 20) / 100 }}>
-                <span className="text-6xl font-bold rotate-[-30deg] whitespace-nowrap" style={{ color: 'var(--zet-text-muted)' }}>{doc.watermark.text}</span>
+                <span className="text-6xl font-bold rotate-[-30deg] whitespace-nowrap" style={{ color: doc.watermark.color || '#888888' }}>{doc.watermark.text}</span>
               </div>
             )}
             
             {/* Header/Footer (odd/even support) */}
             {(() => {
               const isOE = doc.headerFooterMode === 'odd-even';
-              const hText = isOE ? (idx % 2 === 0 ? doc.headerEven : doc.headerOdd) : doc.header;
-              const fText = isOE ? (idx % 2 === 0 ? doc.footerEven : doc.footerOdd) : doc.footer;
+              const hText = isOE ? (idx % 2 === 0 ? doc.headerOdd : doc.headerEven) : doc.header;
+              const fText = isOE ? (idx % 2 === 0 ? doc.footerOdd : doc.footerEven) : doc.footer;
               return (<>
                 {hText && <div className="absolute top-2 left-0 right-0 text-center text-sm pointer-events-none" style={{ color: 'var(--zet-text-muted)' }}>{hText}</div>}
                 {fText && <div className="absolute bottom-2 left-0 right-0 text-center text-sm pointer-events-none" style={{ color: 'var(--zet-text-muted)' }}>{fText}</div>}

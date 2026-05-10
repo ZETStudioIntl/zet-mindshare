@@ -128,6 +128,13 @@ const Editor = () => {
         if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
         if (el.textAlign) setCurrentTextAlign(el.textAlign);
         if (el.color) setCurrentColor(el.color);
+        setFirstLineIndent(el.textIndent || 0);
+        setParagraphSpaceBefore(el.paragraphSpaceBefore || 0);
+        setParagraphSpaceAfter(el.paragraphSpaceAfter || 0);
+        setIndentLeft(el.paddingLeft || 0);
+        setIndentRight(el.paddingRight || 0);
+        setIndentTop(el.paddingTop || 0);
+        setIndentBottom(el.paddingBottom || 0);
       }
     }
   }, [selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -265,13 +272,24 @@ const Editor = () => {
 
   // Text alignment
   const [currentTextAlign, setCurrentTextAlign] = useState('left');
+
+  // Paragraph formatting
+  const [firstLineIndent, setFirstLineIndent] = useState(0);
+  const [paragraphSpaceBefore, setParagraphSpaceBefore] = useState(0);
+  const [paragraphSpaceAfter, setParagraphSpaceAfter] = useState(0);
   
-  // Gradient colors for text
+  // Gradient colors for text (legacy — kept for chart generation)
   const [gradientStart, setGradientStart] = useState(null);
   const [gradientEnd, setGradientEnd] = useState(null);
   const [gradientDirection, setGradientDirection] = useState('90deg');
   const [useGradient, setUseGradient] = useState(false);
   const [hexInput, setHexInput] = useState('#000000');
+
+  // Color panel — material selector + multi-stop gradient
+  const [colorTarget, setColorTarget] = useState('text');
+  const [gradientStops, setGradientStops] = useState([{ id: 'g0', pos: 0, color: '#FF6B6B' }, { id: 'g1', pos: 100, color: '#4ECDC4' }]);
+  const [gradientAngle, setGradientAngle] = useState(90);
+  const [activeStopId, setActiveStopId] = useState('g0');
 
   // Zoom tool state
   const [zoomLevel, setZoomLevel] = useState(1.5);
@@ -289,6 +307,7 @@ const Editor = () => {
   const [chartTitle, setChartTitle] = useState('Chart');
   const [chartColors, setChartColors] = useState(['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899']);
   const [chartImage, setChartImage] = useState(null);
+  const [editingChartId, setEditingChartId] = useState(null);
 
   // Gradient presets
   const GRADIENT_PRESETS = [
@@ -345,6 +364,10 @@ const Editor = () => {
   const [showFindReplace, setShowFindReplace] = useState(false);
   const [showIndent, setShowIndent] = useState(false);
   const [showMargins, setShowMargins] = useState(false);
+  const [showBulletList, setShowBulletList] = useState(false);
+  const [showNumberedList, setShowNumberedList] = useState(false);
+  const [currentBulletStyle, setCurrentBulletStyle] = useState('disc');
+  const [currentNumberStyle, setCurrentNumberStyle] = useState('decimal');
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
   const [showFootnote, setShowFootnote] = useState(false);
@@ -392,6 +415,7 @@ const Editor = () => {
   // Watermark state
   const [watermarkText, setWatermarkText] = useState('');
   const [watermarkOpacity, setWatermarkOpacity] = useState(20);
+  const [watermarkColor, setWatermarkColor] = useState('#888888');
 
   // Page numbers state
   const [pageNumbersEnabled, setPageNumbersEnabled] = useState(false);
@@ -477,6 +501,9 @@ const Editor = () => {
   }, [collab.connected, collab.onCollabMessage]);
   const autoSaveTimerRef = useRef(null);
   const canvasContainerRef = useRef(null);
+  const gradientBarRef = useRef(null);
+  const activeToolRef = useRef('select');
+  useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
 
   // === Ctrl+Z / Ctrl+Y / Delete / Shortcuts ===
   useEffect(() => {
@@ -527,9 +554,9 @@ const Editor = () => {
         return;
       }
       
-      // Tool shortcuts (single key)
+      // Tool shortcuts (single key) — suppressed in text tool mode (keys are for typing)
       const key = e.key.toUpperCase();
-      if (shortcuts[key] && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      if (shortcuts[key] && !e.ctrlKey && !e.metaKey && !e.altKey && activeToolRef.current !== 'text') {
         e.preventDefault();
         handleToolSelect(shortcuts[key]);
       }
@@ -767,14 +794,13 @@ const Editor = () => {
     });
   };
 
-  // === TEXT FLOW — carries overflow content to next page ===
-  const handleTextFlow = useCallback(({ elementId, overflowHtml, el: srcEl }) => {
-    const nextPageIdx = currentPage + 1;
-    const overflowEl = {
+  // === TEXT FLOW — carries overflow content to next page (or below an obstacle on same page) ===
+  const handleTextFlow = useCallback(({ elementId, overflowHtml, el: srcEl, obstacleBottom }) => {
+    const makeOverflowEl = (y) => ({
       id: `el_${Date.now()}`,
       type: 'text',
       x: srcEl.x || marginLeft,
-      y: marginTop,
+      y,
       content: overflowHtml.replace(/<[^>]*>/g, ''),
       htmlContent: overflowHtml,
       fontSize: srcEl.fontSize || currentFontSize,
@@ -784,17 +810,31 @@ const Editor = () => {
       lineHeight: srcEl.lineHeight || currentLineHeight,
       textAlign: srcEl.textAlign || 'left',
       bold: srcEl.bold, italic: srcEl.italic,
-    };
+    });
+
+    // If obstacle exists on current page and there's space below it, place on same page
+    if (obstacleBottom != null) {
+      const belowY = obstacleBottom + 12;
+      const bottomLimit = pageSize.height - (marginBottom || 40) - 40;
+      if (belowY < bottomLimit) {
+        const overflowEl = makeOverflowEl(belowY);
+        const updated = [...canvasElements, overflowEl];
+        setCanvasElements(updated);
+        handleSaveHistory(updated);
+        return;
+      }
+    }
+
+    // Otherwise flow to next page
+    const nextPageIdx = currentPage + 1;
+    const overflowEl = makeOverflowEl(marginTop);
     setDocument(prev => {
       if (!prev?.pages) return prev;
       const pages = [...prev.pages];
-      // save current page
       if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths };
       if (pages[nextPageIdx]) {
-        // flow into existing next page (prepend)
         pages[nextPageIdx] = { ...pages[nextPageIdx], elements: [overflowEl, ...(pages[nextPageIdx].elements || [])] };
       } else {
-        // create new page
         pages.push({ page_id: `page_${Date.now()}`, elements: [overflowEl], drawPaths: [], pageSize });
       }
       return { ...prev, pages };
@@ -807,7 +847,7 @@ const Editor = () => {
         return next;
       });
     }, 60);
-  }, [currentPage, canvasElements, drawPaths, document, marginLeft, marginTop, marginRight, pageSize, currentFontSize, currentFont, currentColor, currentLineHeight, history]);
+  }, [currentPage, canvasElements, drawPaths, document, marginLeft, marginTop, marginRight, marginBottom, pageSize, currentFontSize, currentFont, currentColor, currentLineHeight, history, handleSaveHistory]); // eslint-disable-line
 
   const handleUpdateSettings = (updates) => {
     if (updates.zetaMood !== undefined) setZetaMood(updates.zetaMood);
@@ -960,8 +1000,8 @@ const Editor = () => {
       redact: () => applyRedaction(),
       highlighter: () => applyHighlight(),
       importpdf: () => pdfInputRef.current?.click(),
-      bulletlist: () => applyListFormat('ul'),
-      numberedlist: () => applyListFormat('ol'),
+      bulletlist: () => setShowBulletList(p => !p),
+      numberedlist: () => setShowNumberedList(p => !p),
       emoji: () => setShowEmoji(!showEmoji),
       zoom: () => setShowZoom(true),
     };
@@ -1072,12 +1112,11 @@ const Editor = () => {
     // No text element selected — emoji can only be inserted into existing text
   }, [selectedElement, canvasElements, handleSaveHistory]);
 
-  const applyListFormat = useCallback((listType) => {
+  const applyListFormat = useCallback((listType, styleType = null) => {
     const target = selectedElement || lastSelectedRef.current;
     const tag = listType === 'ol' ? 'ol' : 'ul';
-    const listStyle = listType === 'ol'
-      ? 'style="margin:0;padding-left:24px;list-style-type:decimal;"'
-      : 'style="margin:0;padding-left:24px;list-style-type:disc;"';
+    const style = styleType || (listType === 'ol' ? 'decimal' : 'disc');
+    const listStyle = `style="margin:0;padding-left:28px;list-style-type:${style};"` ;
 
     // No text element selected — create a new one with a starter list
     if (!target) {
@@ -1686,8 +1725,15 @@ const Editor = () => {
     
     svg += '</svg>';
     const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
-    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width, height, src: imgSrc, gradientStart, gradientEnd }];
-    setCanvasElements(updated); history.push(updated);
+    const chartMeta = { type: chartType, labels: chartLabels, data: chartData, title: chartTitle, colors: [...chartColors], gradientStart: gradientStart || null, gradientEnd: gradientEnd || null, chartImage: chartImage || null };
+    if (editingChartId) {
+      const updated = canvasElements.map(el => el.id === editingChartId ? { ...el, src: imgSrc, svgContent: svg, chartMeta } : el);
+      setCanvasElements(updated); history.push(updated);
+      setEditingChartId(null);
+    } else {
+      const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'chart', x: 50, y: 50, width, height, src: imgSrc, svgContent: svg, chartMeta }];
+      setCanvasElements(updated); history.push(updated);
+    }
     setShowGraphic(false);
   };
 
@@ -1741,7 +1787,7 @@ const Editor = () => {
   // === WATERMARK ===
   const applyWatermark = () => {
     if (!watermarkText.trim()) return;
-    const wm = { id: `wm_${Date.now()}`, type: 'watermark', text: watermarkText, opacity: watermarkOpacity };
+    const wm = { id: `wm_${Date.now()}`, type: 'watermark', text: watermarkText, opacity: watermarkOpacity, color: watermarkColor };
     setDocument(prev => ({ ...prev, watermark: wm }));
     setShowWatermark(false);
   };
@@ -2166,9 +2212,47 @@ const Editor = () => {
   ];
 
   const applyParaStyle = (style) => {
+    // Word-like: apply to the block (div/p) at cursor position inside contenteditable
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      let node = sel.getRangeAt(0).startContainer;
+      let n = node.nodeType === 3 ? node.parentElement : node;
+      let block = null;
+      let inCE = false;
+      while (n) {
+        if (n.contentEditable === 'true') { inCE = true; break; }
+        if (['P','DIV','LI','H1','H2','H3','H4','H5','H6','BLOCKQUOTE'].includes(n.tagName || '')) block = n;
+        n = n.parentElement;
+      }
+      if (inCE && block) {
+        block.style.fontSize = style.fontSize + 'px';
+        block.style.fontWeight = style.bold ? 'bold' : 'normal';
+        block.style.lineHeight = style.lineHeight;
+        const ceDiv = block.closest('[contenteditable="true"]');
+        if (ceDiv) ceDiv.dispatchEvent(new Event('input', { bubbles: true }));
+        return;
+      }
+    }
+    // Fallback: apply to whole canvas element
     const target = selectedElement || lastSelectedRef?.current;
     if (!target) return;
     setCanvasElements(prev => prev.map(el => el.id === target ? { ...el, fontSize: style.fontSize, bold: style.bold, lineHeight: style.lineHeight } : el));
+  };
+
+  // === EDIT CHART ===
+  const handleEditChart = (el) => {
+    const m = el.chartMeta;
+    if (!m) return;
+    setChartType(m.type || 'bar');
+    setChartLabels(m.labels || 'A,B,C,D');
+    setChartData(m.data || '10,20,30,40');
+    setChartTitle(m.title || 'Chart');
+    setChartColors(m.colors?.length ? m.colors : ['#3b82f6', '#ef4444', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899']);
+    setGradientStart(m.gradientStart || '');
+    setGradientEnd(m.gradientEnd || '');
+    setChartImage(m.chartImage || null);
+    setEditingChartId(el.id);
+    setShowGraphic(true);
   };
 
   // === TEXT WRAP ===
@@ -2190,34 +2274,39 @@ const Editor = () => {
   };
 
   // === FIND & REPLACE ===
+  const [findScope, setFindScope] = useState('current');
   const findInDocument = () => {
     if (!findText.trim()) return;
     const results = [];
-    canvasElements.forEach(el => {
-      if (el.type === 'text') {
-        const searchIn = el.content || (el.htmlContent ? el.htmlContent.replace(/<[^>]*>/g, '') : '');
-        if (searchIn.toLowerCase().includes(findText.toLowerCase())) {
-          results.push({ id: el.id, content: searchIn });
-        }
-      }
-    });
-    // Also search in table cells
-    canvasElements.forEach(el => {
-      if (el.type === 'table' && el.tableData) {
-        el.tableData.forEach((row, ri) => row.forEach((cell, ci) => {
-          if (cell.toLowerCase().includes(findText.toLowerCase())) {
-            results.push({ id: el.id, content: `Table [${ri+1},${ci+1}]: ${cell}` });
+    const searchElements = (elements, pageLabel) => {
+      elements.forEach(el => {
+        if (el.type === 'text') {
+          const searchIn = el.content || (el.htmlContent ? el.htmlContent.replace(/<[^>]*>/g, '') : '');
+          if (searchIn.toLowerCase().includes(findText.toLowerCase())) {
+            results.push({ id: el.id, content: pageLabel ? `[${pageLabel}] ${searchIn}` : searchIn });
           }
-        }));
-      }
-    });
+        }
+        if (el.type === 'table' && el.tableData) {
+          el.tableData.forEach((row, ri) => row.forEach((cell, ci) => {
+            if (cell.toLowerCase().includes(findText.toLowerCase())) {
+              results.push({ id: el.id, content: `${pageLabel ? `[${pageLabel}] ` : ''}Table [${ri+1},${ci+1}]: ${cell}` });
+            }
+          }));
+        }
+      });
+    };
+    if (findScope === 'all' && document?.pages) {
+      document.pages.forEach((pg, i) => searchElements(pg.elements || [], `S.${i + 1}`));
+    } else {
+      searchElements(canvasElements, null);
+    }
     setFindResults(results);
   };
 
   const replaceInDocument = () => {
     if (!findText.trim()) return;
-    const regex = new RegExp(findText, 'gi');
-    const updated = canvasElements.map(el => {
+    const regex = new RegExp(findText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
+    const replaceInList = (elements) => elements.map(el => {
       if (el.type === 'text') {
         const newContent = el.content ? el.content.replace(regex, replaceText) : el.content;
         const newHtml = el.htmlContent ? el.htmlContent.replace(regex, replaceText) : el.htmlContent;
@@ -2229,7 +2318,12 @@ const Editor = () => {
       }
       return el;
     });
-    setCanvasElements(updated); history.push(updated);
+    if (findScope === 'all' && document?.pages) {
+      setDocument(prev => ({ ...prev, pages: prev.pages.map(pg => ({ ...pg, elements: replaceInList(pg.elements || []) })) }));
+    } else {
+      const updated = replaceInList(canvasElements);
+      setCanvasElements(updated); history.push(updated);
+    }
     setFindResults([]);
   };
 
@@ -2685,8 +2779,24 @@ const Editor = () => {
           case 'italic':        window.document.execCommand('italic', false, null); break;
           case 'underline':     window.document.execCommand('underline', false, null); break;
           case 'strikethrough': window.document.execCommand('strikeThrough', false, null); break;
+          case 'fontFamily':    window.document.execCommand('fontName', false, value); break;
+          case 'fontSize':
+          case 'lineHeight': {
+            const styleAttr = type === 'fontSize' ? `font-size:${value}px` : `line-height:${value}`;
+            window.document.execCommand('insertHTML', false, `<span style="${styleAttr}" data-zet-anchor="1">&#8203;</span>`);
+            const anchor = editableDiv.querySelector('[data-zet-anchor="1"]');
+            if (anchor) {
+              anchor.removeAttribute('data-zet-anchor');
+              const r = window.document.createRange();
+              const textNode = anchor.firstChild;
+              r.setStart(textNode || anchor, textNode ? textNode.length : 0);
+              r.collapse(true);
+              window.getSelection().removeAllRanges();
+              window.getSelection().addRange(r);
+            }
+            break;
+          }
           default:
-            // font/size/lineHeight with cursor only → apply to whole element
             applyTextStyle(type, value);
             return;
         }
@@ -2717,19 +2827,34 @@ const Editor = () => {
   // === COLOR ===
   const applyColor = (color) => {
     setCurrentColor(color);
-    if (selectedElements.length > 0) {
-      setCanvasElements(prev => {
-        const updated = prev.map(el => selectedElements.includes(el.id) ? { ...el, color, fill: color } : el);
-        handleSaveHistory(updated);
-        return updated;
+    const targets = selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : [];
+    if (!targets.length) return;
+    const isMulti = selectedElements.length > 1;
+    setCanvasElements(prev => {
+      const updated = prev.map(el => {
+        if (!targets.includes(el.id)) return el;
+        if (isMulti && el.type !== colorTarget) return el;
+        return { ...el, color, fill: color, gradientStops: null };
       });
-    } else if (selectedElement) {
-      setCanvasElements(prev => {
-        const updated = prev.map(el => el.id === selectedElement ? { ...el, color, fill: color } : el);
-        handleSaveHistory(updated);
-        return updated;
+      handleSaveHistory(updated);
+      return updated;
+    });
+  };
+
+  const applyGradient = () => {
+    const sorted = [...gradientStops].sort((a, b) => a.pos - b.pos);
+    const targets = selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : [];
+    if (!targets.length) return;
+    const isMulti = selectedElements.length > 1;
+    setCanvasElements(prev => {
+      const updated = prev.map(el => {
+        if (!targets.includes(el.id)) return el;
+        if (isMulti && el.type !== colorTarget) return el;
+        return { ...el, gradientStops: sorted, gradientAngle, color: null, fill: null };
       });
-    }
+      handleSaveHistory(updated);
+      return updated;
+    });
   };
 
   // === TRANSLATE ===
@@ -2908,6 +3033,11 @@ const Editor = () => {
   const allFonts = googleFonts.length > 0 ? googleFonts.map(f => f.family) : FONTS;
   const filteredFonts = allFonts.filter(f => f.toLowerCase().includes(fontSearch.toLowerCase()));
 
+  // Preload visible fonts when panel opens or search changes
+  useEffect(() => {
+    if (showFont) filteredFonts.slice(0, 60).forEach(f => loadGoogleFont(f));
+  }, [showFont, fontSearch]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (!document) {
     return <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}><Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--zet-primary)' }} /></div>;
   }
@@ -2935,72 +3065,166 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
     {showColor && <DraggablePanel title={t('colorPicker')} onClose={() => setShowColor(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 150 }}>
-      <div className="space-y-3 w-64">
-        <div className="grid grid-cols-6 gap-1.5">{PRESET_COLORS.map(c => <button key={c} onClick={() => { applyColor(c); setHexInput(c); }} className={`w-7 h-7 rounded-md border ${currentColor === c ? 'ring-2 ring-white scale-110' : 'border-white/10'} transition-transform`} style={{ background: c }} />)}</div>
-        <div className="space-y-2">
-          <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Hex Code</label>
-          <div className="flex gap-2">
-            <input type="text" value={hexInput} onChange={e => setHexInput(e.target.value)} placeholder="#000000" className="zet-input flex-1 text-xs font-mono" maxLength={7} />
-            <button onClick={() => { if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) applyColor(hexInput); }} className="zet-btn px-2 text-xs">Apply</button>
-          </div>
-        </div>
-        
-        {/* Gradient Presets */}
-        <div className="space-y-2">
-          <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Gradient Presets</label>
-          <div className="grid grid-cols-3 gap-1">
-            {GRADIENT_PRESETS.map(g => (
-              <button 
-                key={g.name} 
-                onClick={() => { setGradientStart(g.start); setGradientEnd(g.end); setUseGradient(true); }}
-                className="h-8 rounded text-xs text-white font-medium shadow-sm hover:scale-105 transition-transform"
-                style={{ background: `linear-gradient(90deg, ${g.start}, ${g.end})` }}
-              >
-                {g.name}
-              </button>
-            ))}
-          </div>
+      <div className="space-y-3 w-72">
+        {/* Material selector */}
+        <div className="flex gap-1">
+          {[['Yazı', 'text'], ['Şekil', 'shape'], ['Vektör', 'vector']].map(([label, type]) => (
+            <button key={type} onMouseDown={e => e.preventDefault()} onClick={() => setColorTarget(type)}
+              className="flex-1 text-xs py-1.5 rounded transition-colors font-medium"
+              style={{ background: colorTarget === type ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
+              {label}
+            </button>
+          ))}
         </div>
 
-        <div className="space-y-2">
-          <label className="text-xs font-semibold" style={{ color: 'var(--zet-text-muted)' }}>✦ Özel Gradient</label>
-          <div className="flex gap-2">
-            <div className="flex-1">
-              <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç</label>
-              <input type="color" value={gradientStart || '#FF0000'} onChange={e => { setGradientStart(e.target.value); setUseGradient(true); }} className="w-full h-8 rounded cursor-pointer" />
-            </div>
-            <div className="flex-1">
-              <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Bitiş</label>
-              <input type="color" value={gradientEnd || '#0000FF'} onChange={e => { setGradientEnd(e.target.value); setUseGradient(true); }} className="w-full h-8 rounded cursor-pointer" />
-            </div>
-          </div>
-          {/* Direction selector */}
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Yön</label>
-            <div className="grid grid-cols-4 gap-1">
-              {[['→', '90deg'], ['↓', '180deg'], ['↗', '45deg'], ['↘', '135deg']].map(([icon, deg]) => (
-                <button key={deg} onClick={() => setGradientDirection?.(deg)} className="text-xs py-1 rounded" style={{ background: (gradientDirection || '90deg') === deg ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>{icon}</button>
-              ))}
-            </div>
-          </div>
-          {/* Live preview */}
-          <div className="h-8 rounded border" style={{ background: `linear-gradient(${gradientDirection || '90deg'}, ${gradientStart || '#FF0000'}, ${gradientEnd || '#0000FF'})`, borderColor: 'var(--zet-border)' }} />
-          <button onClick={() => {
-            const gs = gradientStart || '#FF0000';
-            const ge = gradientEnd || '#0000FF';
-            const gd = gradientDirection || '90deg';
-            if (selectedElement) {
-              const updated = canvasElements.map(el => el.id === selectedElement ? { ...el, gradientStart: gs, gradientEnd: ge, gradientDirection: gd, color: null } : el);
-              setCanvasElements(updated); handleSaveHistory(updated);
-            } else if (selectedElements.length > 0) {
-              const updated = canvasElements.map(el => selectedElements.includes(el.id) ? { ...el, gradientStart: gs, gradientEnd: ge, gradientDirection: gd, color: null } : el);
-              setCanvasElements(updated); handleSaveHistory(updated);
-            } else {
-              setUseGradient(true);
-            }
-          }} className="zet-btn w-full text-xs" style={{ background: gradientStart && gradientEnd ? `linear-gradient(${gradientDirection || '90deg'}, ${gradientStart}, ${gradientEnd})` : undefined }}>Seçili Öğeye Uygula</button>
+        {/* Preset colors */}
+        <div className="grid grid-cols-8 gap-1">
+          {PRESET_COLORS.map(c => (
+            <button key={c} onClick={() => { applyColor(c); setHexInput(c); }}
+              className={`w-8 h-8 rounded-md border transition-transform ${currentColor === c ? 'ring-2 ring-white scale-110' : 'border-white/10'}`}
+              style={{ background: c }} />
+          ))}
         </div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Custom Picker</label><input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColor(e.target.value); setHexInput(e.target.value); }} className="w-full h-8 rounded cursor-pointer" /></div>
+
+        {/* Hex + color picker */}
+        <div className="flex gap-2 items-center">
+          <input type="text" value={hexInput} onChange={e => setHexInput(e.target.value)} placeholder="#000000"
+            className="zet-input flex-1 text-xs font-mono" maxLength={7} />
+          <button onClick={() => { if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) applyColor(hexInput); }}
+            className="zet-btn px-2 text-xs">OK</button>
+          <input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColor(e.target.value); setHexInput(e.target.value); }}
+            className="h-8 w-10 rounded cursor-pointer" style={{ padding: 2, border: '1px solid var(--zet-border)' }} />
+        </div>
+
+        {/* Gradient — Adobe Illustrator style */}
+        <div className="space-y-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>Gradient</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Açı</span>
+              <input type="number" min="0" max="360" value={gradientAngle}
+                onChange={e => setGradientAngle(Number(e.target.value))}
+                className="zet-input text-xs w-14 text-center" />
+              <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>°</span>
+            </div>
+          </div>
+
+          {/* Gradient bar + stop handles */}
+          <div style={{ position: 'relative', height: 44, userSelect: 'none' }}>
+            {/* Bar */}
+            <div
+              ref={gradientBarRef}
+              style={{
+                position: 'absolute', left: 10, right: 10, top: 0, height: 20, borderRadius: 6,
+                background: (() => {
+                  const s = [...gradientStops].sort((a, b) => a.pos - b.pos);
+                  return `linear-gradient(90deg, ${s.map(x => `${x.color} ${x.pos}%`).join(', ')})`;
+                })(),
+                cursor: 'crosshair', border: '1px solid rgba(255,255,255,0.15)',
+              }}
+              onClick={e => {
+                const rect = e.currentTarget.getBoundingClientRect();
+                const pos = Math.min(100, Math.max(0, Math.round(((e.clientX - rect.left) / rect.width) * 100)));
+                const newId = `stop_${Date.now()}`;
+                setGradientStops(prev => [...prev, { id: newId, pos, color: currentColor }]);
+                setActiveStopId(newId);
+              }}
+            />
+            {/* Stop handles */}
+            {gradientStops.map(stop => (
+              <div key={stop.id}
+                style={{
+                  position: 'absolute',
+                  left: `calc(10px + ${stop.pos}% * (100% - 20px) / 100)`,
+                  top: 18,
+                  transform: 'translateX(-50%)',
+                  cursor: 'grab',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1,
+                  zIndex: activeStopId === stop.id ? 2 : 1,
+                }}
+                onClick={e => { e.stopPropagation(); setActiveStopId(stop.id); }}
+                onMouseDown={e => {
+                  e.stopPropagation();
+                  setActiveStopId(stop.id);
+                  const barEl = gradientBarRef.current;
+                  if (!barEl) return;
+                  const barRect = barEl.getBoundingClientRect();
+                  const sid = stop.id;
+                  const onMove = me => {
+                    const p = Math.min(100, Math.max(0, Math.round(((me.clientX - barRect.left) / barRect.width) * 100)));
+                    setGradientStops(prev => prev.map(s => s.id === sid ? { ...s, pos: p } : s));
+                  };
+                  const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+                  document.addEventListener('mousemove', onMove);
+                  document.addEventListener('mouseup', onUp);
+                }}
+              >
+                {/* Arrow */}
+                <div style={{ width: 0, height: 0, borderLeft: '5px solid transparent', borderRight: '5px solid transparent', borderBottom: `7px solid ${activeStopId === stop.id ? 'white' : '#666'}` }} />
+                {/* Color circle */}
+                <div style={{ width: 14, height: 14, borderRadius: '50%', background: stop.color, border: `2px solid ${activeStopId === stop.id ? 'white' : '#444'}`, flexShrink: 0 }} />
+              </div>
+            ))}
+          </div>
+
+          {/* Active stop controls */}
+          {(() => {
+            const s = gradientStops.find(x => x.id === activeStopId);
+            if (!s) return null;
+            return (
+              <div className="flex items-center gap-2">
+                <input type="color" value={s.color}
+                  onChange={e => setGradientStops(prev => prev.map(x => x.id === activeStopId ? { ...x, color: e.target.value } : x))}
+                  className="h-8 w-10 rounded cursor-pointer" style={{ padding: 2, border: '1px solid var(--zet-border)' }} />
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{s.pos}%</span>
+                <div style={{ flex: 1 }} />
+                {gradientStops.length > 2 && (
+                  <button onClick={() => setGradientStops(prev => {
+                    const r = prev.filter(x => x.id !== activeStopId);
+                    setActiveStopId(r[0].id);
+                    return r;
+                  })} className="flex items-center justify-center w-6 h-6 rounded"
+                    style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text-muted)' }}>
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          <button onMouseDown={e => e.preventDefault()} onClick={() => applyGradient()}
+            className="zet-btn w-full text-xs font-medium"
+            style={{ background: (() => { const s = [...gradientStops].sort((a, b) => a.pos - b.pos); return `linear-gradient(${gradientAngle}deg, ${s.map(x => `${x.color} ${x.pos}%`).join(', ')})`; })() }}>
+            Gradient Uygula
+          </button>
+        </div>
+
+        {/* Highlighter */}
+        <div className="space-y-1 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <span className="text-xs font-medium flex items-center gap-1.5" style={{ color: 'var(--zet-text)' }}><Highlighter className="h-3.5 w-3.5" /> Highlighter Rengi</span>
+          <div className="flex items-center gap-1">
+            {['#FFFF00', '#00FF00', '#00FFFF', '#FF69B4', '#FFA500', '#FF0000'].map(c => (
+              <button key={c} onClick={() => setHighlighterColor(c)} className={`w-6 h-6 rounded transition-all ${highlighterColor === c ? 'ring-2 ring-white scale-110' : ''}`} style={{ background: c }} data-testid={`highlight-color-${c}`} />
+            ))}
+            <button onClick={() => {
+              const target = selectedElement || lastSelectedRef.current;
+              if (!target) return;
+              setCanvasElements(prev => {
+                const updated = prev.map(el => {
+                  if (el.id !== target) return el;
+                  const cleaned = { ...el, highlightColor: undefined };
+                  if (el.htmlContent) cleaned.htmlContent = el.htmlContent.replace(/<span[^>]*data-highlight="true"[^>]*>(.*?)<\/span>/gi, '$1');
+                  return cleaned;
+                });
+                handleSaveHistory(updated);
+                return updated;
+              });
+            }} className="w-6 h-6 rounded flex items-center justify-center" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }} data-testid="highlight-remove" title="Kaldır">
+              <X className="h-3 w-3" />
+            </button>
+          </div>
+          <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Metin seçin, araç çubuğundan Highlighter'a tıklayın</p>
+        </div>
       </div>
     </DraggablePanel>}
     {showTextSize && <DraggablePanel title={t('textSize')} onClose={() => setShowTextSize(false)} initialPosition={{ x: isMobile ? 20 : 370, y: 100 }}>
@@ -3021,16 +3245,19 @@ const Editor = () => {
           <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
           <input placeholder={`Font ara... (${allFonts.length}+ font)`} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" />
         </div>
-        <div className="max-h-64 overflow-y-auto space-y-0.5">
-          {filteredFonts.slice(0, fontSearch ? 200 : 150).map(f => (
+        <div className="max-h-64 overflow-y-auto space-y-0.5" onScroll={e => {
+          const top = e.target.scrollTop;
+          const startIdx = Math.max(0, Math.floor(top / 30) - 3);
+          filteredFonts.slice(startIdx, startIdx + 20).forEach(f => loadGoogleFont(f));
+        }}>
+          {filteredFonts.slice(0, fontSearch ? 500 : 300).map(f => (
             <button key={f}
               onClick={() => { loadGoogleFont(f); setCurrentFont(f); applyInlineStyle('fontFamily', f); setShowFont(false); }}
               onMouseEnter={() => loadGoogleFont(f)}
-              className={`w-full text-left px-2 py-1.5 rounded transition-colors flex items-center justify-between ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`}
-              style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)' }}
+              className={`w-full text-left px-2 py-1.5 rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`}
+              style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f, fontSize: 13 }}
             >
-              <span style={{ fontSize: 13 }}>{f}</span>
-              <span style={{ fontFamily: loadedFonts[f] ? f : 'inherit', fontSize: 11, opacity: 0.6 }}>Aa</span>
+              {f}
             </button>
           ))}
         </div>
@@ -3052,36 +3279,6 @@ const Editor = () => {
           <button data-testid="toggle-underline" onClick={() => { setIsUnderline(!isUnderline); applyInlineStyle('underline', !isUnderline); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isUnderline ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isUnderline ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Underline className="h-4 w-4" /> Underline</button>
           <button data-testid="toggle-strikethrough" onClick={() => { setIsStrikethrough(!isStrikethrough); applyInlineStyle('strikethrough', !isStrikethrough); }} className={`flex items-center gap-2 p-2.5 rounded text-sm transition-colors ${isStrikethrough ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: isStrikethrough ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}><Strikethrough className="h-4 w-4" /> Strike</button>
         </div>
-        {/* Highlighter Section */}
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <span className="text-xs font-medium flex items-center gap-1.5 mb-2" style={{ color: 'var(--zet-text)' }}><Highlighter className="h-3.5 w-3.5" /> Highlighter Rengi</span>
-          <div className="flex items-center gap-1">
-            {['#FFFF00', '#00FF00', '#00FFFF', '#FF69B4', '#FFA500', '#FF0000'].map(c => (
-              <button key={c} onClick={() => {
-                setHighlighterColor(c);
-              }} className={`w-6 h-6 rounded transition-all ${highlighterColor === c ? 'ring-2 ring-white scale-110' : ''}`} style={{ background: c }} data-testid={`highlight-color-${c}`} />
-            ))}
-            <button onClick={() => {
-              const target = selectedElement || lastSelectedRef.current;
-              if (!target) return;
-              setCanvasElements(prev => {
-                const updated = prev.map(el => {
-                  if (el.id !== target) return el;
-                  const cleaned = { ...el, highlightColor: undefined };
-                  if (el.htmlContent) {
-                    cleaned.htmlContent = el.htmlContent.replace(/<span[^>]*data-highlight="true"[^>]*>(.*?)<\/span>/gi, '$1');
-                  }
-                  return cleaned;
-                });
-                handleSaveHistory(updated);
-                return updated;
-              });
-            }} className="w-6 h-6 rounded flex items-center justify-center text-xs" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }} data-testid="highlight-remove" title="Kaldır">
-              <X className="h-3 w-3" />
-            </button>
-          </div>
-          <p className="text-xs mt-1.5" style={{ color: 'var(--zet-text-muted)' }}>Metin seçin, araç çubuğundan Highlighter'a tıklayın</p>
-        </div>
       </div>
     </DraggablePanel>}
     {showPageSize && <DraggablePanel title={t('pageSize')} onClose={() => setShowPageSize(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 200 }}>
@@ -3096,12 +3293,16 @@ const Editor = () => {
           </button>
         </div>
         {PAGE_SIZES.map(s => <button key={s.name} onClick={() => {
+          const oldW = pageSize.width, oldH = pageSize.height;
+          const sx = s.width / oldW, sy = s.height / oldH;
           setPageSize(s);
+          const scaleEls = els => els.map(el => ({ ...el, x: el.x * sx, y: el.y * sy, ...(el.width != null ? { width: el.width * sx } : {}), ...(el.height != null ? { height: el.height * sy } : {}), ...(el.fontSize != null ? { fontSize: Math.round(el.fontSize * sx) } : {}) }));
+          setCanvasElements(prev => scaleEls(prev));
           setDocument(prev => {
             if (!prev) return prev;
             const pages = [...(prev.pages || [])];
             if (pageSizeScope === 'all') {
-              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s })) };
+              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s, elements: scaleEls(p.elements || []) })) };
             }
             if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
             return { ...prev, pages };
@@ -3111,12 +3312,16 @@ const Editor = () => {
         <div className="flex gap-1 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}><input type="number" value={customWidth} onChange={e => setCustomWidth(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="W" /><input type="number" value={customHeight} onChange={e => setCustomHeight(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="H" /></div>
         <button onClick={() => {
           const s = { name: 'Custom', width: customWidth, height: customHeight };
+          const oldW = pageSize.width, oldH = pageSize.height;
+          const sx = s.width / oldW, sy = s.height / oldH;
           setPageSize(s);
+          const scaleEls = els => els.map(el => ({ ...el, x: el.x * sx, y: el.y * sy, ...(el.width != null ? { width: el.width * sx } : {}), ...(el.height != null ? { height: el.height * sy } : {}), ...(el.fontSize != null ? { fontSize: Math.round(el.fontSize * sx) } : {}) }));
+          setCanvasElements(prev => scaleEls(prev));
           setDocument(prev => {
             if (!prev) return prev;
             const pages = [...(prev.pages || [])];
             if (pageSizeScope === 'all') {
-              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s })) };
+              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s, elements: scaleEls(p.elements || []) })) };
             }
             if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
             return { ...prev, pages };
@@ -3266,7 +3471,8 @@ const Editor = () => {
     
     {/* Paragraph Alignment Panel */}
     {showParagraph && <DraggablePanel title="Paragraf" onClose={() => setShowParagraph(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
-      <div className="space-y-3 w-52">
+      <div className="space-y-3 w-56">
+        {/* Heading styles */}
         <div>
           <p className="text-xs mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Başlık Stili</p>
           <div className="grid grid-cols-4 gap-1.5">
@@ -3276,6 +3482,7 @@ const Editor = () => {
             <button onClick={() => applyHeadingStyle(12, false)} className="p-2 rounded text-xs transition-colors hover:bg-white/10" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>Nor</button>
           </div>
         </div>
+        {/* Alignment */}
         <div>
           <p className="text-xs mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Hizalama</p>
           <div className="grid grid-cols-4 gap-2">
@@ -3283,6 +3490,61 @@ const Editor = () => {
             <button onClick={() => applyTextAlign('center')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'center' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'center' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignCenter className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
             <button onClick={() => applyTextAlign('right')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'right' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'right' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignRight className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
             <button onClick={() => applyTextAlign('justify')} className={`p-2.5 rounded flex items-center justify-center ${currentTextAlign === 'justify' ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: currentTextAlign === 'justify' ? 'var(--zet-primary)' : 'var(--zet-bg)' }}><AlignJustify className="h-4 w-4" style={{ color: 'var(--zet-text)' }} /></button>
+          </div>
+        </div>
+        {/* First-line indent */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>İlk Satır Girintisi</p>
+          <div className="flex items-center gap-2">
+            <input type="range" min="0" max="120" value={firstLineIndent} onChange={e => {
+              const v = Number(e.target.value);
+              setFirstLineIndent(v);
+              const target = selectedElement || lastSelectedRef.current;
+              if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target ? { ...el, textIndent: v } : el); handleSaveHistory(u); return u; });
+            }} className="flex-1 accent-blue-500" />
+            <span className="text-xs w-10 text-right" style={{ color: 'var(--zet-text)' }}>{firstLineIndent}px</span>
+          </div>
+          <div className="flex gap-1 mt-1">
+            {[0, 24, 36, 48].map(v => (
+              <button key={v} onClick={() => {
+                setFirstLineIndent(v);
+                const target = selectedElement || lastSelectedRef.current;
+                if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target ? { ...el, textIndent: v } : el); handleSaveHistory(u); return u; });
+              }} className="flex-1 text-xs py-0.5 rounded" style={{ background: firstLineIndent === v ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>{v === 0 ? 'Yok' : `${v}px`}</button>
+            ))}
+          </div>
+        </div>
+        {/* Paragraph spacing */}
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>Paragraf Aralığı</p>
+          <div className="space-y-2">
+            <div>
+              <label className="text-xs flex justify-between mb-1" style={{ color: 'var(--zet-text-muted)' }}><span>Önce</span><span>{paragraphSpaceBefore}px</span></label>
+              <input type="range" min="0" max="80" value={paragraphSpaceBefore} onChange={e => {
+                const v = Number(e.target.value);
+                setParagraphSpaceBefore(v);
+                const target = selectedElement || lastSelectedRef.current;
+                if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target ? { ...el, paragraphSpaceBefore: v } : el); handleSaveHistory(u); return u; });
+              }} className="w-full accent-blue-500" />
+            </div>
+            <div>
+              <label className="text-xs flex justify-between mb-1" style={{ color: 'var(--zet-text-muted)' }}><span>Sonra</span><span>{paragraphSpaceAfter}px</span></label>
+              <input type="range" min="0" max="80" value={paragraphSpaceAfter} onChange={e => {
+                const v = Number(e.target.value);
+                setParagraphSpaceAfter(v);
+                const target = selectedElement || lastSelectedRef.current;
+                if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target ? { ...el, paragraphSpaceAfter: v } : el); handleSaveHistory(u); return u; });
+              }} className="w-full accent-blue-500" />
+            </div>
+            <div className="flex gap-1">
+              {[0, 6, 12, 18].map(v => (
+                <button key={v} onClick={() => {
+                  setParagraphSpaceBefore(v); setParagraphSpaceAfter(v);
+                  const target = selectedElement || lastSelectedRef.current;
+                  if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target ? { ...el, paragraphSpaceBefore: v, paragraphSpaceAfter: v } : el); handleSaveHistory(u); return u; });
+                }} className="flex-1 text-xs py-0.5 rounded" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>{v === 0 ? 'Yok' : `${v}px`}</button>
+              ))}
+            </div>
           </div>
         </div>
       </div>
@@ -3341,19 +3603,8 @@ const Editor = () => {
               key={i}
               title={char}
               onMouseDown={(e) => {
-                e.preventDefault();
-                const sel = window.getSelection();
-                if (sel && sel.rangeCount > 0) {
-                  const range = sel.getRangeAt(0);
-                  range.deleteContents();
-                  const tn = window.document.createTextNode(char);
-                  range.insertNode(tn);
-                  range.setStartAfter(tn);
-                  range.collapse(true);
-                  sel.removeAllRanges();
-                  sel.addRange(range);
-                  tn.parentElement?.closest('[contenteditable="true"]')?.dispatchEvent(new Event('input', { bubbles: true }));
-                }
+                e.preventDefault(); // focus'u contenteditable'da tutar
+                document.execCommand('insertText', false, char);
               }}
               className="w-8 h-8 rounded font-mono text-sm flex items-center justify-center hover:bg-white/15 transition-colors"
               style={{ border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
@@ -3362,7 +3613,7 @@ const Editor = () => {
             </button>
           ))}
         </div>
-        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Metni seçin ve sembolü tıklayın</p>
+        <p className="text-[10px] mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>Metin kutusunda imleci konumlandırın, ardından sembolü tıklayın</p>
       </div>
     </DraggablePanel>}
 
@@ -3571,209 +3822,205 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
+    {/* Bullet List Panel */}
+    {showBulletList && <DraggablePanel title="Madde İşaretli Liste" onClose={() => setShowBulletList(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="w-52 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Liste stili seç</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { style: 'disc',   label: '●', desc: 'Dolu' },
+            { style: 'circle', label: '○', desc: 'Boş' },
+            { style: 'square', label: '▪', desc: 'Kare' },
+            { style: 'disclosure-closed', label: '›', desc: 'Ok' },
+            { style: 'none',   label: '—', desc: 'Tire' },
+          ].map(({ style, label, desc }) => (
+            <button key={style} onClick={() => {
+              setCurrentBulletStyle(style);
+              applyListFormat('ul', style);
+              setShowBulletList(false);
+            }} className={`flex flex-col items-center gap-0.5 p-2 rounded transition-colors ${currentBulletStyle === style ? 'glow-sm' : 'hover:bg-white/10'}`}
+              style={{ background: currentBulletStyle === style ? 'var(--zet-primary)' : 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
+              <span className="text-base leading-none">{label}</span>
+              <span className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{desc}</span>
+            </button>
+          ))}
+        </div>
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>TAB = alt liste &nbsp;·&nbsp; Shift+TAB = geri</p>
+          <button onClick={() => {
+            const target = selectedElement || lastSelectedRef.current;
+            if (!target) return;
+            const el = canvasElements.find(e => e.id === target);
+            if (!el) return;
+            const cleaned = (el.htmlContent || el.content || '').replace(/<\/?[uo]l[^>]*>/gi, '').replace(/<li[^>]*>/gi, '').replace(/<\/li>/gi, '\n').replace(/\n+/g, '\n').trim();
+            setCanvasElements(prev => { const u = prev.map(e => e.id === target ? { ...e, htmlContent: cleaned, content: cleaned.replace(/<[^>]*>/g, '') } : e); handleSaveHistory(u); return u; });
+            setShowBulletList(false);
+          }} className="zet-btn w-full text-xs py-1.5" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>Listeyi Kaldır</button>
+        </div>
+      </div>
+    </DraggablePanel>}
+
+    {/* Numbered List Panel */}
+    {showNumberedList && <DraggablePanel title="Numaralı Liste" onClose={() => setShowNumberedList(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
+      <div className="w-52 space-y-3">
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Numara stili seç</p>
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            { style: 'decimal',      label: '1.', desc: 'Sayı' },
+            { style: 'lower-alpha',  label: 'a.', desc: 'Küçük' },
+            { style: 'upper-alpha',  label: 'A.', desc: 'Büyük' },
+            { style: 'lower-roman',  label: 'i.', desc: 'Roma k.' },
+            { style: 'upper-roman',  label: 'I.', desc: 'Roma B.' },
+            { style: 'decimal-leading-zero', label: '01.', desc: 'Sıfırlı' },
+          ].map(({ style, label, desc }) => (
+            <button key={style} onClick={() => {
+              setCurrentNumberStyle(style);
+              applyListFormat('ol', style);
+              setShowNumberedList(false);
+            }} className={`flex flex-col items-center gap-0.5 p-2 rounded transition-colors ${currentNumberStyle === style ? 'glow-sm' : 'hover:bg-white/10'}`}
+              style={{ background: currentNumberStyle === style ? 'var(--zet-primary)' : 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
+              <span className="text-sm font-mono leading-none">{label}</span>
+              <span className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{desc}</span>
+            </button>
+          ))}
+        </div>
+        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+          <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>TAB = alt liste &nbsp;·&nbsp; Shift+TAB = geri</p>
+          <button onClick={() => {
+            const target = selectedElement || lastSelectedRef.current;
+            if (!target) return;
+            const el = canvasElements.find(e => e.id === target);
+            if (!el) return;
+            const cleaned = (el.htmlContent || el.content || '').replace(/<\/?[uo]l[^>]*>/gi, '').replace(/<li[^>]*>/gi, '').replace(/<\/li>/gi, '\n').replace(/\n+/g, '\n').trim();
+            setCanvasElements(prev => { const u = prev.map(e => e.id === target ? { ...e, htmlContent: cleaned, content: cleaned.replace(/<[^>]*>/g, '') } : e); handleSaveHistory(u); return u; });
+            setShowNumberedList(false);
+          }} className="zet-btn w-full text-xs py-1.5" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>Listeyi Kaldır</button>
+        </div>
+      </div>
+    </DraggablePanel>}
+
     {/* Indent Panel */}
     {showIndent && <DraggablePanel title="Girinti" onClose={() => setShowIndent(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-64 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Metin girintisini ayarlayın</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sol</label>
-            <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentLeft} onChange={e => setIndentLeft(parseInt(e.target.value))} className="flex-1" />
-              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentLeft}px</span>
+      <div className="w-56 space-y-2">
+        {[
+          { label: 'Sol', value: indentLeft, set: setIndentLeft, key: 'paddingLeft' },
+          { label: 'Sağ', value: indentRight, set: setIndentRight, key: 'paddingRight' },
+          { label: 'Üst', value: indentTop, set: setIndentTop, key: 'paddingTop' },
+          { label: 'Alt', value: indentBottom, set: setIndentBottom, key: 'paddingBottom' },
+        ].map(({ label, value, set, key }) => (
+          <div key={key}>
+            <div className="flex justify-between mb-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>{label}</label>
+              <span className="text-xs font-mono" style={{ color: 'var(--zet-primary)' }}>{value}px</span>
             </div>
+            <input type="range" min="0" max="120" value={value} onChange={e => {
+              const v = parseInt(e.target.value);
+              set(v);
+              const target = selectedElement || lastSelectedRef.current;
+              if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target && el.type === 'text' ? { ...el, [key]: v } : el); handleSaveHistory(u); return u; });
+            }} className="w-full accent-blue-500" />
           </div>
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sağ</label>
-            <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentRight} onChange={e => setIndentRight(parseInt(e.target.value))} className="flex-1" />
-              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentRight}px</span>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Üst</label>
-            <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentTop} onChange={e => setIndentTop(parseInt(e.target.value))} className="flex-1" />
-              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentTop}px</span>
-            </div>
-          </div>
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Alt</label>
-            <div className="flex items-center gap-2">
-              <input type="range" min="0" max="100" value={indentBottom} onChange={e => setIndentBottom(parseInt(e.target.value))} className="flex-1" />
-              <span className="text-xs w-8" style={{ color: 'var(--zet-text)' }}>{indentBottom}px</span>
-            </div>
-          </div>
-        </div>
-        <button 
-          onClick={() => { setIndentLeft(0); setIndentRight(0); setIndentTop(0); setIndentBottom(0); }}
-          className="zet-btn w-full py-1.5 text-xs"
-        >
-          Sıfırla
-        </button>
-        <div className="pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--zet-border)' }}>
+        ))}
+        <div className="flex gap-2 pt-1">
+          <button onClick={() => {
+            setIndentLeft(0); setIndentRight(0); setIndentTop(0); setIndentBottom(0);
+            const target = selectedElement || lastSelectedRef.current;
+            if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target && el.type === 'text' ? { ...el, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } : el); handleSaveHistory(u); return u; });
+          }} className="zet-btn flex-1 py-1.5 text-xs">Sıfırla</button>
           <button data-testid="indent-apply-all" onClick={() => {
-            setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el));
+            setCanvasElements(prev => { const u = prev.map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el); handleSaveHistory(u); return u; });
             setDocument(prev => {
               if (!prev?.pages) return prev;
-              return { ...prev, pages: prev.pages.map((page, idx) => {
-                if (idx === currentPage) return page;
-                return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el) };
-              })};
+              return { ...prev, pages: prev.pages.map((page, idx) => idx === currentPage ? page : { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el) }) };
             });
-          }} className="zet-btn w-full py-2 text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
-            Tümüne Uygula
-          </button>
-          <button data-testid="indent-apply-selected" onClick={() => {
-            const target = selectedElement || lastSelectedRef.current;
-            if (!target) { alert('Lütfen önce bir metin seçin!'); return; }
-            setCanvasElements(prev => prev.map(el => el.id === target && el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el));
-          }} className="zet-btn w-full py-2 text-xs" style={{ border: '1px solid var(--zet-primary)', color: 'var(--zet-primary)' }}>
-            Seçili Metne Uygula
-          </button>
+          }} className="zet-btn flex-1 py-1.5 text-xs" style={{ background: 'var(--zet-primary)', color: '#fff' }}>Tümüne</button>
         </div>
       </div>
     </DraggablePanel>}
 
     {/* Margins Panel */}
     {showMargins && <DraggablePanel title="Kenar Boşlukları" onClose={() => setShowMargins(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-64 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Sayfa kenar boşluklarını ayarlayın</p>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Üst</label>
-            <input type="number" min="0" max="200" value={marginTop} onChange={e => setMarginTop(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
+      <div className="w-56 space-y-2">
+        {[
+          { label: 'Üst',  value: marginTop,    set: setMarginTop },
+          { label: 'Alt',  value: marginBottom, set: setMarginBottom },
+          { label: 'Sol',  value: marginLeft,   set: setMarginLeft },
+          { label: 'Sağ',  value: marginRight,  set: setMarginRight },
+        ].map(({ label, value, set }) => (
+          <div key={label}>
+            <div className="flex justify-between mb-1">
+              <label className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>{label}</label>
+              <span className="text-xs font-mono" style={{ color: 'var(--zet-primary)' }}>{value}px</span>
+            </div>
+            <input type="range" min="0" max="200" value={value} onChange={e => set(parseInt(e.target.value))} className="w-full accent-blue-500" />
           </div>
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Alt</label>
-            <input type="number" min="0" max="200" value={marginBottom} onChange={e => setMarginBottom(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
-          </div>
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sol</label>
-            <input type="number" min="0" max="200" value={marginLeft} onChange={e => setMarginLeft(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
-          </div>
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sağ</label>
-            <input type="number" min="0" max="200" value={marginRight} onChange={e => setMarginRight(parseInt(e.target.value) || 0)} className="zet-input text-xs w-full" />
-          </div>
-        </div>
+        ))}
         <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</label>
-          {/* Presets — 1cm = 37.8px at 96 DPI */}
+          <p className="text-xs mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</p>
           <div className="grid grid-cols-3 gap-1">
-            <button onClick={() => {
-              const ml = 95, mr = 95; // 2.5cm
-              setMarginTop(95); setMarginBottom(95); setMarginLeft(ml); setMarginRight(mr);
-              const w = pageSize.width - ml - mr;
-              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-            }} className="zet-btn text-xs py-1.5">Normal</button>
-            <button onClick={() => {
-              const ml = 48, mr = 48; // 1.27cm
-              setMarginTop(48); setMarginBottom(48); setMarginLeft(ml); setMarginRight(mr);
-              const w = pageSize.width - ml - mr;
-              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-            }} className="zet-btn text-xs py-1.5">Dar</button>
-            <button onClick={() => {
-              const ml = 189, mr = 189; // 5cm
-              setMarginTop(189); setMarginBottom(189); setMarginLeft(ml); setMarginRight(mr);
-              const w = pageSize.width - ml - mr;
-              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-            }} className="zet-btn text-xs py-1.5">Geniş</button>
-            <button onClick={() => {
-              // Senaryo: sol 3.8cm=144px, üst/alt 2.5cm=95px, sağ 2.5cm=95px, Courier 12pt
-              const ml = 144, mr = 95, mt = 95, mb = 95;
-              setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
-              setCurrentFont('Courier New'); setCurrentFontSize(16);
-              const w = pageSize.width - ml - mr;
-              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w, fontFamily: 'Courier New', fontSize: 16 } : el));
-            }} className="zet-btn text-xs py-1.5">Senaryo</button>
-            <button onClick={() => {
-              // Akademik APA/MLA: sol 3.2cm=121px, üst/alt 2.5cm=95px
-              const ml = 121, mr = 95, mt = 95, mb = 95;
-              setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
-              const w = pageSize.width - ml - mr;
-              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-            }} className="zet-btn text-xs py-1.5">Akademik</button>
-            <button onClick={() => {
-              // Kitap: üst/alt 2cm=76px, sol 3cm=113px, sağ 2.5cm=95px
-              const ml = 113, mr = 95, mt = 76, mb = 76;
-              setMarginTop(mt); setMarginBottom(mb); setMarginLeft(ml); setMarginRight(mr);
-              const w = pageSize.width - ml - mr;
-              setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: ml, width: w } : el));
-            }} className="zet-btn text-xs py-1.5">Kitap</button>
+            {[
+              { label: 'Normal',   t: 95,  b: 95,  l: 95,  r: 95 },
+              { label: 'Dar',      t: 48,  b: 48,  l: 48,  r: 48 },
+              { label: 'Geniş',   t: 189, b: 189, l: 189, r: 189 },
+              { label: 'Senaryo', t: 95,  b: 95,  l: 144, r: 95 },
+              { label: 'Akademik',t: 95,  b: 95,  l: 121, r: 95 },
+              { label: 'Kitap',   t: 76,  b: 76,  l: 113, r: 95 },
+            ].map(({ label, t, b, l, r }) => (
+              <button key={label} onClick={() => {
+                setMarginTop(t); setMarginBottom(b); setMarginLeft(l); setMarginRight(r);
+                const w = pageSize.width - l - r;
+                setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: l, width: w } : el));
+                if (label === 'Senaryo') { setCurrentFont('Courier New'); setCurrentFontSize(16); }
+              }} className="zet-btn text-xs py-1.5">{label}</button>
+            ))}
           </div>
         </div>
-        <div className="pt-2 border-t space-y-1.5" style={{ borderColor: 'var(--zet-border)' }}>
-          <button data-testid="margins-apply-all" onClick={() => {
-            const w = pageSize.width - marginLeft - marginRight;
-            setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el));
-            setDocument(prev => {
-              if (!prev?.pages) return prev;
-              return { ...prev, pages: prev.pages.map((page, idx) => {
-                if (idx === currentPage) return page;
-                return { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el) };
-              })};
-            });
-          }} className="zet-btn w-full py-2 text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
-            Tümüne Uygula
-          </button>
-          <button data-testid="margins-apply-selected" onClick={() => {
-            const target = selectedElement || lastSelectedRef.current;
-            if (!target) { alert('Lütfen önce bir metin seçin!'); return; }
-            const w = pageSize.width - marginLeft - marginRight;
-            setCanvasElements(prev => prev.map(el => el.id === target && el.type === 'text' ? { ...el, x: marginLeft, width: w } : el));
-          }} className="zet-btn w-full py-2 text-xs" style={{ border: '1px solid var(--zet-primary)', color: 'var(--zet-primary)' }}>
-            Seçili Metne Uygula
-          </button>
-        </div>
+        <button data-testid="margins-apply-all" onClick={() => {
+          const w = pageSize.width - marginLeft - marginRight;
+          setCanvasElements(prev => { const u = prev.map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el); handleSaveHistory(u); return u; });
+          setDocument(prev => {
+            if (!prev?.pages) return prev;
+            return { ...prev, pages: prev.pages.map((page, idx) => idx === currentPage ? page : { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el) }) };
+          });
+        }} className="zet-btn w-full py-1.5 text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>Tümüne Uygula</button>
       </div>
     </DraggablePanel>}
 
     {/* Columns Panel */}
     {showColumns && <DraggablePanel title="Sütun Düzeni" onClose={() => setShowColumns(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-60 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Sayfa sütun düzenini ayarlayın. Kılavuz çizgileri canvas'ta gösterilir.</p>
+      <div className="w-56 space-y-3">
         <div>
-          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Sütun Sayısı</label>
-          <div className="grid grid-cols-3 gap-2">
-            {[1, 2, 3].map(n => (
-              <button key={n} onClick={() => setColumnCount(n)}
-                className="zet-btn py-2 text-sm font-semibold"
-                style={columnCount === n ? { background: 'var(--zet-primary)', color: '#fff' } : {}}>
-                {n === 1 ? '1 Sütun' : n === 2 ? '2 Sütun' : '3 Sütun'}
-              </button>
-            ))}
-          </div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sütun Aralığı: {columnGap}px</label>
+          <input type="range" min="10" max="80" value={columnGap} onChange={e => setColumnGap(parseInt(e.target.value))} className="w-full accent-blue-500" />
         </div>
-        {columnCount > 1 && (
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sütun Aralığı: {columnGap}px</label>
-            <input type="range" min="10" max="80" value={columnGap} onChange={e => setColumnGap(parseInt(e.target.value))} className="w-full" />
-          </div>
-        )}
-        {columnCount > 1 && (
-          <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-            <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>
-              Sütun genişliği: {Math.round((pageSize.width - marginLeft - marginRight - (columnCount - 1) * columnGap) / columnCount)}px
-            </p>
-            <button onClick={() => {
+        <div className="grid grid-cols-3 gap-2">
+          {[1, 2, 3].map(n => (
+            <button key={n} onClick={() => {
+              setColumnCount(n);
+              if (n === 1) { setShowColumns(false); return; }
               const availW = pageSize.width - marginLeft - marginRight;
-              const colW = Math.round((availW - (columnCount - 1) * columnGap) / columnCount);
-              const cols = Array.from({ length: columnCount }, (_, i) => ({
+              const colW = Math.round((availW - (n - 1) * columnGap) / n);
+              const cols = Array.from({ length: n }, (_, i) => ({
                 id: `col_${Date.now()}_${i}`, type: 'text',
                 x: marginLeft + i * (colW + columnGap),
-                y: marginTop, content: '',
+                y: marginTop, content: '', htmlContent: '',
                 fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
                 width: colW, lineHeight: currentLineHeight, textAlign: 'left',
               }));
               const updated = [...canvasElements, ...cols];
               setCanvasElements(updated);
               handleSaveHistory(updated);
-            }} className="zet-btn w-full text-xs py-2" style={{ background: 'var(--zet-primary)', color: '#fff' }}>
-              Sütun Metin Alanları Ekle
+              setShowColumns(false);
+            }}
+              className="zet-btn py-2.5 text-sm font-semibold"
+              style={{ background: columnCount === n ? 'var(--zet-primary)' : 'var(--zet-bg)', color: columnCount === n ? '#fff' : 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
+              {n}
             </button>
-          </div>
-        )}
+          ))}
+        </div>
+        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+          Sütun genişliği: ~{Math.round((pageSize.width - marginLeft - marginRight - (columnCount - 1) * columnGap) / Math.max(columnCount, 1))}px
+        </p>
       </div>
     </DraggablePanel>}
 
@@ -3846,7 +4093,7 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Graphiç Chart Panel */}
-    {showGraphic && <DraggablePanel title="Chart" onClose={() => setShowGraphic(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
+    {showGraphic && <DraggablePanel title={editingChartId ? 'Grafiği Düzenle' : 'Chart'} onClose={() => { setShowGraphic(false); setEditingChartId(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
       <div className="w-80 space-y-3 max-h-[70vh] overflow-y-auto">
         <div>
           <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Chart Type</label>
@@ -3940,7 +4187,7 @@ const Editor = () => {
           )}
         </div>
 
-        <button onClick={createChart} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> Create Chart</button>
+        <button onClick={createChart} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> {editingChartId ? 'Güncelle' : 'Create Chart'}</button>
       </div>
     </DraggablePanel>}
 
@@ -4191,6 +4438,11 @@ const Editor = () => {
       <div className="w-56 space-y-3">
         <input type="text" value={watermarkText} onChange={e => setWatermarkText(e.target.value)} placeholder="Watermark text" className="zet-input text-xs w-full" />
         <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Opacity: {watermarkOpacity}%</label><input type="range" min="5" max="50" value={watermarkOpacity} onChange={e => setWatermarkOpacity(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+        <div className="flex items-center gap-2">
+          <label className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Renk</label>
+          <input type="color" value={watermarkColor} onChange={e => setWatermarkColor(e.target.value)} className="w-8 h-7 rounded cursor-pointer border-0" />
+          <div className="flex-1 h-5 rounded text-xs flex items-center px-2" style={{ background: watermarkColor, color: watermarkColor === '#ffffff' ? '#000' : '#fff', fontSize: 10 }}>örnek</div>
+        </div>
         <button onClick={applyWatermark} className="zet-btn w-full">Apply Watermark</button>
       </div>
     </DraggablePanel>}
@@ -4261,9 +4513,9 @@ const Editor = () => {
     {/* Paragraph Styles Panel */}
     {showStyles && <DraggablePanel title="Paragraf Stilleri" onClose={() => setShowStyles(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-56 space-y-1">
-        <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>Seçili metin elementine stil uygula</p>
+        <p className="text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>İmlecin bulunduğu paragrafa stil uygular</p>
         {PARA_STYLES.map(style => (
-          <button key={style.id} onClick={() => applyParaStyle(style)} className="w-full text-left px-3 py-2 rounded text-xs hover:bg-white/10 transition-colors border" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text)', fontWeight: style.bold ? 'bold' : 'normal', fontSize: style.fontSize > 20 ? 14 : 12 }}>
+          <button key={style.id} onMouseDown={e => e.preventDefault()} onClick={() => applyParaStyle(style)} className="w-full text-left px-3 py-2 rounded text-xs hover:bg-white/10 transition-colors border" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text)', fontWeight: style.bold ? 'bold' : 'normal', fontSize: style.fontSize > 20 ? 14 : 12 }}>
             <span style={{ fontSize: style.id === 'h1' ? 16 : style.id === 'h2' ? 14 : 12 }}>{style.label}</span>
             <span className="ml-2 opacity-50" style={{ fontWeight: 'normal', fontSize: 10 }}>{style.fontSize}px · {style.lineHeight}lh</span>
           </button>
@@ -4350,6 +4602,10 @@ const Editor = () => {
     {/* Find & Replace Panel */}
     {showFindReplace && <DraggablePanel title="Find & Replace" onClose={() => setShowFindReplace(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-64 space-y-3">
+        <div className="flex rounded overflow-hidden border" style={{ borderColor: 'var(--zet-border)' }}>
+          <button onClick={() => setFindScope('current')} className="flex-1 py-1 text-xs transition-colors" style={{ background: findScope === 'current' ? 'var(--zet-primary)' : 'var(--zet-bg)', color: findScope === 'current' ? '#fff' : 'var(--zet-text-muted)' }}>Bu sayfa</button>
+          <button onClick={() => setFindScope('all')} className="flex-1 py-1 text-xs transition-colors" style={{ background: findScope === 'all' ? 'var(--zet-primary)' : 'var(--zet-bg)', color: findScope === 'all' ? '#fff' : 'var(--zet-text-muted)' }}>Tüm sayfalar</button>
+        </div>
         <div className="flex gap-2">
           <input data-testid="find-input" type="text" value={findText} onChange={e => setFindText(e.target.value)} onKeyDown={e => e.key === 'Enter' && findInDocument()} placeholder="Find" className="zet-input text-xs flex-1" />
           <button data-testid="find-btn" onClick={findInDocument} className="zet-btn px-2"><Search className="h-3 w-3" /></button>
@@ -4523,7 +4779,8 @@ const Editor = () => {
             eraserDragMode={eraserDragMode}
             columnCount={columnCount} columnGap={columnGap}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }}
-            onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled} />
+            onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled}
+            snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart} />
         </div>
 
         {/* Multi-select Alignment Toolbar */}
@@ -4653,7 +4910,8 @@ const Editor = () => {
                 onShowChatSettings={() => setShowChatSettings(true)}
                 zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
                 onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
-                onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote} />
+                onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
+                canvasElements={canvasElements} activeTool={activeTool} />
             </div>
           </div>
         )}
@@ -4847,7 +5105,8 @@ const Editor = () => {
             onAddPage={addPage} onCopyElement={copyElementById} onMirrorElement={mirrorElementById} onFlowText={handleTextFlow}
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode} columnCount={columnCount} columnGap={columnGap}
-            onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled} />
+            onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled}
+            snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart} />
         </div>
 
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />
@@ -4863,6 +5122,7 @@ const Editor = () => {
             zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt}
             onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
             onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
+            canvasElements={canvasElements} activeTool={activeTool}
             onApplyEdit={(text) => {
               if (selectedElement) {
                 setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, content: text, htmlContent: null } : el));

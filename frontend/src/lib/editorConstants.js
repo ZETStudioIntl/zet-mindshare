@@ -225,6 +225,87 @@ export const FONTS = [
   'Zen Antique', 'Zen Antique Soft', 'Zen Dots', 'Zen Kaku Gothic Antique',
   'Zen Kaku Gothic New', 'Zen Kurenaido', 'Zen Loop', 'Zen Maru Gothic',
   'Zen Old Mincho', 'Zeyada', 'Zilla Slab',
+  // === Ek Popüler ===
+  'Nunito Sans', 'Kanit', 'Be Vietnam Pro', 'Hanken Grotesk', 'Bricolage Grotesque',
+  'Rethink Sans', 'Syne', 'Overpass', 'Onest', 'Schibsted Grotesk',
+  'Funnel Display', 'Funnel Sans', 'Geist', 'REM', 'Spline Sans', 'SUSE', 'Hind',
+  // === Ek Mono ===
+  'Overpass Mono', 'Spline Sans Mono', 'Geist Mono', 'Syne Mono', 'VT323',
+  // === Ek Serif ===
+  'Libre Caslon Text', 'Libre Caslon Display', 'Texturina', 'Charis SIL',
+  'Brygada 1918', 'Noto Serif Display',
+  // === Display & Eğlenceli ===
+  'Dela Gothic One', 'Diplomata', 'Diplomata SC', 'DynaPuff', 'Silkscreen',
+  'Jersey 10', 'Jersey 15', 'Jersey 20', 'Jersey 25', 'Nabla', 'Sour Gummy', 'Tiny5',
+  'Lisu Bosa', 'Moirai One', 'Climate Crisis', 'Italianno',
+  'Protest Revolution', 'Protest Riot', 'Protest Guerrilla', 'Protest Strike',
+  // === Bungee Ailesi ===
+  'Bungee', 'Bungee Hairline', 'Bungee Inline', 'Bungee Shade', 'Bungee Spice', 'Bungee Tint',
+  // === Big Shoulders Ailesi ===
+  'Big Shoulders Display', 'Big Shoulders Text',
+  'Big Shoulders Stencil Display', 'Big Shoulders Stencil Text',
+  // === Rubik Varyasyonları ===
+  'Rubik Beastly', 'Rubik Bubbles', 'Rubik Burned', 'Rubik Dirt', 'Rubik Distressed',
+  'Rubik Doodle Shadow', 'Rubik Doodle Triangles', 'Rubik Gemstones', 'Rubik Glitch',
+  'Rubik Iso', 'Rubik Lines', 'Rubik Maps', 'Rubik Marker Hatch', 'Rubik Maze',
+  'Rubik Microbe', 'Rubik Moonrocks', 'Rubik Pixels', 'Rubik Puddles', 'Rubik Scribble',
+  'Rubik Spray Paint', 'Rubik Storm', 'Rubik Vinyl', 'Rubik Wet Paint',
+  // === Tilt Ailesi ===
+  'Tilt Neon', 'Tilt Prism', 'Tilt Warp',
+  // === Hind Ailesi ===
+  'Hind Guntur', 'Hind Madurai', 'Hind Siliguri', 'Hind Vadodara',
+  // === Anek Ailesi ===
+  'Anek Latin', 'Anek Bangla', 'Anek Devanagari', 'Anek Gujarati', 'Anek Gurmukhi',
+  'Anek Kannada', 'Anek Malayalam', 'Anek Odia', 'Anek Tamil', 'Anek Telugu',
+  // === Tiro Ailesi ===
+  'Tiro Devanagari', 'Tiro Tamil', 'Tiro Telugu', 'Tiro Gurmukhi', 'Tiro Bangla',
+  // === Arapça / Farsça ===
+  'Reem Kufi', 'Reem Kufi Fun', 'Reem Kufi Ink', 'Vazirmatn', 'Almarai',
+  'Marhey', 'Zain', 'Jomhuria', 'Noto Naskh Arabic', 'Noto Kufi Arabic',
+  'Noto Nastaliq Urdu', 'Scheherazade New',
+  // === Doğu Asya ===
+  'Noto Serif JP', 'Noto Sans JP', 'Noto Serif KR', 'Noto Sans KR',
+  'Noto Serif TC', 'Noto Sans TC', 'Yuji Syuku', 'ZCOOL XiaoWei',
+  'BIZ UDGothic', 'BIZ UDMincho', 'BIZ UDPGothic', 'BIZ UDPMincho',
+  'Tsukimi Rounded', 'Mochiy Pop One', 'Mochiy Pop P One',
+  'Gowun Batang', 'Gowun Dodum', 'Black Han Sans', 'East Sea Dokdo', 'Gasoek One',
+  // === Hedvig ===
+  'Hedvig Letters Sans', 'Hedvig Letters Serif',
+  // === Eğitim Fontları ===
+  'Edu NSW ACT Foundation', 'Edu QLD Beginner', 'Edu SA Beginner',
+  'Edu TAS Beginner', 'Edu VIC WA NT Beginner',
+  // === IBM Plex Genişletilmiş ===
+  'IBM Plex Sans Arabic', 'IBM Plex Sans Devanagari', 'IBM Plex Sans Hebrew', 'IBM Plex Sans Thai',
+  // === Ek Varyantlar ===
+  'Bowlby One SC', 'Montserrat Alternates', 'Montserrat Subrayada',
+  'Encode Sans Narrow', 'Encode Sans Semi Condensed',
+  'Saira Extra Condensed', 'Saira Stencil One', 'Raleway Dots',
+  'Waiting for the Sunrise', 'Port Lligat Sans', 'Port Lligat Slab',
+  'UnifrakturMaguntia', 'Sedgwick Ave', 'Sedgwick Ave Display',
+  'Noto Sans Display', 'Noto Sans Mono', 'Noto Emoji',
+  'M PLUS Code Latin', 'Noto Serif Hebrew', 'Noto Sans Ethiopic',
+  'Stick', 'Stick No Bills', 'Suwannaphum', 'Oi', 'Lakki Reddy',
+  // === Jacquard Ailesi ===
+  'Jacquard 12', 'Jacquard 12 Charted', 'Jacquard 24', 'Jacquard 24 Charted',
+  // === IM Fell Ailesi ===
+  'IM Fell DW Pica', 'IM Fell DW Pica SC', 'IM Fell Double Pica', 'IM Fell Double Pica SC',
+  'IM Fell English', 'IM Fell English SC', 'IM Fell French Canon', 'IM Fell French Canon SC',
+  'IM Fell Great Primer', 'IM Fell Great Primer SC',
+  // === Dekoratif / El Yazısı Ek ===
+  'Fleur De Leah', 'Licorice', 'Love Ya Like A Sister', 'Comforter', 'Comforter Brush',
+  'Oooh Baby', 'Butterfly Kids', 'Engagement', 'Aguafina Script', 'Diphylleia',
+  'Hachi Maru Pop', 'Chela One', 'Cherry Bomb One', 'Chokokutai', 'Ewert',
+  // === Barkod & Özel ===
+  'Libre Barcode 39', 'Libre Barcode 39 Text', 'Libre Barcode 39 Extended',
+  'Libre Barcode 39 Extended Text', 'Libre Barcode 128', 'Libre Barcode 128 Text',
+  'Libre Barcode EAN13 Text',
+  // === Diğer Eksik Fontlar ===
+  'Aboreto', 'Aclonica', 'Akaya Kanadaka', 'Akaya Telivigala', 'Almendra Display',
+  'Amiri Quran', 'Annapurna SIL', 'Bagel Fat One', 'Barrio', 'Baumans',
+  'Beth Ellen', 'Bigelow Rules', 'Bokor', 'Braah One', 'Castoro', 'Castoro Titling',
+  'Chilanka', 'Coda Caption', 'Fasthand', 'Geostar', 'Geostar Fill', 'Gorditas',
+  'Gulzar', 'Farsan', 'Gajraj One', 'Kavivanar', 'Kavoon', 'Kdam Thmor Pro',
+  'Khula', 'Kirang Haerang', 'Nuosu SIL', 'New Tegomin', 'Palette Mosaic',
 ];
 
 export const PRESET_COLORS = [

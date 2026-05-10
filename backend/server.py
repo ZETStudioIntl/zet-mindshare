@@ -341,6 +341,7 @@ class ZetaChatRequest(BaseModel):
     personality: Optional[str] = "normal"
     is_ceo: Optional[bool] = False
     model: Optional[str] = "prime"  # spark | prime | aziz
+    canvas_context: Optional[str] = None  # live editor state snapshot from frontend
 
 class ParseSourceRequest(BaseModel):
     filename: str
@@ -2572,8 +2573,8 @@ PLAN_LIMITS = {
         'nano_pro': False,
         'custom_image_sizes': ['16:9', '9:16', '1:1'],
         'layers': True,
-        'signature': False,
-        'watermark': False,
+        'signature': True,
+        'watermark': True,
         'page_color': True,
         'charts': True,
     },
@@ -2939,6 +2940,14 @@ PUAN PROTOKOLÜ: Her yanıtının SONUNA mutlaka şu formatı ekle (başka hiçb
 [SCORES: risk=XX, success=YY]
 XX = 0-100 arası risk skoru (yüksek = riskli), YY = 0-100 arası başarı/potansiyel skoru. Sadece tam sayı kullan."""
     
+    # Inject live canvas/editor context from frontend
+    if req.canvas_context:
+        system_message += f"""
+
+📍 CANLI EDITÖR DURUMU:
+{req.canvas_context}
+"""
+
     # If document content is provided, add it to the context
     if req.document_content:
         system_message += f"""
@@ -2948,7 +2957,7 @@ ANALİZ EDİLECEK MATERYAL:
 {req.document_content[:8000]}
 ---
 Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
-    
+
     # Load chat history for this session
     history_docs = await db.judge_chats.find(
         {"session_id": session_id}, {"_id": 0}
@@ -3595,22 +3604,24 @@ GÖRÜNTÜ BOYUTLARI:
 - Pro/Ultra: 16:9, 9:16, 1:1, 2.55:1, 2.39:1, 1.85:1, 2.00:1
 
 📝 METİN ARAÇLARI:
-- TEXT (T): Canvas'a tıklayarak yazı yaz. Enter = yeni satır
+- TEXT (T): Canvas'a tıklayarak yazı yaz. Mevcut yazıya tıkla = hemen düzenleme. Enter = yeni satır. Yazı şekillerin etrafından otomatik akar
 - WORD TYPE (B): Kalın, İtalik, Altı Çizili, Üstü Çizili stil değiştirici
 - TEXT SIZE: 8-72pt kaydırıcı. Mevcut metni değiştirmek için önce seç
-- FONT (F): 50+ font arasından arama yaparak seç
+- FONT (F): 50+ font arasından arama yaparak seç. Yazarken font seç = sonraki karakterler o fontla yazılır (cursor sticky font)
 - LINE SPACING: 1.0x - 3.0x satır yüksekliği
-- PARAGRAPH (A): Metin hizalama - sol, orta, sağ, iki yana yasla
-- COLOR (C): 18 preset renk + özel seçici + HEX kodu + GRADİENT metni!
+- PARAGRAPH (A): Word gibi çalışır — imlecin bulunduğu paragrafa stil uygular. Hizalama: sol, orta, sağ, iki yana yasla; başlık stilleri (H1, H2, gövde, alıntı vb.)
+- COLOR (C): Renk seçici — Yazı/Şekil/Vektör materyallerine ayrı renk uygula. 18 preset renk + özel seçici + HEX + GRADİENT + HİGHLIGHTER
+- HIGHLIGHTER: Color panelinde bulunur. 6 renk seçeneği + kaldır butonu
 
 🎨 RENKLENDİRME VE GRADİENT:
-- Tek renk: Color panelinden preset veya özel renk seç
-- Gradient (Degrade): 
-  1. Color panelinde "Gradient" seçeneğini aç
-  2. Başlangıç ve bitiş rengini seç
-  3. "Apply Gradient to Selected" butonuna tıkla
-  4. Gradient METİN ve ŞEKİLLERE uygulanabilir!
-- Preset Gradientler: Sunset, Ocean, Purple, Green, Fire, Night
+- Tek renk: Color panelinden preset veya özel renk seç. Hangi materyale (Yazı/Şekil/Vektör) uygulayacağını seç
+- Gradient (Adobe Illustrator tarzı çok durağanlı):
+  1. Color panelinde gradient bölümüne git
+  2. Renkli daireler (stop'lar) bar üzerinde sürükle-bırak ile konumlandır
+  3. Yeni stop eklemek için bara tıkla, silmek için seçip çöp kutusuna bas
+  4. Açı slider'ı ile yönü ayarla
+  5. "Gradient Uygula" butonuna tıkla
+  6. METİN, ŞEKİL ve VEKTÖRLERE uygulanabilir!
 
 🖼️ GÖRSEL VE MEDYA:
 - IMAGE (I): Görsel yükle. Sürükle-bırak ve köşeden boyutlandır
@@ -3627,6 +3638,11 @@ GÖRÜNTÜ BOYUTLARI:
 - ERASER (E): Çizim yollarını ve elementleri siler. Sürükleyerek sil
 - MARKING (M): İşaretleyici - renk/opaklık/boyut seçenekleri
 - SELECT (S): Lasso-style serbest seçim. Elementlerin etrafında çizerek seç
+
+🖐 HAND TOOL (H):
+- Sol tık ile canvas'taki her elementi sürükle-taşı (yazılar dahil)
+- Boş alana tıklayıp sürükle = canvas'ı pan yap
+- Mobilde: Hand tool seçiliyken sayfa kaymaz, sadece element sürüklenir
 
 🔧 DÜZENLEME:
 - CUT (X): Element sil veya görsel kırp
@@ -3811,6 +3827,15 @@ Etiketler dışında kısa bir açıklama yapabilirsin.
 Bu bilgileri konuşmaya uygun yerlerde kullan ve başvur.
 """
 
+    # Inject live canvas/editor context from frontend
+    if req.canvas_context:
+        system_message += f"""
+
+📍 CANLI EDITÖR DURUMU (şu an kullanıcının ekranında ne var):
+{req.canvas_context}
+Bu bilgiyi kullanarak daha bağlamsal ve doğru yardım sağla. Kullanıcı hangi araçla çalışıyor, kaç sayfa var, neler var — bunları biliyorsun.
+"""
+
     # If document content is provided, add it to the context
     if req.document_content:
         system_message += f"""
@@ -3920,13 +3945,13 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
 
     client = google_genai.Client(api_key=imagen_key)
 
-    # Both paths use Gemini 2.0 Flash image generation — no separate Imagen API access needed
-    client_alpha = google_genai.Client(api_key=gemini_key or imagen_key, http_options={"api_version": "v1alpha"})
+    # Both paths use Gemini 2.0 Flash image generation
+    client_img = google_genai.Client(api_key=gemini_key or imagen_key, http_options={"api_version": "v1beta"})
     try:
         if not req.reference_image:
             # Text-to-image
             resp = await gemini_generate(
-                client_alpha, "gemini-2.0-flash-exp-image-generation",
+                client_img, "gemini-2.0-flash-preview-image-generation",
                 [genai_types.Content(role="user", parts=[genai_types.Part(text=full_prompt)])],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
@@ -3943,7 +3968,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 genai_types.Part(text=full_prompt),
             ]
             resp = await gemini_generate(
-                client_alpha, "gemini-2.0-flash-exp-image-generation",
+                client_img, "gemini-2.0-flash-preview-image-generation",
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
