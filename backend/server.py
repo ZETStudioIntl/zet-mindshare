@@ -2283,9 +2283,15 @@ async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depen
         "data": {
             "type": "checkouts",
             "attributes": {
-                "checkout_options": {"dark": True, "subscription_preview": True},
+                "checkout_options": {
+                    "dark": True,
+                    "subscription_preview": False,
+                    "discount": False,
+                    "logo": True,
+                },
                 "checkout_data": {
                     "email": user.email,
+                    "name": user.name or "",
                     "custom": {
                         "user_id": user.user_id,
                         "plan": data.plan,
