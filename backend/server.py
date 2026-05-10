@@ -2272,7 +2272,10 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
 @api_router.post("/checkout/lemonsqueezy")
 async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depends(get_current_user)):
     if not LS_API_KEY or not LS_STORE_ID:
-        raise HTTPException(status_code=503, detail="Ödeme servisi yapılandırılmamış")
+        missing = []
+        if not LS_API_KEY: missing.append("LEMONSQUEEZY_API_KEY")
+        if not LS_STORE_ID: missing.append("LEMONSQUEEZY_STORE_ID")
+        raise HTTPException(status_code=503, detail=f"Eksik env var: {', '.join(missing)}")
     variant_id = LS_VARIANTS.get(data.plan, {}).get(data.billing_cycle)
     if not variant_id:
         raise HTTPException(status_code=400, detail=f"Bu plan/dönem için Lemon Squeezy varyant ID tanımlı değil")
