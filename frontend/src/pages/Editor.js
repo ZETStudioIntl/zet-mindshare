@@ -9,6 +9,7 @@ import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
 import { DraggablePanel } from '../components/editor/DraggablePanel';
 import axios from 'axios';
+import { startCheckout } from '../lib/lemonSqueezy';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
@@ -5191,37 +5192,29 @@ const Editor = () => {
             
             {/* Plans with credits */}
             <div className="space-y-3 mb-6">
-              {/* Ultra */}
-              <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(245, 158, 11, 0.1)', borderColor: '#f59e0b' }}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold" style={{ color: '#f59e0b' }}>Ultra</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$30/ay</span>
+              {[
+                { id: 'creative_station', label: 'Creative Station', color: '#f59e0b', bg: 'rgba(245,158,11,0.1)', price: '$30/ay', desc: '1200 kredi/gün | Judge sınırsız | Tüm boyutlar' },
+                { id: 'pro', label: 'Pro', color: '#8b5cf6', bg: 'rgba(139,92,246,0.1)', price: '$13/ay', desc: '130 kredi/gün | Nano Pro | Tüm araçlar | 7 boyut', recommended: true },
+                { id: 'plus', label: 'Plus', color: '#3b82f6', bg: 'rgba(59,130,246,0.1)', price: '$5/ay', desc: '40 kredi/gün | Judge Mini | 3 boyut | Layers' },
+              ].map(plan => (
+                <div key={plan.id}
+                  className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] relative"
+                  style={{ background: plan.bg, borderColor: plan.color }}
+                  onClick={() => { setShowUpgradeModal(false); startCheckout(plan.id, 'monthly'); }}
+                >
+                  {plan.recommended && <div className="absolute -top-2 left-4 px-2 py-0.5 rounded text-xs font-bold" style={{ background: plan.color, color: 'white' }}>Önerilen</div>}
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="font-bold" style={{ color: plan.color }}>{plan.label}</span>
+                    <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>{plan.price}</span>
+                  </div>
+                  <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{plan.desc}</p>
+                  <p className="text-xs mt-1 font-medium" style={{ color: plan.color }}>Hemen Başla →</p>
                 </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>1200 kredi/gün | Judge sınırsız | Tüm boyutlar</p>
-              </div>
-              
-              {/* Pro - Recommended */}
-              <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02] relative" style={{ background: 'rgba(139, 92, 246, 0.1)', borderColor: '#8b5cf6' }}>
-                <div className="absolute -top-2 left-4 px-2 py-0.5 rounded text-xs font-bold" style={{ background: '#8b5cf6', color: 'white' }}>Önerilen</div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold" style={{ color: '#8b5cf6' }}>Pro</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$13/ay</span>
-                </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>130 kredi/gün | Nano Pro | Tüm araçlar | 7 boyut</p>
-              </div>
-              
-              {/* Plus */}
-              <div className="p-4 rounded-xl border-2 cursor-pointer transition-all hover:scale-[1.02]" style={{ background: 'rgba(59, 130, 246, 0.1)', borderColor: '#3b82f6' }}>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="font-bold" style={{ color: '#3b82f6' }}>Plus</span>
-                  <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>$5/ay</span>
-                </div>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>40 kredi/gün | Judge Mini | 3 boyut | Layers</p>
-              </div>
+              ))}
             </div>
-            
+
             <div className="flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowUpgradeModal(false)}
                 className="flex-1 py-3 rounded-xl text-sm font-medium"
                 style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
@@ -5234,13 +5227,6 @@ const Editor = () => {
                 style={{ background: '#fbbf24', color: '#000' }}
               >
                 Kredi Al
-              </button>
-              <button
-                onClick={() => setShowUpgradeModal(false)}
-                className="flex-1 py-3 rounded-xl text-sm font-medium text-white transition-all hover:scale-105"
-                style={{ background: 'linear-gradient(135deg, #8b5cf6 0%, #f59e0b 100%)' }}
-              >
-                Planları Gör
               </button>
             </div>
           </div>

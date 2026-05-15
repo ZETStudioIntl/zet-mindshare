@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
+import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
@@ -438,23 +439,16 @@ const Dashboard = () => {
   };
 
   const handleSubscribe = async (planId) => {
-    const plan = SUBSCRIPTION_PLANS.find(p => p.id === planId);
-    showConfirm(
-      'Abonelik Onayı',
-      `${plan?.name || planId.toUpperCase()} planına abone olmak istiyor musunuz?\n\nLemon Squeezy ödeme sayfasına yönlendirileceksiniz.`,
-      async () => {
-        setSubscribing(true);
-        try {
-          const res = await axios.post(`${API}/checkout/lemonsqueezy`, { plan: planId, billing_cycle: billingCycle }, { withCredentials: true });
-          window.location.href = res.data.checkout_url;
-        } catch (err) {
-          const msg = err?.response?.data?.detail || err?.message || 'Ödeme sayfası açılamadı';
-          alert('HATA: ' + msg + '\nStatus: ' + (err?.response?.status || 'network error'));
-          showToast(msg, 'error');
-          setSubscribing(false);
-        }
-      }
-    );
+    setSubscribing(true);
+    try {
+      const res = await axios.post(`${API}/checkout/lemonsqueezy`, { plan: planId, billing_cycle: billingCycle }, { withCredentials: true });
+      openCheckoutOverlay(res.data.checkout_url);
+    } catch (err) {
+      const msg = err?.response?.data?.detail || err?.message || 'Ödeme sayfası açılamadı';
+      showToast(msg, 'error');
+    } finally {
+      setSubscribing(false);
+    }
   };
 
   useEffect(() => {
