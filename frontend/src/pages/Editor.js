@@ -471,6 +471,11 @@ const Editor = () => {
   const [findResults, setFindResults] = useState([]);
   const [findScope, setFindScope] = useState('current');
 
+  // AI shape target + PDF import (declared here to avoid TDZ in production builds)
+  const [aiTargetShape, setAiTargetShape] = useState(null);
+  const [pdfImporting, setPdfImporting] = useState(false);
+  const pdfInputRef = useRef(null);
+
   // History
   const history = useCanvasHistory();
   
@@ -934,8 +939,6 @@ const Editor = () => {
   }, []);
 
   // AI image to shape/vector
-  const [aiTargetShape, setAiTargetShape] = useState(null);
-  
   const handleAddAiImageToShape = useCallback((id) => {
     setAiTargetShape(id);
     setShowCreateImage(true);
@@ -1551,8 +1554,6 @@ const Editor = () => {
   };
 
   // Import PDF
-  const [pdfImporting, setPdfImporting] = useState(false);
-  const pdfInputRef = useRef(null);
   const importPDF = async (file) => {
     if (!file || !file.name.toLowerCase().endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
     setPdfImporting(true);
