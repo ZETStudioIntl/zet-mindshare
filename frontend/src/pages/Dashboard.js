@@ -54,6 +54,7 @@ const Dashboard = () => {
   const { user, logout, updateUser } = useAuth();
   const { t, language, changeLanguage } = useLanguage();
   const { switchApp } = useAppTheme();
+  useEffect(() => { switchApp('mindshare'); }, []); // always enforce mindshare theme in dashboard
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);

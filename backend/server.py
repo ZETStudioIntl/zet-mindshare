@@ -3951,7 +3951,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
         if not req.reference_image:
             # Text-to-image
             resp = await gemini_generate(
-                client_img, "gemini-2.0-flash-preview-image-generation",
+                client_img, "gemini-2.0-flash-exp-image-generation",
                 [genai_types.Content(role="user", parts=[genai_types.Part(text=full_prompt)])],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
@@ -3968,7 +3968,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 genai_types.Part(text=full_prompt),
             ]
             resp = await gemini_generate(
-                client_img, "gemini-2.0-flash-preview-image-generation",
+                client_img, "gemini-2.0-flash-exp-image-generation",
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
