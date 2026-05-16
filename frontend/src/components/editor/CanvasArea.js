@@ -678,18 +678,20 @@ export const CanvasArea = ({
     else { setMagnifierActive(false); }
   }, [activeTool, canvasElements, selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Process pending edit after page switch - uses element ID, not coordinates
+  // Process pending interaction after page switch
   useEffect(() => {
     if (!pendingEditRef.current || pendingEditRef.current.pageIdx !== currentPage) return;
-    const { elementId, x, y } = pendingEditRef.current;
+    const { elementId, elementType, x, y } = pendingEditRef.current;
     pendingEditRef.current = null;
     const timer = setTimeout(() => {
       setElementMenu(null);
       setVectorMenu(null);
       if (elementId) {
-        setEditingId(elementId);
+        // Select the element; only enter edit mode for text elements
         setSelectedElement(elementId);
-      } else {
+        if (elementType === 'text') setEditingId(elementId);
+      } else if (activeTool === 'text') {
+        // No element found + text tool → create new text element
         const ml = margins.left;
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
@@ -790,10 +792,9 @@ export const CanvasArea = ({
     // If clicking a different page, switch to it first then process the click
     if (pageIdx !== currentPage) {
       const coords = getCoords(e, e.currentTarget);
-      // Look up elements from the target page's saved data (not canvasElements which is current page)
       const pageElements = doc?.pages?.[pageIdx]?.elements || [];
-      const clickedEl = [...pageElements].reverse().find(el => el.type === 'text' && isPointInElement(coords.x, coords.y, el));
-      pendingEditRef.current = { elementId: clickedEl?.id || null, x: coords.x, y: coords.y, pageIdx };
+      const clickedEl = [...pageElements].reverse().find(el => isPointInElement(coords.x, coords.y, el));
+      pendingEditRef.current = { elementId: clickedEl?.id || null, elementType: clickedEl?.type || null, x: coords.x, y: coords.y, pageIdx };
       changePage(pageIdx);
       return;
     }

@@ -3033,7 +3033,15 @@ const Editor = () => {
 
   // === COMPUTED ===
   const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (el.content?.length || 0), 0);
-  const allFonts = googleFonts.length > 0 ? googleFonts.map(f => f.family) : FONTS;
+  // Merge system fonts (FONTS) + Google Fonts, deduplicated; selected font always first
+  const allFonts = (() => {
+    const gf = googleFonts.length > 0 ? googleFonts.map(f => f.family) : [];
+    const merged = [...new Set([...FONTS, ...gf])];
+    if (currentFont && merged.includes(currentFont) && merged[0] !== currentFont) {
+      return [currentFont, ...merged.filter(f => f !== currentFont)];
+    }
+    return merged;
+  })();
   const filteredFonts = allFonts.filter(f => f.toLowerCase().includes(fontSearch.toLowerCase()));
 
   // Preload visible fonts when panel opens or search changes
