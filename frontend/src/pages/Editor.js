@@ -1082,8 +1082,7 @@ const Editor = () => {
       span.setAttribute('data-redacted', 'true');
       span.setAttribute('data-original', encoded);
       // Visible as black censor bar; text itself is gone from DOM
-      span.setAttribute('style', `background:#000;color:#000;border-radius:2px;user-select:none;display:inline-block;min-width:${Math.max(1, Math.round(text.length * 0.55))}em;`);
-      span.textContent = ' ';
+      span.setAttribute('style', 'background:#111;color:transparent;-webkit-text-fill-color:transparent;border-radius:2px;user-select:none;');
       try { range.surroundContents(span); } catch { range.deleteContents(); range.insertNode(span); }
       const newHtml = editableDiv.innerHTML;
       sel.removeAllRanges();
