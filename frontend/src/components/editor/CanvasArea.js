@@ -1309,14 +1309,15 @@ export const CanvasArea = ({
 
   const _pub = process.env.PUBLIC_URL || '';
   const CURSOR_ARROW  = `url("${_pub}/cursors/arrow.svg") 1 1, default`;
-  const CURSOR_HAND   = `url("${_pub}/cursors/hand.svg") 16 22, grab`;
-  const CURSOR_GRAB   = `url("${_pub}/cursors/grab.svg") 16 22, grabbing`;
-  const CURSOR_TOUCH  = `url("${_pub}/cursors/touch.svg") 13 2, pointer`;
+  const CURSOR_HAND   = `url("${_pub}/cursors/hand.svg") 14 19, grab`;
+  const CURSOR_GRAB   = `url("${_pub}/cursors/grab.svg") 14 19, grabbing`;
+  const CURSOR_TOUCH  = `url("${_pub}/cursors/touch.svg") 11 2, pointer`;
   const CURSOR_PEN    = `url("${_pub}/cursors/pen.svg") 1 1, crosshair`;
-  const CURSOR_ERASER = `url("${_pub}/cursors/eraser.svg") 2 23, cell`;
+  const CURSOR_ERASER = `url("${_pub}/cursors/eraser.svg") 2 20, cell`;
 
   const getCursor = () => {
     if (activeTool === 'hand') return draggingVector !== null ? CURSOR_GRAB : CURSOR_HAND;
+    if (activeTool === 'touch') return CURSOR_TOUCH;
     if (activeTool === 'pen') return CURSOR_PEN;
     if (activeTool === 'eraser') return CURSOR_ERASER;
     if (activeTool === 'select' || (!activeTool)) return CURSOR_ARROW;
