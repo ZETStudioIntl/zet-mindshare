@@ -118,18 +118,18 @@ const Editor = () => {
     if (selectedElement) lastSelectedRef.current = selectedElement;
   }, [selectedElement]);
 
-  // Global cursor — active tool yansıtılır tüm uygulama genelinde
+  // Global cursor — active tool class'ı html elementine eklenir, CSS override eder
   useEffect(() => {
-    const pub = process.env.PUBLIC_URL || '';
-    let cur = 'default';
-    if (activeTool === 'hand')       cur = `url("${pub}/cursors/hand.svg") 14 19, grab`;
-    else if (activeTool === 'pen')   cur = `url("${pub}/cursors/pen.svg") 1 1, crosshair`;
-    else if (activeTool === 'eraser') cur = `url("${pub}/cursors/eraser.svg") 2 20, cell`;
-    else if (!activeTool || activeTool === 'select') cur = `url("${pub}/cursors/arrow.svg") 1 1, default`;
-    else if (activeTool === 'text')  cur = 'text';
-    else if (['draw','marking','cut','redact','highlighter','zoom'].includes(activeTool)) cur = 'crosshair';
-    try { if (document?.body) document.body.style.cursor = cur; } catch {}
-    return () => { try { if (document?.body) document.body.style.cursor = ''; } catch {} };
+    const html = document?.documentElement;
+    if (!html) return;
+    const tools = ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'];
+    tools.forEach(c => html.classList.remove(c));
+    if (activeTool === 'hand')    html.classList.add('tool-hand');
+    else if (activeTool === 'pen')    html.classList.add('tool-pen');
+    else if (activeTool === 'eraser') html.classList.add('tool-eraser');
+    else if (activeTool === 'text')   html.classList.add('tool-text');
+    else if (['draw','marking','cut','redact','highlighter','zoom'].includes(activeTool)) html.classList.add('tool-crosshair');
+    return () => { tools.forEach(c => html.classList.remove(c)); };
   }, [activeTool]);
 
   // Sync formatting state when a text element is selected

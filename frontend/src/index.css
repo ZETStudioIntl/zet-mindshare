@@ -23,7 +23,30 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  cursor: url('/cursors/arrow.svg') 1 1, default !important;
 }
+
+/* Tıklanabilir elemanlarda touch cursor */
+a, button, [role="button"], label[for], select,
+input[type="button"], input[type="submit"], input[type="reset"],
+input[type="checkbox"], input[type="radio"],
+[onClick], summary {
+  cursor: url('/cursors/touch.svg') 11 2, pointer !important;
+}
+
+/* Metin alanlarında normal text cursor */
+input[type="text"], input[type="email"], input[type="password"],
+input[type="search"], input[type="number"], input[type="url"],
+textarea, [contenteditable="true"] {
+  cursor: text !important;
+}
+
+/* Editor tool class'ları — tüm site override */
+html.tool-hand *    { cursor: url('/cursors/hand.svg') 14 19, grab !important; }
+html.tool-pen *     { cursor: url('/cursors/pen.svg') 1 1, crosshair !important; }
+html.tool-eraser *  { cursor: url('/cursors/eraser.svg') 2 20, cell !important; }
+html.tool-text *    { cursor: text !important; }
+html.tool-crosshair * { cursor: crosshair !important; }
 
 body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
