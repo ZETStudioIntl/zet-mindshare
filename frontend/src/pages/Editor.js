@@ -2384,6 +2384,7 @@ const Editor = () => {
       let bytes = 0;
       const allPages = document?.pages || [];
       allPages.forEach((page, idx) => {
+        bytes += 150; // sayfa yapısı: id, pageSize, background, vb.
         const els = idx === currentPage ? canvasElements : (page.elements || []);
         els.forEach(el => {
           bytes += (el.content?.length || 0) + (el.htmlContent?.length || 0)
