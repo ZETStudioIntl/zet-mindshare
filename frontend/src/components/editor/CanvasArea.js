@@ -1307,7 +1307,23 @@ export const CanvasArea = ({
     setDrawPaths(prev => prev.map((p, i) => i === idx ? { ...p, fillColor: color } : p));
   }, [setDrawPaths]);
 
-  const getCursor = () => ({ text: 'text', hand: draggingVector !== null ? 'grabbing' : 'grab', draw: 'crosshair', pen: 'crosshair', eraser: 'cell', cut: 'crosshair', select: 'crosshair', marking: 'crosshair', translate: 'help' }[activeTool] || 'crosshair');
+  const CURSOR_ARROW   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M4 2 L4 22 L9 17 L13 25 L16.5 23.5 L12.5 15.5 L20 15.5 Z' fill='black' stroke='white' stroke-width='1.5' stroke-linejoin='round' paint-order='stroke'/%3E%3C/svg%3E") 4 2, default`;
+  const CURSOR_HAND    = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 2 C14 2 12.5 2 12.5 4 L12.5 13 C12.5 13 11.5 12 10 12 C8.5 12 8 13.5 8 14 L8 15 C8 15 7 14 5.5 14.5 C4 15 4 17 4 17 L5 21 C5.5 23.5 8 26 11 26 L18 26 C21 26 23 23.5 23 21 L23 15 C23 13.5 22 12.5 20.5 12.5 C19.5 12.5 19 13 19 13 L19 11 C19 9.5 18 8.5 16.5 8.5 C15.5 8.5 15 9 15 9 L15 4 C15 2 14 2 14 2 Z' fill='black' stroke='white' stroke-width='1' paint-order='stroke'/%3E%3C/svg%3E") 13 4, grab`;
+  const CURSOR_GRAB    = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 2 C14 2 12.5 2 12.5 4 L12.5 13 C12.5 13 11.5 12 10 12 C8.5 12 8 13.5 8 14 L8 15 C8 15 7 14 5.5 14.5 C4 15 4 17 4 17 L5 21 C5.5 23.5 8 26 11 26 L18 26 C21 26 23 23.5 23 21 L23 15 C23 13.5 22 12.5 20.5 12.5 C19.5 12.5 19 13 19 13 L19 11 C19 9.5 18 8.5 16.5 8.5 C15.5 8.5 15 9 15 9 L15 4 C15 2 14 2 14 2 Z' fill='%23444' stroke='white' stroke-width='1' paint-order='stroke'/%3E%3C/svg%3E") 13 4, grabbing`;
+  const CURSOR_TOUCH   = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M14 2 C12.5 2 11.5 3 11.5 4.5 L11.5 16 L9.5 14.5 C8.5 13.5 7 13.5 6.5 14.5 C6 15.5 6.5 17 7.5 18 L12 22.5 C13 23.5 14.5 26 17 26 L19 26 C22.5 26 24.5 23 24.5 20 L24.5 13 C24.5 11.5 23.5 10.5 22 10.5 C21 10.5 20.5 11 20 11.5 C19.5 10.5 18.5 9.5 17 9.5 C16 9.5 15.5 10 15 10.5 C14.5 9.5 13.5 8.5 12.5 8.5 L12.5 4.5 C12.5 3 13.5 2 14 2 Z M14 2 C14.5 2 16.5 2 16.5 4.5 L16.5 10.5' fill='%23555' stroke='white' stroke-width='1' paint-order='stroke'/%3E%3C/svg%3E") 10 2, pointer`;
+  const CURSOR_PEN     = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cpath d='M2 24 L8 16 L14 10 L22 4 L24 6 L18 14 L12 20 Z' fill='black' stroke='white' stroke-width='1' paint-order='stroke'/%3E%3Cpath d='M2 24 L6 22 L4 20 Z' fill='white'/%3E%3Cpath d='M14 10 L18 14 L16 12 Z' fill='%23666'/%3E%3C/svg%3E") 2 24, crosshair`;
+  const CURSOR_ERASER  = `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Crect x='4' y='8' width='20' height='14' rx='2' fill='black' stroke='white' stroke-width='1' paint-order='stroke'/%3E%3Crect x='4' y='16' width='9' height='6' rx='1' fill='white'/%3E%3C/svg%3E") 14 15, cell`;
+
+  const getCursor = () => {
+    if (activeTool === 'hand') return draggingVector !== null ? CURSOR_GRAB : CURSOR_HAND;
+    if (activeTool === 'pen') return CURSOR_PEN;
+    if (activeTool === 'eraser') return CURSOR_ERASER;
+    if (activeTool === 'select' || (!activeTool)) return CURSOR_ARROW;
+    if (activeTool === 'text') return 'text';
+    if (['draw', 'marking', 'cut', 'redact', 'highlighter'].includes(activeTool)) return 'crosshair';
+    if (activeTool === 'zoom') return 'zoom-in';
+    return CURSOR_ARROW;
+  };
 
   const pageBg = pageBackground || '#ffffff';
 
@@ -1698,7 +1714,7 @@ export const CanvasArea = ({
                     top: el.y * zoom,
                     width: el.type === 'text' ? (el.width ? el.width * zoom : 'auto') : (el.width || 80) * zoom,
                     height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto',
-                    cursor: activeTool === 'redact' ? 'crosshair' : activeTool === 'highlighter' ? 'cell' : activeTool === 'hand' && !isLocked ? 'move' : undefined,
+                    cursor: activeTool === 'redact' ? 'crosshair' : activeTool === 'highlighter' ? 'cell' : activeTool === 'hand' && !isLocked ? (draggingVector !== null ? CURSOR_GRAB : CURSOR_HAND) : activeTool === 'eraser' ? CURSOR_ERASER : undefined,
                     transform: transformStyle,
                     transformOrigin: 'center center'
                   }}
