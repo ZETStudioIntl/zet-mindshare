@@ -128,8 +128,8 @@ const Editor = () => {
     else if (!activeTool || activeTool === 'select') cur = `url("${pub}/cursors/arrow.svg") 1 1, default`;
     else if (activeTool === 'text')  cur = 'text';
     else if (['draw','marking','cut','redact','highlighter','zoom'].includes(activeTool)) cur = 'crosshair';
-    document.body.style.cursor = cur;
-    return () => { document.body.style.cursor = ''; };
+    if (document.body) document.body.style.cursor = cur;
+    return () => { if (document.body) document.body.style.cursor = ''; };
   }, [activeTool]);
 
   // Sync formatting state when a text element is selected
