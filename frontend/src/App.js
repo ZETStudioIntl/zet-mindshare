@@ -105,6 +105,24 @@ const AppRouter = () => {
 };
 
 function App() {
+  useEffect(() => {
+    const pub = process.env.PUBLIC_URL || '';
+    const s = document.createElement('style');
+    s.id = '__zet-cursors';
+    s.textContent = [
+      `* { cursor: url('${pub}/cursors/arrow.svg') 1 1, default !important; }`,
+      `a, button, [role="button"], label[for], select, .cursor-pointer, [style*="cursor: pointer"], [style*="cursor:pointer"], input[type="button"], input[type="submit"], input[type="reset"], input[type="checkbox"], input[type="radio"], summary { cursor: url('${pub}/cursors/touch.svg') 11 2, pointer !important; }`,
+      `input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="number"], input[type="url"], textarea, [contenteditable="true"] { cursor: text !important; }`,
+      `html.tool-hand *    { cursor: url('${pub}/cursors/hand.svg') 14 19, grab !important; }`,
+      `html.tool-pen *     { cursor: url('${pub}/cursors/pen.svg') 1 1, crosshair !important; }`,
+      `html.tool-eraser *  { cursor: url('${pub}/cursors/eraser.svg') 2 20, cell !important; }`,
+      `html.tool-text *    { cursor: text !important; }`,
+      `html.tool-crosshair * { cursor: crosshair !important; }`,
+    ].join('\n');
+    document.head.appendChild(s);
+    return () => document.getElementById('__zet-cursors')?.remove();
+  }, []);
+
   return (
     <LanguageProvider>
       <AuthProvider>

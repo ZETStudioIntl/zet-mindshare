@@ -16,7 +16,7 @@ import {
   Search, Settings, Plus, FileText, StickyNote, LogOut,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
-  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, Send
+  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, Send, ExternalLink
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -1000,7 +1000,7 @@ const Dashboard = () => {
       const res = await axios.post(`${API}/zeta/chat`, {
         message: `Bu notu kısaca özetle ve önemli noktaları belirt: "${note.content}"`
       }, { withCredentials: true });
-      setZetaAnalysis({ noteId: note.note_id, loading: false, result: res.data.response });
+      setZetaAnalysis({ noteId: note.note_id, loading: false, result: res.data.response, sources: res.data.sources || [] });
     } catch (error) {
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: 'Analiz başarısız oldu.' });
     }
@@ -1377,6 +1377,17 @@ MATCHES:[1,3,5]`;
                     </button>
                   </div>
                   <p className="whitespace-pre-wrap break-words" style={{ color: 'var(--zet-text)' }}>{zetaAnalysis.result}</p>
+                  {zetaAnalysis.sources && zetaAnalysis.sources.length > 0 && (
+                    <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+                      <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Kaynaklar</p>
+                      {zetaAnalysis.sources.map((s, si) => (
+                        <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4ca8ad', marginBottom: 2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <ExternalLink size={10} style={{ flexShrink: 0 }} />{s.title}
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

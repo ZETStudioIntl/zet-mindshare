@@ -54,6 +54,7 @@ export const Toolbox = ({
   onToggle,
   lockedTools = [],
   onLockedClick,
+  stats = null,
 }) => {
   const { t } = useLanguage();
   const [toolSearch, setToolSearch] = useState('');
@@ -146,6 +147,25 @@ export const Toolbox = ({
               {t('delete')}
             </button>
           )}
+        </div>
+      )}
+
+      {/* Stats */}
+      {isOpen && stats && (
+        <div className="flex-shrink-0 border-t" style={{ borderColor: 'var(--zet-border)', padding: '6px 8px' }}>
+          <div className="grid grid-cols-2 gap-1">
+            {[
+              { label: 'Sayfa', value: stats.pages },
+              { label: 'Kelime', value: stats.words },
+              { label: 'Görsel', value: stats.images },
+              { label: 'Boyut', value: stats.size },
+            ].map(({ label, value }) => (
+              <div key={label} className="rounded px-1 py-0.5 text-center" style={{ background: 'var(--zet-bg)' }}>
+                <div className="text-xs font-semibold leading-tight" style={{ color: 'var(--zet-text)' }}>{value}</div>
+                <div style={{ fontSize: 9, color: 'var(--zet-text-muted)', lineHeight: 1.2 }}>{label}</div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 

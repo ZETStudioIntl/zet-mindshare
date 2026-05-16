@@ -2368,6 +2368,35 @@ const Editor = () => {
     return total;
   };
 
+  const getImageCount = () => {
+    let total = canvasElements.filter(el => el.type === 'image').length;
+    if (document?.pages) {
+      document.pages.forEach((page, idx) => {
+        if (idx === currentPage) return;
+        total += (page.elements || []).filter(el => el.type === 'image').length;
+      });
+    }
+    return total;
+  };
+
+  const getEstimatedSize = () => {
+    try {
+      let bytes = 0;
+      const allPages = document?.pages || [];
+      allPages.forEach((page, idx) => {
+        const els = idx === currentPage ? canvasElements : (page.elements || []);
+        els.forEach(el => {
+          bytes += (el.content?.length || 0) + (el.htmlContent?.length || 0)
+                 + (el.src?.length || 0) + (el.svgContent?.length || 0) + 200;
+        });
+      });
+      bytes += (document?.title?.length || 0) + 500;
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    } catch { return '—'; }
+  };
+
   // === LAYERS MANAGEMENT ===
   const moveLayerUp = (id) => {
     const idx = canvasElements.findIndex(el => el.id === id);
@@ -5103,6 +5132,7 @@ const Editor = () => {
             onDeleteSelected={deleteSelected} hasSelection={!!selectedElement || selectedElements.length > 0}
             zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)}
             lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }}
+            stats={{ pages: document?.pages?.length || 1, words: getWordCount(), images: getImageCount(), size: getEstimatedSize() }}
              />
         </div>
 

@@ -127,6 +127,31 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
             raise  # non-503 hataları direkt fırlat
     raise last_exc
 
+def extract_sources(resp) -> list:
+    """Gemini grounding_metadata'dan web kaynaklarını çıkarır."""
+    sources = []
+    try:
+        candidates = getattr(resp, 'candidates', None) or []
+        if not candidates:
+            return sources
+        gm = getattr(candidates[0], 'grounding_metadata', None)
+        if not gm:
+            return sources
+        chunks = getattr(gm, 'grounding_chunks', None) or []
+        seen = set()
+        for chunk in chunks:
+            web = getattr(chunk, 'web', None)
+            if not web:
+                continue
+            url   = getattr(web, 'uri',   '') or ''
+            title = getattr(web, 'title', '') or url
+            if url and url not in seen:
+                seen.add(url)
+                sources.append({"title": title, "url": url})
+    except Exception:
+        pass
+    return sources
+
 # ============ MODELS ============
 
 def normalize_subscription(sub: Any) -> Dict[str, Any]:
@@ -2985,6 +3010,7 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
             )
         )
         response = resp.text
+        sources = extract_sources(resp)
     except Exception as e:
         logging.error(f"Judge chat Gemini error: {e}")
         return {"response": f"AI hatası: {str(e)}", "session_id": session_id}
@@ -3009,7 +3035,7 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    return {"response": response, "session_id": session_id, "risk_score": risk_score, "success_score": success_score}
+    return {"response": response, "session_id": session_id, "risk_score": risk_score, "success_score": success_score, "sources": sources}
 
 def _extract_tiptap_text(node) -> str:
     """Recursively extract plain text from a Tiptap/ProseMirror JSON node."""
@@ -3873,9 +3899,11 @@ The user may ask questions about this document. Use this content to provide rele
             genai_types.GenerateContentConfig(
                 system_instruction=system_message,
                 max_output_tokens=max_tokens,
+                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
             )
         )
         response = resp.text
+        sources = extract_sources(resp)
     except Exception as e:
         logging.error(f"Zeta chat Gemini error: {e}")
         return {"response": f"AI hatası: {str(e)}", "session_id": session_id}
@@ -3906,7 +3934,7 @@ The user may ask questions about this document. Use this content to provide rele
         "created_at": datetime.now(timezone.utc).isoformat()
     })
 
-    return {"response": clean_response, "session_id": session_id, "actions": actions}
+    return {"response": clean_response, "session_id": session_id, "actions": actions, "sources": sources}
 
 @api_router.post("/zeta/generate-image")
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):

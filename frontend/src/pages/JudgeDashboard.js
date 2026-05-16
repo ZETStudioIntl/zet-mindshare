@@ -8,7 +8,7 @@ import {
   Search, Plus, Settings, LogOut, ArrowLeft, Send, X, Loader,
   FileText, Globe, Heart, MessageCircle,
   User, Scale, ChevronLeft, Brain, CreditCard, Zap, Map, Award,
-  Check, Sparkles, HardDrive, Download
+  Check, Sparkles, HardDrive, Download, ExternalLink
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -317,7 +317,7 @@ const JudgeDashboard = () => {
       }, { withCredentials: true });
       const newSid = res.data.session_id || sessionId;
       setSessionId(newSid);
-      setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
+      setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.response, sources: res.data.sources || [] }]);
       if (res.data.risk_score != null) setJudgeScores({ risk: res.data.risk_score, success: res.data.success_score });
       fetchSessions();
     } catch (err) {
@@ -792,6 +792,17 @@ const JudgeDashboard = () => {
                       )}
                       <div style={{ maxWidth: '80%', padding: '11px 15px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 14, lineHeight: 1.65, color: '#fff', whiteSpace: 'pre-wrap' }}>
                         {msg.content}
+                        {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
+                            {msg.sources.map((s, si) => (
+                              <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <ExternalLink size={10} style={{ flexShrink: 0 }} />{s.title}
+                              </a>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -966,6 +977,17 @@ const JudgeDashboard = () => {
                           )}
                           <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 13, lineHeight: 1.6, color: '#fff', whiteSpace: 'pre-wrap' }}>
                             {msg.content}
+                            {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
+                                {msg.sources.map((s, si) => (
+                                  <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                    <ExternalLink size={10} style={{ flexShrink: 0 }} />{s.title}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         </div>
                       ))}
