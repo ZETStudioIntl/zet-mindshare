@@ -478,7 +478,10 @@ const Editor = () => {
 
   // History
   const history = useCanvasHistory();
-  
+  const handleSaveHistory = useCallback((elements) => { history.push(elements); }, [history]);
+  const handleUndo = () => { const prev = history.undo(); if (prev) setCanvasElements(prev); };
+  const handleRedo = () => { const next = history.redo(); if (next) setCanvasElements(next); };
+
   // Collaboration hook
   const collab = useCollaboration(
     docId,
@@ -910,11 +913,6 @@ const Editor = () => {
     setDocument(prev => ({ ...prev, pages: prev.pages.filter((_, i) => i !== index) }));
     if (currentPage >= index && currentPage > 0) setCurrentPage(currentPage - 1);
   };
-
-  // === HISTORY ===
-  const handleSaveHistory = useCallback((elements) => { history.push(elements); }, [history]);
-  const handleUndo = () => { const prev = history.undo(); if (prev) setCanvasElements(prev); };
-  const handleRedo = () => { const next = history.redo(); if (next) setCanvasElements(next); };
 
   // === DELETE / CHANGE IMAGE ===
   const deleteSelected = () => {
