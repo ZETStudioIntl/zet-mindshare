@@ -1716,14 +1716,13 @@ export const CanvasArea = ({
                       const updated = canvasElements.map(x => x.id === el.id ? { ...x, isHighlighted: !alreadyHighlighted, highlightColor: alreadyHighlighted ? undefined : (markingColor || '#fbbf24') } : x);
                       setCanvasElements(updated); onSaveHistory(updated); return;
                     }
-                    setSelectedElement(el.id);
-                    // Text tool on text element → immediately enter edit mode
-                    if (activeTool === 'text' && el.type === 'text') {
-                      if (idx !== currentPage) { pendingEditRef.current = { elementId: el.id, x: 0, y: 0, pageIdx: idx }; changePage(idx); }
-                      else setEditingId(el.id);
-                    } else {
-                      if (idx !== currentPage) changePage(idx);
+                    if (idx !== currentPage) {
+                      pendingEditRef.current = { elementId: el.id, elementType: el.type, x: 0, y: 0, pageIdx: idx };
+                      changePage(idx);
+                      return;
                     }
+                    setSelectedElement(el.id);
+                    if (activeTool === 'text' && el.type === 'text') setEditingId(el.id);
                     if (onElementSelect) onElementSelect(el);
                   }}>
                   {el.groupId && isSel && (

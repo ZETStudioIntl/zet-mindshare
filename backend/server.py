@@ -2782,7 +2782,7 @@ async def list_gemini_models():
 async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
     # Get user's plan and limits
     user_data = await db.users.find_one({"user_id": user.user_id})
-    plan = user_data.get("subscription", "free") if user_data else "free"
+    plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
     # Check if Judge is available for this plan
@@ -3250,7 +3250,7 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
     """ZETA Otomatik Yazma: Prompt'a göre belge içeriği üretir. 10 kredi / 3 satır."""
 
     user_data = await db.users.find_one({"user_id": user.user_id})
-    plan = user_data.get("subscription", "free") if user_data else "free"
+    plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
     # Cost: 15 credits per page (fixed, predictable)
@@ -3349,7 +3349,7 @@ FORMAT KURALLARI:
 async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(get_current_user)):
     """Derin Analiz: ZETA internette arastirma yaparak derinlemesine analiz yazar. 100 kredi. Sadece Pro/Ultra."""
     user_data = await db.users.find_one({"user_id": user.user_id})
-    plan = user_data.get("subscription", "free") if user_data else "free"
+    plan = get_plan_name(user_data)
 
     if plan not in ("pro", "creative_station"):
         raise HTTPException(status_code=403, detail="Derin Analiz sadece Pro ve Creative Station aboneler için kullanılabilir.")
@@ -3492,9 +3492,9 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     
     # Get user's subscription info
     user_data = await db.users.find_one({"user_id": user.user_id})
-    user_plan = user_data.get("subscription", "free") if user_data else "free"
+    user_plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(user_plan, PLAN_LIMITS['free'])
-    
+
     # Check ZETA character limit
     zeta_char_limit = limits.get('zeta_chars', 250)
     if zeta_char_limit < 99999 and len(req.message) > zeta_char_limit:
