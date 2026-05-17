@@ -35,8 +35,7 @@ jobs:
         run: gcloud auth configure-docker --quiet
 
       - name: Build Docker image
-        run: |
-          docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./backend
+        run: docker build -t $IMAGE:${{ github.sha }} -t $IMAGE:latest ./backend
 
       - name: Push Docker image
         run: |
@@ -45,12 +44,32 @@ jobs:
 
       - name: Deploy to Cloud Run
         run: |
+          ENV_VARS="MONGO_URL=${{ secrets.MONGO_URL }}"
+          ENV_VARS="$ENV_VARS,DB_NAME=${{ secrets.DB_NAME }}"
+          ENV_VARS="$ENV_VARS,GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}"
+          ENV_VARS="$ENV_VARS,GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}"
+          ENV_VARS="$ENV_VARS,RESEND_API_KEY=${{ secrets.RESEND_API_KEY }}"
+          ENV_VARS="$ENV_VARS,SENDER_EMAIL=${{ secrets.SENDER_EMAIL }}"
+          ENV_VARS="$ENV_VARS,GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}"
+          ENV_VARS="$ENV_VARS,CEO_PIN=${{ secrets.CEO_PIN }}"
+          ENV_VARS="$ENV_VARS,FRONTEND_URL=${{ secrets.FRONTEND_URL }}"
+          ENV_VARS="$ENV_VARS,ELEVENLABS_API_KEY=${{ secrets.ELEVENLABS_API_KEY }}"
+          ENV_VARS="$ENV_VARS,LEMONSQUEEZY_API_KEY=${{ secrets.LEMONSQUEEZY_API_KEY }}"
+          ENV_VARS="$ENV_VARS,LEMONSQUEEZY_WEBHOOK_SECRET=${{ secrets.LEMONSQUEEZY_WEBHOOK_SECRET }}"
+          ENV_VARS="$ENV_VARS,LEMONSQUEEZY_STORE_ID=${{ secrets.LEMONSQUEEZY_STORE_ID }}"
+          ENV_VARS="$ENV_VARS,LS_VARIANT_PLUS_MONTHLY=${{ secrets.LS_VARIANT_PLUS_MONTHLY }}"
+          ENV_VARS="$ENV_VARS,LS_VARIANT_PLUS_YEARLY=${{ secrets.LS_VARIANT_PLUS_YEARLY }}"
+          ENV_VARS="$ENV_VARS,LS_VARIANT_PRO_MONTHLY=${{ secrets.LS_VARIANT_PRO_MONTHLY }}"
+          ENV_VARS="$ENV_VARS,LS_VARIANT_PRO_YEARLY=${{ secrets.LS_VARIANT_PRO_YEARLY }}"
+          ENV_VARS="$ENV_VARS,LS_VARIANT_CS_MONTHLY=${{ secrets.LS_VARIANT_CS_MONTHLY }}"
+          ENV_VARS="$ENV_VARS,LS_VARIANT_CS_YEARLY=${{ secrets.LS_VARIANT_CS_YEARLY }}"
+
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE:${{ github.sha }} \
             --region $REGION \
             --platform managed \
             --allow-unauthenticated \
-            --set-env-vars MONGO_URL=${{ secrets.MONGO_URL }},DB_NAME=${{ secrets.DB_NAME }},GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }},RESEND_API_KEY=${{ secrets.RESEND_API_KEY }},GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }},STRIPE_SECRET_KEY=${{ secrets.STRIPE_SECRET_KEY }},STRIPE_WEBHOOK_SECRET=${{ secrets.STRIPE_WEBHOOK_SECRET }},JWT_SECRET=${{ secrets.JWT_SECRET }},SENDER_EMAIL=info@zetstudiointl.com,FRONTEND_URL=${{ secrets.FRONTEND_URL }} \
+            --update-env-vars "$ENV_VARS" \
             --quiet
 
       - name: Show service URL
