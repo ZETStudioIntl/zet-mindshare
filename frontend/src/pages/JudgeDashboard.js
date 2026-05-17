@@ -797,8 +797,9 @@ const JudgeDashboard = () => {
                             <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
                             {msg.sources.map((s, si) => (
                               <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                <ExternalLink size={10} style={{ flexShrink: 0 }} />{s.title}
+                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 3, textDecoration: 'none', cursor: 'pointer', flexWrap: 'nowrap' }}>
+                                <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
                               </a>
                             ))}
                           </div>
@@ -982,8 +983,9 @@ const JudgeDashboard = () => {
                                 <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
                                 {msg.sources.map((s, si) => (
                                   <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
-                                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                    <ExternalLink size={10} style={{ flexShrink: 0 }} />{s.title}
+                                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 3, textDecoration: 'none', cursor: 'pointer', flexWrap: 'nowrap' }}>
+                                    <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
                                   </a>
                                 ))}
                               </div>

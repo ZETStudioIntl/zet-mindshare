@@ -1382,8 +1382,9 @@ MATCHES:[1,3,5]`;
                       <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Kaynaklar</p>
                       {zetaAnalysis.sources.map((s, si) => (
                         <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
-                          style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4ca8ad', marginBottom: 2, textDecoration: 'none', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          <ExternalLink size={10} style={{ flexShrink: 0 }} />{s.title}
+                          style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#4ca8ad', marginBottom: 3, textDecoration: 'none', cursor: 'pointer' }}>
+                          <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
                         </a>
                       ))}
                     </div>

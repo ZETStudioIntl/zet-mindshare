@@ -885,6 +885,26 @@ const Editor = () => {
     // Note already saved by RightPanel; this can trigger a UI refresh if needed
   };
 
+  const handleInsertText = (content) => {
+    if (!content) return;
+    const el = {
+      id: `el_${Date.now()}_zeta`,
+      type: 'text',
+      x: marginLeft || 40,
+      y: marginTop || 40,
+      content: content.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
+      fontSize: currentFontSize || DEFAULT_FONT_SIZE,
+      fontFamily: currentFont || DEFAULT_FONT,
+      color: currentColor || DEFAULT_COLOR,
+      width: (pageSize?.width || 794) - (marginLeft || 40) - (marginRight || 40),
+      lineHeight: 1.6,
+      textAlign: 'left',
+    };
+    const updated = [...canvasElements, el];
+    setCanvasElements(updated);
+    handleSaveHistory(updated);
+  };
+
   const handleAutoWriteContent = (pages, pageCount) => {
     if (!pages || pages.length === 0) return;
     const ml = marginLeft || 40;
@@ -4965,6 +4985,7 @@ const Editor = () => {
                 zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
                 onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
                 onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
+                onInsertText={handleInsertText}
                 canvasElements={canvasElements} activeTool={activeTool} />
             </div>
           </div>
@@ -5177,6 +5198,7 @@ const Editor = () => {
             zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt}
             onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
             onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
+            onInsertText={handleInsertText}
             canvasElements={canvasElements} activeTool={activeTool}
             onApplyEdit={(text) => {
               if (selectedElement) {

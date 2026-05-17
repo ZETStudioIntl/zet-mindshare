@@ -1515,10 +1515,10 @@ export const CanvasArea = ({
                     )}
                     <path
                       d={pathD}
-                      stroke={isSelected ? '#4ca8ad' : path.color}
-                      strokeWidth={(isSelected ? path.size + 2 : path.size) * zoom}
-                      strokeOpacity={path.opacity / 100}
-                      fill={path.isClosed && !path.image ? `${path.fillColor || path.color}${Math.round(((path.fillOpacity ?? 20) / 100) * 255).toString(16).padStart(2, '0')}` : path.isPen && !path.image ? `${path.color}14` : 'none'}
+                      stroke={isSelected ? '#4ca8ad' : (path.color || '#000000')}
+                      strokeWidth={(isSelected ? path.size + 2 : (path.size || 2)) * zoom}
+                      strokeOpacity={(path.opacity ?? 100) / 100}
+                      fill={path.isClosed && !path.image ? `${path.fillColor || path.color || '#000000'}${Math.round(((path.fillOpacity ?? 20) / 100) * 255).toString(16).padStart(2, '0')}` : path.isPen && !path.image ? `${path.color || '#000000'}14` : 'none'}
                       strokeLinecap="round"
                       strokeLinejoin="round"
                     />

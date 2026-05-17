@@ -36,6 +36,7 @@ export const RightPanel = ({
   onRefreshCredits,
   onUpdateSettings,
   onTakeNote,
+  onInsertText,
   onApplyEdit,
   canvasElements,
   activeTool,
@@ -117,6 +118,8 @@ export const RightPanel = ({
           await axios.post(`${API}/notes`, { content: action.value }, { withCredentials: true });
           if (onTakeNote) onTakeNote(action.value);
         } catch {}
+      } else if (action.type === 'INSERT_TEXT') {
+        if (onInsertText) onInsertText(action.value);
       }
     }
     if (Object.keys(settingsUpdate).length > 0 && onUpdateSettings) {
