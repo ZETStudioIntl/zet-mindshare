@@ -337,6 +337,7 @@ const Dashboard = () => {
   const [inventory, setInventory] = useState([]);
   const [openingCaseId, setOpeningCaseId] = useState(null);
   const [seasonData, setSeasonData] = useState(null);
+  const [seasonForm, setSeasonForm] = useState({ start: '', end: '', loading: false });
   const [firedAlarms, setFiredAlarms] = useState([]);
   const [alarmTick, setAlarmTick] = useState(0);
   const [notebooks, setNotebooks] = useState([]);
@@ -2234,14 +2235,50 @@ MATCHES:[1,3,5]`;
                     </div>
                   )}
 
-                  {/* CEO: Sezon yönetim komutu */}
+                  {/* CEO: Sezon yönetim formu */}
                   {isCEO && (
                     <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
-                      <p style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', margin: '0 0 8px' }}>👑 Sezon Yönetimi</p>
-                      <p style={{ fontSize: 11, color: 'var(--zet-text-muted)', margin: '0 0 6px' }}>Sezon tarihini ayarla:</p>
-                      <code style={{ display: 'block', background: 'rgba(0,0,0,0.4)', borderRadius: 7, padding: '8px 10px', fontSize: 10.5, color: '#86efac', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.7 }}>
-                        {`curl "${process.env.REACT_APP_BACKEND_URL}/api/season/time/DD.MM.YYYY-DD.MM.YYYY?pin=CEO_PIN"`}
-                      </code>
+                      <p style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', margin: '0 0 10px' }}>👑 Sezon Yönetimi</p>
+                      <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 10, color: 'var(--zet-text-muted)', margin: '0 0 4px' }}>Başlangıç</p>
+                          <input
+                            type="date"
+                            value={seasonForm.start}
+                            onChange={e => setSeasonForm(f => ({ ...f, start: e.target.value }))}
+                            style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 7, color: '#fff', padding: '6px 8px', fontSize: 12, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <p style={{ fontSize: 10, color: 'var(--zet-text-muted)', margin: '0 0 4px' }}>Bitiş</p>
+                          <input
+                            type="date"
+                            value={seasonForm.end}
+                            onChange={e => setSeasonForm(f => ({ ...f, end: e.target.value }))}
+                            style={{ width: '100%', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(245,158,11,0.3)', borderRadius: 7, color: '#fff', padding: '6px 8px', fontSize: 12, boxSizing: 'border-box' }}
+                          />
+                        </div>
+                      </div>
+                      <button
+                        disabled={!seasonForm.start || !seasonForm.end || seasonForm.loading}
+                        onClick={async () => {
+                          setSeasonForm(f => ({ ...f, loading: true }));
+                          try {
+                            const fmt = d => d.split('-').reverse().join('.');
+                            const range = `${fmt(seasonForm.start)}-${fmt(seasonForm.end)}`;
+                            const pin = prompt('CEO PIN:');
+                            if (!pin) { setSeasonForm(f => ({ ...f, loading: false })); return; }
+                            await axios.get(`${API}/season/time/${range}`, { params: { pin }, withCredentials: true });
+                            const res = await axios.get(`${API}/season`, { withCredentials: true });
+                            setSeasonData(res.data);
+                            showToast('Sezon güncellendi', 'success');
+                          } catch { showToast('Hata oluştu', 'error'); }
+                          setSeasonForm(f => ({ ...f, loading: false }));
+                        }}
+                        style={{ width: '100%', background: seasonForm.loading ? 'rgba(245,158,11,0.2)' : 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.4)', borderRadius: 7, color: '#f59e0b', fontSize: 12, fontWeight: 600, padding: '7px', cursor: 'pointer' }}
+                      >
+                        {seasonForm.loading ? 'Kaydediliyor...' : 'Sezonu Başlat'}
+                      </button>
                       {seasonData && (
                         <p style={{ fontSize: 10.5, color: 'var(--zet-text-muted)', margin: '8px 0 0' }}>
                           Mevcut: {seasonData.active ? `${seasonData.start_date} → ${seasonData.end_date}` : 'Aktif sezon yok'}
