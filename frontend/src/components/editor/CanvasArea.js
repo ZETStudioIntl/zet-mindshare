@@ -405,8 +405,13 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
             setTimeout(() => { if (ref.current) ref.current.focus({ preventScroll: true }); }, 0);
             return;
           }
-          if (ref.current) {
-            onCommit(el.id, ref.current.innerHTML, true);
+          // React may have already applied dangerouslySetInnerHTML (overwriting typed content) before this
+          // blur fires (happens when another element's editingId was set, triggering a React commit that
+          // changes contentEditable false→false triggers blur). Use pendingContentRef captured during
+          // the render phase (before commit) as the authoritative content if available.
+          const content = pendingContentRef.current !== null ? pendingContentRef.current : (ref.current ? ref.current.innerHTML : null);
+          if (content !== null) {
+            onCommit(el.id, content, true);
           }
         }}
         onInput={checkOverflow}
@@ -762,7 +767,9 @@ export const CanvasArea = ({
         }
       }
     }
-    setEditingId(null);
+    // Only clear editingId if it's still this element — prevents race where another element
+    // already started editing before this commit fires (e.g. clicking Y while editing X).
+    setEditingId(prev => prev === id ? null : prev);
   }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage, margins.bottom]);
 
   const [hoveredElementId, setHoveredElementId] = useState(null);
