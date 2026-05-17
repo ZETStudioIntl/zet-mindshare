@@ -231,8 +231,15 @@ const ShapeRenderer = ({ el }) => {
 const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
+  const pendingContentRef = useRef(null);
   const [removeTarget, setRemoveTarget] = useState(null); // 'redact' | 'highlight' | null
-  
+
+  // Capture typed content DURING render, before React applies dangerouslySetInnerHTML and overwrites the DOM.
+  // useEffect fires after the DOM mutation, so ref.current.innerHTML would already be stale there.
+  if (prevEditingRef.current && !isEditing && ref.current) {
+    pendingContentRef.current = ref.current.innerHTML;
+  }
+
   useEffect(() => {
     if (isEditing && ref.current) {
       if (!prevEditingRef.current) {
@@ -244,9 +251,11 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
       ref.current.focus();
       const r = window.document.createRange(); const s = window.getSelection();
       r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
-    } else if (!isEditing && prevEditingRef.current && ref.current) {
-      // Exiting edit mode — commit BEFORE React resets dangerouslySetInnerHTML with old content
-      onCommit(el.id, ref.current.innerHTML, false);
+    } else if (!isEditing && prevEditingRef.current) {
+      // Use content captured during render phase (before dangerouslySetInnerHTML overwrote the DOM)
+      const captured = pendingContentRef.current;
+      pendingContentRef.current = null;
+      if (captured !== null) onCommit(el.id, captured, true);
     }
     prevEditingRef.current = isEditing;
   // eslint-disable-next-line react-hooks/exhaustive-deps
