@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -13,7 +13,7 @@ import diamondRankImg from '../assets/rank-diamond.svg';
 import emeraldRankImg from '../assets/rank-emerald.svg';
 import endlessRankImg from '../assets/rank-endless.svg';
 import {
-  Search, Settings, Plus, FileText, StickyNote, LogOut,
+  Search, Settings, Plus, FileText, StickyNote, LogOut, Package,
   Clock, Trash2, Cloud, Globe, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
   MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, Send, ExternalLink
@@ -49,6 +49,130 @@ const ZetaIcon = ({ size = 14, color = '#4ca8ad' }) => (
     <path fill={color} d="M100,121.7H.4v-35.6L77.3,28.1H3.6C3.6,12.6,14.1,0,27.2,0h92.4v30l-84,63.6h2.2l80.8.4v7.6c0,11.1-8.3,20.1-18.6,20.1h0Z"/>
   </svg>
 );
+
+// ── Kasa Sistemi ──────────────────────────────────────────────────────────────
+const _CASE_DEFS = [
+  { type: 'zp',     amount: 30,  rarity: 'common', chance: 20.0 },
+  { type: 'zp',     amount: 50,  rarity: 'common', chance: 15.0 },
+  { type: 'zp',     amount: 100, rarity: 'nadir',  chance: 13.0 },
+  { type: 'zp',     amount: 200, rarity: 'nadir',  chance: 8.0  },
+  { type: 'zp',     amount: 330, rarity: 'epik',   chance: 3.0  },
+  { type: 'zp',     amount: 800, rarity: 'epik',   chance: 0.8  },
+  { type: 'credit', amount: 10,  rarity: 'common', chance: 22.0 },
+  { type: 'credit', amount: 20,  rarity: 'nadir',  chance: 9.0  },
+  { type: 'credit', amount: 50,  rarity: 'epik',   chance: 4.0  },
+  { type: 'credit', amount: 400, rarity: 'lore',   chance: 0.08 },
+];
+const _CASE_TOTAL = _CASE_DEFS.reduce((s, r) => s + r.chance, 0);
+const RARITY_COLORS = { common: '#888', nadir: '#60a5fa', epik: '#a78bfa', lore: '#fbbf24' };
+const RARITY_LABELS = { common: '', nadir: 'Nadir', epik: 'Epik', lore: 'Lore' };
+function _weightedRandom() {
+  let r = Math.random() * _CASE_TOTAL;
+  for (const d of _CASE_DEFS) { r -= d.chance; if (r <= 0) return d; }
+  return _CASE_DEFS[0];
+}
+
+const SLOT_W = 110, SLOT_GAP = 8, SLOT_STEP = 118, SLOT_COUNT = 60, SLOT_WIN = 52, SLOT_VIS = 5;
+const SLOT_CW = SLOT_VIS * SLOT_STEP - SLOT_GAP; // 582px
+
+const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
+  const [phase, setPhase] = useState('ready');
+  const [items, setItems] = useState([]);
+  const [reward, setReward] = useState(null);
+  const stripRef = useRef(null);
+
+  const handleOpen = async () => {
+    if (phase !== 'ready') return;
+    setPhase('spinning');
+    try {
+      const res = await axios.post(`${API}/inventory/open-case`, { case_id: caseId }, { withCredentials: true });
+      const rw = res.data.reward;
+      setReward(rw);
+      const strip = Array.from({ length: SLOT_COUNT }, (_, i) => i === SLOT_WIN ? { ...rw, isWinner: true } : _weightedRandom());
+      setItems(strip);
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        if (!stripRef.current) return;
+        stripRef.current.style.transition = 'none';
+        stripRef.current.style.transform = 'translateX(0)';
+        void stripRef.current.offsetWidth;
+        const jitter = (Math.random() - 0.5) * 28;
+        const finalX = -(SLOT_WIN * SLOT_STEP + SLOT_W / 2 - SLOT_CW / 2 - jitter);
+        stripRef.current.style.transition = 'transform 5.5s cubic-bezier(0.05, 0.75, 0.25, 1.0)';
+        stripRef.current.style.transform = `translateX(${finalX}px)`;
+        setTimeout(() => { setPhase('done'); onReward(rw); }, 5600);
+      }));
+    } catch { setPhase('ready'); if (toast) toast('Kasa açılamadı', 'error'); }
+  };
+
+  const col = reward ? RARITY_COLORS[reward.rarity] : '#4ca8ad';
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.90)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+      <div style={{ background: '#0d0d1a', border: '1px solid #252545', borderRadius: 18, padding: '28px 24px', width: '100%', maxWidth: 650, position: 'relative' }}>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+          <p style={{ color: '#fff', fontSize: 18, fontWeight: 700, margin: 0 }}>📦 Günlük Kasa</p>
+          {phase !== 'spinning' && (
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#aaa', width: 32, height: 32, cursor: 'pointer', fontSize: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+          )}
+        </div>
+
+        {/* Slot strip */}
+        <div style={{ position: 'relative', marginBottom: 24 }}>
+          <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 2, height: '100%', background: '#fbbf24', zIndex: 5, pointerEvents: 'none', borderRadius: 2 }} />
+          <div style={{ overflow: 'hidden', width: SLOT_CW, margin: '0 auto', borderRadius: 10, border: '1px solid #252545', background: '#08080f' }}>
+            {items.length === 0 ? (
+              <div style={{ height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <span style={{ fontSize: 52 }}>📦</span>
+              </div>
+            ) : (
+              <div ref={stripRef} style={{ display: 'flex', gap: SLOT_GAP, padding: '8px 0' }}>
+                {items.map((item, i) => (
+                  <div key={i} style={{
+                    flexShrink: 0, width: SLOT_W, height: 88,
+                    background: item.isWinner ? `${RARITY_COLORS[item.rarity]}18` : 'rgba(255,255,255,0.025)',
+                    border: `1px solid ${item.isWinner ? RARITY_COLORS[item.rarity] : '#252545'}`,
+                    borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                  }}>
+                    <span style={{ fontSize: 22 }}>{item.type === 'zp' ? '⚡' : '💎'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: RARITY_COLORS[item.rarity] }}>{item.amount}</span>
+                    <span style={{ fontSize: 10, color: '#555' }}>{item.type === 'zp' ? 'ZP' : 'Kredi'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {phase === 'done' && reward && (
+          <div style={{ textAlign: 'center', marginBottom: 20, padding: '14px 20px', background: `${col}10`, borderRadius: 12, border: `1px solid ${col}35` }}>
+            {RARITY_LABELS[reward.rarity] && (
+              <p style={{ margin: '0 0 4px', fontSize: 10, color: col, letterSpacing: 3, textTransform: 'uppercase', fontWeight: 700 }}>{RARITY_LABELS[reward.rarity]}</p>
+            )}
+            <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: col }}>
+              {reward.type === 'zp' ? '⚡' : '💎'} {reward.amount} {reward.type === 'zp' ? 'ZP' : 'Kredi'} Kazandın!
+            </p>
+          </div>
+        )}
+
+        <div style={{ textAlign: 'center' }}>
+          {phase === 'ready' && (
+            <button onClick={handleOpen} style={{ background: 'linear-gradient(135deg, #4ca8ad, #2d7a7e)', border: 'none', borderRadius: 12, color: '#fff', fontSize: 15, fontWeight: 700, padding: '13px 52px', cursor: 'pointer', letterSpacing: 0.5 }}>
+              Kasayı Aç
+            </button>
+          )}
+          {phase === 'spinning' && <p style={{ color: '#555', fontSize: 13, margin: 0 }}>Kader döndürülüyor...</p>}
+          {phase === 'done' && (
+            <button onClick={onClose} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.15)', borderRadius: 12, color: '#fff', fontSize: 14, fontWeight: 600, padding: '11px 40px', cursor: 'pointer' }}>
+              Güzel, Tamam
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+// ────────────────────────────────────────────────────────────────────────────
 
 const Dashboard = () => {
   const { user, logout, updateUser } = useAuth();
@@ -154,6 +278,8 @@ const Dashboard = () => {
   const [creditPackages, setCreditPackages] = useState([]);
   const [buyingCredits, setBuyingCredits] = useState(false);
   const [showMissions, setShowMissions] = useState(false);
+  const [inventory, setInventory] = useState([]);
+  const [openingCaseId, setOpeningCaseId] = useState(null);
   const [firedAlarms, setFiredAlarms] = useState([]);
   const [alarmTick, setAlarmTick] = useState(0);
   const [notebooks, setNotebooks] = useState([]);
@@ -362,6 +488,11 @@ const Dashboard = () => {
     checkDriveConnection();
     fetchSubscription();
     requestNotificationPermission();
+    // Envanter yükle + günlük kasayı al
+    axios.get(`${API}/inventory`, { withCredentials: true })
+      .then(res => setInventory(res.data.cases || [])).catch(() => {});
+    axios.post(`${API}/inventory/claim-daily`, {}, { withCredentials: true })
+      .then(res => { if (res.data.claimed) { setInventory(prev => [...prev, res.data.case]); showToast('📦 Günlük kasanız hazır!', 'success'); } }).catch(() => {});
     // Check if redirected from Drive OAuth
     const params = new URLSearchParams(window.location.search);
     if (params.get('drive_connected') === 'true') {
@@ -1618,6 +1749,7 @@ MATCHES:[1,3,5]`;
                 { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('questMap'),      color: '#4ca8ad' },
                 { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: t('subscription'),  color: 'var(--zet-primary-light)' },
                 { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
+                { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: 'Envanter',         color: '#60a5fa' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
                 { id: 'identity',     icon: <UserCheck className="h-4 w-4" />,  label: 'Kimlik Doğrulama', color: '#22c55e' },
@@ -2597,6 +2729,53 @@ MATCHES:[1,3,5]`;
                       </div>
                     );
                   })()}
+                </div>
+              )}
+
+              {settingsTab === 'inventory' && (
+                <div className="max-w-lg">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)', margin: 0 }}>Envanter</h2>
+                    {isPrivileged && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await axios.post(`${API}/admin/give-test-cases`, { count: 30 }, { withCredentials: true });
+                            const r2 = await axios.get(`${API}/inventory`, { withCredentials: true });
+                            setInventory(r2.data.cases || []);
+                            showToast('30 test kasası eklendi', 'success');
+                          } catch { showToast('Hata', 'error'); }
+                        }}
+                        className="text-xs px-3 py-1.5 rounded-lg"
+                        style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)', cursor: 'pointer' }}
+                      >
+                        Test: 30 Kasa Ekle
+                      </button>
+                    )}
+                  </div>
+                  <p className="text-sm mb-5" style={{ color: 'var(--zet-text-muted)' }}>Her gün ücretsiz bir kasa alırsın. Kasaları açarak ZP ve kredi kazanabilirsin.</p>
+                  {inventory.length === 0 ? (
+                    <div className="text-center py-12" style={{ color: 'var(--zet-text-muted)' }}>
+                      <p style={{ fontSize: 44, marginBottom: 10 }}>📭</p>
+                      <p className="text-sm">Envanteriniz boş. Yarın tekrar deneyin!</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
+                      {inventory.map((c) => (
+                        <button
+                          key={c.id}
+                          onClick={() => setOpeningCaseId(c.id)}
+                          style={{ background: 'linear-gradient(135deg, #0f0f2a, #1a1a3a)', border: '1px solid #2a2a5a', borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                          onMouseEnter={e => { e.currentTarget.style.border = '1px solid #60a5fa'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                          onMouseLeave={e => { e.currentTarget.style.border = '1px solid #2a2a5a'; e.currentTarget.style.transform = 'translateY(0)'; }}
+                        >
+                          <span style={{ fontSize: 38 }}>📦</span>
+                          <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 600 }}>Günlük Kasa</span>
+                          <span style={{ fontSize: 10, color: '#555', background: 'rgba(96,165,250,0.1)', borderRadius: 20, padding: '2px 10px' }}>Açmak için tıkla</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -4223,6 +4402,19 @@ MATCHES:[1,3,5]`;
             </div>
           </div>
         </div>
+      )}
+
+      {/* Kasa Açma Modalı */}
+      {openingCaseId && (
+        <CaseOpenModal
+          caseId={openingCaseId}
+          showToast={showToast}
+          onClose={() => setOpeningCaseId(null)}
+          onReward={(r) => {
+            setInventory(prev => prev.filter(c => c.id !== openingCaseId));
+            if (r.type === 'zp') setUserZP(prev => prev + r.amount);
+          }}
+        />
       )}
 
       {/* Missions Modal */}

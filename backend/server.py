@@ -10,6 +10,7 @@ from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict, Any, Union
 import uuid
+import random
 import secrets
 from datetime import datetime, timezone, timedelta, date
 import base64
@@ -269,6 +270,8 @@ class User(BaseModel):
     last_heartbeat: Optional[str] = None
     created_at: Optional[Any] = None
     needs_onboarding: Optional[bool] = False
+    inventory: Optional[List[Dict[str, Any]]] = []
+    last_daily_case: Optional[str] = None
 
 class Document(BaseModel):
     doc_id: str = Field(default_factory=lambda: f"doc_{uuid.uuid4().hex[:12]}")
@@ -989,6 +992,75 @@ async def admin_update_user(user_id: str, body: AdminUserUpdate, user: User = De
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
     return {"success": True}
+
+# ============ ENVANTER / KASA ============
+
+_CASE_REWARDS = [
+    {"type": "zp",     "amount": 30,  "rarity": "common", "chance": 20.0},
+    {"type": "zp",     "amount": 50,  "rarity": "common", "chance": 15.0},
+    {"type": "zp",     "amount": 100, "rarity": "nadir",  "chance": 13.0},
+    {"type": "zp",     "amount": 200, "rarity": "nadir",  "chance": 8.0},
+    {"type": "zp",     "amount": 330, "rarity": "epik",   "chance": 3.0},
+    {"type": "zp",     "amount": 800, "rarity": "epik",   "chance": 0.8},
+    {"type": "credit", "amount": 10,  "rarity": "common", "chance": 22.0},
+    {"type": "credit", "amount": 20,  "rarity": "nadir",  "chance": 9.0},
+    {"type": "credit", "amount": 50,  "rarity": "epik",   "chance": 4.0},
+    {"type": "credit", "amount": 400, "rarity": "lore",   "chance": 0.08},
+]
+_CASE_TOTAL_CHANCE = sum(r["chance"] for r in _CASE_REWARDS)
+
+def _roll_case_reward() -> dict:
+    rng = random.random() * _CASE_TOTAL_CHANCE
+    cumulative = 0.0
+    for reward in _CASE_REWARDS:
+        cumulative += reward["chance"]
+        if rng <= cumulative:
+            return dict(reward)
+    return dict(_CASE_REWARDS[-1])
+
+@api_router.get("/inventory")
+async def get_inventory(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1, "last_daily_case": 1})
+    return {
+        "cases": doc.get("inventory") or [],
+        "last_daily_case": doc.get("last_daily_case"),
+    }
+
+@api_router.post("/inventory/claim-daily")
+async def claim_daily_case(user: User = Depends(get_current_user)):
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "last_daily_case": 1})
+    if doc and doc.get("last_daily_case") == today:
+        return {"claimed": False, "reason": "already_claimed"}
+    case_obj = {"id": f"case_{uuid.uuid4().hex[:12]}", "type": "daily_case", "acquired_at": datetime.now(timezone.utc).isoformat()}
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$push": {"inventory": case_obj}, "$set": {"last_daily_case": today}},
+    )
+    return {"claimed": True, "case": case_obj}
+
+@api_router.post("/inventory/open-case")
+async def open_case(case_id: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1})
+    inventory = doc.get("inventory") or []
+    if not any(c.get("id") == case_id for c in inventory):
+        raise HTTPException(status_code=404, detail="Kasa bulunamadı")
+    reward = _roll_case_reward()
+    await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": case_id}}})
+    if reward["type"] == "zp":
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": reward["amount"]}})
+    elif reward["type"] == "credit":
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": reward["amount"]}})
+    return {"reward": reward}
+
+@api_router.post("/admin/give-test-cases")
+async def give_test_cases(count: int = Body(30, embed=True), user: User = Depends(get_current_user)):
+    if not is_privileged(user.email):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    now = datetime.now(timezone.utc).isoformat()
+    cases = [{"id": f"case_{uuid.uuid4().hex[:12]}", "type": "daily_case", "acquired_at": now} for _ in range(count)]
+    await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": {"$each": cases}}})
+    return {"added": count}
 
 # ============ SOCIAL — USERS / FOLLOW ============
 
