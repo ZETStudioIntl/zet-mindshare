@@ -7,7 +7,7 @@ import {
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
   IndentIncrease, Maximize, ShieldOff, FileUp, List, ListOrdered, SmilePlus,
-  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen
+  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator
 } from 'lucide-react';
 
 // 96 DPI screen pixels — matches Word/browser 100% zoom (1pt = 96/72 = 1.333px)
@@ -364,6 +364,7 @@ export const TOOLS = [
   { id: 'shapes', icon: Shapes, nameKey: 'shapes', shortcut: null },
   { id: 'punctuation', icon: Pilcrow, nameKey: 'punctuation', shortcut: null },
   { id: 'zoom', icon: ZoomIn, nameKey: 'zoomTool', shortcut: 'Z' },
+  { id: 'calculator', icon: Calculator, nameKey: 'calculator', shortcut: null },
 ];
 
 // Default keyboard shortcuts
