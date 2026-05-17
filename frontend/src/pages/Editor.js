@@ -90,13 +90,6 @@ const Editor = () => {
     };
   }, []);
 
-  // Free users lose access to everything except text editing when offline
-  useEffect(() => {
-    if (!isOnline && userPlan === 'free') {
-      setRightOpen(false);
-    }
-  }, [isOnline, userPlan]);
-
   // Mobile panels
   const [mobilePanel, setMobilePanel] = useState(null); // 'pages' | 'zeta' | null
 
@@ -361,6 +354,8 @@ const Editor = () => {
   // Usage & Subscription state
   const [userUsage, setUserUsage] = useState(null);
   const [userPlan, setUserPlan] = useState('free');
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!isOnline && userPlan === 'free') setRightOpen(false); }, [isOnline, userPlan]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState('');
   const [showCreditModal, setShowCreditModal] = useState(false);
