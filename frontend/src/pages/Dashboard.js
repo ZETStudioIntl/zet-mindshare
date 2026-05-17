@@ -72,14 +72,60 @@ function _weightedRandom() {
   return _CASE_DEFS[0];
 }
 
-const SLOT_W = 110, SLOT_GAP = 8, SLOT_STEP = 118, SLOT_COUNT = 60, SLOT_WIN = 52, SLOT_VIS = 5;
-const SLOT_CW = SLOT_VIS * SLOT_STEP - SLOT_GAP; // 582px
+const SLOT_W = 110, SLOT_GAP = 8, SLOT_STEP = 118, SLOT_COUNT = 60, SLOT_WIN = 52;
+
+function _playTick(pitch = 700, vol = 0.07) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const o = ctx.createOscillator(); const g = ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.type = 'sine'; o.frequency.value = pitch;
+    g.gain.setValueAtTime(vol, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.06);
+    o.start(); o.stop(ctx.currentTime + 0.06);
+  } catch {}
+}
+
+function _playWinSound(rarity) {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const seqs = {
+      common: [[523, 0.12], [659, 0.18]],
+      nadir:  [[659, 0.14], [880, 0.14], [1047, 0.22]],
+      epik:   [[880, 0.12], [1109, 0.12], [1319, 0.12], [1760, 0.3]],
+      lore:   [[1047, 0.1], [1319, 0.1], [1568, 0.1], [2093, 0.15], [2637, 0.4]],
+    };
+    let t = ctx.currentTime + 0.05;
+    for (const [freq, dur] of (seqs[rarity] || seqs.common)) {
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.connect(g); g.connect(ctx.destination);
+      o.type = 'triangle'; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      o.start(t); o.stop(t + dur); t += dur * 0.75;
+    }
+  } catch {}
+}
 
 const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
   const [phase, setPhase] = useState('ready');
   const [items, setItems] = useState([]);
   const [reward, setReward] = useState(null);
   const stripRef = useRef(null);
+  const containerRef = useRef(null);
+  const tickTimers = useRef([]);
+
+  const scheduleTicks = () => {
+    // Fast ticks 0-2.5s, medium 2.5-4s, slow 4-5.5s
+    const schedule = [];
+    for (let t = 0; t < 2500; t += 80)  schedule.push([t, 680 + Math.random() * 140, 0.07]);
+    for (let t = 2500; t < 4000; t += 200) schedule.push([t, 580 + Math.random() * 80,  0.06]);
+    for (let t = 4000; t < 5500; t += 420) schedule.push([t, 480 + Math.random() * 40,  0.05]);
+    schedule.forEach(([delay, pitch, vol]) => {
+      tickTimers.current.push(setTimeout(() => _playTick(pitch, vol), delay));
+    });
+  };
+
+  const clearTicks = () => { tickTimers.current.forEach(clearTimeout); tickTimers.current = []; };
 
   const handleOpen = async () => {
     if (phase !== 'ready') return;
@@ -90,21 +136,28 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
       setReward(rw);
       const strip = Array.from({ length: SLOT_COUNT }, (_, i) => i === SLOT_WIN ? { ...rw, isWinner: true } : _weightedRandom());
       setItems(strip);
+      scheduleTicks();
       requestAnimationFrame(() => requestAnimationFrame(() => {
         if (!stripRef.current) return;
+        // Measure actual container width for mobile alignment
+        const cw = containerRef.current?.offsetWidth || (window.innerWidth - 80);
         stripRef.current.style.transition = 'none';
         stripRef.current.style.transform = 'translateX(0)';
         void stripRef.current.offsetWidth;
-        const jitter = (Math.random() - 0.5) * 28;
-        const finalX = -(SLOT_WIN * SLOT_STEP + SLOT_W / 2 - SLOT_CW / 2 - jitter);
+        const jitter = (Math.random() - 0.5) * 24;
+        const finalX = -(SLOT_WIN * SLOT_STEP + SLOT_W / 2 - cw / 2 - jitter);
         stripRef.current.style.transition = 'transform 5.5s cubic-bezier(0.05, 0.75, 0.25, 1.0)';
         stripRef.current.style.transform = `translateX(${finalX}px)`;
-        setTimeout(() => { setPhase('done'); onReward(rw); }, 5600);
+        setTimeout(() => { clearTicks(); setPhase('done'); onReward(rw); _playWinSound(rw.rarity); }, 5600);
       }));
-    } catch { setPhase('ready'); if (toast) toast('Kasa açılamadı', 'error'); }
+    } catch { clearTicks(); setPhase('ready'); if (toast) toast('Kasa açılamadı', 'error'); }
   };
 
   const col = reward ? RARITY_COLORS[reward.rarity] : '#4ca8ad';
+
+  const SlotIcon = ({ item, size = 18 }) => item.type === 'zp'
+    ? <Star size={size} style={{ color: RARITY_COLORS[item.rarity], flexShrink: 0 }} />
+    : <Zap  size={size} style={{ color: RARITY_COLORS[item.rarity], flexShrink: 0 }} />;
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.90)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -119,11 +172,13 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
 
         {/* Slot strip */}
         <div style={{ position: 'relative', marginBottom: 24 }}>
+          {/* Center pointer */}
           <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', width: 2, height: '100%', background: '#fbbf24', zIndex: 5, pointerEvents: 'none', borderRadius: 2 }} />
-          <div style={{ overflow: 'hidden', width: SLOT_CW, margin: '0 auto', borderRadius: 10, border: '1px solid #252545', background: '#08080f' }}>
+          {/* Container — responsive width */}
+          <div ref={containerRef} style={{ overflow: 'hidden', width: '100%', maxWidth: SLOT_W * 5 + SLOT_GAP * 4, margin: '0 auto', borderRadius: 10, border: '1px solid #252545', background: '#08080f' }}>
             {items.length === 0 ? (
               <div style={{ height: 104, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <span style={{ fontSize: 52 }}>📦</span>
+                <Package size={48} style={{ color: '#333' }} />
               </div>
             ) : (
               <div ref={stripRef} style={{ display: 'flex', gap: SLOT_GAP, padding: '8px 0' }}>
@@ -132,11 +187,11 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
                     flexShrink: 0, width: SLOT_W, height: 88,
                     background: item.isWinner ? `${RARITY_COLORS[item.rarity]}18` : 'rgba(255,255,255,0.025)',
                     border: `1px solid ${item.isWinner ? RARITY_COLORS[item.rarity] : '#252545'}`,
-                    borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 3,
+                    borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                   }}>
-                    <span style={{ fontSize: 22 }}>{item.type === 'zp' ? '⚡' : '💎'}</span>
+                    <SlotIcon item={item} size={20} />
                     <span style={{ fontSize: 13, fontWeight: 700, color: RARITY_COLORS[item.rarity] }}>{item.amount}</span>
-                    <span style={{ fontSize: 10, color: '#555' }}>{item.type === 'zp' ? 'ZP' : 'Kredi'}</span>
+                    <span style={{ fontSize: 10, color: '#666', fontWeight: 500 }}>{item.type === 'zp' ? 'ZP' : 'Kredi'}</span>
                   </div>
                 ))}
               </div>
@@ -149,9 +204,10 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
             {RARITY_LABELS[reward.rarity] && (
               <p style={{ margin: '0 0 4px', fontSize: 10, color: col, letterSpacing: 3, textTransform: 'uppercase', fontWeight: 700 }}>{RARITY_LABELS[reward.rarity]}</p>
             )}
-            <p style={{ margin: 0, fontSize: 24, fontWeight: 800, color: col }}>
-              {reward.type === 'zp' ? '⚡' : '💎'} {reward.amount} {reward.type === 'zp' ? 'ZP' : 'Kredi'} Kazandın!
-            </p>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: 0 }}>
+              <SlotIcon item={reward} size={24} />
+              <span style={{ fontSize: 24, fontWeight: 800, color: col }}>{reward.amount} {reward.type === 'zp' ? 'ZP' : 'Kredi'} Kazandın!</span>
+            </div>
           </div>
         )}
 
@@ -2175,6 +2231,22 @@ MATCHES:[1,3,5]`;
                       <p style={{ fontSize: 13, color: 'var(--zet-text)', margin: 0 }}>
                         Sezon <strong style={{ color: '#4ca8ad' }}>{seasonData.days_remaining} gün</strong> içinde bitiyor — sezon sonunda ödülünü al!
                       </p>
+                    </div>
+                  )}
+
+                  {/* CEO: Sezon yönetim komutu */}
+                  {isCEO && (
+                    <div style={{ background: 'rgba(245,158,11,0.06)', border: '1px solid rgba(245,158,11,0.25)', borderRadius: 10, padding: '12px 14px', marginBottom: 16 }}>
+                      <p style={{ fontSize: 11, color: '#f59e0b', fontWeight: 700, letterSpacing: 2, textTransform: 'uppercase', margin: '0 0 8px' }}>👑 Sezon Yönetimi</p>
+                      <p style={{ fontSize: 11, color: 'var(--zet-text-muted)', margin: '0 0 6px' }}>Sezon tarihini ayarla:</p>
+                      <code style={{ display: 'block', background: 'rgba(0,0,0,0.4)', borderRadius: 7, padding: '8px 10px', fontSize: 10.5, color: '#86efac', whiteSpace: 'pre-wrap', wordBreak: 'break-all', lineHeight: 1.7 }}>
+                        {`curl "${process.env.REACT_APP_BACKEND_URL}/api/season/time/DD.MM.YYYY-DD.MM.YYYY?pin=CEO_PIN"`}
+                      </code>
+                      {seasonData && (
+                        <p style={{ fontSize: 10.5, color: 'var(--zet-text-muted)', margin: '8px 0 0' }}>
+                          Mevcut: {seasonData.active ? `${seasonData.start_date} → ${seasonData.end_date}` : 'Aktif sezon yok'}
+                        </p>
+                      )}
                     </div>
                   )}
 
