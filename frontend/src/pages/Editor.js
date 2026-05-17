@@ -90,6 +90,13 @@ const Editor = () => {
     };
   }, []);
 
+  // Free users lose access to everything except text editing when offline
+  useEffect(() => {
+    if (!isOnline && userPlan === 'free') {
+      setRightOpen(false);
+    }
+  }, [isOnline, userPlan]);
+
   // Mobile panels
   const [mobilePanel, setMobilePanel] = useState(null); // 'pages' | 'zeta' | null
 
@@ -981,8 +988,11 @@ const Editor = () => {
 
   // === LOCKED TOOLS (based on plan) ===
   const FREE_ALLOWED_TOOLS = new Set(['select', 'text', 'hand']);
+  const isFreeOffline = !isOnline && userPlan === 'free';
 
   const getLockedTools = () => {
+    // Free users offline: all tools locked — they can only type in existing text elements
+    if (isFreeOffline) return TOOLS.map(t => t.id);
     if (userPlan === 'free') {
       return TOOLS.map(t => t.id).filter(id => !FREE_ALLOWED_TOOLS.has(id));
     }
@@ -5046,8 +5056,11 @@ const Editor = () => {
       {/* Offline banner */}
       {!isOnline && (
         <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
-          style={{ background: '#f59e0b', color: '#000' }}>
-          <span>📴</span> Çevrimdışı — değişiklikler yerel olarak kaydediliyor
+          style={{ background: isFreeOffline ? '#ef4444' : '#f59e0b', color: '#fff' }}>
+          <span>📴</span>
+          {isFreeOffline
+            ? 'Çevrimdışısın — ücretsiz hesapla sadece mevcut metni düzenleyebilirsin'
+            : 'Çevrimdışı — değişiklikler yerel olarak kaydediliyor'}
         </div>
       )}
       {/* Hidden PDF input */}
@@ -5134,9 +5147,11 @@ const Editor = () => {
           <button onClick={() => setToolboxOpen(o => !o)} className="tool-btn w-8 h-8" title="Sol Panel">
             {toolboxOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </button>
-          <button onClick={() => setRightOpen(o => !o)} className="tool-btn w-8 h-8" title="Sağ Panel">
-            {rightOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-          </button>
+          {!isFreeOffline && (
+            <button onClick={() => setRightOpen(o => !o)} className="tool-btn w-8 h-8" title="Sağ Panel">
+              {rightOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+            </button>
+          )}
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <div data-testid="save-status" className="flex items-center gap-1 text-xs ml-1" style={{ color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : 'var(--zet-text-muted)' }}>
             {saveStatus === 'saved' && <><CircleCheck className="h-3 w-3" /><span className="hidden sm:inline">Kaydedildi</span></>}

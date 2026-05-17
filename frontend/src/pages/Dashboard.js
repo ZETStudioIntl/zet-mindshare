@@ -56,6 +56,14 @@ const Dashboard = () => {
   const { switchApp } = useAppTheme();
   useEffect(() => { switchApp('mindshare'); }, []); // always enforce mindshare theme in dashboard
   const navigate = useNavigate();
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  useEffect(() => {
+    const up = () => setIsOnline(true);
+    const dn = () => setIsOnline(false);
+    window.addEventListener('online', up);
+    window.addEventListener('offline', dn);
+    return () => { window.removeEventListener('online', up); window.removeEventListener('offline', dn); };
+  }, []);
   const [activeTab, setActiveTab] = useState('documents');
   const [documents, setDocuments] = useState([]);
   const [notes, setNotes] = useState([]);
@@ -131,6 +139,7 @@ const Dashboard = () => {
   const [billingCycle, setBillingCycle] = useState('yearly');
   const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
   const [userSubscription, setUserSubscription] = useState('free');
+  const isFreeOffline = !isOnline && userSubscription === 'free';
   const [subscribing, setSubscribing] = useState(false);
   const [userZP, setUserZP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
@@ -1441,6 +1450,16 @@ MATCHES:[1,3,5]`;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
+      {/* Offline banner */}
+      {!isOnline && (
+        <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
+          style={{ background: isFreeOffline ? '#ef4444' : '#f59e0b', color: '#fff' }}>
+          <span>📴</span>
+          {isFreeOffline
+            ? 'Çevrimdışısın — ücretsiz hesapla yeni belge veya not oluşturamazsın'
+            : 'Çevrimdışı — bazı özellikler kullanılamayabilir'}
+        </div>
+      )}
       {/* Onboarding Modal — zorunlu, kapatılamaz */}
       {showOnboarding && (
         <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
@@ -2888,10 +2907,11 @@ MATCHES:[1,3,5]`;
           <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card */}
-            <button 
-              onClick={() => setShowNewDoc(true)}
-              className="zet-card p-4 flex flex-col items-center justify-center min-h-[120px] hover:bg-white/5"
+            <button
+              onClick={() => !isFreeOffline && setShowNewDoc(true)}
+              className={`zet-card p-4 flex flex-col items-center justify-center min-h-[120px] ${isFreeOffline ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
               data-testid="new-document-btn"
+              title={isFreeOffline ? 'Çevrimdışıyken yeni belge oluşturamazsın' : undefined}
             >
               <Plus className="h-8 w-8 mb-2" style={{ color: 'var(--zet-primary-light)' }} />
               <span style={{ color: 'var(--zet-text-muted)' }}>{t('newDocument')}</span>
@@ -3035,17 +3055,21 @@ MATCHES:[1,3,5]`;
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder={t('addNoteToNotebook')}
+                  placeholder={isFreeOffline ? 'Çevrimdışıyken not ekleyemezsin' : t('addNoteToNotebook')}
                   value={notebookNote}
-                  onChange={(e) => setNotebookNote(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && addNoteToNotebook()}
+                  onChange={(e) => !isFreeOffline && setNotebookNote(e.target.value)}
+                  onKeyDown={(e) => !isFreeOffline && e.key === 'Enter' && addNoteToNotebook()}
                   className="zet-input flex-1"
+                  disabled={isFreeOffline}
                   data-testid="notebook-note-input"
+                  style={isFreeOffline ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                 />
                 <button
-                  onClick={addNoteToNotebook}
+                  onClick={() => !isFreeOffline && addNoteToNotebook()}
                   className="zet-btn px-4"
+                  disabled={isFreeOffline}
                   data-testid="add-notebook-note-btn"
+                  style={isFreeOffline ? { opacity: 0.4, cursor: 'not-allowed' } : undefined}
                 >
                   <Plus className="h-5 w-5" />
                 </button>
