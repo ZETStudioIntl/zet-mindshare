@@ -248,7 +248,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
         ref.current.innerHTML = html;
         setRemoveTarget(null);
       }
-      ref.current.focus();
+      ref.current.focus({ preventScroll: true });
       const r = window.document.createRange(); const s = window.getSelection();
       r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
     } else if (!isEditing && prevEditingRef.current) {
@@ -328,15 +328,18 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
     let html = el.htmlContent || el.content || '';
     if (removeTarget === 'redact') {
       // Restore original text from base64-encoded data-original attribute
-      html = html.replace(/<span([^>]*)data-redacted="true"([^>]*)>([\s\S]*?)<\/span>/gi, (match, pre, post) => {
+      html = html.replace(/<span([^>]*)data-redacted="true"([^>]*)>([\s\S]*?)<\/span>/gi, (_match, pre, post) => {
         const attrs = pre + post;
         const m = attrs.match(/data-original="([^"]*)"/);
         if (m) { try { return decodeURIComponent(escape(atob(m[1]))); } catch { return ''; } }
-        return ''; // old-style span with no data-original → remove
+        return '';
       });
     } else if (removeTarget === 'highlight') {
       html = html.replace(/<span[^>]*data-highlight="true"[^>]*>([\s\S]*?)<\/span>/gi, '$1');
     }
+    // Update DOM directly so pendingContentRef captures clean HTML, not stale highlighted content
+    if (ref.current) ref.current.innerHTML = html;
+    pendingContentRef.current = null;
     onCommit(el.id, html, true);
     setRemoveTarget(null);
   }, [el.id, el.htmlContent, el.content, removeTarget, onCommit]);
@@ -399,7 +402,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
           const rt = e.relatedTarget;
           // Toolbar butonuna tıklanınca blur olmasın — editingId korunur
           if (isEditing && rt && (rt.tagName === 'BUTTON' || rt.tagName === 'SELECT' || rt.tagName === 'INPUT' || rt.getAttribute?.('role') === 'button' || rt.closest?.('button, [role="button"]'))) {
-            setTimeout(() => { if (ref.current) ref.current.focus(); }, 0);
+            setTimeout(() => { if (ref.current) ref.current.focus({ preventScroll: true }); }, 0);
             return;
           }
           if (ref.current) {
