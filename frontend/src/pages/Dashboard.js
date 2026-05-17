@@ -280,6 +280,7 @@ const Dashboard = () => {
   const [showMissions, setShowMissions] = useState(false);
   const [inventory, setInventory] = useState([]);
   const [openingCaseId, setOpeningCaseId] = useState(null);
+  const [seasonData, setSeasonData] = useState(null);
   const [firedAlarms, setFiredAlarms] = useState([]);
   const [alarmTick, setAlarmTick] = useState(0);
   const [notebooks, setNotebooks] = useState([]);
@@ -488,6 +489,9 @@ const Dashboard = () => {
     checkDriveConnection();
     fetchSubscription();
     requestNotificationPermission();
+    // Sezon bilgisi çek
+    axios.get(`${API}/season`, { withCredentials: true })
+      .then(res => setSeasonData(res.data)).catch(() => {});
     // Envanter yükle + günlük kasayı al
     axios.get(`${API}/inventory`, { withCredentials: true })
       .then(res => setInventory(res.data.cases || [])).catch(() => {});
@@ -2164,6 +2168,16 @@ MATCHES:[1,3,5]`;
                     </button>
                   </div>
 
+                  {/* Sezon geri sayımı */}
+                  {seasonData?.active && (
+                    <div style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.25)', borderRadius: 10, padding: '10px 14px', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <span style={{ fontSize: 18 }}>🏆</span>
+                      <p style={{ fontSize: 13, color: 'var(--zet-text)', margin: 0 }}>
+                        Sezon <strong style={{ color: '#4ca8ad' }}>{seasonData.days_remaining} gün</strong> içinde bitiyor — sezon sonunda ödülünü al!
+                      </p>
+                    </div>
+                  )}
+
                   {/* Tab buttons */}
                   <div className="flex gap-2 mb-5">
                     {['requirements', 'rewards'].map(tab => (
@@ -2245,7 +2259,7 @@ MATCHES:[1,3,5]`;
                             </span>
                             <span style={{ color: 'var(--zet-text-muted)' }}>+</span>
                             <span className="flex items-center gap-1" style={{ color: '#f59e0b' }}>
-                              <Star className="h-3.5 w-3.5" />{reward.zp.toLocaleString()} ZP
+                              <Star className="h-3.5 w-3.5" />{reward.sp.toLocaleString()} ZP
                             </span>
                           </div>
                         </div>

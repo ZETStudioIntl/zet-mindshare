@@ -993,6 +993,111 @@ async def admin_update_user(user_id: str, body: AdminUserUpdate, user: User = De
         raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
     return {"success": True}
 
+# ============ SEZON SİSTEMİ ============
+
+_SEASON_RANK_XP = [
+    (15000, "endless"),
+    (5000,  "emerald"),
+    (1500,  "diamond"),
+    (500,   "gold"),
+    (100,   "silver"),
+    (0,     "iron"),
+]
+_SEASON_RANK_REWARDS = {
+    "iron":    {"credits": 30,   "xp": 50},
+    "silver":  {"credits": 200,  "xp": 400},
+    "gold":    {"credits": 500,  "xp": 1000},
+    "diamond": {"credits": 800,  "xp": 1600},
+    "emerald": {"credits": 1000, "xp": 2400},
+    "endless": {"credits": 2000, "xp": 3000},
+}
+
+def _xp_to_rank(xp: int) -> str:
+    for threshold, name in _SEASON_RANK_XP:
+        if xp >= threshold:
+            return name
+    return "iron"
+
+async def distribute_season_rewards_and_reset():
+    """Sezon ödüllerini dağıt, tüm kullanıcı rankını sıfırla."""
+    users = await db.users.find({}, {"_id": 0, "user_id": 1, "mindshare_xp": 1}).to_list(length=200000)
+    count = 0
+    for u in users:
+        rank = _xp_to_rank(u.get("mindshare_xp") or 0)
+        reward = _SEASON_RANK_REWARDS[rank]
+        await db.users.update_one(
+            {"user_id": u["user_id"]},
+            {"$inc": {"bonus_credits": reward["credits"], "mindshare_xp": reward["xp"]},
+             "$set": {"mindshare_rank": "iron"}},
+        )
+        count += 1
+    await db.seasons.update_one(
+        {"status": "active"},
+        {"$set": {"status": "ended", "ended_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    logging.info(f"Season ended — distributed rewards to {count} users, ranks reset.")
+    return count
+
+@api_router.get("/season")
+async def get_season():
+    season = await db.seasons.find_one({"status": "active"}, {"_id": 0})
+    if not season:
+        return {"active": False}
+    try:
+        end = datetime.strptime(season["end_date"], "%Y-%m-%d")
+        days_remaining = max(0, (end - datetime.utcnow()).days)
+    except Exception:
+        days_remaining = None
+    return {
+        "active": True,
+        "start_date": season.get("start_date"),
+        "end_date": season["end_date"],
+        "days_remaining": days_remaining,
+    }
+
+@api_router.get("/season/time/{date_range}")
+async def set_season_time(date_range: str, pin: str = Query("")):
+    """Sezon tarihini ayarla. Format: DD.MM.YYYY-DD.MM.YYYY veya DD.MM.YYYY (sadece bitiş).
+    Örnek: GET /api/season/time/12.09.2026-09.03.2027?pin=CEO_PIN"""
+    ceo_pin = os.getenv("CEO_PIN", "")
+    if not ceo_pin or pin != ceo_pin:
+        raise HTTPException(status_code=403, detail="Geçersiz PIN")
+    parts = date_range.split("-")
+    try:
+        if len(parts) == 2:
+            start_dt = datetime.strptime(parts[0].strip(), "%d.%m.%Y")
+            end_dt   = datetime.strptime(parts[1].strip(), "%d.%m.%Y")
+        else:
+            start_dt = datetime.utcnow()
+            end_dt   = datetime.strptime(parts[0].strip(), "%d.%m.%Y")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Tarih formatı yanlış. Örnek: 12.09.2026-09.03.2027")
+    if end_dt <= start_dt:
+        raise HTTPException(status_code=400, detail="Bitiş tarihi başlangıçtan önce olamaz")
+    await db.seasons.update_one(
+        {"status": "active"},
+        {"$set": {"status": "replaced", "replaced_at": datetime.now(timezone.utc).isoformat()}},
+    )
+    new_season = {
+        "season_id": f"s_{uuid.uuid4().hex[:8]}",
+        "start_date": start_dt.strftime("%Y-%m-%d"),
+        "end_date":   end_dt.strftime("%Y-%m-%d"),
+        "status": "active",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.seasons.insert_one(new_season)
+    new_season.pop("_id", None)
+    return {"success": True, "season": new_season}
+
+@api_router.post("/season/distribute")
+async def manual_distribute_season(pin: str = Body(..., embed=True)):
+    """Manuel sezon ödülü dağıtımı — sadece CEO kullanır."""
+    ceo_pin = os.getenv("CEO_PIN", "")
+    if not ceo_pin or pin != ceo_pin:
+        raise HTTPException(status_code=403, detail="Geçersiz PIN")
+    count = await distribute_season_rewards_and_reset()
+    return {"success": True, "rewarded_users": count}
+
 # ============ ENVANTER / KASA ============
 
 _CASE_REWARDS = [
@@ -2369,9 +2474,9 @@ async def buy_subscription_with_sp(req: SPPurchaseRequest, user: User = Depends(
 
 @api_router.post("/checkout/lemonsqueezy")
 async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depends(get_current_user)):
-    ls_api_key = os.environ.get("LEMONSQUEEZY_API_KEY") or LS_API_KEY
+    ls_api_key = (os.environ.get("LEMONSQUEEZY_API_KEY") or LS_API_KEY or "").strip()
     if not ls_api_key:
-        raise HTTPException(status_code=503, detail="LEMONSQUEEZY_API_KEY eksik")
+        raise HTTPException(status_code=503, detail="LEMONSQUEEZY_API_KEY eksik veya ayarlanmamış")
     variant_id = LS_VARIANTS.get(data.plan, {}).get(data.billing_cycle)
     if not variant_id:
         raise HTTPException(status_code=400, detail=f"Bu plan/dönem için Lemon Squeezy varyant ID tanımlı değil")
@@ -5212,6 +5317,19 @@ async def _run_renewal_check():
     except Exception as e:
         logging.error(f"Renewal check error: {e}")
 
+async def _check_season_end():
+    """APScheduler: aktif sezon bittiyse ödülleri dağıt ve sıfırla."""
+    try:
+        season = await db.seasons.find_one({"status": "active"}, {"_id": 0})
+        if not season:
+            return
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        if season.get("end_date", "9999-99-99") <= today:
+            count = await distribute_season_rewards_and_reset()
+            logging.info(f"[Season] Auto-ended season, rewarded {count} users")
+    except Exception as e:
+        logging.error(f"Season end check error: {e}")
+
 @app.on_event("startup")
 async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
@@ -5219,10 +5337,10 @@ async def start_background_tasks():
 
     if _APSCHEDULER_AVAILABLE:
         scheduler = AsyncIOScheduler(timezone="UTC")
-        # Run renewal check every day at 08:00 UTC
         scheduler.add_job(_run_renewal_check, "cron", hour=8, minute=0)
+        scheduler.add_job(_check_season_end, "cron", hour=0, minute=5)
         scheduler.start()
-        logging.info("APScheduler started — renewal check runs daily at 08:00 UTC")
+        logging.info("APScheduler started — renewal check 08:00 UTC, season check 00:05 UTC")
 
 app.include_router(api_router)
 
