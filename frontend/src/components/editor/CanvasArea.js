@@ -638,9 +638,10 @@ export const CanvasArea = ({
   const [penHandlePreview, setPenHandlePreview] = useState(null); // {x,y,hx,hy}
   const [cropTarget, setCropTarget] = useState(null);
   const [cropRect, setCropRect] = useState(null);
+  const [cropRadius, setCropRadius] = useState(0);
   const [cropDragging, setCropDragging] = useState(false);
   const [cropStart, setCropStart] = useState(null);
-  const [cropHandle, setCropHandle] = useState(null); // 'n'|'s'|'e'|'w'|'nw'|'ne'|'sw'|'se'|'move'
+  const [cropHandle, setCropHandle] = useState(null); // 'n'|'s'|'e'|'w'|'nw'|'ne'|'sw'|'se'|'move'|'radius'
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef(null);
   const [elementMenu, setElementMenu] = useState(null);
@@ -852,13 +853,30 @@ export const CanvasArea = ({
     img.onload = () => {
       const sx = Math.max(0, (cropRect.x - el.x) * img.naturalWidth / el.width);
       const sy = Math.max(0, (cropRect.y - el.y) * img.naturalHeight / el.height);
-      const sw = cropRect.w * img.naturalWidth / el.width; const sh = cropRect.h * img.naturalHeight / el.height;
-      c.width = sw; c.height = sh; c.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      const sw = cropRect.w * img.naturalWidth / el.width;
+      const sh = cropRect.h * img.naturalHeight / el.height;
+      c.width = sw; c.height = sh;
+      const ctx = c.getContext('2d');
+      if (cropRadius > 0) {
+        const r = cropRadius * img.naturalWidth / el.width;
+        ctx.beginPath();
+        if (typeof ctx.roundRect === 'function') {
+          ctx.roundRect(0, 0, sw, sh, r);
+        } else {
+          ctx.moveTo(r, 0); ctx.lineTo(sw - r, 0); ctx.arcTo(sw, 0, sw, r, r);
+          ctx.lineTo(sw, sh - r); ctx.arcTo(sw, sh, sw - r, sh, r);
+          ctx.lineTo(r, sh); ctx.arcTo(0, sh, 0, sh - r, r);
+          ctx.lineTo(0, r); ctx.arcTo(0, 0, r, 0, r); ctx.closePath();
+        }
+        ctx.clip();
+      }
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
       const u = canvasElements.map(e => e.id === cropTarget ? { ...e, src: c.toDataURL('image/png'), x: cropRect.x, y: cropRect.y, width: cropRect.w, height: cropRect.h } : e);
-      setCanvasElements(u); onSaveHistory(u); setCropTarget(null); setCropRect(null);
+      setCanvasElements(u); onSaveHistory(u);
+      setCropTarget(null); setCropRect(null); setCropRadius(0);
     };
     img.src = el.src;
-  }, [canvasElements, cropRect, cropTarget, onSaveHistory, setCanvasElements]);
+  }, [canvasElements, cropRadius, cropRect, cropTarget, onSaveHistory, setCanvasElements]);
 
   const handleCanvasClick = useCallback((e, pageIdx) => {
     if (dragging || resizing || draggingVector) return;
@@ -1023,6 +1041,14 @@ export const CanvasArea = ({
     if (activeTool === 'cut' && cropTarget && cropRect) {
       const r = cropRect;
       const hw = 10 / zoom;
+      // Radius handle: circle on top edge, inset by current radius
+      const radiusHandleX = r.x + cropRadius + 14 / zoom;
+      const radiusHandleY = r.y;
+      if (Math.abs(x - radiusHandleX) <= hw && Math.abs(y - radiusHandleY) <= hw) {
+        setCropHandle('radius');
+        setCropStart({ x, y, rect: { ...cropRect }, initRadius: cropRadius });
+        return;
+      }
       const handles = {
         nw: { x: r.x, y: r.y }, ne: { x: r.x + r.w, y: r.y },
         sw: { x: r.x, y: r.y + r.h }, se: { x: r.x + r.w, y: r.y + r.h },
@@ -1032,14 +1058,14 @@ export const CanvasArea = ({
       for (const [name, pos] of Object.entries(handles)) {
         if (Math.abs(x - pos.x) <= hw && Math.abs(y - pos.y) <= hw) {
           setCropHandle(name);
-          setCropStart({ x, y, rect: { ...cropRect } });
+          setCropStart({ x, y, rect: { ...cropRect }, initRadius: cropRadius });
           return;
         }
       }
       if (x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h) {
         setCropHandle('move');
         setCropDragging(true);
-        setCropStart({ x, y, rect: { ...cropRect } });
+        setCropStart({ x, y, rect: { ...cropRect }, initRadius: cropRadius });
       }
       return;
     }
@@ -1159,6 +1185,11 @@ export const CanvasArea = ({
       const dx = x - cropStart.x;
       const dy = y - cropStart.y;
       const r = cropStart.rect;
+      if (cropHandle === 'radius') {
+        const maxR = Math.min(r.w, r.h) / 2;
+        setCropRadius(Math.max(0, Math.min(maxR, (cropStart.initRadius || 0) + dx)));
+        return;
+      }
       const minSide = 20 / zoom;
       let nx = r.x, ny = r.y, nw = r.w, nh = r.h;
       if (cropHandle === 'move' || cropDragging) { nx = r.x + dx; ny = r.y + dy; }
@@ -1382,7 +1413,6 @@ export const CanvasArea = ({
 
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
-    if (cropWasDraggedRef.current) { applyCrop(); }
     cropWasDraggedRef.current = false;
     setCropDragging(false); setCropStart(null); setCropHandle(null);
     setIsPanning(false); panStartRef.current = null;
@@ -1713,8 +1743,9 @@ export const CanvasArea = ({
               {cropTarget && cropRect && idx === currentPage && (
                 <>
                   <rect x={0} y={0} width="100%" height="100%" fill="rgba(0,0,0,0.38)" />
-                  {/* Transparent clear window */}
-                  <rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom} fill="rgba(255,255,255,0.05)" stroke="#4ca8ad" strokeWidth={2} strokeDasharray="6,3" />
+                  <rect x={cropRect.x * zoom} y={cropRect.y * zoom} width={cropRect.w * zoom} height={cropRect.h * zoom}
+                    rx={cropRadius * zoom} ry={cropRadius * zoom}
+                    fill="rgba(255,255,255,0.05)" stroke="#4ca8ad" strokeWidth={2} strokeDasharray="6,3" />
                   {/* Resize handles */}
                   {[
                     { id: 'nw', cx: cropRect.x, cy: cropRect.y, cur: 'nwse-resize' },
@@ -1729,10 +1760,40 @@ export const CanvasArea = ({
                     <rect key={h.id} x={h.cx * zoom - 5} y={h.cy * zoom - 5} width={10} height={10}
                       fill="white" stroke="#4ca8ad" strokeWidth={1.5} rx={2} style={{ cursor: h.cur }} />
                   ))}
+                  {/* Corner radius handle — orange circle on top edge */}
+                  <circle
+                    cx={(cropRect.x + cropRadius + 14 / zoom) * zoom}
+                    cy={cropRect.y * zoom}
+                    r={6} fill="#f59e0b" stroke="#fff" strokeWidth={1.5}
+                    style={{ cursor: 'ew-resize' }}
+                  />
+                  {cropRadius > 0 && (
+                    <text x={(cropRect.x + cropRadius + 14 / zoom) * zoom + 10} y={cropRect.y * zoom + 4}
+                      fill="#f59e0b" fontSize={10} fontWeight="600">{Math.round(cropRadius)}px</text>
+                  )}
                 </>
               )}
             </svg>
-            
+
+            {/* Cut tool confirm/cancel buttons */}
+            {cropTarget && cropRect && idx === currentPage && (
+              <div style={{
+                position: 'absolute',
+                left: cropRect.x * zoom,
+                top: (cropRect.y + cropRect.h) * zoom + 10,
+                display: 'flex', gap: 6, zIndex: 30, pointerEvents: 'auto'
+              }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); applyCrop(); }}
+                  style={{ padding: '4px 14px', borderRadius: 6, border: 'none', background: '#4ca8ad', color: '#fff', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+                >Kırp</button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setCropTarget(null); setCropRect(null); setCropRadius(0); }}
+                  style={{ padding: '4px 14px', borderRadius: 6, border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.5)', color: '#fff', fontSize: 13, cursor: 'pointer' }}
+                >İptal</button>
+              </div>
+            )}
+
             {/* Magnifier effect - real zoom */}
             {activeTool === 'zoom' && magnifierActive && idx === currentPage && (() => {
               const r = zoomRadius || 80;

@@ -71,6 +71,18 @@ CanvasArea.js içindeki render/davranış mantığı ayrıdır — ikisine aynı
 
 ---
 
+## Dil Kararları
+
+| Proje | Dil |
+|-------|-----|
+| Web frontend (Dashboard, Editor, vb.) | React / JavaScript |
+| Backend API | Python / FastAPI |
+| **Canvas ve tool projeleri (yeni/bağımsız)** | **C++** |
+
+> Canvas ve tool mantığı bağımsız bir modül/proje olarak yazılacaksa C++ kullanılır. Mevcut `CanvasArea.js` React içinde kalmaya devam eder — yalnızca yeni bağımsız projeler için geçerli.
+
+---
+
 ## Bilinen Sorunlar / Geçmiş Kararlar
 - `Dashboard.js` 2500+ satır monolith — aşamalı olarak component'lere bölünecek
 - `CanvasArea.js` `contentEditable` için `pendingContentRef` pattern'i kullanılıyor (race condition fix)
