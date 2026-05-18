@@ -536,6 +536,7 @@ const Editor = () => {
     });
   }, [collab.connected, collab.onCollabMessage]);
   const autoSaveTimerRef = useRef(null);
+  const latestSaveDataRef = useRef(null);
   const canvasContainerRef = useRef(null);
   const gradientBarRef = useRef(null);
   const activeToolRef = useRef('select');
@@ -720,10 +721,38 @@ const Editor = () => {
         } catch {}
       }
       if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 2000);
+      autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 500);
     }
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
   }, [canvasElements, drawPaths]);
+
+  // Ref'i her zaman güncel tut — unmount ve visibilitychange kayıtları için
+  useEffect(() => {
+    latestSaveDataRef.current = { canvasElements, drawPaths, currentPage, pageSize };
+  }, [canvasElements, drawPaths, currentPage, pageSize]);
+
+  // Sayfa kapanırken veya arka plana geçerken kaydet (mobil dahil)
+  useEffect(() => {
+    const flushSave = () => {
+      const d = latestSaveDataRef.current;
+      if (!d || !docId || !navigator.onLine) return;
+      // saveDocument closure'u kullanmak yerine doğrudan axios
+      axios.get(`${API}/documents/${docId}`, { withCredentials: true })
+        .then(res => {
+          const updatedPages = [...(res.data.pages || [])];
+          if (updatedPages[d.currentPage]) {
+            updatedPages[d.currentPage] = { ...updatedPages[d.currentPage], elements: d.canvasElements, drawPaths: d.drawPaths, pageSize: d.pageSize };
+          }
+          return axios.put(`${API}/documents/${docId}`, { title: res.data.title, subtitle: res.data.subtitle || null, content: res.data.content, pages: updatedPages }, { withCredentials: true });
+        }).catch(() => {});
+    };
+    const onVis = () => { if (window.document.visibilityState === 'hidden') flushSave(); };
+    window.addEventListener('visibilitychange', onVis);
+    return () => {
+      window.removeEventListener('visibilitychange', onVis);
+      flushSave();
+    };
+  }, []); // eslint-disable-line
 
   const fetchDocument = async () => {
     try {

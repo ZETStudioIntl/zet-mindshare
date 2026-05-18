@@ -13,6 +13,47 @@ const isPointInElement = (x, y, el) => {
 
 const dist = (a, b) => Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
 
+// ── Knife tool geometry ───────────────────────────────────────────────────────
+function _segIntersect(p1x, p1y, p2x, p2y, p3x, p3y, p4x, p4y) {
+  const d1x = p2x - p1x, d1y = p2y - p1y;
+  const d2x = p4x - p3x, d2y = p4y - p3y;
+  const cross = d1x * d2y - d1y * d2x;
+  if (Math.abs(cross) < 1e-8) return null;
+  const t = ((p3x - p1x) * d2y - (p3y - p1y) * d2x) / cross;
+  const u = ((p3x - p1x) * d1y - (p3y - p1y) * d1x) / cross;
+  if (t >= 0 && t <= 1 && u >= 0 && u <= 1) return { x: p1x + t * d1x, y: p1y + t * d1y };
+  return null;
+}
+function _knifeSide(kx1, ky1, kx2, ky2, px, py) {
+  return (kx2 - kx1) * (py - ky1) - (ky2 - ky1) * (px - kx1);
+}
+function _splitByKnife(el, kx1, ky1, kx2, ky2) {
+  const ex = el.x, ey = el.y, ew = el.width || 80, eh = el.height || 80;
+  const edges = [[ex, ey, ex+ew, ey], [ex+ew, ey, ex+ew, ey+eh], [ex+ew, ey+eh, ex, ey+eh], [ex, ey+eh, ex, ey]];
+  const hits = [];
+  edges.forEach(([x1, y1, x2, y2]) => {
+    const p = _segIntersect(kx1, ky1, kx2, ky2, x1, y1, x2, y2);
+    if (p && !hits.some(h => Math.abs(h.x - p.x) < 1 && Math.abs(h.y - p.y) < 1)) hits.push(p);
+  });
+  if (hits.length < 2) return null;
+  const corners = [{ x: ex, y: ey }, { x: ex+ew, y: ey }, { x: ex+ew, y: ey+eh }, { x: ex, y: ey+eh }];
+  const pos = corners.filter(c => _knifeSide(kx1, ky1, kx2, ky2, c.x, c.y) >= 0);
+  const neg = corners.filter(c => _knifeSide(kx1, ky1, kx2, ky2, c.x, c.y) < 0);
+  if (!pos.length || !neg.length) return null;
+  const orderPoly = (pts) => {
+    const all = [...pts, ...hits];
+    const cx = all.reduce((s, p) => s + p.x, 0) / all.length;
+    const cy = all.reduce((s, p) => s + p.y, 0) / all.length;
+    return [...all].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx))
+      .map(p => `${Math.round(p.x - ex)}px ${Math.round(p.y - ey)}px`).join(', ');
+  };
+  return [
+    { ...el, id: `el_${Date.now()}_a`, clipPath: orderPoly(pos) },
+    { ...el, id: `el_${Date.now() + 1}_b`, clipPath: orderPoly(neg) },
+  ];
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 const isColorDark = (hex) => {
   const h = (hex || '#ffffff').replace('#', '').padEnd(6, '0');
   const r = parseInt(h.slice(0, 2), 16) || 0;
@@ -612,6 +653,8 @@ export const CanvasArea = ({
 
   // Snap indicator: shows a crosshair when element snaps to a grid line
   const [snapIndicator, setSnapIndicator] = useState(null);
+  const [knifePreview, setKnifePreview] = useState(null); // {x1,y1,x2,y2}
+  const knifeStartRef = useRef(null);
 
   // Auto-fit zoom: fill container width on mount and container resize
   useEffect(() => {
@@ -668,6 +711,7 @@ export const CanvasArea = ({
       if (el?.type === 'image') { setCropTarget(el.id); setCropRect({ x: el.x + 10, y: el.y + 10, w: el.width - 20, h: el.height - 20 }); return; }
     }
     if (activeTool !== 'cut') { setCropTarget(null); setCropRect(null); }
+    if (activeTool !== 'knife') { knifeStartRef.current = null; setKnifePreview(null); }
     // Formatting tools keep editingId so user can type right after adjusting style
     const formattingTools = new Set(['text','textsize','font','linespacing','wordtype','paragraph','indent','color','styles','bulletlist','numberedlist','margins','columns','punctuation']);
     if (!formattingTools.has(activeTool) && activeTool !== 'select') setEditingId(null);
@@ -942,6 +986,11 @@ export const CanvasArea = ({
       return;
     }
     
+    if (activeTool === 'knife') {
+      knifeStartRef.current = { x, y };
+      setKnifePreview({ x1: x, y1: y, x2: x, y2: y });
+      return;
+    }
     if (activeTool === 'pen') {
       penDragRef.current = { startX: x, startY: y, wasDrag: false };
       setIsDrawing(true);
@@ -1050,7 +1099,12 @@ export const CanvasArea = ({
       setRectSelectEnd({ x, y });
       return;
     }
-    
+
+    if (activeTool === 'knife' && knifeStartRef.current) {
+      setKnifePreview({ x1: knifeStartRef.current.x, y1: knifeStartRef.current.y, x2: x, y2: y });
+      return;
+    }
+
     if (activeTool === 'pen') {
       setPenCursorPos({ x, y });
       if (penDragRef.current && isDrawing) {
@@ -1292,6 +1346,25 @@ export const CanvasArea = ({
     if (draggingVector !== null) setDraggingVector(null);
     // Keep magnifier active while zoom tool is selected
     if (activeTool !== 'zoom') setMagnifierActive(false);
+
+    // Knife tool: perform cut on mouseUp
+    if (activeTool === 'knife' && knifeStartRef.current && knifePreview) {
+      const { x1, y1, x2, y2 } = knifePreview;
+      if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5) {
+        const next = [];
+        let didCut = false;
+        canvasElements.forEach(el => {
+          if (el.locked || el.hidden || el.type === 'text') { next.push(el); return; }
+          const pieces = _splitByKnife(el, x1, y1, x2, y2);
+          if (pieces) { next.push(...pieces); didCut = true; }
+          else next.push(el);
+        });
+        if (didCut) { setCanvasElements(next); onSaveHistory(next); }
+      }
+      knifeStartRef.current = null;
+      setKnifePreview(null);
+    }
+
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     if (cropWasDraggedRef.current) { applyCrop(); }
@@ -1300,7 +1373,7 @@ export const CanvasArea = ({
     setIsPanning(false); panStartRef.current = null;
     setDragging(null); activeDragRef.current = null; setResizing(null);
     setSnapIndicator(null);
-  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, knifePreview, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -1426,6 +1499,7 @@ export const CanvasArea = ({
               }
               if (['draw', 'pen', 'eraser'].includes(activeTool)) { e.stopPropagation(); handleMouseMove(e, idx); return; }
               if (activeTool === 'hand') { e.stopPropagation(); handleMouseMove(e, idx); return; }
+              if (['select', 'knife'].includes(activeTool)) { e.preventDefault(); handleMouseMove(e, idx); return; }
               handleMouseMove(e, idx);
             }}
             onTouchEnd={(e) => {
@@ -1719,6 +1793,15 @@ export const CanvasArea = ({
               />
             )}
             
+            {/* Knife preview line */}
+            {idx === currentPage && activeTool === 'knife' && knifePreview && (
+              <svg style={{ position: 'absolute', inset: 0, width: pageSize.width * zoom, height: pageSize.height * zoom, pointerEvents: 'none', zIndex: 200 }}>
+                <line x1={knifePreview.x1 * zoom} y1={knifePreview.y1 * zoom} x2={knifePreview.x2 * zoom} y2={knifePreview.y2 * zoom} stroke="#ef4444" strokeWidth={2} strokeDasharray="6 3" strokeLinecap="round" />
+                <circle cx={knifePreview.x1 * zoom} cy={knifePreview.y1 * zoom} r={4} fill="#ef4444" />
+                <circle cx={knifePreview.x2 * zoom} cy={knifePreview.y2 * zoom} r={4} fill="#ef4444" />
+              </svg>
+            )}
+
             {(idx === currentPage ? canvasElements : page.elements || []).filter(el => !el.hidden).map(el => {
               // In text tool, text elements show no selection ring — cursor goes straight to edit
               const isSel = (selectedElement === el.id || selectedElements.includes(el.id)) && editingId !== el.id && !(activeTool === 'text' && el.type === 'text');
@@ -1735,9 +1818,10 @@ export const CanvasArea = ({
                     top: el.y * zoom,
                     width: el.type === 'text' ? (el.width ? el.width * zoom : 'auto') : (el.width || 80) * zoom,
                     height: el.type !== 'text' ? (el.height || 80) * zoom : 'auto',
-                    cursor: activeTool === 'redact' ? 'crosshair' : activeTool === 'highlighter' ? 'cell' : activeTool === 'hand' && !isLocked ? (draggingVector !== null ? CURSOR_GRAB : CURSOR_HAND) : activeTool === 'eraser' ? CURSOR_ERASER : undefined,
+                    cursor: activeTool === 'knife' ? 'crosshair' : activeTool === 'redact' ? 'crosshair' : activeTool === 'highlighter' ? 'cell' : activeTool === 'hand' && !isLocked ? (draggingVector !== null ? CURSOR_GRAB : CURSOR_HAND) : activeTool === 'eraser' ? CURSOR_ERASER : undefined,
                     transform: transformStyle,
-                    transformOrigin: 'center center'
+                    transformOrigin: 'center center',
+                    clipPath: el.clipPath ? `polygon(${el.clipPath})` : undefined,
                   }}
                   onMouseEnter={() => setHoveredElementId(el.id)}
                   onMouseLeave={() => setHoveredElementId(null)}

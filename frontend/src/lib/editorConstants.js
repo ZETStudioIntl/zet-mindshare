@@ -7,7 +7,7 @@ import {
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
   IndentIncrease, Maximize, ShieldOff, FileUp, List, ListOrdered, SmilePlus,
-  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator
+  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator, Knife
 } from 'lucide-react';
 
 // 96 DPI screen pixels — matches Word/browser 100% zoom (1pt = 96/72 = 1.333px)
@@ -340,6 +340,7 @@ export const TOOLS = [
   { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
   { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
+  { id: 'knife', icon: Knife, nameKey: 'knife', shortcut: 'K' },
   { id: 'redact', icon: ShieldOff, nameKey: 'redact', shortcut: null },
   { id: 'highlighter', icon: Highlighter, nameKey: 'highlighter', shortcut: null },
   { id: 'emoji', icon: SmilePlus, nameKey: 'emoji', shortcut: null },
