@@ -40,17 +40,27 @@ function _splitByKnife(el, kx1, ky1, kx2, ky2) {
   const pos = corners.filter(c => _knifeSide(kx1, ky1, kx2, ky2, c.x, c.y) >= 0);
   const neg = corners.filter(c => _knifeSide(kx1, ky1, kx2, ky2, c.x, c.y) < 0);
   if (!pos.length || !neg.length) return null;
-  const orderPoly = (pts) => {
+
+  const makePiece = (pts, uid) => {
     const all = [...pts, ...hits];
+    // Sort clockwise by angle from centroid
     const cx = all.reduce((s, p) => s + p.x, 0) / all.length;
     const cy = all.reduce((s, p) => s + p.y, 0) / all.length;
-    return [...all].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx))
-      .map(p => `${Math.round(p.x - ex)}px ${Math.round(p.y - ey)}px`).join(', ');
+    const sorted = [...all].sort((a, b) => Math.atan2(a.y - cy, a.x - cx) - Math.atan2(b.y - cy, b.x - cx));
+    // Bounding box of this piece → becomes the new element bounds
+    const minX = Math.min(...sorted.map(p => p.x));
+    const minY = Math.min(...sorted.map(p => p.y));
+    const maxX = Math.max(...sorted.map(p => p.x));
+    const maxY = Math.max(...sorted.map(p => p.y));
+    const nw = maxX - minX || 1, nh = maxY - minY || 1;
+    // clip-path in % relative to this new bounding box (scales correctly with zoom)
+    const clipPath = sorted.map(p =>
+      `${((p.x - minX) / nw * 100).toFixed(1)}% ${((p.y - minY) / nh * 100).toFixed(1)}%`
+    ).join(', ');
+    return { ...el, id: `el_${Date.now()}_${uid}`, x: minX, y: minY, width: nw, height: nh, clipPath };
   };
-  return [
-    { ...el, id: `el_${Date.now()}_a`, clipPath: orderPoly(pos) },
-    { ...el, id: `el_${Date.now() + 1}_b`, clipPath: orderPoly(neg) },
-  ];
+
+  return [makePiece(pos, 'a'), makePiece(neg, 'b')];
 }
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -653,8 +663,9 @@ export const CanvasArea = ({
 
   // Snap indicator: shows a crosshair when element snaps to a grid line
   const [snapIndicator, setSnapIndicator] = useState(null);
-  const [knifePreview, setKnifePreview] = useState(null); // {x1,y1,x2,y2}
+  const [knifePreview, setKnifePreview] = useState(null); // {x1,y1,x2,y2} only for rendering
   const knifeStartRef = useRef(null);
+  const knifeEndRef = useRef(null);
 
   // Auto-fit zoom: fill container width on mount and container resize
   useEffect(() => {
@@ -988,6 +999,7 @@ export const CanvasArea = ({
     
     if (activeTool === 'knife') {
       knifeStartRef.current = { x, y };
+      knifeEndRef.current = { x, y };
       setKnifePreview({ x1: x, y1: y, x2: x, y2: y });
       return;
     }
@@ -1101,6 +1113,7 @@ export const CanvasArea = ({
     }
 
     if (activeTool === 'knife' && knifeStartRef.current) {
+      knifeEndRef.current = { x, y };
       setKnifePreview({ x1: knifeStartRef.current.x, y1: knifeStartRef.current.y, x2: x, y2: y });
       return;
     }
@@ -1347,9 +1360,10 @@ export const CanvasArea = ({
     // Keep magnifier active while zoom tool is selected
     if (activeTool !== 'zoom') setMagnifierActive(false);
 
-    // Knife tool: perform cut on mouseUp
-    if (activeTool === 'knife' && knifeStartRef.current && knifePreview) {
-      const { x1, y1, x2, y2 } = knifePreview;
+    // Knife tool: perform cut on mouseUp — refs only, no state timing issues
+    if (activeTool === 'knife' && knifeStartRef.current && knifeEndRef.current) {
+      const x1 = knifeStartRef.current.x, y1 = knifeStartRef.current.y;
+      const x2 = knifeEndRef.current.x,   y2 = knifeEndRef.current.y;
       if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5) {
         const next = [];
         let didCut = false;
@@ -1362,6 +1376,7 @@ export const CanvasArea = ({
         if (didCut) { setCanvasElements(next); onSaveHistory(next); }
       }
       knifeStartRef.current = null;
+      knifeEndRef.current = null;
       setKnifePreview(null);
     }
 
@@ -1373,7 +1388,7 @@ export const CanvasArea = ({
     setIsPanning(false); panStartRef.current = null;
     setDragging(null); activeDragRef.current = null; setResizing(null);
     setSnapIndicator(null);
-  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, knifePreview, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {

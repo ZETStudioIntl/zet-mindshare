@@ -10,6 +10,16 @@ import {
   Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator
 } from 'lucide-react';
 
+const RazorIcon = ({ size = 16, color = 'currentColor', ...props }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+    <rect x="2" y="9" width="20" height="6" rx="1.5" />
+    <line x1="12" y1="9" x2="12" y2="15" />
+    <line x1="2" y1="12" x2="22" y2="12" strokeDasharray="2 2" strokeWidth="0.8" />
+    <line x1="7" y1="9" x2="5" y2="15" strokeWidth="1.2" />
+    <line x1="17" y1="9" x2="19" y2="15" strokeWidth="1.2" />
+  </svg>
+);
+
 // 96 DPI screen pixels — matches Word/browser 100% zoom (1pt = 96/72 = 1.333px)
 export const PAGE_SIZES = [
   { name: 'A4', width: 794, height: 1123 },
@@ -340,7 +350,7 @@ export const TOOLS = [
   { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
   { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
-  { id: 'knife', icon: Scissors, nameKey: 'knife', shortcut: 'K' },
+  { id: 'knife', icon: RazorIcon, nameKey: 'knife', shortcut: 'K' },
   { id: 'redact', icon: ShieldOff, nameKey: 'redact', shortcut: null },
   { id: 'highlighter', icon: Highlighter, nameKey: 'highlighter', shortcut: null },
   { id: 'emoji', icon: SmilePlus, nameKey: 'emoji', shortcut: null },
