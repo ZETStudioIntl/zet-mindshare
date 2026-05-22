@@ -1205,12 +1205,12 @@ const Editor = () => {
       const existingCount = canvasElements.filter(e => e.type === 'text').length;
       const newEl = {
         id: `el_${Date.now()}`, type: 'text',
-        x: pageMargins?.left ?? 40,
-        y: (pageMargins?.top ?? 40) + existingCount * 40,
+        x: marginLeft ?? 40,
+        y: (marginTop ?? 40) + existingCount * 40,
         htmlContent: `<${tag} ${listStyle}><li>Madde 1</li><li>Madde 2</li><li>Madde 3</li></${tag}>`,
         content: 'Madde 1\nMadde 2\nMadde 3',
         fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
-        width: (pageSize?.width ?? 595) - ((pageMargins?.left ?? 40) + (pageMargins?.right ?? 40)),
+        width: (pageSize?.width ?? 595) - ((marginLeft ?? 40) + (marginRight ?? 40)),
         lineHeight: currentLineHeight, textAlign: 'left',
         bold: false, italic: false, underline: false, strikethrough: false,
       };

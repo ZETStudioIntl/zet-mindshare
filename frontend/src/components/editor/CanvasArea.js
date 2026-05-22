@@ -1469,7 +1469,7 @@ export const CanvasArea = ({
   // Render vector paths with images and selection
   const renderVectorPaths = (paths, pageIdx) => {
     return paths.filter(p => !p.isHighlight).map((path, i) => {
-      const isSelected = idx === currentPage && selectedVector === i && path.isPen;
+      const isSelected = pageIdx === currentPage && selectedVector === i && path.isPen;
       const bounds = path.isPen ? getPathBounds(path) : null;
       const pathD = path.isPen ? `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}${path.isClosed ? ' Z' : ''}` : `M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`;
 
