@@ -7,6 +7,12 @@ import axios from 'axios';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { RARITY_COLORS } from '../components/dashboard/CaseOpenModal';
+import OnboardingModal from '../components/dashboard/OnboardingModal';
+import BoostModal from '../components/dashboard/BoostModal';
+import AISettingsModal from '../components/dashboard/AISettingsModal';
+import CreditsModal from '../components/dashboard/CreditsModal';
+import RanksModal from '../components/dashboard/RanksModal';
+import NotebookPasswordModal from '../components/dashboard/NotebookPasswordModal';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
 import goldRankImg from '../assets/rank-gold.svg';
@@ -1476,94 +1482,20 @@ MATCHES:[1,3,5]`;
       )}
       {/* Onboarding Modal — zorunlu, kapatılamaz */}
       {showOnboarding && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)' }}>
-          <div className="w-full max-w-md mx-4 rounded-2xl p-8" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ background: 'var(--zet-primary)' }}>
-                <span className="text-2xl">👋</span>
-              </div>
-              <h2 className="text-xl font-bold mb-1" style={{ color: 'var(--zet-text)' }}>ZET Mindshare'e Hoş Geldin!</h2>
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Hesabını kurmak için birkaç bilgiye ihtiyacımız var.</p>
-              <div className="mt-3 px-3 py-2 rounded-lg text-xs font-medium" style={{ background: '#10b98120', color: '#10b981', border: '1px solid #10b98140' }}>
-                🎁 İlk 1 ay Pro plan ücretsiz aktif edildi!
-              </div>
-            </div>
-            <div className="space-y-4">
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Kullanıcı Adı <span style={{ color: '#ef4444' }}>*</span></label>
-                <div className="flex items-center rounded-xl px-3 py-2.5" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
-                  <span className="text-sm mr-1" style={{ color: 'var(--zet-text-muted)' }}>@</span>
-                  <input
-                    type="text"
-                    value={obUsername}
-                    onChange={e => setObUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20))}
-                    placeholder="kullanici_adi"
-                    className="flex-1 bg-transparent text-sm outline-none"
-                    style={{ color: 'var(--zet-text)' }}
-                  />
-                </div>
-                <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>3-20 karakter, harf/rakam/alt çizgi. 30 günde bir değiştirilebilir.</p>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Görünen İsim <span style={{ color: '#ef4444' }}>*</span></label>
-                <input
-                  type="text"
-                  value={obDisplayName}
-                  onChange={e => setObDisplayName(e.target.value.slice(0, 50))}
-                  placeholder="Adın Soyadın"
-                  className="w-full rounded-xl px-3 py-2.5 text-sm outline-none"
-                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
-                />
-              </div>
-              {obError && <p className="text-xs px-3 py-2 rounded-lg" style={{ background: '#ef444420', color: '#ef4444' }}>{obError}</p>}
-              <button
-                onClick={submitOnboarding}
-                disabled={obSubmitting || obUsername.length < 3 || !obDisplayName.trim()}
-                className="w-full py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
-                style={{ background: 'var(--zet-primary)', color: '#fff' }}
-              >
-                {obSubmitting ? 'Kaydediliyor...' : 'Devam Et'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <OnboardingModal
+          obUsername={obUsername} setObUsername={setObUsername}
+          obDisplayName={obDisplayName} setObDisplayName={setObDisplayName}
+          obError={obError} obSubmitting={obSubmitting}
+          submitOnboarding={submitOnboarding}
+        />
       )}
 
       {/* Boost Modal */}
       {showBoostModal && (
-        <div className="fixed inset-0 z-[9998] flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)' }}>
-          <div className="w-full max-w-sm rounded-2xl p-6" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-base font-bold" style={{ color: 'var(--zet-text)' }}>🚀 Gönderiyi Öne Çıkar</h3>
-                <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>ZET kredisiyle daha fazla kişiye ulaş</p>
-              </div>
-              <button onClick={() => setShowBoostModal(false)} className="p-1.5 rounded-lg hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
-            </div>
-            <div className="space-y-2.5">
-              {boostPackages.map(pkg => (
-                <button
-                  key={pkg.tier}
-                  onClick={() => purchaseBoost(pkg.tier)}
-                  disabled={!!boostingTier}
-                  className="w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm transition-all hover:scale-[1.02] disabled:opacity-60"
-                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
-                >
-                  <div className="text-left">
-                    <p className="font-semibold">{pkg.label}</p>
-                    <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{pkg.duration_hours < 24 ? `${pkg.duration_hours} saat` : `${pkg.duration_hours / 24} gün`}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold" style={{ color: '#f59e0b' }}>{pkg.credits} kredi</p>
-                    <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>≈ ₺{pkg.price_try}</p>
-                  </div>
-                </button>
-              ))}
-            </div>
-            {boostError && <p className="mt-3 text-xs px-3 py-2 rounded-lg" style={{ background: '#ef444420', color: '#ef4444' }}>{boostError}</p>}
-            {boostingTier && <p className="mt-3 text-xs text-center" style={{ color: 'var(--zet-text-muted)' }}>İşleniyor...</p>}
-          </div>
-        </div>
+        <BoostModal
+          boostPackages={boostPackages} boostingTier={boostingTier} boostError={boostError}
+          purchaseBoost={purchaseBoost} onClose={() => setShowBoostModal(false)}
+        />
       )}
 
       {/* Header */}
@@ -3506,83 +3438,14 @@ MATCHES:[1,3,5]`;
 
       {/* Notebook Password Modal */}
       {notebookPasswordModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)' }} onClick={() => { setNotebookPasswordModal(null); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); }}>
-          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()} style={{ border: '1px solid rgba(76,168,173,0.4)' }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(76,168,173,0.15)' }}>
-                <Lock className="h-5 w-5" style={{ color: '#4ca8ad' }} />
-              </div>
-              <div>
-                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>
-                  {notebookPasswordModal.mode === 'set' ? 'Şifre Koy' : notebookPasswordModal.mode === 'remove' ? 'Şifre Kaldır' : 'Defter Kilidi'}
-                </p>
-                <p className="text-xs truncate" style={{ color: 'var(--zet-text-muted)' }}>{notebookPasswordModal.notebookName}</p>
-              </div>
-            </div>
-            {notebookPasswordModal.mode === 'unlock' && (() => {
-              const lockUntil = nbLockoutUntil[notebookPasswordModal.notebookId] || 0;
-              const remaining = Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
-              const failed = nbFailedAttempts[notebookPasswordModal.notebookId] || 0;
-              return (
-                <>
-                  {remaining > 0 && (
-                    <div className="mb-3 p-3 rounded-lg text-sm text-center" style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', color: '#ef4444' }}>
-                      {remaining} saniye bekleyin...
-                    </div>
-                  )}
-                  {failed >= 3 && remaining === 0 && (
-                    <p className="text-xs mb-2 text-center" style={{ color: '#f59e0b' }}>{failed} başarısız deneme</p>
-                  )}
-                </>
-              );
-            })()}
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                  {notebookPasswordModal.mode === 'unlock' ? 'Şifre' : notebookPasswordModal.mode === 'set' ? 'Yeni Şifre (min. 4 karakter)' : 'Mevcut Şifre'}
-                </label>
-                <input
-                  type="password"
-                  value={nbPwInput}
-                  onChange={e => { setNbPwInput(e.target.value); setNbPwError(''); }}
-                  onKeyDown={e => e.key === 'Enter' && (notebookPasswordModal.mode === 'set' ? document.getElementById('nb-pw-confirm')?.focus() : handleNotebookPasswordSubmit())}
-                  className="zet-input w-full"
-                  placeholder="••••"
-                  autoFocus
-                  disabled={nbLockoutUntil[notebookPasswordModal.notebookId] > Date.now()}
-                />
-              </div>
-              {notebookPasswordModal.mode === 'set' && (
-                <div>
-                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Şifre Tekrar</label>
-                  <input
-                    id="nb-pw-confirm"
-                    type="password"
-                    value={nbPwConfirm}
-                    onChange={e => { setNbPwConfirm(e.target.value); setNbPwError(''); }}
-                    onKeyDown={e => e.key === 'Enter' && handleNotebookPasswordSubmit()}
-                    className="zet-input w-full"
-                    placeholder="••••"
-                  />
-                </div>
-              )}
-              {nbPwError && <p className="text-xs" style={{ color: '#ef4444' }}>{nbPwError}</p>}
-            </div>
-            <div className="flex gap-2 mt-4">
-              <button onClick={() => { setNotebookPasswordModal(null); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); }} className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
-                İptal
-              </button>
-              <button
-                onClick={handleNotebookPasswordSubmit}
-                disabled={nbPwLoading || nbLockoutUntil[notebookPasswordModal.notebookId] > Date.now()}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ background: 'rgba(76,168,173,0.2)', border: '1px solid rgba(76,168,173,0.5)', color: '#4ca8ad' }}
-              >
-                {nbPwLoading ? '...' : notebookPasswordModal.mode === 'unlock' ? 'Aç' : notebookPasswordModal.mode === 'set' ? 'Kaydet' : 'Kaldır'}
-              </button>
-            </div>
-          </div>
-        </div>
+        <NotebookPasswordModal
+          notebookPasswordModal={notebookPasswordModal} setNotebookPasswordModal={setNotebookPasswordModal}
+          nbPwInput={nbPwInput} setNbPwInput={setNbPwInput}
+          nbPwConfirm={nbPwConfirm} setNbPwConfirm={setNbPwConfirm}
+          nbPwError={nbPwError} setNbPwError={setNbPwError}
+          nbPwLoading={nbPwLoading} nbLockoutUntil={nbLockoutUntil} nbFailedAttempts={nbFailedAttempts}
+          handleNotebookPasswordSubmit={handleNotebookPasswordSubmit}
+        />
       )}
 
       {/* Delete Notebook Confirmation */}
@@ -4144,209 +4007,31 @@ MATCHES:[1,3,5]`;
 
       {/* AI Settings Modal */}
       {showAISettings && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowAISettings(false)}>
-          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>AI Ayarları</h2>
-              <button onClick={() => setShowAISettings(false)} className="p-1 rounded hover:bg-white/10">
-                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
-              </button>
-            </div>
-            
-            <div className="space-y-4">
-              {/* ZETA Settings */}
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(76, 168, 173, 0.1)', border: '1px solid rgba(76, 168, 173, 0.3)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
-                  <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Özelleştirme</h3>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-                    <select 
-                      value={zetaMood} 
-                      onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }}
-                      className="zet-input text-sm w-full"
-                    >
-                      <option value="cheerful">Neşeli</option>
-                      <option value="professional">Profesyonel</option>
-                      <option value="curious">Meraklı</option>
-                      <option value="custom">Özel</option>
-                    </select>
-                  </div>
-                  {zetaMood === 'custom' && (
-                    <div>
-                      <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Özel Prompt</label>
-                      <textarea 
-                        value={zetaCustomPrompt} 
-                        onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }}
-                        placeholder="ZETA nasıl davransın?"
-                        className="zet-input text-sm w-full h-20 resize-none"
-                      />
-                    </div>
-                  )}
-                  <div>
-                    <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
-                    <select 
-                      value={zetaEmoji} 
-                      onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }}
-                      className="zet-input text-sm w-full"
-                    >
-                      <option value="none">Kullanma</option>
-                      <option value="low">Az Kullan</option>
-                      <option value="medium">Orta</option>
-                      <option value="high">Çok Kullan</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              {/* Judge Settings */}
-              <div className="p-4 rounded-xl" style={{ background: 'rgba(200, 0, 90, 0.1)', border: '1px solid rgba(200, 0, 90, 0.3)' }}>
-                <div className="flex items-center gap-2 mb-3">
-                  <Scale className="h-5 w-5" style={{ color: '#c8005a' }} />
-                  <h3 className="font-semibold" style={{ color: '#c8005a' }}>ZET Judge Mini Özelleştirme</h3>
-                </div>
-                <div>
-                  <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-                  <select 
-                    value={judgeMood} 
-                    onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }}
-                    className="zet-input text-sm w-full"
-                  >
-                    <option value="normal">Normal (Yapıcı eleştiri)</option>
-                    <option value="harsh">Sert (Esprili dalga geçme)</option>
-                  </select>
-                  <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
-                    {judgeMood === 'harsh' ? 'Judge sizi esprilerle "kavuracak"!' : 'Judge yapıcı ve profesyonel olacak.'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <AISettingsModal
+          zetaMood={zetaMood} setZetaMood={setZetaMood}
+          zetaEmoji={zetaEmoji} setZetaEmoji={setZetaEmoji}
+          zetaCustomPrompt={zetaCustomPrompt} setZetaCustomPrompt={setZetaCustomPrompt}
+          judgeMood={judgeMood} setJudgeMood={setJudgeMood}
+          onClose={() => setShowAISettings(false)}
+        />
       )}
 
 
       {/* Credits Purchase Modal */}
       {showCredits && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowCredits(false)}>
-          <div className="zet-card p-5 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Zap className="h-5 w-5" style={{ color: '#fbbf24' }} />
-                <h2 className="text-lg font-bold" style={{ color: 'var(--zet-text)' }}>Kredi Satin Al</h2>
-              </div>
-              <button onClick={() => setShowCredits(false)} className="p-1.5 rounded-lg hover:bg-white/10">
-                <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-              </button>
-            </div>
-
-            {creditPackages.length > 0 && creditPackages[0].discounted_price !== creditPackages[0].price && (
-              <div className="mb-3 px-3 py-2 rounded-lg text-center" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                <span className="text-xs font-bold" style={{ color: '#10b981' }}>%15 Abone Indirimi Uygulandi!</span>
-              </div>
-            )}
-
-            <div className="space-y-2.5">
-              {creditPackages.map(pkg => {
-                const hasDiscount = pkg.discounted_price !== pkg.price;
-                return (
-                  <div key={pkg.id} className="flex items-center justify-between p-3 rounded-xl transition-all hover:scale-[1.01]"
-                    style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}
-                    data-testid={`credit-pack-${pkg.credits}`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{
-                        background: pkg.credits >= 1000 ? 'rgba(251,191,36,0.15)' : pkg.credits >= 700 ? 'rgba(139,92,246,0.15)' : pkg.credits >= 350 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)'
-                      }}>
-                        <Zap className="h-5 w-5" style={{
-                          color: pkg.credits >= 1000 ? '#fbbf24' : pkg.credits >= 700 ? '#8b5cf6' : pkg.credits >= 350 ? '#3b82f6' : '#10b981'
-                        }} />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold" style={{ color: 'var(--zet-text)' }}>{pkg.credits} Kredi</p>
-                        <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>
-                          {pkg.credits >= 1000 ? 'En Avantajlı' : pkg.credits >= 700 ? 'Popüler' : pkg.credits >= 350 ? 'Standart' : 'Başlangıç'}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2.5">
-                      <div className="text-right">
-                        {hasDiscount && (
-                          <p className="text-[10px] line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price}</p>
-                        )}
-                        <p className="text-sm font-bold" style={{ color: hasDiscount ? '#10b981' : 'var(--zet-text)' }}>
-                          ${pkg.discounted_price}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => handleBuyCredits(pkg.id)}
-                        disabled={buyingCredits}
-                        className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 disabled:opacity-40"
-                        style={{ background: 'var(--zet-primary)', color: 'white' }}
-                        data-testid={`buy-credit-${pkg.credits}`}
-                      >
-                        {buyingCredits ? '...' : 'Satin Al'}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-              Kredi paketleri aninda hesabiniza eklenir. Free dışındaki planlara %15 indirim uygulanir.
-              <br />Maksimum kredi bakiyesi: 1000. Limit asildiginda fazla krediler silinir.
-            </p>
-          </div>
-        </div>
+        <CreditsModal
+          creditPackages={creditPackages} buyingCredits={buyingCredits}
+          handleBuyCredits={handleBuyCredits} onClose={() => setShowCredits(false)}
+        />
       )}
 
       {/* Ranks Modal */}
       {showRanks && (
-        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={() => setShowRanks(false)}>
-          <div className="zet-card p-6 w-full max-w-md animate-fadeIn" onClick={e => e.stopPropagation()}>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold" style={{ color: 'var(--zet-text)' }}>Rütbe</h2>
-              <button onClick={() => setShowRanks(false)} className="p-1 rounded hover:bg-white/10">
-                <X className="h-5 w-5" style={{ color: 'var(--zet-text-muted)' }} />
-              </button>
-            </div>
-            
-            {/* Current Rank */}
-            <div className="p-4 rounded-xl mb-6 text-center" style={{ background: `linear-gradient(135deg, ${currentRank.color}33 0%, rgba(139,92,246,0.2) 100%)`, border: `1px solid ${currentRank.color}50` }}>
-              <div className="flex justify-center mb-2"><RankIcon rank={currentRank} size={72} /></div>
-              <h3 className="text-lg font-bold" style={{ color: currentRank.color }}>{currentRank.name}</h3>
-              <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>
-                Seviye {currentRank.level} • {userZP.toLocaleString()} XP {nextRank ? `/ ${nextRank.xp.toLocaleString()} XP` : '(Maksimum)'}
-              </p>
-              <div className="w-full h-2 rounded-full mt-2" style={{ background: 'var(--zet-bg)' }}>
-                <div className="h-full rounded-full transition-all" style={{ width: `${rankProgress}%`, background: `linear-gradient(90deg, ${currentRank.color}, #8b5cf6)` }} />
-              </div>
-            </div>
-
-            {/* Ranks List */}
-            <div>
-              <h4 className="text-sm font-semibold mb-3" style={{ color: 'var(--zet-text)' }}>Tüm Rütbeler</h4>
-              <div className="space-y-2">
-                {RANKS.map((rank, i) => {
-                  const isCurrent = rank.name === currentRank.name;
-                  return (
-                    <div key={i} className={`flex items-center justify-between p-2 rounded-lg ${isCurrent ? 'ring-2' : ''}`} style={{ background: isCurrent ? `${rank.color}1a` : 'var(--zet-bg)', outline: isCurrent ? `2px solid ${rank.color}` : undefined }}>
-                      <div className="flex items-center gap-2">
-                        <RankIcon rank={rank} size={20} />
-                        <span className="text-sm" style={{ color: isCurrent ? rank.color : 'var(--zet-text)' }}>{rank.name}</span>
-                        {isCurrent && <span className="text-xs px-1.5 py-0.5 rounded" style={{ background: `${rank.color}33`, color: rank.color }}>Mevcut</span>}
-                      </div>
-                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{rank.xp.toLocaleString()} XP</span>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-        </div>
+        <RanksModal
+          currentRank={currentRank} nextRank={nextRank} rankProgress={rankProgress}
+          userZP={userZP} RANKS={RANKS} RankIcon={RankIcon}
+          onClose={() => setShowRanks(false)}
+        />
       )}
 
       {/* Kasa Açma Modalı */}
