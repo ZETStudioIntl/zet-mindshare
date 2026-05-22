@@ -32,6 +32,9 @@ import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFil
 import ShareDialog from '../components/editor/ShareDialog';
 import CommentsPanel from '../components/editor/CommentsPanel';
 import EmojiPicker from '../components/editor/EmojiPicker';
+import QRCodePanel from '../components/editor/QRCodePanel';
+import WatermarkPanel from '../components/editor/WatermarkPanel';
+import PageNumbersPanel from '../components/editor/PageNumbersPanel';
 import { useCollaboration } from '../hooks/useCollaboration';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
@@ -4613,69 +4616,13 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* QR Code Panel */}
-    {showQRCode && <DraggablePanel title="QR Code" onClose={() => setShowQRCode(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-56 space-y-3">
-        <input type="text" value={qrText} onChange={e => setQrText(e.target.value)} placeholder="Enter text or URL" className="zet-input text-xs w-full" />
-        <button onClick={createQRCode} disabled={!qrText.trim()} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> Generate QR</button>
-      </div>
-    </DraggablePanel>}
+    {showQRCode && <QRCodePanel qrText={qrText} setQrText={setQrText} createQRCode={createQRCode} isMobile={isMobile} onClose={() => setShowQRCode(false)} />}
 
     {/* Watermark Panel */}
-    {showWatermark && <DraggablePanel title="Watermark" onClose={() => setShowWatermark(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-56 space-y-3">
-        <input type="text" value={watermarkText} onChange={e => setWatermarkText(e.target.value)} placeholder="Watermark text" className="zet-input text-xs w-full" />
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Opacity: {watermarkOpacity}%</label><input type="range" min="5" max="50" value={watermarkOpacity} onChange={e => setWatermarkOpacity(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div className="flex items-center gap-2">
-          <label className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Renk</label>
-          <input type="color" value={watermarkColor} onChange={e => setWatermarkColor(e.target.value)} className="w-8 h-7 rounded cursor-pointer border-0" />
-          <div className="flex-1 h-5 rounded text-xs flex items-center px-2" style={{ background: watermarkColor, color: watermarkColor === '#ffffff' ? '#000' : '#fff', fontSize: 10 }}>örnek</div>
-        </div>
-        <button onClick={applyWatermark} className="zet-btn w-full">Apply Watermark</button>
-      </div>
-    </DraggablePanel>}
+    {showWatermark && <WatermarkPanel watermarkText={watermarkText} setWatermarkText={setWatermarkText} watermarkOpacity={watermarkOpacity} setWatermarkOpacity={setWatermarkOpacity} watermarkColor={watermarkColor} setWatermarkColor={setWatermarkColor} applyWatermark={applyWatermark} isMobile={isMobile} onClose={() => setShowWatermark(false)} />}
 
     {/* Page Numbers Panel */}
-    {showPageNumbers && <DraggablePanel title="Sayfa Numaraları" onClose={() => setShowPageNumbers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-60 space-y-3">
-        <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: 'var(--zet-text)' }}>
-          <input type="checkbox" checked={pageNumbersEnabled} onChange={togglePageNumbers} className="rounded" />
-          Sayfa Numaralarını Göster
-        </label>
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Konum</label>
-          <select value={pageNumberPosition} onChange={e => { setPageNumberPosition(e.target.value); updatePageNumberSettings({ position: e.target.value }); }} className="zet-input text-xs w-full">
-            <option value="bottom-center">Altta Orta</option>
-            <option value="bottom-right">Altta Sağ</option>
-            <option value="bottom-left">Altta Sol</option>
-            <option value="top-center">Üstte Orta</option>
-            <option value="top-right">Üstte Sağ</option>
-            <option value="top-left">Üstte Sol</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Numara Biçimi</label>
-          <select value={pageNumberFormat} onChange={e => { setPageNumberFormat(e.target.value); updatePageNumberSettings({ format: e.target.value }); }} className="zet-input text-xs w-full">
-            <option value="numeric">1, 2, 3 (Sayısal)</option>
-            <option value="roman">i, ii, iii (Roma - Küçük)</option>
-            <option value="ROMAN">I, II, III (Roma - Büyük)</option>
-            <option value="alpha">a, b, c (Alfabe)</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Görünüm Stili</label>
-          <select value={pageNumberStyle} onChange={e => { setPageNumberStyle(e.target.value); updatePageNumberSettings({ style: e.target.value }); }} className="zet-input text-xs w-full">
-            <option value="n">1</option>
-            <option value="n/total">1 / 5</option>
-            <option value="page-n">Sayfa 1</option>
-            <option value="page-n-of-total">Sayfa 1 / 5</option>
-          </select>
-        </div>
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç Numarası</label>
-          <input type="number" min="1" max="999" value={pageNumberStart} onChange={e => { const v = Math.max(1, parseInt(e.target.value) || 1); setPageNumberStart(v); updatePageNumberSettings({ start: v }); }} className="zet-input text-xs w-full" />
-        </div>
-      </div>
-    </DraggablePanel>}
+    {showPageNumbers && <PageNumbersPanel pageNumbersEnabled={pageNumbersEnabled} togglePageNumbers={togglePageNumbers} pageNumberPosition={pageNumberPosition} setPageNumberPosition={setPageNumberPosition} pageNumberFormat={pageNumberFormat} setPageNumberFormat={setPageNumberFormat} pageNumberStyle={pageNumberStyle} setPageNumberStyle={setPageNumberStyle} pageNumberStart={pageNumberStart} setPageNumberStart={setPageNumberStart} updatePageNumberSettings={updatePageNumberSettings} isMobile={isMobile} onClose={() => setShowPageNumbers(false)} />}
 
     {/* Header/Footer Panel */}
     {showHeaderFooter && <DraggablePanel title="Header & Footer" onClose={() => setShowHeaderFooter(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
