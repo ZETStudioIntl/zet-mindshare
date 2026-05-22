@@ -15,6 +15,8 @@ import RanksModal from '../components/dashboard/RanksModal';
 import NotebookPasswordModal from '../components/dashboard/NotebookPasswordModal';
 import MissionsModal from '../components/dashboard/MissionsModal';
 import SubscriptionModal from '../components/dashboard/SubscriptionModal';
+import DeleteConfirmModal from '../components/dashboard/DeleteConfirmModal';
+import ConfirmModal from '../components/dashboard/ConfirmModal';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
 import goldRankImg from '../assets/rank-gold.svg';
@@ -3367,36 +3369,12 @@ MATCHES:[1,3,5]`;
 
       {/* Delete Note Confirmation */}
       {confirmDeleteNoteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmDeleteNoteId(null)}>
-          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
-            style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
-                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
-              </div>
-              <div>
-                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>{t('deleteNote')}</p>
-                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cannotUndo')}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDeleteNoteId(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
-                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                onClick={() => { deleteNote(confirmDeleteNoteId); setConfirmDeleteNoteId(null); }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
-              >
-                {t('yesDelete')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirmModal
+          title={t('deleteNote')} subtitle={t('cannotUndo')}
+          onConfirm={() => { deleteNote(confirmDeleteNoteId); setConfirmDeleteNoteId(null); }}
+          onCancel={() => setConfirmDeleteNoteId(null)}
+          cancelLabel={t('cancel')} confirmLabel={t('yesDelete')}
+        />
       )}
 
       {/* Backdrop to close floating menus */}
@@ -3406,36 +3384,12 @@ MATCHES:[1,3,5]`;
 
       {/* Delete Document Confirmation */}
       {confirmDeleteDocId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmDeleteDocId(null)}>
-          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
-            style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
-                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
-              </div>
-              <div>
-                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>{t('deleteNote')}</p>
-                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cannotUndo')}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDeleteDocId(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
-                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                onClick={() => { deleteDocument(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
-              >
-                {t('yesDelete')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirmModal
+          title={t('deleteNote')} subtitle={t('cannotUndo')}
+          onConfirm={() => { deleteDocument(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
+          onCancel={() => setConfirmDeleteDocId(null)}
+          cancelLabel={t('cancel')} confirmLabel={t('yesDelete')}
+        />
       )}
 
       {/* Notebook Password Modal */}
@@ -3452,36 +3406,12 @@ MATCHES:[1,3,5]`;
 
       {/* Delete Notebook Confirmation */}
       {confirmDeleteNotebookId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmDeleteNotebookId(null)}>
-          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
-            style={{ border: '1px solid rgba(239,68,68,0.4)' }}>
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(239,68,68,0.15)' }}>
-                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
-              </div>
-              <div>
-                <p className="font-semibold" style={{ color: 'var(--zet-text)' }}>{t('deleteNotebook')}</p>
-                <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('cannotUndo')}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmDeleteNotebookId(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
-                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
-              >
-                {t('cancel')}
-              </button>
-              <button
-                onClick={() => { deleteNotebook(confirmDeleteNotebookId); setConfirmDeleteNotebookId(null); }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                style={{ background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }}
-              >
-                {t('yesDelete')}
-              </button>
-            </div>
-          </div>
-        </div>
+        <DeleteConfirmModal
+          title={t('deleteNotebook')} subtitle={t('cannotUndo')}
+          onConfirm={() => { deleteNotebook(confirmDeleteNotebookId); setConfirmDeleteNotebookId(null); }}
+          onCancel={() => setConfirmDeleteNotebookId(null)}
+          cancelLabel={t('cancel')} confirmLabel={t('yesDelete')}
+        />
       )}
 
       {/* Toast Notification */}
@@ -3504,41 +3434,7 @@ MATCHES:[1,3,5]`;
 
       {/* Confirm Modal */}
       {confirmModal && (
-        <div className="fixed inset-0 z-[99] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setConfirmModal(null)}>
-          <div className="zet-card p-6 mx-4 w-full max-w-sm animate-fadeIn" onClick={e => e.stopPropagation()}
-            style={{ border: `1px solid ${confirmModal.danger ? 'rgba(239,68,68,0.4)' : 'rgba(76,168,173,0.3)'}` }}>
-            <div className="flex items-start gap-3 mb-4">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5"
-                style={{ background: confirmModal.danger ? 'rgba(239,68,68,0.15)' : 'rgba(76,168,173,0.15)' }}>
-                {confirmModal.danger
-                  ? <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
-                  : <Check className="h-5 w-5" style={{ color: '#4ca8ad' }} />}
-              </div>
-              <div>
-                <p className="font-semibold mb-1" style={{ color: 'var(--zet-text)' }}>{confirmModal.title}</p>
-                <p className="text-sm whitespace-pre-line" style={{ color: 'var(--zet-text-muted)' }}>{confirmModal.msg}</p>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setConfirmModal(null)}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all hover:bg-white/10"
-                style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}
-              >
-                İptal
-              </button>
-              <button
-                onClick={() => { const fn = confirmModal.onConfirm; setConfirmModal(null); fn(); }}
-                className="flex-1 py-2 rounded-lg text-sm font-medium transition-all"
-                style={confirmModal.danger
-                  ? { background: 'rgba(239,68,68,0.2)', border: '1px solid rgba(239,68,68,0.5)', color: '#ef4444' }
-                  : { background: 'rgba(76,168,173,0.2)', border: '1px solid rgba(76,168,173,0.5)', color: '#4ca8ad' }}
-              >
-                Onayla
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
       )}
 
       {/* In-app Alarm Notifications */}
