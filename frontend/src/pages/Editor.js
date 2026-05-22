@@ -38,6 +38,8 @@ import PageNumbersPanel from '../components/editor/PageNumbersPanel';
 import SignaturePanel from '../components/editor/SignaturePanel';
 import AIImagePanel from '../components/editor/AIImagePanel';
 import FindReplacePanel from '../components/editor/FindReplacePanel';
+import TemplatesPanel from '../components/editor/TemplatesPanel';
+import ExportPanel from '../components/editor/ExportPanel';
 import { useCollaboration } from '../hooks/useCollaboration';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
@@ -4432,114 +4434,10 @@ const Editor = () => {
     </DraggablePanel>}
 
     {/* Templates Panel */}
-    {showTemplates && <DraggablePanel title="Templates" onClose={() => setShowTemplates(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-72 space-y-1 max-h-[60vh] overflow-y-auto">
-        {['Temel', 'İş', 'Kariyer', 'Hukuki', 'Eğitim', 'Kişisel', 'Pazarlama', 'Yaratıcı'].map(cat => {
-          const catTemplates = TEMPLATES.filter(t => t.category === cat);
-          if (!catTemplates.length) return null;
-          return (
-            <div key={cat}>
-              <p className="text-xs font-semibold px-2 pt-2 pb-1" style={{ color: 'var(--zet-text-muted)' }}>{cat}</p>
-              {catTemplates.map(tpl => (
-                <button key={tpl.id} onClick={() => applyTemplate(tpl.id)} className="w-full p-2.5 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }} data-testid={`template-${tpl.id}`}>
-                  <span className="text-lg flex-shrink-0">{tpl.icon}</span>
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm truncate" style={{ color: 'var(--zet-text)' }}>{tpl.name}</div>
-                  </div>
-                </button>
-              ))}
-            </div>
-          );
-        })}
-      </div>
-    </DraggablePanel>}
+    {showTemplates && <TemplatesPanel applyTemplate={applyTemplate} isMobile={isMobile} onClose={() => setShowTemplates(false)} />}
 
     {/* Export Panel */}
-    {showExport && <DraggablePanel title="Export Document" onClose={() => setShowExport(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-72 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Choose export format:</p>
-        
-        <div className="space-y-2">
-          <button onClick={() => handleExport('pdf')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
-            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#e74c3c' }}>
-              <span className="text-white text-xs font-bold">PDF</span>
-            </div>
-            <div>
-              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>PDF Document</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Beşt for printing & sharing</div>
-            </div>
-          </button>
-          
-          <button onClick={() => handleExport('png')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
-            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#3498db' }}>
-              <span className="text-white text-xs font-bold">PNG</span>
-            </div>
-            <div>
-              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>PNG Image</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>High quality, transparent background</div>
-            </div>
-          </button>
-          
-          <button onClick={() => handleExport('jpeg')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
-            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#27ae60' }}>
-              <span className="text-white text-xs font-bold">JPG</span>
-            </div>
-            <div>
-              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>JPEG Image</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Smaller file size, web optimized</div>
-            </div>
-          </button>
-          
-          <button onClick={() => handleExport('svg')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
-            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: '#9b59b6' }}>
-              <span className="text-white text-xs font-bold">SVG</span>
-            </div>
-            <div>
-              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>SVG Vector</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Scalable, editable graphics</div>
-            </div>
-          </button>
-          
-          <button data-testid="export-ms-btn" onClick={() => handleExport('ms')} disabled={exporting} className="w-full p-3 rounded text-left hover:bg-white/5 transition-colors flex items-center gap-3" style={{ background: 'var(--zet-bg)' }}>
-            <div className="w-10 h-10 rounded flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
-              <span className="text-white text-xs font-bold">.ms</span>
-            </div>
-            <div>
-              <div className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>Mindshare (.ms)</div>
-              <div className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>ZET Mindshare native format</div>
-            </div>
-          </button>
-        </div>
-
-        {/* Quality selector for images */}
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Image Quality</label>
-          <div className="grid grid-cols-3 gap-1">
-            {['low', 'medium', 'high'].map(q => (
-              <button key={q} onClick={() => setExportQuality(q)} className={`p-1.5 rounded text-xs capitalize ${exportQuality === q ? 'glow-sm' : ''}`} style={{ background: exportQuality === q ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{q}</button>
-            ))}
-          </div>
-        </div>
-
-        {/* Import Project */}
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <label className="text-xs block mb-2" style={{ color: 'var(--zet-text-muted)' }}>Import Project</label>
-          <input 
-            data-testid="import-ms-input"
-            type="file" 
-            accept=".ms" 
-            onChange={(e) => { if (e.target.files[0]) importFromMS(e.target.files[0]); }}
-            className="hidden"
-            id="import-ms"
-          />
-          <label htmlFor="import-ms" data-testid="import-ms-btn" className="zet-btn w-full flex items-center justify-center gap-2 py-2 cursor-pointer" style={{ background: 'linear-gradient(135deg, #1a1a2e, #4ca8ad)' }}>
-            <Upload className="h-4 w-4" /> Open .ms File
-          </label>
-        </div>
-
-        {exporting && <div className="text-center py-2"><Loader2 className="h-5 w-5 animate-spin mx-auto" style={{ color: 'var(--zet-primary-light)' }} /></div>}
-      </div>
-    </DraggablePanel>}
+    {showExport && <ExportPanel handleExport={handleExport} exporting={exporting} exportQuality={exportQuality} setExportQuality={setExportQuality} importFromMS={importFromMS} isMobile={isMobile} onClose={() => setShowExport(false)} />}
 
     {/* QR Code Panel */}
     {showQRCode && <QRCodePanel qrText={qrText} setQrText={setQrText} createQRCode={createQRCode} isMobile={isMobile} onClose={() => setShowQRCode(false)} />}
