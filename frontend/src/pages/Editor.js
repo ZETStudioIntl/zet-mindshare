@@ -40,6 +40,7 @@ import AIImagePanel from '../components/editor/AIImagePanel';
 import FindReplacePanel from '../components/editor/FindReplacePanel';
 import TemplatesPanel from '../components/editor/TemplatesPanel';
 import ExportPanel from '../components/editor/ExportPanel';
+import ChartPanel from '../components/editor/ChartPanel';
 import { useCollaboration } from '../hooks/useCollaboration';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
@@ -4210,104 +4211,8 @@ const Editor = () => {
       </div>
     </DraggablePanel>}
 
-    {/* Graphiç Chart Panel */}
-    {showGraphic && <DraggablePanel title={editingChartId ? 'Grafiği Düzenle' : 'Chart'} onClose={() => { setShowGraphic(false); setEditingChartId(null); }} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-80 space-y-3 max-h-[70vh] overflow-y-auto">
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Chart Type</label>
-          <div className="grid grid-cols-3 gap-1">
-            {CHART_TYPES.map(ct => (
-              <button key={ct.id} onClick={() => setChartType(ct.id)} className={`p-2 rounded text-xs ${chartType === ct.id ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: chartType === ct.id ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{ct.name.split(' ')[0]}</button>
-            ))}
-          </div>
-        </div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Title</label><input value={chartTitle} onChange={e => setChartTitle(e.target.value)} className="zet-input text-xs w-full" placeholder="Chart Title" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Labels (comma separated)</label><input value={chartLabels} onChange={e => setChartLabels(e.target.value)} className="zet-input text-xs w-full" placeholder="A,B,C,D" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Values (comma separated)</label><input value={chartData} onChange={e => setChartData(e.target.value)} className="zet-input text-xs w-full" placeholder="10,20,30,40" /></div>
-        
-        {/* Column Colors */}
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Column Colors</label>
-          <div className="flex flex-wrap gap-1">
-            {chartLabels.split(',').map((_, i) => (
-              <div key={i} className="flex items-center gap-1">
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{i + 1}:</span>
-                <input 
-                  type="color" 
-                  value={chartColors[i] || '#3b82f6'} 
-                  onChange={e => {
-                    const newColors = [...chartColors];
-                    newColors[i] = e.target.value;
-                    setChartColors(newColors);
-                  }} 
-                  className="w-8 h-6 rounded cursor-pointer border-0"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Background Image */}
-        {(chartType === 'bar' || chartType === 'pie') && (
-          <div>
-            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Background Image</label>
-            <div className="flex gap-1">
-              <button onClick={() => {
-                const input = window.document.createElement('input');
-                input.type = 'file'; input.accept = 'image/*';
-                input.onchange = (e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onload = (ev) => setChartImage(ev.target.result);
-                    reader.readAsDataURL(file);
-                  }
-                };
-                input.click();
-              }} className="zet-btn text-xs px-2 py-1 flex items-center gap-1">
-                <Upload className="h-3 w-3" /> Image
-              </button>
-              <button onClick={async () => {
-                const prompt = window.prompt('Describe the background image:');
-                if (!prompt) return;
-                try {
-                  const res = await axios.post(`${API}/zeta/generate-image`, { prompt }, { withCredentials: true });
-                  if (res.data.image_url) setChartImage(res.data.image_url);
-                } catch (err) { console.error('AI Image failed:', err); }
-              }} className="zet-btn text-xs px-2 py-1 flex items-center gap-1">
-                <Wand2 className="h-3 w-3" /> AI Image
-              </button>
-              {chartImage && <button onClick={() => setChartImage(null)} className="text-xs px-2 py-1 text-red-400">Clear</button>}
-            </div>
-          </div>
-        )}
-
-        {/* Gradient Option for Chart */}
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <label className="flex items-center gap-2 text-xs cursor-pointer" style={{ color: 'var(--zet-text-muted)' }}>
-            <input
-              type="checkbox"
-              checked={!!(gradientStart && gradientEnd)}
-              onChange={(e) => {
-                if (!e.target.checked) {
-                  setGradientStart('');
-                  setGradientEnd('');
-                }
-              }}
-              className="rounded"
-            />
-            Gradient Kullan (Mevcut renk seçili)
-          </label>
-          {gradientStart && gradientEnd && (
-            <div className="flex items-center gap-2 mt-2">
-              <div className="w-full h-6 rounded" style={{ background: `linear-gradient(90deg, ${gradientStart}, ${gradientEnd})` }} />
-            </div>
-          )}
-        </div>
-
-        <button onClick={createChart} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Plus className="h-4 w-4" /> {editingChartId ? 'Güncelle' : 'Create Chart'}</button>
-      </div>
-    </DraggablePanel>}
+    {/* Chart Panel */}
+    {showGraphic && <ChartPanel editingChartId={editingChartId} chartType={chartType} setChartType={setChartType} chartTitle={chartTitle} setChartTitle={setChartTitle} chartLabels={chartLabels} setChartLabels={setChartLabels} chartData={chartData} setChartData={setChartData} chartColors={chartColors} setChartColors={setChartColors} chartImage={chartImage} setChartImage={setChartImage} gradientStart={gradientStart} gradientEnd={gradientEnd} setGradientStart={setGradientStart} setGradientEnd={setGradientEnd} createChart={createChart} isMobile={isMobile} onClose={() => { setShowGraphic(false); setEditingChartId(null); }} />}
 
     {/* Shortcuts Panel */}
     {showShortcuts && <DraggablePanel title="Keyboard Shortcuts" onClose={() => { setShowShortcuts(false); setShortcutSearch(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
