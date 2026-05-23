@@ -46,12 +46,31 @@ backend/
 | `Dashboard.js` | Sadece dashboard özelliği istendiğinde, minimum bölge |
 | `lib/editorConstants.js` | Sadece tool tanımı/kısayol değişikliği |
 
+### Lock Kuralı
+- Kullanıcı bir satır, fonksiyon veya dosya için **"lock"** derse, o bölge kilitlenir.
+- Kilitli bölgeye **hiçbir koşulda** dokunma — bug fix, refactor, temizlik dahil.
+- Eğer bir görev kilitli bölgeye dokunmayı zorunlu kılıyorsa: göreve başlama, kullanıcıya şunu yaz: `🔒 [dosya:satır] kilitli — devam etmek için izin ver.` ve bekle.
+- Kilit, kullanıcı açıkça **"unlock"** veya izin verene kadar geçerlidir.
+- Kilitli bölgeler bu dosyada aşağıdaki "Kilitli Bölgeler" tablosunda tutulur.
+
+### Kilitli Bölgeler
+
+| Dosya | Bölge / Satır | Kilitlenme Sebebi |
+|-------|--------------|-------------------|
+| — | — | — |
+
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma
 - Düzeltilmesini istemediğin başka şeylere "fırsatçı" dokunma
 - Yorum satırı ekleme (WHY açık değilse)
 - Özellik eklerken mevcut davranışı değiştirme
 - Birden fazla bağımsız değişikliği tek commit'e sıkıştırma
+
+### Dosya büyüklüğü eşikleri
+- **Page dosyası > 1500 satır**: Bağımsız modal/panelleri `components/` altına çıkar. Her adımda build al, commit at. State handler'larına dokunma.
+- **Component dosyası > 600 satır**: Bölmeyi öner ama kullanıcı onayı olmadan yapma.
+- **Bölme sırası**: Her zaman en az prop gerektiren (saf JSX, az state) modal'lardan başla. Core state/handler'lara en son dokun.
+- Editor.js için bölme sırası (1→8 yapıldığında yeterli): QR → Watermark → Sayfa boyutu → İmza → AI görsel → Find&Replace → Şablon → Grafik editörü
 
 ---
 
@@ -84,6 +103,8 @@ CanvasArea.js içindeki render/davranış mantığı ayrıdır — ikisine aynı
 ---
 
 ## Bilinen Sorunlar / Geçmiş Kararlar
-- `Dashboard.js` 2500+ satır monolith — aşamalı olarak component'lere bölünecek
+- `Dashboard.js` ~3800 satır — 11 modal `components/dashboard/` altına çıkarıldı (CaseOpenModal, OnboardingModal, BoostModal, AISettingsModal, CreditsModal, RanksModal, NotebookPasswordModal, MissionsModal, SubscriptionModal, ConfirmModal, DeleteConfirmModal). Settings (~1845 satır) hâlâ içinde, bölmeye gerek yok.
+- `Editor.js` 5568 satır — henüz bölünmedi. Bölme planı CLAUDE.md "Dosya büyüklüğü eşikleri" bölümünde.
 - `CanvasArea.js` `contentEditable` için `pendingContentRef` pattern'i kullanılıyor (race condition fix)
 - Cloud Run deploy: `--update-env-vars` (değiştirildi, eski `--set-env-vars` env'i siliyordu)
+bir simge eklemen gerektiğinde asla emıji kullanma bunun yerine svg kullan
