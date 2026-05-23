@@ -2690,7 +2690,7 @@ const Editor = () => {
     chartColors, chartData, chartImage, chartLabels, chartTitle, chartType,
     clearSignature, colorTarget, columnCount, columnGap, createChart, createQRCode, createTable, creditsRemaining,
     currentBulletStyle, currentColor, currentFont, currentFontSize, currentLineHeight, currentNumberStyle, currentPage, currentTextAlign,
-    customColor, customHeight, customWidth, dailyCredits, deleteElement, document, drawOpacity, drawSize,
+    customColor, customHeight, customWidth, dailyCredits, deleteElement, deleteSelected, document, drawOpacity, drawSize,
     editingChartId, editingShortcut, elSttLoading, eraserDragMode, eraserSize,
     executePhotoEdit, exportQuality, exporting,
     findInDocument, findResults, findScope, findText, firstLineIndent, fontSearch,

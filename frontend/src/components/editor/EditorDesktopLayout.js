@@ -30,7 +30,7 @@ const EditorDesktopLayout = () => {
     columnCount, columnGap, copyElementById,
     creditsRemaining, creditPackages, currentColor, currentFont, currentFontSize,
     currentLineHeight, currentPage, currentTextAlign,
-    deleteElement, deletePage, document, drawOpacity, drawPaths, drawSize,
+    deleteElement, deleteSelected, deletePage, document, drawOpacity, drawPaths, drawSize,
     eraserDragMode, eraserSize, exporting,
     fastSelectTools, fetchCreditPackages, fetchVoices,
     generateTTS, getEstimatedSize, getFullDocContent, getImageCount,
