@@ -1044,6 +1044,13 @@ const Editor = () => {
     if (!actionTools.includes(toolId)) {
       setActiveTool(toolId);
     }
+    const _html = document.documentElement;
+    ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'].forEach(c => _html.classList.remove(c));
+    if (toolId === 'hand') _html.classList.add('tool-hand');
+    else if (toolId === 'pen') _html.classList.add('tool-pen');
+    else if (toolId === 'eraser') _html.classList.add('tool-eraser');
+    else if (toolId === 'text') _html.classList.add('tool-text');
+    else if (['draw','marking','cut','redact','highlighter','zoom'].includes(toolId)) _html.classList.add('tool-crosshair');
     const panels = {
       image: () => setShowImageUpload(true), pagesize: () => setShowPageSize(true),
       textsize: () => setShowTextSize(true), font: () => { setFontSearch(''); setShowFont(true); },
