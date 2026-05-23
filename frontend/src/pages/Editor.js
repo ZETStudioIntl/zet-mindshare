@@ -46,6 +46,9 @@ import EditorPanels from '../components/editor/EditorPanels';
 import EditorMobileLayout from '../components/editor/EditorMobileLayout';
 import EditorDesktopLayout from '../components/editor/EditorDesktopLayout';
 import { useCollaboration } from '../hooks/useCollaboration';
+import { useSignature } from '../hooks/useSignature';
+import { useLayerOps } from '../hooks/useLayerOps';
+import { useVoice } from '../hooks/useVoice';
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend);
 
@@ -243,15 +246,6 @@ const Editor = () => {
   const [translateElementId, setTranslateElementId] = useState(null);
 
   // Voice state
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [voiceProgress, setVoiceProgress] = useState(0);
-  const voiceTextRef = useRef('');
-  const voiceCharIndexRef = useRef(0);
-  const [availableVoices, setAvailableVoices] = useState([]);
-  const [selectedVoice, setSelectedVoice] = useState('21m00Tcm4TlvDq8ikWAM'); // Rachel (female)
-  const [voiceLoading, setVoiceLoading] = useState(false);
-  const [ttsAudio, setTtsAudio] = useState(null);
-  const audioRef = useRef(null);
 
   // Panel visibility
   const [showImageUpload, setShowImageUpload] = useState(false);
@@ -259,7 +253,6 @@ const Editor = () => {
   const [pageSizeScope, setPageSizeScope] = useState('current'); // 'current' | 'all'
   const [showTextSize, setShowTextSize] = useState(false);
   const [showFont, setShowFont] = useState(false);
-  const [showVoice, setShowVoice] = useState(false);
   const [showColor, setShowColor] = useState(false);
   const [showDraw, setShowDraw] = useState(false);
   const [showCreateImage, setShowCreateImage] = useState(false);
@@ -277,7 +270,6 @@ const Editor = () => {
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPhotoEdit, setShowPhotoEdit] = useState(false);
-  const [showSignature, setShowSignature] = useState(false);
   const [uploadForShape, setUploadForShape] = useState(null);
   const [changeImageTarget, setChangeImageTarget] = useState(null);
 
@@ -294,10 +286,6 @@ const Editor = () => {
   const [photoEditDrawMode, setPhotoEditDrawMode] = useState(false);
 
   // Signature state
-  const [signatureData, setSignatureData] = useState(null);
-  const signatureCanvasRef = useRef(null);
-  const [isDrawingSignature, setIsDrawingSignature] = useState(false);
-  const [signaturePoints, setSignaturePoints] = useState([]);
 
   // Page background color
   const [pageBackground, setPageBackground] = useState('#ffffff');
@@ -489,21 +477,11 @@ const Editor = () => {
   const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
 
   // Copy/Paste state
-  const [clipboard, setClipboard] = useState(null);
 
   // Mirror state
   const [showMirror, setShowMirror] = useState(false);
   const [mirrorAngle, setMirrorAngle] = useState(0);
 
-  // Voice Input (STT) state
-  const [showVoiceInput, setShowVoiceInput] = useState(false);
-  const [isListening, setIsListening] = useState(false);
-  const [voiceTranscript, setVoiceTranscript] = useState('');
-  const recognitionRef = useRef(null);
-  const [isRecordingEL, setIsRecordingEL] = useState(false);
-  const [elSttLoading, setElSttLoading] = useState(false);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
   // Find & Replace state
   const [findText, setFindText] = useState('');
   const [replaceText, setReplaceText] = useState('');
@@ -520,6 +498,10 @@ const Editor = () => {
   const handleSaveHistory = useCallback((elements) => { history.push(elements); }, [history]);
   const handleUndo = () => { const prev = history.undo(); if (prev) setCanvasElements(prev); };
   const handleRedo = () => { const next = history.redo(); if (next) setCanvasElements(next); };
+  // === CUSTOM HOOKS ===
+  const { signatureData, setSignatureData, signatureCanvasRef, isDrawingSignature, setIsDrawingSignature, signaturePoints, setSignaturePoints, showSignature, setShowSignature, clearSignature, handleSignatureMouseDown, handleSignatureMouseMove, handleSignatureMouseUp, addSignatureToCanvas, handleSignaturePhotoUpload } = useSignature({ canvasElements, setCanvasElements, handleSaveHistory, currentColor });
+  const { moveLayerUp, moveLayerDown, toggleLayerVisibility, toggleLayerLock, copyElement, pasteElement, alignElements, mirrorElement, rotateElement, copyElementById, mirrorElementById } = useLayerOps({ canvasElements, setCanvasElements, history, handleSaveHistory, selectedElement, selectedElements, setSelectedElement, setSelectedElements, setShowMirror });
+  const { isPlaying, setIsPlaying, voiceProgress, setVoiceProgress, audioRef, availableVoices, selectedVoice, setSelectedVoice, voiceLoading, ttsAudio, setTtsAudio, showVoice, setShowVoice, showVoiceInput, setShowVoiceInput, isListening, voiceTranscript, setVoiceTranscript, isRecordingEL, elSttLoading, generateTTS, fetchVoices, playVoiceFrom, skipVoice, stopVoice, startListening, stopListening, startElevenLabsSTT, stopElevenLabsSTT, addVoiceTextToDocument } = useVoice({ canvasElements, setCanvasElements, history, document, currentPage, currentFont, currentFontSize, currentColor, language });
 
   // Collaboration hook
   const collab = useCollaboration(
@@ -1529,103 +1511,6 @@ const Editor = () => {
     }
   };
 
-  // === SIGNATURE ===
-  const clearSignature = () => {
-    setSignaturePoints([]);
-    setSignatureData(null);
-    const canvas = signatureCanvasRef.current;
-    if (canvas) {
-      const ctx = canvas.getContext('2d');
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-    }
-  };
-
-  const handleSignatureMouseDown = (e) => {
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    setIsDrawingSignature(true);
-    setSignaturePoints([{ x, y }]);
-  };
-
-  const handleSignatureMouseMove = (e) => {
-    if (!isDrawingSignature) return;
-    const canvas = signatureCanvasRef.current;
-    if (!canvas) return;
-    const rect = canvas.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    const newPoints = [...signaturePoints, { x, y }];
-    setSignaturePoints(newPoints);
-    
-    // Draw on canvas
-    const ctx = canvas.getContext('2d');
-    ctx.strokeStyle = currentColor || '#000';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.beginPath();
-    if (signaturePoints.length > 0) {
-      const lastPoint = signaturePoints[signaturePoints.length - 1];
-      ctx.moveTo(lastPoint.x, lastPoint.y);
-      ctx.lineTo(x, y);
-      ctx.stroke();
-    }
-  };
-
-  const handleSignatureMouseUp = () => {
-    setIsDrawingSignature(false);
-    // Save signature as data URL
-    const canvas = signatureCanvasRef.current;
-    if (canvas && signaturePoints.length > 2) {
-      setSignatureData(canvas.toDataURL('image/png'));
-    }
-  };
-
-  const addSignatureToCanvas = (src) => {
-    const imgSrc = src || signatureData;
-    if (!imgSrc) return;
-    const newEl = {
-      id: `el_${Date.now()}`,
-      type: 'image',
-      x: 100,
-      y: 100,
-      width: 200,
-      height: 80,
-      src: imgSrc
-    };
-    const updated = [...canvasElements, newEl];
-    setCanvasElements(updated);
-    handleSaveHistory(updated);
-    setShowSignature(false);
-    clearSignature();
-  };
-
-  const handleSignaturePhotoUpload = (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = img.width;
-        tmpCanvas.height = img.height;
-        const ctx = tmpCanvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
-        const d = imageData.data;
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) d[i + 3] = 0;
-        }
-        ctx.putImageData(imageData, 0, 0);
-        addSignatureToCanvas(tmpCanvas.toDataURL('image/png'));
-      };
-      img.src = ev.target.result;
-    };
-    reader.readAsDataURL(file);
-  };
 
   // Import JSON project
   const importFromJSON = (file) => {
@@ -2473,274 +2358,7 @@ const Editor = () => {
     } catch { return '—'; }
   };
 
-  // === LAYERS MANAGEMENT ===
-  const moveLayerUp = (id) => {
-    const idx = canvasElements.findIndex(el => el.id === id);
-    if (idx < canvasElements.length - 1) {
-      const updated = [...canvasElements];
-      [updated[idx], updated[idx + 1]] = [updated[idx + 1], updated[idx]];
-      setCanvasElements(updated); history.push(updated);
-    }
-  };
 
-  const moveLayerDown = (id) => {
-    const idx = canvasElements.findIndex(el => el.id === id);
-    if (idx > 0) {
-      const updated = [...canvasElements];
-      [updated[idx], updated[idx - 1]] = [updated[idx - 1], updated[idx]];
-      setCanvasElements(updated); history.push(updated);
-    }
-  };
-
-  const toggleLayerVisibility = (id) => {
-    const updated = canvasElements.map(el => el.id === id ? { ...el, hidden: !el.hidden } : el);
-    setCanvasElements(updated);
-  };
-
-  const toggleLayerLock = (id) => {
-    const updated = canvasElements.map(el => el.id === id ? { ...el, locked: !el.locked } : el);
-    setCanvasElements(updated);
-  };
-
-  // === COPY / PASTE ===
-  const copyElement = () => {
-    if (selectedElements.length > 0) {
-      const els = canvasElements.filter(e => selectedElements.includes(e.id));
-      setClipboard(els.map(el => ({ ...el, id: null })));
-    } else if (selectedElement) {
-      const el = canvasElements.find(e => e.id === selectedElement);
-      if (el) setClipboard({ ...el, id: null });
-    }
-  };
-
-  const pasteElement = () => {
-    if (!clipboard) return;
-    if (Array.isArray(clipboard)) {
-      const now = Date.now();
-      const newEls = clipboard.map((el, i) => ({ ...el, id: `el_${now}_${i}`, x: (el.x || 0) + 20, y: (el.y || 0) + 20 }));
-      const updated = [...canvasElements, ...newEls];
-      setCanvasElements(updated);
-      history.push(updated);
-      setSelectedElements(newEls.map(e => e.id));
-      setSelectedElement(null);
-    } else {
-      const newEl = { ...clipboard, id: `el_${Date.now()}`, x: (clipboard.x || 0) + 20, y: (clipboard.y || 0) + 20 };
-      const updated = [...canvasElements, newEl];
-      setCanvasElements(updated);
-      history.push(updated);
-      setSelectedElement(newEl.id);
-      setSelectedElements([]);
-    }
-  };
-
-  // === ALIGN (multi-select) ===
-  const alignElements = (direction) => {
-    if (selectedElements.length < 2) return;
-    const els = canvasElements.filter(e => selectedElements.includes(e.id));
-    const getW = e => e.width || 80;
-    const getH = e => e.type === 'text' ? (e.fontSize || 16) * Math.max(1, (e.content || '').split('\n').length) * (e.lineHeight || 1.5) : (e.height || 80);
-    let updated;
-    if (direction === 'left') {
-      const minX = Math.min(...els.map(e => e.x));
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: minX } : e);
-    } else if (direction === 'right') {
-      const maxR = Math.max(...els.map(e => e.x + getW(e)));
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: maxR - getW(e) } : e);
-    } else if (direction === 'center-h') {
-      const minX = Math.min(...els.map(e => e.x)); const maxR = Math.max(...els.map(e => e.x + getW(e)));
-      const cx = (minX + maxR) / 2;
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: cx - getW(e) / 2 } : e);
-    } else if (direction === 'top') {
-      const minY = Math.min(...els.map(e => e.y));
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: minY } : e);
-    } else if (direction === 'bottom') {
-      const maxB = Math.max(...els.map(e => e.y + getH(e)));
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: maxB - getH(e) } : e);
-    } else if (direction === 'center-v') {
-      const minY = Math.min(...els.map(e => e.y)); const maxB = Math.max(...els.map(e => e.y + getH(e)));
-      const cy = (minY + maxB) / 2;
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: cy - getH(e) / 2 } : e);
-    } else if (direction === 'dist-h') {
-      const sorted = [...els].sort((a, b) => a.x - b.x);
-      const totalW = sorted.reduce((s, e) => s + getW(e), 0);
-      const span = sorted[sorted.length - 1].x + getW(sorted[sorted.length - 1]) - sorted[0].x;
-      const gap = (span - totalW) / (sorted.length - 1);
-      let cursor = sorted[0].x;
-      const positions = Object.fromEntries(sorted.map(e => { const x = cursor; cursor += getW(e) + gap; return [e.id, x]; }));
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, x: positions[e.id] } : e);
-    } else if (direction === 'dist-v') {
-      const sorted = [...els].sort((a, b) => a.y - b.y);
-      const totalH = sorted.reduce((s, e) => s + getH(e), 0);
-      const span = sorted[sorted.length - 1].y + getH(sorted[sorted.length - 1]) - sorted[0].y;
-      const gap = (span - totalH) / (sorted.length - 1);
-      let cursor = sorted[0].y;
-      const positions = Object.fromEntries(sorted.map(e => { const y = cursor; cursor += getH(e) + gap; return [e.id, y]; }));
-      updated = canvasElements.map(e => selectedElements.includes(e.id) ? { ...e, y: positions[e.id] } : e);
-    } else return;
-    setCanvasElements(updated);
-    handleSaveHistory(updated);
-  };
-
-  // === MIRROR ===
-  const mirrorElement = (axis) => {
-    if (!selectedElement) return;
-    const updated = canvasElements.map(el => {
-      if (el.id === selectedElement) {
-        const currentScaleX = el.scaleX || 1;
-        const currentScaleY = el.scaleY || 1;
-        if (axis === 'horizontal') {
-          return { ...el, scaleX: currentScaleX * -1 };
-        } else if (axis === 'vertical') {
-          return { ...el, scaleY: currentScaleY * -1 };
-        }
-      }
-      return el;
-    });
-    setCanvasElements(updated);
-    history.push(updated);
-  };
-
-  const rotateElement = (angle) => {
-    if (!selectedElement) return;
-    const updated = canvasElements.map(el => {
-      if (el.id === selectedElement) {
-        return { ...el, rotation: (el.rotation || 0) + angle };
-      }
-      return el;
-    });
-    setCanvasElements(updated);
-    history.push(updated);
-  };
-
-  // Copy element by ID (for context menu)
-  const copyElementById = (id) => {
-    const el = canvasElements.find(e => e.id === id);
-    if (el) {
-      setClipboard({ ...el, id: null });
-      // Also paste immediately
-      const newEl = { ...el, id: `el_${Date.now()}`, x: (el.x || 0) + 20, y: (el.y || 0) + 20 };
-      const updated = [...canvasElements, newEl];
-      setCanvasElements(updated);
-      history.push(updated);
-      setSelectedElement(newEl.id);
-    }
-  };
-
-  // Mirror element by ID (for context menu)
-  const mirrorElementById = (id) => {
-    setSelectedElement(id);
-    setShowMirror(true);
-  };
-
-  // === VOICE INPUT (STT) ===
-  const startListening = () => {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      alert('Your browser does not support Speech Recognition. Please use Chrome.');
-      return;
-    }
-    
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    recognitionRef.current = new SpeechRecognition();
-    recognitionRef.current.continuous = true;
-    recognitionRef.current.interimResults = true;
-    recognitionRef.current.lang = language === 'tr' ? 'tr-TR' : 'en-US';
-
-    recognitionRef.current.onresult = (event) => {
-      let transcript = '';
-      for (let i = 0; i < event.results.length; i++) {
-        transcript += event.results[i][0].transcript;
-      }
-      setVoiceTranscript(transcript);
-    };
-
-    recognitionRef.current.onerror = (event) => {
-      console.error('Speech recognition error:', event.error);
-      setIsListening(false);
-    };
-
-    recognitionRef.current.onend = () => {
-      setIsListening(false);
-    };
-
-    recognitionRef.current.start();
-    setIsListening(true);
-  };
-
-  const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop();
-    }
-    setIsListening(false);
-  };
-
-  const startElevenLabsSTT = async () => {
-    if (!navigator.mediaDevices?.getUserMedia) {
-      alert('Mikrofon erişimi bu tarayıcıda desteklenmiyor.');
-      return;
-    }
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      audioChunksRef.current = [];
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : 'audio/webm';
-      const recorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = recorder;
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data); };
-      recorder.onstop = async () => {
-        stream.getTracks().forEach(t => t.stop());
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        setElSttLoading(true);
-        try {
-          const formData = new FormData();
-          formData.append('audio', blob, 'recording.webm');
-          formData.append('language', language === 'tr' ? 'tr' : 'en');
-          const res = await axios.post(`${API}/voice/stt`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
-          if (res.data.transcript) {
-            setVoiceTranscript(prev => prev ? prev + ' ' + res.data.transcript : res.data.transcript);
-          }
-        } catch (err) {
-          alert('ElevenLabs STT hatası: ' + (err.response?.data?.detail || err.message));
-        } finally {
-          setElSttLoading(false);
-        }
-      };
-      recorder.start();
-      setIsRecordingEL(true);
-    } catch (err) {
-      alert('Mikrofon erişimi reddedildi: ' + err.message);
-    }
-  };
-
-  const stopElevenLabsSTT = () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-    setIsRecordingEL(false);
-  };
-
-  const addVoiceTextToDocument = () => {
-    if (!voiceTranscript.trim()) return;
-    const newEl = {
-      id: `el_${Date.now()}`,
-      type: 'text',
-      x: 40,
-      y: 40 + canvasElements.filter(e => e.type === 'text').length * 30,
-      content: voiceTranscript,
-      font: currentFont,
-      fontSize: currentFontSize,
-      color: currentColor,
-      bold: false,
-      italic: false,
-      underline: false,
-      strikethrough: false,
-      textAlign: 'left',
-      lineHeight: 1.5,
-    };
-    const updated = [...canvasElements, newEl];
-    setCanvasElements(updated);
-    history.push(updated);
-    setVoiceTranscript('');
-    setShowVoiceInput(false);
-  };
 
   // === IMAGE UPLOAD ===
   const handleImageUpload = (e) => {
@@ -2997,34 +2615,6 @@ const Editor = () => {
     setTranslateText(''); setTranslateResult(''); setTranslateElementId(null);
   };
 
-  // === VOICE ===
-  const getDocText = () => {
-    // Get text from ALL pages, exclude redacted content (both full-element and inline spans)
-    let allText = [];
-    const cleanRedacted = (text) => {
-      if (!text) return '';
-      // Remove inline redacted spans content
-      return text.replace(/<span[^>]*data-redacted="true"[^>]*>.*?<\/span>/gi, '[SANSÜRLÜ]')
-                 .replace(/<[^>]*>/g, '').trim();
-    };
-    if (document?.pages) {
-      document.pages.forEach((page, idx) => {
-        const elements = idx === currentPage ? canvasElements : (page.elements || []);
-        elements.forEach(el => {
-          if (el.type === 'text' && !el.isRedacted) {
-            const clean = el.htmlContent ? cleanRedacted(el.htmlContent) : (el.content || '');
-            if (clean) allText.push(clean);
-          }
-        });
-      });
-    } else {
-      canvasElements.filter(el => el.type === 'text' && !el.isRedacted).sort((a, b) => a.y - b.y).forEach(el => {
-        const clean = el.htmlContent ? cleanRedacted(el.htmlContent) : (el.content || '');
-        if (clean) allText.push(clean);
-      });
-    }
-    return allText.join('. ');
-  };
   
   // Get full document content for AI (includes all element types from ALL pages, EXCLUDES redacted content)
   const getFullDocContent = () => {
@@ -3054,93 +2644,6 @@ const Editor = () => {
     return allElements.join('\n');
   };
   
-  // Fetch available ElevenLabs voices
-  const fetchVoices = async () => {
-    try {
-      const res = await axios.get(`${API}/voice/list`, { withCredentials: true });
-      setAvailableVoices(res.data.voices || []);
-    } catch (err) {
-      console.error('Failed to fetch voices:', err);
-    }
-  };
-  
-  // Generate TTS with ElevenLabs
-  const generateTTS = async () => {
-    const text = getDocText();
-    if (!text) return;
-    
-    setVoiceLoading(true);
-    try {
-      const res = await axios.post(`${API}/voice/tts`, {
-        text: text,
-        voice_id: selectedVoice,
-        model_id: 'eleven_multilingual_v2'
-      }, { withCredentials: true });
-      
-      setTtsAudio(res.data.audio_url);
-      
-      // Play the audio
-      if (audioRef.current) {
-        audioRef.current.src = res.data.audio_url;
-        audioRef.current.play();
-        setIsPlaying(true);
-      }
-    } catch (err) {
-      console.error('TTS generation failed:', err);
-      // Fallback to browser TTS
-      playVoiceFromBrowser();
-    }
-    setVoiceLoading(false);
-  };
-  
-  // Browser TTS fallback
-  const playVoiceFromBrowser = (startFraction = 0) => {
-    window.speechSynthesis.cancel();
-    const fullText = getDocText(); if (!fullText) return;
-    voiceTextRef.current = fullText;
-    const startIndex = Math.floor(startFraction * fullText.length);
-    const utterance = new SpeechSynthesisUtterance(fullText.substring(startIndex));
-    voiceCharIndexRef.current = startIndex;
-    utterance.onboundary = (ev) => { voiceCharIndexRef.current = startIndex + ev.charIndex; setVoiceProgress(((startIndex + ev.charIndex) / fullText.length) * 100); };
-    utterance.onend = () => { setIsPlaying(false); setVoiceProgress(100); };
-    setIsPlaying(true); window.speechSynthesis.speak(utterance);
-  };
-  
-  const playVoiceFrom = (startFraction = 0) => {
-    // If we have TTS audio from ElevenLabs, use that
-    if (ttsAudio && audioRef.current) {
-      audioRef.current.currentTime = audioRef.current.duration * startFraction;
-      audioRef.current.play();
-      setIsPlaying(true);
-    } else {
-      // Otherwise use browser TTS
-      playVoiceFromBrowser(startFraction);
-    }
-  };
-  
-  const skipVoice = (dir) => {
-    if (ttsAudio && audioRef.current) {
-      const skip = audioRef.current.duration * 0.1;
-      audioRef.current.currentTime = dir === 'back' 
-        ? Math.max(0, audioRef.current.currentTime - skip) 
-        : Math.min(audioRef.current.duration, audioRef.current.currentTime + skip);
-    } else {
-      const fullText = voiceTextRef.current || getDocText(); if (!fullText) return;
-      const skip = Math.floor(fullText.length * 0.1);
-      const newIndex = dir === 'back' ? Math.max(0, voiceCharIndexRef.current - skip) : Math.min(fullText.length, voiceCharIndexRef.current + skip);
-      playVoiceFromBrowser(newIndex / fullText.length);
-    }
-  };
-  
-  const stopVoice = () => {
-    window.speechSynthesis.cancel();
-    if (audioRef.current) {
-      audioRef.current.pause();
-      audioRef.current.currentTime = 0;
-    }
-    setIsPlaying(false);
-    setVoiceProgress(0);
-  };
 
   // === ELEMENT SELECT ===
   const handleElementSelect = useCallback((el) => {
