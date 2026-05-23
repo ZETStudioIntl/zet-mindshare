@@ -57,7 +57,7 @@ backend/
 
 | Dosya | Bölge / Satır | Kilitlenme Sebebi |
 |-------|--------------|-------------------|
-| — | — | — |
+| `frontend/src/App.js` | Satır 113 — `html { cursor: url('.../arrow.svg') 1 1, default !important; }` | `* !important` canvas inline stilini eziyordu; `html` ile düzeltildi — dokunma |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma
