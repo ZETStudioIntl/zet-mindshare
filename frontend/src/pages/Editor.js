@@ -135,19 +135,13 @@ const Editor = () => {
     if (selectedElement) lastSelectedRef.current = selectedElement;
   }, [selectedElement]);
 
-  // Global cursor — active tool class'ı html elementine eklenir, CSS override eder
+  // Global cursor — sayfa unmount olunca classları temizle
   useEffect(() => {
-    const html = document?.documentElement;
-    if (!html) return;
-    const tools = ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'];
-    tools.forEach(c => html.classList.remove(c));
-    if (activeTool === 'hand')    html.classList.add('tool-hand');
-    else if (activeTool === 'pen')    html.classList.add('tool-pen');
-    else if (activeTool === 'eraser') html.classList.add('tool-eraser');
-    else if (activeTool === 'text')   html.classList.add('tool-text');
-    else if (['draw','marking','cut','redact','highlighter','zoom'].includes(activeTool)) html.classList.add('tool-crosshair');
-    return () => { tools.forEach(c => html.classList.remove(c)); };
-  }, [activeTool]);
+    return () => {
+      ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair']
+        .forEach(c => document.documentElement.classList.remove(c));
+    };
+  }, []);
 
   // Sync formatting state when a text element is selected
   useEffect(() => {
