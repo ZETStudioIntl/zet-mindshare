@@ -20,6 +20,19 @@ import PhotoEditPanel from './PhotoEditPanel';
 import CalculatorPanel from './CalculatorPanel';
 import ChatSettingsPanel from './ChatSettingsPanel';
 import { SHAPE_LIST, PUNCTUATION_LIST } from './Toolbox';
+import FontPanel from './FontPanel';
+import PageSizePanel from './PageSizePanel';
+import BulletListPanel from './BulletListPanel';
+import NumberedListPanel from './NumberedListPanel';
+import IndentPanel from './IndentPanel';
+import MarginsPanel from './MarginsPanel';
+import ColumnsPanel from './ColumnsPanel';
+import ShortcutsPanel from './ShortcutsPanel';
+import LayersPanel from './LayersPanel';
+import FootnotePanel from './FootnotePanel';
+import TOCPanel from './TOCPanel';
+import MirrorPanel from './MirrorPanel';
+import VoiceInputPanel from './VoiceInputPanel';
 import {
   Search, Loader2, X, Wand2, Plus, Check,
   Languages,
@@ -114,8 +127,7 @@ const EditorPanels = () => {
     watermarkColor, watermarkOpacity, watermarkText,
     zetaCustomPrompt, zetaEmoji, zetaMood, zoomLevel, zoomRadius,
   } = useContext(EditorStateContext);
-  const { t, language } = useLanguage();
-  const filteredFonts = allFonts.filter(f => f.toLowerCase().includes(fontSearch.toLowerCase()));
+  const { t } = useLanguage();
 
   return (
     <>    {showDraw && <DraggablePanel title={t('pencil')} onClose={() => setShowDraw(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
@@ -149,31 +161,7 @@ const EditorPanels = () => {
         <div className="p-2 rounded text-center" style={{ background: 'var(--zet-bg)' }}><span style={{ fontSize: Math.min(currentFontSize, 48), color: 'var(--zet-text)', fontFamily: currentFont }}>Aa</span></div>
       </div>
     </DraggablePanel>}
-    {showFont && <DraggablePanel title={`${t('font')} (${allFonts.length}+)`} onClose={() => setShowFont(false)} initialPosition={{ x: isMobile ? 20 : 420, y: 100 }}>
-      <div className="w-64">
-        <div className="relative mb-2">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
-          <input placeholder={`Font ara... (${allFonts.length}+ font)`} value={fontSearch} onChange={e => setFontSearch(e.target.value)} className="zet-input pl-7 text-xs w-full" />
-        </div>
-        <div className="max-h-64 overflow-y-auto space-y-0.5" onScroll={e => {
-          const top = e.target.scrollTop;
-          const startIdx = Math.max(0, Math.floor(top / 30) - 3);
-          filteredFonts.slice(startIdx, startIdx + 20).forEach(f => loadGoogleFont(f));
-        }}>
-          {filteredFonts.slice(0, fontSearch ? 500 : 300).map(f => (
-            <button key={f}
-              onClick={() => { loadGoogleFont(f); setCurrentFont(f); applyInlineStyle('fontFamily', f); setShowFont(false); }}
-              onMouseEnter={() => loadGoogleFont(f)}
-              className={`w-full text-left px-2 py-1.5 rounded transition-colors ${currentFont === f ? 'glow-sm' : 'hover:bg-white/5'}`}
-              style={{ background: currentFont === f ? 'var(--zet-primary)' : 'transparent', color: 'var(--zet-text)', fontFamily: f, fontSize: 13 }}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-        {filteredFonts.length > 100 && <p className="text-center text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Arama ile daralt ({filteredFonts.length} sonuç)</p>}
-      </div>
-    </DraggablePanel>}
+    <FontPanel />
     {showLineSpacing && <DraggablePanel title={t('lineSpacing')} onClose={() => setShowLineSpacing(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
       <div className="space-y-2 w-48">
         {LINE_SPACINGS.map(s => <button key={s} onClick={() => { setCurrentLineHeight(s); applyInlineStyle('lineHeight', s); setShowLineSpacing(false); }}
@@ -191,55 +179,7 @@ const EditorPanels = () => {
         </div>
       </div>
     </DraggablePanel>}
-    {showPageSize && <DraggablePanel title={t('pageSize')} onClose={() => setShowPageSize(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 200 }}>
-      <div className="space-y-2 w-52">
-        {/* Scope selector */}
-        <div className="flex rounded overflow-hidden border" style={{ borderColor: 'var(--zet-border)' }}>
-          <button onClick={() => setPageSizeScope('current')} className="flex-1 py-1.5 text-xs transition-colors" style={{ background: pageSizeScope === 'current' ? 'var(--zet-primary)' : 'var(--zet-bg)', color: pageSizeScope === 'current' ? '#fff' : 'var(--zet-text-muted)' }}>
-            Yalnızca bu sayfa
-          </button>
-          <button onClick={() => setPageSizeScope('all')} className="flex-1 py-1.5 text-xs transition-colors" style={{ background: pageSizeScope === 'all' ? 'var(--zet-primary)' : 'var(--zet-bg)', color: pageSizeScope === 'all' ? '#fff' : 'var(--zet-text-muted)' }}>
-            Tüm sayfalar
-          </button>
-        </div>
-        {PAGE_SIZES.map(s => <button key={s.name} onClick={() => {
-          const oldW = pageSize.width, oldH = pageSize.height;
-          const sx = s.width / oldW, sy = s.height / oldH;
-          setPageSize(s);
-          const scaleEls = els => els.map(el => ({ ...el, x: el.x * sx, y: el.y * sy, ...(el.width != null ? { width: el.width * sx } : {}), ...(el.height != null ? { height: el.height * sy } : {}), ...(el.fontSize != null ? { fontSize: Math.round(el.fontSize * sx) } : {}) }));
-          setCanvasElements(prev => scaleEls(prev));
-          setDocument(prev => {
-            if (!prev) return prev;
-            const pages = [...(prev.pages || [])];
-            if (pageSizeScope === 'all') {
-              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s, elements: scaleEls(p.elements || []) })) };
-            }
-            if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
-            return { ...prev, pages };
-          });
-          setShowPageSize(false);
-        }} className={`w-full p-2 rounded text-left text-sm transition-colors ${pageSize.name === s.name ? 'glow-sm' : 'hover:bg-white/5'}`} style={{ background: pageSize.name === s.name ? 'var(--zet-primary)' : 'var(--zet-bg)', color: 'var(--zet-text)' }}>{s.name} <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{s.width}×{s.height}</span></button>)}
-        <div className="flex gap-1 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}><input type="number" value={customWidth} onChange={e => setCustomWidth(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="W" /><input type="number" value={customHeight} onChange={e => setCustomHeight(Number(e.target.value))} className="zet-input flex-1 text-xs" placeholder="H" /></div>
-        <button onClick={() => {
-          const s = { name: 'Custom', width: customWidth, height: customHeight };
-          const oldW = pageSize.width, oldH = pageSize.height;
-          const sx = s.width / oldW, sy = s.height / oldH;
-          setPageSize(s);
-          const scaleEls = els => els.map(el => ({ ...el, x: el.x * sx, y: el.y * sy, ...(el.width != null ? { width: el.width * sx } : {}), ...(el.height != null ? { height: el.height * sy } : {}), ...(el.fontSize != null ? { fontSize: Math.round(el.fontSize * sx) } : {}) }));
-          setCanvasElements(prev => scaleEls(prev));
-          setDocument(prev => {
-            if (!prev) return prev;
-            const pages = [...(prev.pages || [])];
-            if (pageSizeScope === 'all') {
-              return { ...prev, pages: pages.map(p => ({ ...p, pageSize: s, elements: scaleEls(p.elements || []) })) };
-            }
-            if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], pageSize: s };
-            return { ...prev, pages };
-          });
-          setShowPageSize(false);
-        }} className="zet-btn w-full text-sm">Apply</button>
-      </div>
-    </DraggablePanel>}
+    <PageSizePanel />
 
     <MagnifierPanel />
     {showCreateImage && <AIImagePanel aiTargetShape={aiTargetShape} creditsRemaining={creditsRemaining} dailyCredits={dailyCredits} aiImagePro={aiImagePro} setAiImagePro={setAiImagePro} planLimits={planLimits} setUpgradeReason={setUpgradeReason} setShowUpgradeModal={setShowUpgradeModal} aiAspectRatio={aiAspectRatio} setAiAspectRatio={setAiAspectRatio} aiReference={aiReference} setAiReference={setAiReference} aiPreview={aiPreview} aiMimeType={aiMimeType} addAiImageToCanvas={addAiImageToCanvas} aiPrompt={aiPrompt} setAiPrompt={setAiPrompt} generateAIImage={generateAIImage} aiGenerating={aiGenerating} setShowPhotoEdit={setShowPhotoEdit} t={t} isMobile={isMobile} onClose={() => { setShowCreateImage(false); setAiPreview(null); setAiTargetShape(null); }} />}
@@ -331,207 +271,19 @@ const EditorPanels = () => {
     {showSignature && <SignaturePanel signatureCanvasRef={signatureCanvasRef} handleSignatureMouseDown={handleSignatureMouseDown} handleSignatureMouseMove={handleSignatureMouseMove} handleSignatureMouseUp={handleSignatureMouseUp} clearSignature={clearSignature} addSignatureToCanvas={addSignatureToCanvas} signatureData={signatureData} handleSignaturePhotoUpload={handleSignaturePhotoUpload} isMobile={isMobile} onClose={() => { setShowSignature(false); clearSignature(); }} />}
 
     {/* Bullet List Panel */}
-    {showBulletList && <DraggablePanel title="Madde İşaretli Liste" onClose={() => setShowBulletList(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
-      <div className="w-52 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Liste stili seç</p>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { style: 'disc',   label: '●', desc: 'Dolu' },
-            { style: 'circle', label: '○', desc: 'Boş' },
-            { style: 'square', label: '▪', desc: 'Kare' },
-            { style: 'disclosure-closed', label: '›', desc: 'Ok' },
-            { style: 'none',   label: '—', desc: 'Tire' },
-          ].map(({ style, label, desc }) => (
-            <button key={style} onClick={() => {
-              setCurrentBulletStyle(style);
-              applyListFormat('ul', style);
-              setShowBulletList(false);
-            }} className={`flex flex-col items-center gap-0.5 p-2 rounded transition-colors ${currentBulletStyle === style ? 'glow-sm' : 'hover:bg-white/10'}`}
-              style={{ background: currentBulletStyle === style ? 'var(--zet-primary)' : 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
-              <span className="text-base leading-none">{label}</span>
-              <span className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{desc}</span>
-            </button>
-          ))}
-        </div>
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>TAB = alt liste &nbsp;·&nbsp; Shift+TAB = geri</p>
-          <button onClick={() => {
-            const target = selectedElement || lastSelectedRef.current;
-            if (!target) return;
-            const el = canvasElements.find(e => e.id === target);
-            if (!el) return;
-            const cleaned = (el.htmlContent || el.content || '').replace(/<\/?[uo]l[^>]*>/gi, '').replace(/<li[^>]*>/gi, '').replace(/<\/li>/gi, '\n').replace(/\n+/g, '\n').trim();
-            setCanvasElements(prev => { const u = prev.map(e => e.id === target ? { ...e, htmlContent: cleaned, content: cleaned.replace(/<[^>]*>/g, '') } : e); handleSaveHistory(u); return u; });
-            setShowBulletList(false);
-          }} className="zet-btn w-full text-xs py-1.5" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>Listeyi Kaldır</button>
-        </div>
-      </div>
-    </DraggablePanel>}
+    <BulletListPanel />
 
     {/* Numbered List Panel */}
-    {showNumberedList && <DraggablePanel title="Numaralı Liste" onClose={() => setShowNumberedList(false)} initialPosition={{ x: isMobile ? 20 : 300, y: 100 }}>
-      <div className="w-52 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Numara stili seç</p>
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { style: 'decimal',      label: '1.', desc: 'Sayı' },
-            { style: 'lower-alpha',  label: 'a.', desc: 'Küçük' },
-            { style: 'upper-alpha',  label: 'A.', desc: 'Büyük' },
-            { style: 'lower-roman',  label: 'i.', desc: 'Roma k.' },
-            { style: 'upper-roman',  label: 'I.', desc: 'Roma B.' },
-            { style: 'decimal-leading-zero', label: '01.', desc: 'Sıfırlı' },
-          ].map(({ style, label, desc }) => (
-            <button key={style} onClick={() => {
-              setCurrentNumberStyle(style);
-              applyListFormat('ol', style);
-              setShowNumberedList(false);
-            }} className={`flex flex-col items-center gap-0.5 p-2 rounded transition-colors ${currentNumberStyle === style ? 'glow-sm' : 'hover:bg-white/10'}`}
-              style={{ background: currentNumberStyle === style ? 'var(--zet-primary)' : 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}>
-              <span className="text-sm font-mono leading-none">{label}</span>
-              <span className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{desc}</span>
-            </button>
-          ))}
-        </div>
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>TAB = alt liste &nbsp;·&nbsp; Shift+TAB = geri</p>
-          <button onClick={() => {
-            const target = selectedElement || lastSelectedRef.current;
-            if (!target) return;
-            const el = canvasElements.find(e => e.id === target);
-            if (!el) return;
-            const cleaned = (el.htmlContent || el.content || '').replace(/<\/?[uo]l[^>]*>/gi, '').replace(/<li[^>]*>/gi, '').replace(/<\/li>/gi, '\n').replace(/\n+/g, '\n').trim();
-            setCanvasElements(prev => { const u = prev.map(e => e.id === target ? { ...e, htmlContent: cleaned, content: cleaned.replace(/<[^>]*>/g, '') } : e); handleSaveHistory(u); return u; });
-            setShowNumberedList(false);
-          }} className="zet-btn w-full text-xs py-1.5" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>Listeyi Kaldır</button>
-        </div>
-      </div>
-    </DraggablePanel>}
+    <NumberedListPanel />
 
     {/* Indent Panel */}
-    {showIndent && <DraggablePanel title="Girinti" onClose={() => setShowIndent(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-56 space-y-2">
-        {[
-          { label: 'Sol', value: indentLeft, set: setIndentLeft, key: 'paddingLeft' },
-          { label: 'Sağ', value: indentRight, set: setIndentRight, key: 'paddingRight' },
-          { label: 'Üst', value: indentTop, set: setIndentTop, key: 'paddingTop' },
-          { label: 'Alt', value: indentBottom, set: setIndentBottom, key: 'paddingBottom' },
-        ].map(({ label, value, set, key }) => (
-          <div key={key}>
-            <div className="flex justify-between mb-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>{label}</label>
-              <span className="text-xs font-mono" style={{ color: 'var(--zet-primary)' }}>{value}px</span>
-            </div>
-            <input type="range" min="0" max="120" value={value} onChange={e => {
-              const v = parseInt(e.target.value);
-              set(v);
-              const target = selectedElement || lastSelectedRef.current;
-              if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target && el.type === 'text' ? { ...el, [key]: v } : el); handleSaveHistory(u); return u; });
-            }} className="w-full accent-blue-500" />
-          </div>
-        ))}
-        <div className="flex gap-2 pt-1">
-          <button onClick={() => {
-            setIndentLeft(0); setIndentRight(0); setIndentTop(0); setIndentBottom(0);
-            const target = selectedElement || lastSelectedRef.current;
-            if (target) setCanvasElements(prev => { const u = prev.map(el => el.id === target && el.type === 'text' ? { ...el, paddingLeft: 0, paddingRight: 0, paddingTop: 0, paddingBottom: 0 } : el); handleSaveHistory(u); return u; });
-          }} className="zet-btn flex-1 py-1.5 text-xs">Sıfırla</button>
-          <button data-testid="indent-apply-all" onClick={() => {
-            setCanvasElements(prev => { const u = prev.map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el); handleSaveHistory(u); return u; });
-            setDocument(prev => {
-              if (!prev?.pages) return prev;
-              return { ...prev, pages: prev.pages.map((page, idx) => idx === currentPage ? page : { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, paddingLeft: indentLeft, paddingRight: indentRight, paddingTop: indentTop, paddingBottom: indentBottom } : el) }) };
-            });
-          }} className="zet-btn flex-1 py-1.5 text-xs" style={{ background: 'var(--zet-primary)', color: '#fff' }}>Tümüne</button>
-        </div>
-      </div>
-    </DraggablePanel>}
+    <IndentPanel />
 
     {/* Margins Panel */}
-    {showMargins && <DraggablePanel title="Kenar Boşlukları" onClose={() => setShowMargins(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-56 space-y-2">
-        {[
-          { label: 'Üst',  value: marginTop,    set: setMarginTop },
-          { label: 'Alt',  value: marginBottom, set: setMarginBottom },
-          { label: 'Sol',  value: marginLeft,   set: setMarginLeft },
-          { label: 'Sağ',  value: marginRight,  set: setMarginRight },
-        ].map(({ label, value, set }) => (
-          <div key={label}>
-            <div className="flex justify-between mb-1">
-              <label className="text-xs font-medium" style={{ color: 'var(--zet-text)' }}>{label}</label>
-              <span className="text-xs font-mono" style={{ color: 'var(--zet-primary)' }}>{value}px</span>
-            </div>
-            <input type="range" min="0" max="200" value={value} onChange={e => set(parseInt(e.target.value))} className="w-full accent-blue-500" />
-          </div>
-        ))}
-        <div className="pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-          <p className="text-xs mb-1.5" style={{ color: 'var(--zet-text-muted)' }}>Hazır Ayarlar</p>
-          <div className="grid grid-cols-3 gap-1">
-            {[
-              { label: 'Normal',   t: 95,  b: 95,  l: 95,  r: 95 },
-              { label: 'Dar',      t: 48,  b: 48,  l: 48,  r: 48 },
-              { label: 'Geniş',   t: 189, b: 189, l: 189, r: 189 },
-              { label: 'Senaryo', t: 95,  b: 95,  l: 144, r: 95 },
-              { label: 'Akademik',t: 95,  b: 95,  l: 121, r: 95 },
-              { label: 'Kitap',   t: 76,  b: 76,  l: 113, r: 95 },
-            ].map(({ label, t, b, l, r }) => (
-              <button key={label} onClick={() => {
-                setMarginTop(t); setMarginBottom(b); setMarginLeft(l); setMarginRight(r);
-                const w = pageSize.width - l - r;
-                setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: l, width: w } : el));
-                if (label === 'Senaryo') { setCurrentFont('Courier New'); setCurrentFontSize(16); }
-              }} className="zet-btn text-xs py-1.5">{label}</button>
-            ))}
-          </div>
-        </div>
-        <button data-testid="margins-apply-all" onClick={() => {
-          const w = pageSize.width - marginLeft - marginRight;
-          setCanvasElements(prev => { const u = prev.map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el); handleSaveHistory(u); return u; });
-          setDocument(prev => {
-            if (!prev?.pages) return prev;
-            return { ...prev, pages: prev.pages.map((page, idx) => idx === currentPage ? page : { ...page, elements: (page.elements || []).map(el => el.type === 'text' ? { ...el, x: marginLeft, width: w } : el) }) };
-          });
-        }} className="zet-btn w-full py-1.5 text-xs font-medium" style={{ background: 'var(--zet-primary)', color: '#fff' }}>Tümüne Uygula</button>
-      </div>
-    </DraggablePanel>}
+    <MarginsPanel />
 
     {/* Columns Panel */}
-    {showColumns && <DraggablePanel title="Sütun Düzeni" onClose={() => setShowColumns(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
-      <div className="w-56 space-y-3">
-        <div>
-          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Sütun Aralığı: {columnGap}px</label>
-          <input type="range" min="10" max="80" value={columnGap} onChange={e => setColumnGap(parseInt(e.target.value))} className="w-full accent-blue-500" />
-        </div>
-        <div className="grid grid-cols-3 gap-2">
-          {[1, 2, 3].map(n => (
-            <button key={n} onClick={() => {
-              setColumnCount(n);
-              if (n === 1) { setShowColumns(false); return; }
-              const availW = pageSize.width - marginLeft - marginRight;
-              const colW = Math.round((availW - (n - 1) * columnGap) / n);
-              const cols = Array.from({ length: n }, (_, i) => ({
-                id: `col_${Date.now()}_${i}`, type: 'text',
-                x: marginLeft + i * (colW + columnGap),
-                y: marginTop, content: '', htmlContent: '',
-                fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
-                width: colW, lineHeight: currentLineHeight, textAlign: 'left',
-              }));
-              const updated = [...canvasElements, ...cols];
-              setCanvasElements(updated);
-              handleSaveHistory(updated);
-              setSelectedElement(cols[0].id);
-              setShowColumns(false);
-            }}
-              className="zet-btn py-2.5 text-sm font-semibold"
-              style={{ background: columnCount === n ? 'var(--zet-primary)' : 'var(--zet-bg)', color: columnCount === n ? '#fff' : 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
-              {n}
-            </button>
-          ))}
-        </div>
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-          Sütun genişliği: ~{Math.round((pageSize.width - marginLeft - marginRight - (columnCount - 1) * columnGap) / Math.max(columnCount, 1))}px
-        </p>
-      </div>
-    </DraggablePanel>}
+    <ColumnsPanel />
 
     {/* Calculator Panel */}
     <CalculatorPanel />
@@ -543,46 +295,7 @@ const EditorPanels = () => {
     {showGraphic && <ChartPanel editingChartId={editingChartId} chartType={chartType} setChartType={setChartType} chartTitle={chartTitle} setChartTitle={setChartTitle} chartLabels={chartLabels} setChartLabels={setChartLabels} chartData={chartData} setChartData={setChartData} chartColors={chartColors} setChartColors={setChartColors} chartImage={chartImage} setChartImage={setChartImage} gradientStart={gradientStart} gradientEnd={gradientEnd} setGradientStart={setGradientStart} setGradientEnd={setGradientEnd} createChart={createChart} isMobile={isMobile} onClose={() => { setShowGraphic(false); setEditingChartId(null); }} />}
 
     {/* Shortcuts Panel */}
-    {showShortcuts && <DraggablePanel title="Keyboard Shortcuts" onClose={() => { setShowShortcuts(false); setShortcutSearch(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
-      <div className="w-80 space-y-2">
-        <div className="relative">
-          <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 pointer-events-none" style={{ color: 'var(--zet-text-muted)' }} />
-          <input
-            placeholder="Search tools..."
-            value={shortcutSearch}
-            onChange={(e) => setShortcutSearch(e.target.value)}
-            className="zet-input pl-7 text-xs w-full"
-          />
-        </div>
-        <div className="max-h-72 overflow-y-auto space-y-1">
-          {TOOLS.filter(tool => 
-            !shortcutSearch || 
-            tool.nameKey.toLowerCase().includes(shortcutSearch.toLowerCase()) ||
-            tool.id.toLowerCase().includes(shortcutSearch.toLowerCase())
-          ).map(tool => {
-            const currentKey = Object.keys(shortcuts).find(k => shortcuts[k] === tool.id);
-            return (
-              <div key={tool.id} className="flex items-center justify-between p-2 rounded" style={{ background: 'var(--zet-bg)' }}>
-                <div className="flex items-center gap-2">
-                  <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
-                  <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{tool.nameKey}</span>
-                </div>
-                {editingShortcut === tool.id ? (
-                  <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { updateShortcut(e.key); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
-                ) : (
-                  <button onClick={() => setEditingShortcut(tool.id)} className="px-2 py-1 rounded text-xs font-mono" style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}>{currentKey || '—'}</button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-        <div className="pt-2 border-t text-xs" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
-          <p>Click a key to edit. Press the new key to assign.</p>
-          <p className="mt-1">Delete/Backspace: Delete selected element</p>
-          <p>Escape: Deselect</p>
-        </div>
-      </div>
-    </DraggablePanel>}
+    <ShortcutsPanel />
 
     {/* Table Panel */}
     {showTable && <DraggablePanel title="Table" onClose={() => setShowTable(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
@@ -601,44 +314,7 @@ const EditorPanels = () => {
     </DraggablePanel>}
 
     {/* Layers Panel - with drag-to-reorder */}
-    {showLayers && <DraggablePanel title="Layers" onClose={() => setShowLayers(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 60 }}>
-      <div className="w-64 space-y-1 max-h-80 overflow-y-auto">
-        {[...canvasElements].reverse().map((el, i) => (
-          <div key={el.id} data-testid={`layer-item-${el.id}`}
-            draggable
-            onDragStart={(e) => { e.dataTransfer.setData('text/plain', el.id); e.currentTarget.style.opacity = '0.4'; }}
-            onDragEnd={(e) => { e.currentTarget.style.opacity = '1'; }}
-            onDragOver={(e) => { e.preventDefault(); e.currentTarget.style.borderTop = '2px solid #4ca8ad'; }}
-            onDragLeave={(e) => { e.currentTarget.style.borderTop = 'none'; }}
-            onDrop={(e) => {
-              e.preventDefault(); e.currentTarget.style.borderTop = 'none';
-              const dragId = e.dataTransfer.getData('text/plain');
-              if (dragId === el.id) return;
-              const updated = [...canvasElements];
-              const fromIdx = updated.findIndex(x => x.id === dragId);
-              const toIdx = updated.findIndex(x => x.id === el.id);
-              if (fromIdx === -1 || toIdx === -1) return;
-              const [moved] = updated.splice(fromIdx, 1);
-              updated.splice(toIdx, 0, moved);
-              setCanvasElements(updated); history.push(updated);
-            }}
-            className={`flex items-center justify-between p-2 rounded text-xs cursor-grab active:cursor-grabbing ${selectedElement === el.id ? 'ring-1 ring-blue-500' : ''}`} style={{ background: 'var(--zet-bg)' }} onClick={() => setSelectedElement(el.id)}>
-            <div className="flex items-center gap-2 truncate flex-1">
-              <span className="w-4 text-center" style={{ color: 'var(--zet-text-muted)' }}>{canvasElements.length - i}</span>
-              <span className="truncate" style={{ color: el.hidden ? 'var(--zet-text-muted)' : 'var(--zet-text)' }}>{el.type === 'text' ? (el.content?.slice(0, 20) || 'Text') : el.type === 'table' ? 'Table' : el.type}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <button onClick={(e) => { e.stopPropagation(); toggleLayerVisibility(el.id); }} className="p-1 rounded hover:bg-white/10" title={el.hidden ? 'Show' : 'Hide'}>{el.hidden ? <EyeOff className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /> : <Eye className="h-3 w-3" style={{ color: 'var(--zet-text)' }} />}</button>
-              <button onClick={(e) => { e.stopPropagation(); toggleLayerLock(el.id); }} className="p-1 rounded hover:bg-white/10" title={el.locked ? 'Unlock' : 'Lock'}>{el.locked ? <Lock className="h-3 w-3" style={{ color: 'var(--zet-primary)' }} /> : <Unlock className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />}</button>
-              <button onClick={(e) => { e.stopPropagation(); moveLayerUp(el.id); }} className="p-1 rounded hover:bg-white/10" title="Move Up"><ChevronUp className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
-              <button onClick={(e) => { e.stopPropagation(); moveLayerDown(el.id); }} className="p-1 rounded hover:bg-white/10" title="Move Down"><ChevronDown className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
-              <button onClick={(e) => { e.stopPropagation(); deleteElement(el.id); }} className="p-1 rounded hover:bg-red-500/20" title="Delete"><Trash2 className="h-3 w-3" style={{ color: '#f87171' }} /></button>
-            </div>
-          </div>
-        ))}
-        {canvasElements.length === 0 && <div className="text-center py-4 text-xs" style={{ color: 'var(--zet-text-muted)' }}>No layers</div>}
-      </div>
-    </DraggablePanel>}
+    <LayersPanel />
 
     {/* Grid Panel */}
     {showGrid && <DraggablePanel title="Grid" onClose={() => setShowGrid(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
@@ -721,74 +397,10 @@ const EditorPanels = () => {
     </DraggablePanel>}
 
     {/* Footnote Panel */}
-    {showFootnote && <DraggablePanel title="Dipnot" onClose={() => setShowFootnote(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-64 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Seçili metne dipnot numarası ekler ve sayfanın altına dipnot alanı oluşturur.</p>
-        <textarea id="footnote-text" placeholder="Dipnot metni..." rows={3} className="zet-input text-xs w-full resize-none" />
-        <button onClick={() => {
-          const text = document.getElementById('footnote-text')?.value?.trim();
-          if (!text) return;
-          const target = selectedElement || lastSelectedRef.current;
-          const footnoteNum = (canvasElements.filter(e => e.footnoteNum).length) + 1;
-          if (target) {
-            // Insert superscript marker into selected text element
-            const el = canvasElements.find(e => e.id === target);
-            if (el?.type === 'text') {
-              const marker = `<sup data-footnote-id="${footnoteNum}" style="color:#4ca8ad;font-size:0.7em;cursor:pointer">[${footnoteNum}]</sup>`;
-              const updated = canvasElements.map(e => e.id === target ? { ...e, htmlContent: (e.htmlContent || e.content || '') + marker, content: (e.content || '') + `[${footnoteNum}]` } : e);
-              setCanvasElements(updated);
-              handleSaveHistory(updated);
-            }
-          }
-          // Add footnote element at page bottom
-          const fnEl = { id: `fn_${Date.now()}`, type: 'text', x: marginLeft, y: pageSize.height - marginBottom - 40, content: `[${footnoteNum}] ${text}`, htmlContent: `<span style="color:#4ca8ad;font-size:0.8em">[${footnoteNum}]</span> <span style="font-size:0.85em">${text}</span>`, fontSize: 11, fontFamily: currentFont, color: currentColor, width: pageSize.width - marginLeft - marginRight, lineHeight: 1.4, footnoteNum };
-          const updated2 = [...canvasElements, fnEl];
-          setCanvasElements(updated2);
-          handleSaveHistory(updated2);
-          setShowFootnote(false);
-        }} className="zet-btn w-full text-xs">Dipnot Ekle</button>
-      </div>
-    </DraggablePanel>}
+    <FootnotePanel />
 
     {/* TOC Panel */}
-    {showTOC && <DraggablePanel title="İçindekiler" onClose={() => setShowTOC(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-72 space-y-3">
-        <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Büyük/kalın metin elementlerinden başlıklar algılanır.</p>
-        {(() => {
-          const headings = [];
-          (document?.pages || []).forEach((page, pi) => {
-            (page.elements || []).forEach(el => {
-              if (el.type === 'text' && (el.bold || (el.fontSize || 16) >= 21)) {
-                const text = (el.content || '').replace(/<[^>]*>/g, '').trim().slice(0, 60);
-                if (text) headings.push({ text, page: pi + 1, level: (el.fontSize || 16) >= 29 ? 1 : (el.fontSize || 16) >= 21 ? 2 : 3 });
-              }
-            });
-          });
-          return headings.length === 0 ? (
-            <p className="text-xs text-center py-2" style={{ color: 'var(--zet-text-muted)' }}>Başlık bulunamadı.</p>
-          ) : (
-            <>
-              <div className="max-h-48 overflow-y-auto space-y-0.5">
-                {headings.map((h, i) => (
-                  <div key={i} className="flex items-center gap-2 text-xs py-1" style={{ paddingLeft: (h.level - 1) * 12 }}>
-                    <span className="font-medium truncate flex-1" style={{ color: 'var(--zet-text)' }}>{h.text}</span>
-                    <span className="flex-shrink-0 text-xs" style={{ color: 'var(--zet-text-muted)' }}>s.{h.page}</span>
-                  </div>
-                ))}
-              </div>
-              <button onClick={() => {
-                const lines = headings.map(h => `${'  '.repeat(h.level - 1)}${h.text}${'·'.repeat(Math.max(1, 40 - h.text.length - (h.level - 1) * 2))}${h.page}`).join('\n');
-                const tocEl = { id: `toc_${Date.now()}`, type: 'text', x: marginLeft, y: marginTop, content: 'İÇİNDEKİLER\n' + lines, htmlContent: '<b>İÇİNDEKİLER</b><br>' + headings.map(h => `<span data-toc-page="${h.page}" style="padding-left:${(h.level-1)*12}px;display:block;cursor:pointer">${h.text} <span style="float:right;color:var(--zet-text-muted)">${h.page}</span></span>`).join(''), fontSize: 13, fontFamily: currentFont, color: currentColor, width: pageSize.width - marginLeft - marginRight, lineHeight: 1.6 };
-                const updated = [...canvasElements, tocEl];
-                setCanvasElements(updated);
-                handleSaveHistory(updated);
-                setShowTOC(false);
-              }} className="zet-btn w-full text-xs">Canvas'a Ekle</button>
-            </>
-          );
-        })()}
-      </div>
-    </DraggablePanel>}
+    <TOCPanel />
 
     {/* Find & Replace Panel */}
     {showFindReplace && <FindReplacePanel findScope={findScope} setFindScope={setFindScope} findText={findText} setFindText={setFindText} replaceText={replaceText} setReplaceText={setReplaceText} findResults={findResults} setSelectedElement={setSelectedElement} findInDocument={findInDocument} replaceInDocument={replaceInDocument} isMobile={isMobile} onClose={() => setShowFindReplace(false)} />}
@@ -799,98 +411,10 @@ const EditorPanels = () => {
       <EmojiPicker onSelect={(emoji) => { insertEmoji(emoji); }} onClose={() => setShowEmoji(false)} />
     </DraggablePanel>}
 
-    {showMirror && <DraggablePanel title="Mirror / Rotate" onClose={() => setShowMirror(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-56 space-y-3">
-        {!selectedElement ? (
-          <div className="text-center py-4 text-xs" style={{ color: 'var(--zet-text-muted)' }}>Select an element first</div>
-        ) : (
-          <>
-            <div className="space-y-2">
-              <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Mirror</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => mirrorElement('horizontal')} className="zet-btn text-xs py-2 flex items-center justify-center gap-1">
-                  ↔ Horizontal
-                </button>
-                <button onClick={() => mirrorElement('vertical')} className="zet-btn text-xs py-2 flex items-center justify-center gap-1">
-                  ↕ Vertical
-                </button>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Döndür: {mirrorAngle}°</label>
-              <input
-                type="range" min="-180" max="180" value={mirrorAngle}
-                onChange={e => {
-                  const angle = Number(e.target.value);
-                  setMirrorAngle(angle);
-                  if (selectedElement) setCanvasElements(prev => prev.map(el => el.id === selectedElement ? { ...el, rotation: angle } : el));
-                }}
-                onMouseUp={() => { if (selectedElement) handleSaveHistory(canvasElements); }}
-                className="w-full accent-blue-500"
-              />
-              <div className="grid grid-cols-4 gap-1">
-                <button onClick={() => { rotateElement(-90); setMirrorAngle(a => a - 90); }} className="zet-btn text-xs py-1">-90°</button>
-                <button onClick={() => { rotateElement(-45); setMirrorAngle(a => a - 45); }} className="zet-btn text-xs py-1">-45°</button>
-                <button onClick={() => { rotateElement(45); setMirrorAngle(a => a + 45); }} className="zet-btn text-xs py-1">+45°</button>
-                <button onClick={() => { rotateElement(90); setMirrorAngle(a => a + 90); }} className="zet-btn text-xs py-1">+90°</button>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
-    </DraggablePanel>}
+    <MirrorPanel />
 
     {/* Voice Input (STT) Panel */}
-    {showVoiceInput && <DraggablePanel title="Ses Girişi" onClose={() => { setShowVoiceInput(false); stopListening(); stopElevenLabsSTT(); setVoiceTranscript(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-72 space-y-3">
-        {/* ElevenLabs STT */}
-        <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
-          <p className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--zet-primary)' }}>
-            <Zap className="h-3 w-3" /> ElevenLabs Scribe
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={isRecordingEL ? stopElevenLabsSTT : startElevenLabsSTT}
-              disabled={elSttLoading}
-              className={`flex-1 py-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${isRecordingEL ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 hover:bg-blue-700 text-white'} disabled:opacity-50`}
-            >
-              {elSttLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
-              {elSttLoading ? 'İşleniyor...' : isRecordingEL ? 'Durdur' : 'Kayıt Başlat'}
-            </button>
-          </div>
-        </div>
-
-        {/* Browser STT */}
-        <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
-          <p className="text-xs font-semibold mb-2" style={{ color: 'var(--zet-text-muted)' }}>Tarayıcı STT</p>
-          <button
-            onClick={isListening ? stopListening : startListening}
-            className={`w-full py-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${isListening ? 'bg-red-500 text-white animate-pulse' : ''}`}
-            style={!isListening ? { background: 'var(--zet-bg-card)', color: 'var(--zet-text)' } : {}}
-          >
-            <Mic className="h-3.5 w-3.5" />
-            {isListening ? 'Dinleniyor... Durdurmak için tıkla' : 'Dinlemeye başla'}
-          </button>
-        </div>
-
-        {voiceTranscript && (
-          <div className="space-y-2">
-            <label className="text-xs block" style={{ color: 'var(--zet-text-muted)' }}>Transkript:</label>
-            <div className="p-3 rounded text-sm max-h-32 overflow-y-auto" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
-              {voiceTranscript}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <button onClick={() => setVoiceTranscript('')} className="zet-btn text-xs py-2" style={{ background: 'var(--zet-bg)' }}>Temizle</button>
-              <button onClick={addVoiceTextToDocument} className="zet-btn text-xs py-2">Belgeye Ekle</button>
-            </div>
-          </div>
-        )}
-
-        <div className="text-xs pt-2 border-t" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
-          <p>Dil: {language === 'tr' ? 'Türkçe' : 'English'}</p>
-        </div>
-      </div>
-    </DraggablePanel>}
+    <VoiceInputPanel />
     </>
   );
 };
