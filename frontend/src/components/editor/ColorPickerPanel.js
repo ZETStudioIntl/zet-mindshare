@@ -118,22 +118,6 @@ const ColorPickerPanel = () => {
     document.addEventListener('mouseup', onUp);
   };
 
-  /* ── Editor: drag center point ── */
-  const startCenterDrag = (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (!rectRef.current) return;
-    const rect = rectRef.current.getBoundingClientRect();
-    const onMove = (me) => {
-      const x = Math.min(100, Math.max(0, ((me.clientX - rect.left) / rect.width) * 100));
-      const y = Math.min(100, Math.max(0, ((me.clientY - rect.top) / rect.height) * 100));
-      setEditCenter({ x, y });
-    };
-    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  };
-
   /* ── Editor: right-click stop → color picker ── */
   const handleStopRightClick = (e, stopId) => {
     e.preventDefault();
@@ -260,6 +244,10 @@ const ColorPickerPanel = () => {
                         {openMenuId === g.id && (
                           <div className="absolute right-0 top-full mt-0.5 z-50 rounded-lg shadow-xl overflow-hidden"
                             style={{ background: 'var(--zet-card)', border: '1px solid var(--zet-border)', minWidth: 128 }}>
+                            <button onClick={() => { applyGradientFromSaved(g); setOpenMenuId(null); }}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10 font-medium" style={{ color: 'var(--zet-primary)' }}>
+                              Kullan
+                            </button>
                             <button onClick={() => startRename(g)}
                               className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10" style={{ color: 'var(--zet-text)' }}>
                               İsim Değiştir
@@ -291,25 +279,6 @@ const ColorPickerPanel = () => {
                   cursor: 'crosshair', userSelect: 'none', overflow: 'hidden',
                 }}
               >
-                {/* Merkez noktası — z-index 3, stops her zaman üstte */}
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: `${editCenter.x}%`, top: `${editCenter.y}%`,
-                    transform: 'translate(-50%, -50%)',
-                    width: 16, height: 16, borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.9)',
-                    border: '2px solid #333',
-                    cursor: 'move', zIndex: 3,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    boxShadow: '0 1px 5px rgba(0,0,0,0.5)',
-                  }}
-                  onMouseDown={startCenterDrag}
-                  onClick={e => e.stopPropagation()}
-                >
-                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#333' }} />
-                </div>
-
                 {editStops.map(stop => {
                   const isActive = activeStopId === stop.id;
                   const isRightClicked = rightClickId === stop.id;
@@ -369,7 +338,7 @@ const ColorPickerPanel = () => {
               </div>
 
               <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                Sol tık → renk ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil &nbsp;·&nbsp; ● merkezi sürükle
+                Sol tık → renk ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil
               </p>
 
               <div className="flex gap-1.5">
