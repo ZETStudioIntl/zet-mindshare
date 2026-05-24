@@ -58,6 +58,7 @@ backend/
 | Dosya | Bölge / Satır | Kilitlenme Sebebi |
 |-------|--------------|-------------------|
 | `frontend/src/App.js` | Satır 113 — `html { cursor: url('.../arrow.svg') 1 1, default !important; }` | `* !important` canvas inline stilini eziyordu; `html` ile düzeltildi — dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | Highlighter + Redact overlay sistemi (mouseup listener + savedRange mekanizması, ~760-920. satır arası) | Çalışan sansür sistemi — Zeta sansürlü metni okuyamıyor, export'ta da siyah kutu görünüyor |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma
