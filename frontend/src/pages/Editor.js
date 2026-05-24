@@ -2622,8 +2622,13 @@ const Editor = () => {
   // Get full document content for AI — redact overlay ile kaplı elementler gizlenir
   const getFullDocContent = () => {
     const boxOverlap = (el, o) => {
-      const ew = el.width || 200, eh = el.height || 30;
-      return !(el.x + ew < o.x || o.x + o.width < el.x || el.y + eh < o.y || o.y + o.height < el.y);
+      const eh = el.height || 50;
+      const yOverlap = !(el.y + eh < o.y || o.y + o.height < el.y);
+      if (!yOverlap) return false;
+      // Element width may not reflect rendered width — use generous default so
+      // overlays covering the right portion of wide text still match.
+      const ew = el.width > 0 ? el.width : 2000;
+      return !(el.x + ew < o.x || o.x + o.width < el.x);
     };
     const isRedacted = (el, paths) => {
       if (el.isRedacted) return true;
