@@ -870,48 +870,39 @@ export const CanvasArea = ({
     let coveredElementId = savedCoveredIdRef.current;
     savedCoveredIdRef.current = null;
     if (!range || range.collapsed) return;
-    // activeElement yakalanamadıysa DOM walk ile bul
-    if (!coveredElementId) {
-      const pageEl = canvasRef.current;
-      let node = range.commonAncestorContainer;
-      while (node && node !== pageEl) {
-        const domEl = node.nodeType === 1 ? node : node.parentElement;
-        if (!domEl) break;
-        const tid = domEl.dataset?.testid || '';
-        if (tid.startsWith('text-element-') || tid.startsWith('canvas-element-')) {
-          coveredElementId = tid.replace('text-element-', '').replace('canvas-element-', '');
-          break;
-        }
-        node = domEl.parentElement;
-      }
-    }
-    if (!coveredElementId) return;
     const selectedText = range.toString();
     if (!selectedText.trim()) return;
     const segmentId = `seg_${Date.now()}`;
-    setCanvasElements(prev => prev.map(el => {
-      if (String(el.id) !== String(coveredElementId)) return el;
-      const origHtml = el.htmlContent || el.content || '';
-      const origContent = el.content || '';
-      const pos = origContent.indexOf(selectedText);
-      const newContent = pos >= 0
-        ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
-        : origContent;
-      let newHtml = origHtml;
-      try {
-        const esc = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        newHtml = origHtml.replace(new RegExp(esc), '');
-      } catch { /* keep origHtml */ }
-      return {
-        ...el,
-        content: newContent,
-        htmlContent: newHtml,
-        redactSegments: [
-          ...(el.redactSegments || []),
-          { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
-        ],
-      };
-    }));
+    setCanvasElements(prev => {
+      // ID biliniyorsa onu kullan, yoksa seçili metni içeren ilk text elementini bul
+      const targetId = coveredElementId
+        ? String(coveredElementId)
+        : String((prev.find(el => el.type === 'text' && (el.content || '').includes(selectedText)) || {}).id || '');
+      if (!targetId) return prev;
+      return prev.map(el => {
+        if (String(el.id) !== targetId) return el;
+        const origHtml = el.htmlContent || el.content || '';
+        const origContent = el.content || '';
+        const pos = origContent.indexOf(selectedText);
+        const newContent = pos >= 0
+          ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
+          : origContent;
+        let newHtml = origHtml;
+        try {
+          const esc = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          newHtml = origHtml.replace(new RegExp(esc), '');
+        } catch { /* keep origHtml */ }
+        return {
+          ...el,
+          content: newContent,
+          htmlContent: newHtml,
+          redactSegments: [
+            ...(el.redactSegments || []),
+            { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
+          ],
+        };
+      });
+    });
   }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
