@@ -138,8 +138,8 @@ const Editor = () => {
   // Global cursor — sayfa unmount olunca classları temizle
   useEffect(() => {
     return () => {
-      ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair']
-        .forEach(c => document.documentElement.classList.remove(c));
+      const el = document.documentElement;
+      if (el) ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'].forEach(c => el.classList.remove(c));
     };
   }, []);
 
@@ -1039,12 +1039,14 @@ const Editor = () => {
       setActiveTool(toolId);
     }
     const _html = document.documentElement;
-    ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'].forEach(c => _html.classList.remove(c));
-    if (toolId === 'hand') _html.classList.add('tool-hand');
-    else if (toolId === 'pen') _html.classList.add('tool-pen');
-    else if (toolId === 'eraser') _html.classList.add('tool-eraser');
-    else if (toolId === 'text') _html.classList.add('tool-text');
-    else if (['draw','marking','cut','redact','highlighter','zoom'].includes(toolId)) _html.classList.add('tool-crosshair');
+    if (_html) {
+      ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'].forEach(c => _html.classList.remove(c));
+      if (toolId === 'hand') _html.classList.add('tool-hand');
+      else if (toolId === 'pen') _html.classList.add('tool-pen');
+      else if (toolId === 'eraser') _html.classList.add('tool-eraser');
+      else if (toolId === 'text') _html.classList.add('tool-text');
+      else if (['draw','marking','cut','redact','highlighter','zoom'].includes(toolId)) _html.classList.add('tool-crosshair');
+    }
     const panels = {
       image: () => setShowImageUpload(true), pagesize: () => setShowPageSize(true),
       textsize: () => setShowTextSize(true), font: () => { setFontSearch(''); setShowFont(true); },
@@ -2617,15 +2619,24 @@ const Editor = () => {
   };
 
   
-  // Get full document content for AI (includes all element types from ALL pages, EXCLUDES redacted content)
+  // Get full document content for AI — redact overlay ile kaplı elementler gizlenir
   const getFullDocContent = () => {
+    const boxOverlap = (el, o) => {
+      const ew = el.width || 200, eh = el.height || 30;
+      return !(el.x + ew < o.x || o.x + o.width < el.x || el.y + eh < o.y || o.y + o.height < el.y);
+    };
+    const isRedacted = (el, paths) => {
+      if (el.isRedacted) return true;
+      return paths.filter(p => p.type === 'overlay' && p.overlayType === 'redact').some(o => boxOverlap(el, o));
+    };
     let allElements = [];
     if (document?.pages) {
       document.pages.forEach((page, idx) => {
         const elements = idx === currentPage ? canvasElements : (page.elements || []);
+        const paths = idx === currentPage ? drawPaths : (page.drawPaths || []);
         allElements.push(`--- Sayfa ${idx + 1} ---`);
         elements.forEach(el => {
-          if (el.isRedacted) return; // Siyah bantlı içerikler kesinlikle gizlenir
+          if (isRedacted(el, paths)) return;
           if (el.type === 'text' && el.content) allElements.push(`[METİN]: ${el.content}`);
           else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType} (${Math.round(el.x)}, ${Math.round(el.y)})`);
           else if (el.type === 'image') allElements.push(`[GÖRSEL]: (${Math.round(el.x)}, ${Math.round(el.y)}), ${el.width}x${el.height}`);
@@ -2636,7 +2647,7 @@ const Editor = () => {
       });
     } else {
       canvasElements.forEach(el => {
-        if (el.isRedacted) return;
+        if (isRedacted(el, drawPaths)) return;
         if (el.type === 'text') allElements.push(`[METİN]: ${el.content}`);
         else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType}`);
         else if (el.type === 'image') allElements.push(`[GÖRSEL]`);

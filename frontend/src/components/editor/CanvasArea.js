@@ -1373,6 +1373,8 @@ export const CanvasArea = ({
         setDrawPaths(prev => {
           const newPaths = [];
           prev.forEach(path => {
+            if (path.type === 'overlay') { newPaths.push(path); return; }
+            if (!path.points) { newPaths.push(path); return; }
             const isNearEraser = pt => eraserTrail.some(ep => dist(pt, ep) < r);
             let segment = [];
             path.points.forEach(pt => {
