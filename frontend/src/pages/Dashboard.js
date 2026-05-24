@@ -724,7 +724,7 @@ const Dashboard = () => {
         try {
           const res = await axios.post(`${API}/subscription/buy-with-sp`, { plan: planId }, { withCredentials: true });
           setUserSubscription(res.data.plan);
-          setUserZP(res.data.remaining_zp);
+          setUserZP(res.data.remaining_sp);
           showToast(`${plan.name} planına ${plan.zpCost.toLocaleString()} ZP ile yükseltildiniz!`, 'success');
         } catch (err) {
           showToast(err.response?.data?.detail || 'ZP ile satın alma başarısız', 'error');
