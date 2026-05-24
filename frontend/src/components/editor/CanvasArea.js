@@ -279,7 +279,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false, activeTool }) => {
+const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const pendingContentRef = useRef(null);
@@ -361,7 +361,6 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   }, [el.id, el.x, el.y, el.width, el.fontSize, el.lineHeight, pageHeight, pageWidth, pageMargins, zoom, onAutoAddPage, onFlowText, onCommit, pageElements]); // eslint-disable-line
 
   const handleClick = useCallback((e) => {
-    if (activeTool === 'highlighter' || activeTool === 'redact') return;
     e.stopPropagation();
     const target = e.target.nodeType === 3 ? e.target.parentElement : e.target;
     if (!target) { onStartEdit(el.id); return; }
@@ -374,7 +373,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
 
     setRemoveTarget(null);
     onStartEdit(el.id);
-  }, [activeTool, el.id, onStartEdit]);
+  }, [el.id, onStartEdit]);
 
   const handleRemoveFormatting = useCallback(() => {
     let html = el.htmlContent || el.content || '';
@@ -586,6 +585,43 @@ const VectorMenu = ({ pathId, position, zoom, onDelete, onAddImage, onAddAiImage
   </div>
 );
 
+const OverlayRect = memo(({ overlay, zoom, onRemove }) => {
+  const [hovered, setHovered] = useState(false);
+  const isC = overlay.overlayType === 'redact';
+  return (
+    <div
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={(e) => e.stopPropagation()}
+      style={{
+        position: 'absolute',
+        left: overlay.x * zoom, top: overlay.y * zoom,
+        width: overlay.width * zoom, height: overlay.height * zoom,
+        background: isC ? '#111' : (overlay.color || '#fbbf24'),
+        opacity: isC ? 1 : 0.45,
+        zIndex: 15, borderRadius: 2,
+        pointerEvents: 'all', cursor: 'default',
+      }}
+    >
+      {hovered && (
+        <button
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={(e) => { e.stopPropagation(); onRemove(overlay.id); }}
+          style={{
+            position: 'absolute', top: -8, right: -8,
+            width: 18, height: 18, borderRadius: '50%',
+            background: '#ef4444', color: '#fff',
+            border: '2px solid rgba(255,255,255,0.8)',
+            fontSize: 9, fontWeight: 700, lineHeight: 1, padding: 0,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', zIndex: 16,
+          }}
+        >✕</button>
+      )}
+    </div>
+  );
+});
+
 export const CanvasArea = ({
   document: doc, currentPage, changePage, canvasElements, setCanvasElements, drawPaths, setDrawPaths,
   pageSize, zoom, setZoom, activeTool, currentFontSize, currentFont, currentColor, currentLineHeight,
@@ -666,6 +702,7 @@ export const CanvasArea = ({
   // Snap indicator: shows a crosshair when element snaps to a grid line
   const [snapIndicator, setSnapIndicator] = useState(null);
   const [knifePreview, setKnifePreview] = useState(null); // {x1,y1,x2,y2} only for rendering
+  const [overlayDraft, setOverlayDraft] = useState(null);
   const knifeStartRef = useRef(null);
   const knifeEndRef = useRef(null);
 
@@ -1016,6 +1053,11 @@ export const CanvasArea = ({
       return;
     }
     
+    if (activeTool === 'highlighter' || activeTool === 'redact') {
+      setIsDrawing(true);
+      setOverlayDraft({ x, y, w: 0, h: 0 });
+      return;
+    }
     if (activeTool === 'knife') {
       knifeStartRef.current = { x, y };
       knifeEndRef.current = { x, y };
@@ -1161,6 +1203,10 @@ export const CanvasArea = ({
         return;
       }
     }
+    if ((activeTool === 'highlighter' || activeTool === 'redact') && isDrawing && overlayDraft) {
+      setOverlayDraft(prev => ({ ...prev, w: x - prev.x, h: y - prev.y }));
+      return;
+    }
     if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) { setCurrentPath(p => [...p, { x, y }]); return; }
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
     if (activeTool === 'select' && isDrawing) { 
@@ -1263,7 +1309,7 @@ export const CanvasArea = ({
         }));
       }
     }
-  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, isRectSelecting, rectSelectStart, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
+  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, isRectSelecting, overlayDraft, rectSelectStart, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
 
   const handleMouseUp = useCallback(() => {
     // Right-click rectangle selection - find elements inside rectangle
@@ -1286,7 +1332,7 @@ export const CanvasArea = ({
       
       // Find vectors in rectangle
       const selectedVecIdxs = drawPaths.map((p, i) => ({ p, i })).filter(({ p }) => {
-        if (p.isHighlight || !p.points || p.points.length === 0) return false;
+        if (p.isHighlight || p.type === 'overlay' || !p.points || p.points.length === 0) return false;
         return p.points.some(pt => pt.x >= minX && pt.x <= maxX && pt.y >= minY && pt.y <= maxY);
       }).map(({ i }) => i);
       
@@ -1355,7 +1401,7 @@ export const CanvasArea = ({
       // Select all vector paths (both pen vectors and regular draw paths)
       const selectedVecIdxs = drawPaths.map((p, i) => ({ p, i })).filter(({ p }) => {
         // Include both pen vectors and regular drawings
-        return !p.isHighlight && isVectorInLasso(p, lassoPath);
+        return !p.isHighlight && p.type !== 'overlay' && isVectorInLasso(p, lassoPath);
       }).map(({ i }) => i);
       if (selectedIds.length > 0) { setSelectedElements(selectedIds); justSelectedRef.current = true; }
       if (selectedVecIdxs.length > 0) { setSelectedVectors(selectedVecIdxs); justSelectedRef.current = true; }
@@ -1412,6 +1458,26 @@ export const CanvasArea = ({
       setKnifePreview(null);
     }
 
+    if ((activeTool === 'highlighter' || activeTool === 'redact') && isDrawing && overlayDraft) {
+      const ox = Math.min(overlayDraft.x, overlayDraft.x + overlayDraft.w);
+      const oy = Math.min(overlayDraft.y, overlayDraft.y + overlayDraft.h);
+      const ow = Math.abs(overlayDraft.w);
+      const oh = Math.abs(overlayDraft.h);
+      if (ow > 5 && oh > 5) {
+        const newOverlay = {
+          id: `overlay_${Date.now()}`,
+          type: 'overlay',
+          overlayType: activeTool === 'highlighter' ? 'highlight' : 'redact',
+          x: ox, y: oy, width: ow, height: oh,
+          color: markingColor || '#fbbf24',
+        };
+        setDrawPaths(prev => [...prev, newOverlay]);
+      }
+      setOverlayDraft(null);
+      setIsDrawing(false);
+      return;
+    }
+
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     cropWasDraggedRef.current = false;
@@ -1419,7 +1485,7 @@ export const CanvasArea = ({
     setIsPanning(false); panStartRef.current = null;
     setDragging(null); activeDragRef.current = null; setResizing(null);
     setSnapIndicator(null);
-  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, overlayDraft, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -1620,11 +1686,11 @@ export const CanvasArea = ({
             
             <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ overflow: 'visible', zIndex: cropTarget && idx === currentPage ? 20 : 0 }}>
               {/* Highlight paths */}
-              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight).map((path, i) => (
+              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.isHighlight && p.type !== 'overlay').map((path, i) => (
                 <path key={`h${i}`} d={`M ${path.points.map(p => `${p.x * zoom} ${p.y * zoom}`).join(' L ')}`} stroke={path.color} strokeWidth={path.size * zoom} strokeOpacity={path.opacity / 100} fill="none" strokeLinecap="butt" />
               ))}
               {/* Vector and draw paths */}
-              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight).map((path, i) => {
+              {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => !p.isHighlight && p.type !== 'overlay').map((path, i) => {
                 const isSelected = idx === currentPage && selectedVector === i && path.isPen;
                 const bounds = path.isPen ? getPathBounds(path) : null;
                 const pathD = path.isPen
@@ -1904,15 +1970,6 @@ export const CanvasArea = ({
                   onClick={(e) => {
                     if (isLocked) return;
                     e.stopPropagation();
-                    if (activeTool === 'redact') {
-                      const updated = canvasElements.map(x => x.id === el.id ? { ...x, isRedacted: !x.isRedacted } : x);
-                      setCanvasElements(updated); onSaveHistory(updated); return;
-                    }
-                    if (activeTool === 'highlighter') {
-                      const alreadyHighlighted = el.isHighlighted;
-                      const updated = canvasElements.map(x => x.id === el.id ? { ...x, isHighlighted: !alreadyHighlighted, highlightColor: alreadyHighlighted ? undefined : (markingColor || '#fbbf24') } : x);
-                      setCanvasElements(updated); onSaveHistory(updated); return;
-                    }
                     if (idx !== currentPage) {
                       pendingEditRef.current = { elementId: el.id, elementType: el.type, x: 0, y: 0, pageIdx: idx };
                       changePage(idx);
@@ -1925,7 +1982,7 @@ export const CanvasArea = ({
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
-                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} activeTool={activeTool} />
+                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} />
                     {isSel && !isLocked && editingId !== el.id && (
                       <div data-testid={`text-resize-${el.id}`} className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm opacity-70 hover:opacity-100" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} />
                     )}
@@ -2056,6 +2113,32 @@ export const CanvasArea = ({
               );
             })}
             
+            {/* Overlay rectangles (highlight / censor) */}
+            {(idx === currentPage ? drawPaths : page.drawPaths || []).filter(p => p.type === 'overlay').map(overlay => (
+              <OverlayRect
+                key={overlay.id}
+                overlay={overlay}
+                zoom={zoom}
+                onRemove={(id) => setDrawPaths(prev => prev.filter(p => p.id !== id))}
+              />
+            ))}
+            {idx === currentPage && overlayDraft && (
+              <div
+                style={{
+                  position: 'absolute',
+                  left: Math.min(overlayDraft.x, overlayDraft.x + overlayDraft.w) * zoom,
+                  top: Math.min(overlayDraft.y, overlayDraft.y + overlayDraft.h) * zoom,
+                  width: Math.abs(overlayDraft.w) * zoom,
+                  height: Math.abs(overlayDraft.h) * zoom,
+                  background: activeTool === 'redact' ? '#333' : (markingColor || '#fbbf24'),
+                  opacity: 0.35,
+                  border: `2px dashed ${activeTool === 'redact' ? '#999' : '#f59e0b'}`,
+                  pointerEvents: 'none',
+                  zIndex: 14, borderRadius: 1,
+                }}
+              />
+            )}
+
             {/* Watermark overlay */}
             {doc.watermark && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ opacity: (doc.watermark.opacity || 20) / 100 }}>
