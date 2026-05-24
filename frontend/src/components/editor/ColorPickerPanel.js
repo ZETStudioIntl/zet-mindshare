@@ -10,14 +10,10 @@ const LS_KEY = 'zet_saved_gradients';
 const radialCss = (stops, cx, cy) => {
   if (!stops || stops.length === 0) return '#ffffff';
   if (stops.length === 1) return stops[0].color;
-  const withDist = stops.map(s => {
-    const dx = s.x - cx;
-    const dy = s.y - cy;
-    return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
-  });
-  const maxDist = Math.max(...withDist.map(s => s.dist)) || 1;
-  const sorted = [...withDist].sort((a, b) => a.dist - b.dist);
-  return `radial-gradient(circle at ${Math.round(cx)}% ${Math.round(cy)}%, ${sorted.map(s => `${s.color} ${Math.round((s.dist / maxDist) * 100)}%`).join(', ')})`;
+  const sorted = [...stops].sort((a, b) => a.x - b.x);
+  const n = sorted.length;
+  const withPos = sorted.map((s, i) => ({ ...s, pos: Math.round((i / (n - 1)) * 100) }));
+  return `radial-gradient(circle at ${Math.round(cx)}% ${Math.round(cy)}%, ${withPos.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
 };
 
 const gradientToCss = (g) => radialCss(g.stops, g.centerX ?? 50, g.centerY ?? 50);
@@ -60,18 +56,20 @@ const ColorPickerPanel = () => {
     if (!targets.length) return;
     const cx = g.centerX ?? 50;
     const cy = g.centerY ?? 50;
-    const withDist = (g.stops || []).map(s => {
-      const dx = s.x - cx;
-      const dy = s.y - cy;
-      return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
-    });
-    const maxDist = Math.max(...withDist.map(s => s.dist)) || 1;
-    const stops = withDist
-      .sort((a, b) => a.dist - b.dist)
-      .map(s => ({ id: s.id, pos: Math.round((s.dist / maxDist) * 100), color: s.color }));
+    const rawStops = (g.stops || []).sort((a, b) => a.x - b.x);
+    const n = rawStops.length;
+    const stops = n === 0 ? [] : rawStops.map((s, i) => ({
+      id: s.id,
+      pos: n === 1 ? 0 : Math.round((i / (n - 1)) * 100),
+      color: s.color,
+    }));
+    const firstColor = stops[0]?.color || '#000000';
     setCanvasElements(prev => {
       const updated = prev.map(el => {
         if (!targets.includes(el.id)) return el;
+        if (el.type === 'text') {
+          return { ...el, color: firstColor, fill: firstColor, gradientStops: null };
+        }
         return {
           ...el,
           gradientStops: stops,
@@ -81,6 +79,8 @@ const ColorPickerPanel = () => {
           gradientAngle: undefined,
           gradientStart: undefined,
           gradientEnd: undefined,
+          color: null,
+          fill: null,
         };
       });
       handleSaveHistory(updated);
