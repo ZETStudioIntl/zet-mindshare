@@ -2619,30 +2619,16 @@ const Editor = () => {
   };
 
   
-  // Get full document content for AI — redact overlay ile kaplı elementler gizlenir
+  // Get full document content for AI — sansürlü elementler gizlenir
   const getFullDocContent = () => {
-    const redactOverlaps = (el, o) => {
-      // ID-based: most reliable — overlay stores the element ID it was drawn on
-      if (o.coveredElementId) return o.coveredElementId === el.id;
-      // Coordinate fallback for older overlays without coveredElementId
-      const eh = el.height || 50;
-      const yOverlap = !(el.y + eh < o.y || o.y + o.height < el.y);
-      if (!yOverlap) return false;
-      const ew = el.width > 0 ? el.width : 2000;
-      return !(el.x + ew < o.x || o.x + o.width < el.x);
-    };
-    const isRedacted = (el, paths) => {
-      if (el.isRedacted) return true;
-      return paths.filter(p => p.type === 'overlay' && p.overlayType === 'redact').some(o => redactOverlaps(el, o));
-    };
+    const isRedacted = (el) => el.isRedacted || (el.redactSegments && el.redactSegments.length > 0);
     let allElements = [];
     if (document?.pages) {
       document.pages.forEach((page, idx) => {
         const elements = idx === currentPage ? canvasElements : (page.elements || []);
-        const paths = idx === currentPage ? drawPaths : (page.drawPaths || []);
         allElements.push(`--- Sayfa ${idx + 1} ---`);
         elements.forEach(el => {
-          if (isRedacted(el, paths)) return;
+          if (isRedacted(el)) return;
           if (el.type === 'text' && el.content) allElements.push(`[METİN]: ${el.content}`);
           else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType} (${Math.round(el.x)}, ${Math.round(el.y)})`);
           else if (el.type === 'image') allElements.push(`[GÖRSEL]: (${Math.round(el.x)}, ${Math.round(el.y)}), ${el.width}x${el.height}`);
@@ -2653,7 +2639,7 @@ const Editor = () => {
       });
     } else {
       canvasElements.forEach(el => {
-        if (isRedacted(el, drawPaths)) return;
+        if (isRedacted(el)) return;
         if (el.type === 'text') allElements.push(`[METİN]: ${el.content}`);
         else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType}`);
         else if (el.type === 'image') allElements.push(`[GÖRSEL]`);

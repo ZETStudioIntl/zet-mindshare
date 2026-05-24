@@ -781,6 +781,36 @@ export const CanvasArea = ({
       }
       node = el.parentElement;
     }
+    const segmentId = `seg_${Date.now()}`;
+    // Sansür: metni elementten gerçekten sil, veriyi redactSegments'a kaydet
+    if (activeTool === 'redact' && coveredElementId) {
+      const selectedText = range.toString();
+      if (selectedText.trim()) {
+        setCanvasElements(prev => prev.map(el => {
+          if (el.id !== coveredElementId) return el;
+          const origHtml = el.htmlContent || el.content || '';
+          const origContent = el.content || '';
+          const pos = origContent.indexOf(selectedText);
+          const newContent = pos >= 0
+            ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
+            : origContent;
+          let newHtml = origHtml;
+          try {
+            const esc = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            newHtml = origHtml.replace(new RegExp(esc), '');
+          } catch { /* keep origHtml */ }
+          return {
+            ...el,
+            content: newContent,
+            htmlContent: newHtml,
+            redactSegments: [
+              ...(el.redactSegments || []),
+              { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
+            ],
+          };
+        }));
+      }
+    }
     const newOverlays = rects.map((rect, i) => ({
       id: `overlay_${Date.now()}_${i}`,
       type: 'overlay',
@@ -791,6 +821,7 @@ export const CanvasArea = ({
       height: rect.height / zoomRef.current,
       color: markingColorRef.current || '#fbbf24',
       coveredElementId,
+      segmentId: activeTool === 'redact' ? segmentId : null,
     }));
     setDrawPaths(prev => [...prev, ...newOverlays]);
     sel.removeAllRanges();
@@ -2133,7 +2164,31 @@ export const CanvasArea = ({
                 key={overlay.id}
                 overlay={overlay}
                 zoom={zoom}
-                onRemove={(id) => setDrawPaths(prev => prev.filter(p => p.id !== id))}
+                onRemove={(id) => {
+                  const pagePaths = idx === currentPage ? drawPaths : (page.drawPaths || []);
+                  const removed = pagePaths.find(p => p.id === id);
+                  if (removed?.segmentId) {
+                    // Aynı segmentId'ye ait tüm overlay rect'lerini kaldır
+                    setDrawPaths(prev => prev.filter(p => p.segmentId !== removed.segmentId));
+                    // Element içeriğini geri yükle
+                    if (removed.coveredElementId) {
+                      setCanvasElements(prev => prev.map(el => {
+                        if (el.id !== removed.coveredElementId) return el;
+                        const seg = (el.redactSegments || []).find(s => s.segmentId === removed.segmentId);
+                        if (!seg) return el;
+                        const restoredHtml = seg.originalHtml || (el.htmlContent || '') + seg.originalText;
+                        return {
+                          ...el,
+                          content: restoredHtml.replace(/<[^>]*>/g, ''),
+                          htmlContent: restoredHtml,
+                          redactSegments: el.redactSegments.filter(s => s.segmentId !== removed.segmentId),
+                        };
+                      }));
+                    }
+                  } else {
+                    setDrawPaths(prev => prev.filter(p => p.id !== id));
+                  }
+                }}
               />
             ))}
             {/* Watermark overlay */}
