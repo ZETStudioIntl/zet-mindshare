@@ -2619,31 +2619,39 @@ const Editor = () => {
   };
 
   
-  // Get full document content for AI — sansürlü elementler gizlenir
+  // Get full document content for AI — sansürlü metin Zeta'ya gönderilmez
   const getFullDocContent = () => {
-    const isRedacted = (el) => el.isRedacted || (el.redactSegments && el.redactSegments.length > 0);
+    // redactSegments içindeki tüm orijinal metinleri content'ten çıkar (çift güvence)
+    const cleanContent = (el) => {
+      let txt = el.content || '';
+      if (el.redactSegments && el.redactSegments.length > 0) {
+        el.redactSegments.forEach(seg => {
+          if (seg.originalText) txt = txt.split(seg.originalText).join('');
+        });
+      }
+      return txt.trim();
+    };
+    const skip = (el) => el.isRedacted;
     let allElements = [];
+    const processEl = (el) => {
+      if (skip(el)) return;
+      if (el.type === 'text') {
+        const c = cleanContent(el);
+        if (c) allElements.push(`[METİN]: ${c}`);
+      } else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType} (${Math.round(el.x)}, ${Math.round(el.y)})`);
+      else if (el.type === 'image') allElements.push(`[GÖRSEL]: (${Math.round(el.x)}, ${Math.round(el.y)}), ${el.width}x${el.height}`);
+      else if (el.type === 'chart') allElements.push(`[GRAFİK]: ${el.chartType || 'grafik'}`);
+      else if (el.type === 'table') allElements.push(`[TABLO]: ${el.rows}x${el.cols}`);
+      else if (el.type === 'qrcode') allElements.push(`[QR KOD]: ${el.content}`);
+    };
     if (document?.pages) {
       document.pages.forEach((page, idx) => {
         const elements = idx === currentPage ? canvasElements : (page.elements || []);
         allElements.push(`--- Sayfa ${idx + 1} ---`);
-        elements.forEach(el => {
-          if (isRedacted(el)) return;
-          if (el.type === 'text' && el.content) allElements.push(`[METİN]: ${el.content}`);
-          else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType} (${Math.round(el.x)}, ${Math.round(el.y)})`);
-          else if (el.type === 'image') allElements.push(`[GÖRSEL]: (${Math.round(el.x)}, ${Math.round(el.y)}), ${el.width}x${el.height}`);
-          else if (el.type === 'chart') allElements.push(`[GRAFİK]: ${el.chartType || 'grafik'}`);
-          else if (el.type === 'table') allElements.push(`[TABLO]: ${el.rows}x${el.cols}`);
-          else if (el.type === 'qrcode') allElements.push(`[QR KOD]: ${el.content}`);
-        });
+        elements.forEach(processEl);
       });
     } else {
-      canvasElements.forEach(el => {
-        if (isRedacted(el)) return;
-        if (el.type === 'text') allElements.push(`[METİN]: ${el.content}`);
-        else if (el.type === 'shape') allElements.push(`[ŞEKİL]: ${el.shapeType}`);
-        else if (el.type === 'image') allElements.push(`[GÖRSEL]`);
-      });
+      canvasElements.forEach(processEl);
     }
     return allElements.join('\n');
   };
