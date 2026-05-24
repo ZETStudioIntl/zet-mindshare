@@ -812,7 +812,7 @@ export const CanvasArea = ({
       const selectedText = range.toString();
       if (selectedText.trim()) {
         setCanvasElements(prev => prev.map(el => {
-          if (el.id !== coveredElementId) return el;
+          if (String(el.id) !== String(coveredElementId)) return el;
           const origHtml = el.htmlContent || el.content || '';
           const origContent = el.content || '';
           const pos = origContent.indexOf(selectedText);
@@ -2198,7 +2198,7 @@ export const CanvasArea = ({
                     // Element içeriğini geri yükle
                     if (removed.coveredElementId) {
                       setCanvasElements(prev => prev.map(el => {
-                        if (el.id !== removed.coveredElementId) return el;
+                        if (String(el.id) !== String(removed.coveredElementId)) return el;
                         const seg = (el.redactSegments || []).find(s => s.segmentId === removed.segmentId);
                         if (!seg) return el;
                         const restoredHtml = seg.originalHtml || (el.htmlContent || '') + seg.originalText;
