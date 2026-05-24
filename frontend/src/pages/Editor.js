@@ -1034,7 +1034,7 @@ const Editor = () => {
   // === TOOL SELECT ===
   const handleToolSelect = (toolId) => {
     // Action-only tools: don't change activeTool state
-    const actionTools = ['addpage', 'copy', 'redact', 'highlighter', 'importpdf', 'calculator'];
+    const actionTools = ['addpage', 'copy', 'importpdf', 'calculator'];
     if (!actionTools.includes(toolId)) {
       setActiveTool(toolId);
     }
