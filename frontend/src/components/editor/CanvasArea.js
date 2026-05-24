@@ -757,12 +757,25 @@ export const CanvasArea = ({
   const markingColorRef = useRef(markingColor);
   useEffect(() => { markingColorRef.current = markingColor; }, [markingColor]);
 
+  // Seçili metni butona tıklamadan önce klonla — tıklama selection'ı siliyor
+  const savedRangeRef = useRef(null);
+  useEffect(() => {
+    const onSelChange = () => {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        try { savedRangeRef.current = sel.getRangeAt(0).cloneRange(); } catch { /* ignore */ }
+      }
+    };
+    document.addEventListener('selectionchange', onSelChange);
+    return () => document.removeEventListener('selectionchange', onSelChange);
+  }, []);
+
   // Metin seçimi + Highlighter/Sansür tool tıklaması → overlay oluştur
   useEffect(() => {
     if (activeTool !== 'highlighter' && activeTool !== 'redact') return;
-    const sel = window.getSelection();
-    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
-    const range = sel.getRangeAt(0);
+    const range = savedRangeRef.current;
+    if (!range || range.collapsed) return;
+    savedRangeRef.current = null;
     const pageEl = canvasRef.current;
     if (!pageEl) return;
     const pageRect = pageEl.getBoundingClientRect();
@@ -824,7 +837,7 @@ export const CanvasArea = ({
       segmentId: activeTool === 'redact' ? segmentId : null,
     }));
     setDrawPaths(prev => [...prev, ...newOverlays]);
-    sel.removeAllRanges();
+    window.getSelection()?.removeAllRanges();
   }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
