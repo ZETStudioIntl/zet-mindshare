@@ -28,7 +28,7 @@ const ColorPickerPanel = () => {
     isMobile, showColor, setShowColor, colorTarget, setColorTarget,
     applyColor, currentColor, hexInput, setHexInput, customColor, setCustomColor,
     highlighterColor, setHighlighterColor,
-    selectedElement, lastSelectedRef, setCanvasElements, handleSaveHistory,
+    selectedElement, selectedElements, lastSelectedRef, setCanvasElements, handleSaveHistory,
   } = useContext(EditorStateContext);
 
   const [savedGradients, setSavedGradients] = useState(() => {
@@ -50,8 +50,14 @@ const ColorPickerPanel = () => {
 
   /* ── Apply saved gradient to selected element ── */
   const applyGradientFromSaved = (g) => {
-    const target = selectedElement || lastSelectedRef?.current;
-    if (!target) return;
+    const targets = (selectedElements || []).length > 0
+      ? selectedElements
+      : selectedElement
+        ? [selectedElement]
+        : lastSelectedRef?.current
+          ? [lastSelectedRef.current]
+          : [];
+    if (!targets.length) return;
     const cx = g.centerX ?? 50;
     const cy = g.centerY ?? 50;
     const withDist = (g.stops || []).map(s => {
@@ -65,7 +71,7 @@ const ColorPickerPanel = () => {
       .map(s => ({ id: s.id, pos: Math.round((s.dist / maxDist) * 100), color: s.color }));
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (el.id !== target) return el;
+        if (!targets.includes(el.id)) return el;
         return {
           ...el,
           gradientStops: stops,
