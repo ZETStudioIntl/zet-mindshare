@@ -2621,18 +2621,19 @@ const Editor = () => {
   
   // Get full document content for AI — redact overlay ile kaplı elementler gizlenir
   const getFullDocContent = () => {
-    const boxOverlap = (el, o) => {
+    const redactOverlaps = (el, o) => {
+      // ID-based: most reliable — overlay stores the element ID it was drawn on
+      if (o.coveredElementId) return o.coveredElementId === el.id;
+      // Coordinate fallback for older overlays without coveredElementId
       const eh = el.height || 50;
       const yOverlap = !(el.y + eh < o.y || o.y + o.height < el.y);
       if (!yOverlap) return false;
-      // Element width may not reflect rendered width — use generous default so
-      // overlays covering the right portion of wide text still match.
       const ew = el.width > 0 ? el.width : 2000;
       return !(el.x + ew < o.x || o.x + o.width < el.x);
     };
     const isRedacted = (el, paths) => {
       if (el.isRedacted) return true;
-      return paths.filter(p => p.type === 'overlay' && p.overlayType === 'redact').some(o => boxOverlap(el, o));
+      return paths.filter(p => p.type === 'overlay' && p.overlayType === 'redact').some(o => redactOverlaps(el, o));
     };
     let allElements = [];
     if (document?.pages) {

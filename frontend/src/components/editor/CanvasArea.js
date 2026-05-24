@@ -768,6 +768,19 @@ export const CanvasArea = ({
     const pageRect = pageEl.getBoundingClientRect();
     const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 2);
     if (rects.length === 0) return;
+    // DOM'dan hangi canvas element'in içinde olduğunu bul (ID tabanlı güvenilir eşleşme için)
+    let coveredElementId = null;
+    let node = range.commonAncestorContainer;
+    while (node && node !== pageEl) {
+      const el = node.nodeType === 1 ? node : node.parentElement;
+      if (!el) break;
+      const testId = el.dataset?.testid || '';
+      if (testId.startsWith('canvas-element-')) {
+        coveredElementId = testId.replace('canvas-element-', '');
+        break;
+      }
+      node = el.parentElement;
+    }
     const newOverlays = rects.map((rect, i) => ({
       id: `overlay_${Date.now()}_${i}`,
       type: 'overlay',
@@ -777,6 +790,7 @@ export const CanvasArea = ({
       width: rect.width / zoomRef.current,
       height: rect.height / zoomRef.current,
       color: markingColorRef.current || '#fbbf24',
+      coveredElementId,
     }));
     setDrawPaths(prev => [...prev, ...newOverlays]);
     sel.removeAllRanges();
