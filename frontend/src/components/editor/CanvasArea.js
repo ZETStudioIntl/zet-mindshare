@@ -844,6 +844,60 @@ export const CanvasArea = ({
     return () => document.removeEventListener('mouseup', onMouseUp);
   }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Durum 2: metin seçiliyken araç değiştirilince → klonlanmış range + element id kullan
+  const savedRangeRef = useRef(null);
+  const savedCoveredIdRef = useRef(null);
+  useEffect(() => {
+    const onSelChange = () => {
+      const sel = window.getSelection();
+      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
+        try {
+          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+          const ae = document.activeElement;
+          const tid = ae?.dataset?.testid || '';
+          savedCoveredIdRef.current = tid.startsWith('text-element-') ? tid.replace('text-element-', '') : null;
+        } catch { /* ignore */ }
+      }
+    };
+    document.addEventListener('selectionchange', onSelChange);
+    return () => document.removeEventListener('selectionchange', onSelChange);
+  }, []);
+
+  useEffect(() => {
+    if (activeTool !== 'redact') return;
+    const range = savedRangeRef.current;
+    const coveredElementId = savedCoveredIdRef.current;
+    savedRangeRef.current = null;
+    savedCoveredIdRef.current = null;
+    if (!range || range.collapsed || !coveredElementId) return;
+    const selectedText = range.toString();
+    if (!selectedText.trim()) return;
+    const segmentId = `seg_${Date.now()}`;
+    setCanvasElements(prev => prev.map(el => {
+      if (String(el.id) !== String(coveredElementId)) return el;
+      const origHtml = el.htmlContent || el.content || '';
+      const origContent = el.content || '';
+      const pos = origContent.indexOf(selectedText);
+      const newContent = pos >= 0
+        ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
+        : origContent;
+      let newHtml = origHtml;
+      try {
+        const esc = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        newHtml = origHtml.replace(new RegExp(esc), '');
+      } catch { /* keep origHtml */ }
+      return {
+        ...el,
+        content: newContent,
+        htmlContent: newHtml,
+        redactSegments: [
+          ...(el.redactSegments || []),
+          { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
+        ],
+      };
+    }));
+  }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (activeTool === 'cut' && selectedElement) {
       const el = canvasElements.find(e => e.id === selectedElement);
