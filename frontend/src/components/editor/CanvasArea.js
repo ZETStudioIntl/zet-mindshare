@@ -866,10 +866,26 @@ export const CanvasArea = ({
   useEffect(() => {
     if (activeTool !== 'redact') return;
     const range = savedRangeRef.current;
-    const coveredElementId = savedCoveredIdRef.current;
     savedRangeRef.current = null;
+    let coveredElementId = savedCoveredIdRef.current;
     savedCoveredIdRef.current = null;
-    if (!range || range.collapsed || !coveredElementId) return;
+    if (!range || range.collapsed) return;
+    // activeElement yakalanamadıysa DOM walk ile bul
+    if (!coveredElementId) {
+      const pageEl = canvasRef.current;
+      let node = range.commonAncestorContainer;
+      while (node && node !== pageEl) {
+        const domEl = node.nodeType === 1 ? node : node.parentElement;
+        if (!domEl) break;
+        const tid = domEl.dataset?.testid || '';
+        if (tid.startsWith('text-element-') || tid.startsWith('canvas-element-')) {
+          coveredElementId = tid.replace('text-element-', '').replace('canvas-element-', '');
+          break;
+        }
+        node = domEl.parentElement;
+      }
+    }
+    if (!coveredElementId) return;
     const selectedText = range.toString();
     if (!selectedText.trim()) return;
     const segmentId = `seg_${Date.now()}`;
