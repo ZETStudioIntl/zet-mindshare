@@ -2987,12 +2987,12 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
-    # Check if Judge is available for this plan
-    if not limits.get('judge_enabled', False):
+    # Check if Judge is available for this plan (CEO modunda tüm kısıtlar kalkar)
+    if not req.is_ceo and not limits.get('judge_enabled', False):
         return {"response": "ZET Judge Mini, Free planda kullanılamaz. Lütfen Plus veya üzeri bir plana yükseltin.", "session_id": None, "locked": True}
 
     # Check character limit
-    if len(req.message) > limits['judge_chars']:
+    if not req.is_ceo and len(req.message) > limits.get('judge_chars', 0):
         return {"response": f"Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
 
     # CEO mode block for Judge
@@ -3705,9 +3705,9 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     user_plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(user_plan, PLAN_LIMITS['free'])
 
-    # Check ZETA character limit
+    # Check ZETA character limit (CEO modunda limit yok)
     zeta_char_limit = limits.get('zeta_chars', 250)
-    if zeta_char_limit < 99999 and len(req.message) > zeta_char_limit:
+    if not req.is_ceo and zeta_char_limit < 99999 and len(req.message) > zeta_char_limit:
         return {"response": f"Mesaj çok uzun! {user_plan.upper()} planında ZETA'ya maksimum {zeta_char_limit} karakter gönderebilirsiniz. Daha uzun mesajlar için planınızı yükseltin.", "session_id": None, "char_limit_exceeded": True}
 
     # Load user's Zeta memories
