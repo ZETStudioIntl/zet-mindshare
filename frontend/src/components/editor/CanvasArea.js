@@ -179,6 +179,11 @@ const isVectorInLasso = (path, lasso) => {
 const buildGradientCss = (el, defaultAngle = 135) => {
   if (el.gradientStops?.length >= 2) {
     const sorted = [...el.gradientStops].sort((a, b) => a.pos - b.pos);
+    if (el.gradientType === 'radial') {
+      const cx = el.gradientCenterX ?? 50;
+      const cy = el.gradientCenterY ?? 50;
+      return `radial-gradient(circle at ${cx}% ${cy}%, ${sorted.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
+    }
     return `linear-gradient(${el.gradientAngle ?? defaultAngle}deg, ${sorted.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
   }
   if (el.gradientStart && el.gradientEnd) {

@@ -7,12 +7,20 @@ import { X, Highlighter, MoreHorizontal } from 'lucide-react';
 
 const LS_KEY = 'zet_saved_gradients';
 
-const gradientToCss = (g) => {
-  if (!g.stops || g.stops.length === 0) return '#ffffff';
-  if (g.stops.length === 1) return g.stops[0].color;
-  const sorted = [...g.stops].sort((a, b) => a.x - b.x);
-  return `linear-gradient(${g.angle ?? 90}deg, ${sorted.map(s => `${s.color} ${Math.round(s.x)}%`).join(', ')})`;
+const radialCss = (stops, cx, cy) => {
+  if (!stops || stops.length === 0) return '#ffffff';
+  if (stops.length === 1) return stops[0].color;
+  const withDist = stops.map(s => {
+    const dx = s.x - cx;
+    const dy = s.y - cy;
+    return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
+  });
+  const maxDist = Math.max(...withDist.map(s => s.dist)) || 1;
+  const sorted = [...withDist].sort((a, b) => a.dist - b.dist);
+  return `radial-gradient(circle at ${Math.round(cx)}% ${Math.round(cy)}%, ${sorted.map(s => `${s.color} ${Math.round((s.dist / maxDist) * 100)}%`).join(', ')})`;
 };
+
+const gradientToCss = (g) => radialCss(g.stops, g.centerX ?? 50, g.centerY ?? 50);
 
 const ColorPickerPanel = () => {
   const { t } = useLanguage();
@@ -30,7 +38,7 @@ const ColorPickerPanel = () => {
 
   const [showEditor, setShowEditor] = useState(false);
   const [editStops, setEditStops] = useState([]);
-  const [editAngle, setEditAngle] = useState(90);
+  const [editCenter, setEditCenter] = useState({ x: 50, y: 50 });
   const [activeStopId, setActiveStopId] = useState(null);
   const [rightClickId, setRightClickId] = useState(null);
   const rectRef = useRef(null);
@@ -41,11 +49,30 @@ const ColorPickerPanel = () => {
   const applyGradientFromSaved = (g) => {
     const target = selectedElement || lastSelectedRef?.current;
     if (!target) return;
-    const stops = g.stops.map(s => ({ id: s.id, pos: Math.round(s.x), color: s.color }));
+    const cx = g.centerX ?? 50;
+    const cy = g.centerY ?? 50;
+    const withDist = (g.stops || []).map(s => {
+      const dx = s.x - cx;
+      const dy = s.y - cy;
+      return { ...s, dist: Math.sqrt(dx * dx + dy * dy) };
+    });
+    const maxDist = Math.max(...withDist.map(s => s.dist)) || 1;
+    const stops = withDist
+      .sort((a, b) => a.dist - b.dist)
+      .map(s => ({ id: s.id, pos: Math.round((s.dist / maxDist) * 100), color: s.color }));
     setCanvasElements(prev => {
       const updated = prev.map(el => {
         if (el.id !== target) return el;
-        return { ...el, gradientStops: stops, gradientAngle: g.angle, gradientStart: undefined, gradientEnd: undefined };
+        return {
+          ...el,
+          gradientStops: stops,
+          gradientType: 'radial',
+          gradientCenterX: Math.round(cx),
+          gradientCenterY: Math.round(cy),
+          gradientAngle: undefined,
+          gradientStart: undefined,
+          gradientEnd: undefined,
+        };
       });
       handleSaveHistory(updated);
       return updated;
@@ -64,7 +91,7 @@ const ColorPickerPanel = () => {
     setRightClickId(null);
   };
 
-  /* ── Editor: drag stop ── */
+  /* ── Editor: drag color stop ── */
   const startDrag = (e, stopId) => {
     e.preventDefault();
     e.stopPropagation();
@@ -76,6 +103,22 @@ const ColorPickerPanel = () => {
       const x = Math.min(100, Math.max(0, ((me.clientX - rect.left) / rect.width) * 100));
       const y = Math.min(100, Math.max(0, ((me.clientY - rect.top) / rect.height) * 100));
       setEditStops(prev => prev.map(s => s.id === stopId ? { ...s, x, y } : s));
+    };
+    const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
+
+  /* ── Editor: drag center point ── */
+  const startCenterDrag = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!rectRef.current) return;
+    const rect = rectRef.current.getBoundingClientRect();
+    const onMove = (me) => {
+      const x = Math.min(100, Math.max(0, ((me.clientX - rect.left) / rect.width) * 100));
+      const y = Math.min(100, Math.max(0, ((me.clientY - rect.top) / rect.height) * 100));
+      setEditCenter({ x, y });
     };
     const onUp = () => { document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); };
     document.addEventListener('mousemove', onMove);
@@ -97,13 +140,13 @@ const ColorPickerPanel = () => {
   const saveGradient = () => {
     if (editStops.length === 0) return;
     const name = `Gradient ${savedGradients.length + 1}`;
-    const newG = { id: `grad_${Date.now()}`, name, stops: editStops, angle: editAngle };
+    const newG = { id: `grad_${Date.now()}`, name, stops: editStops, centerX: editCenter.x, centerY: editCenter.y };
     const updated = [...savedGradients, newG];
     localStorage.setItem(LS_KEY, JSON.stringify(updated));
     setSavedGradients(updated);
     setShowEditor(false);
     setEditStops([]);
-    setEditAngle(90);
+    setEditCenter({ x: 50, y: 50 });
     setRightClickId(null);
     applyGradientFromSaved(newG);
   };
@@ -128,7 +171,7 @@ const ColorPickerPanel = () => {
     setOpenMenuId(null);
   };
 
-  const editorCss = editStops.length === 0 ? '#ffffff' : gradientToCss({ stops: editStops, angle: editAngle });
+  const editorCss = radialCss(editStops, editCenter.x, editCenter.y);
 
   return (
     <DraggablePanel title={t('colorPicker')} onClose={() => setShowColor(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 150 }}>
@@ -213,6 +256,29 @@ const ColorPickerPanel = () => {
                   cursor: 'crosshair', userSelect: 'none', overflow: 'hidden',
                 }}
               >
+                {/* Merkez noktası */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${editCenter.x}%`, top: `${editCenter.y}%`,
+                    transform: 'translate(-50%, -50%)',
+                    width: 20, height: 20, borderRadius: '50%',
+                    background: 'rgba(255,255,255,0.9)',
+                    border: '2px solid #333',
+                    cursor: 'move', zIndex: 9,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    boxShadow: '0 1px 5px rgba(0,0,0,0.5)',
+                  }}
+                  onMouseDown={startCenterDrag}
+                  onClick={e => e.stopPropagation()}
+                >
+                  <svg width="10" height="10" viewBox="0 0 10 10">
+                    <line x1="5" y1="0" x2="5" y2="10" stroke="#333" strokeWidth="1.5" />
+                    <line x1="0" y1="5" x2="10" y2="5" stroke="#333" strokeWidth="1.5" />
+                    <circle cx="5" cy="5" r="1.5" fill="#333" />
+                  </svg>
+                </div>
+
                 {editStops.map(stop => {
                   const isActive = activeStopId === stop.id;
                   const isRightClicked = rightClickId === stop.id;
@@ -271,20 +337,12 @@ const ColorPickerPanel = () => {
                 })}
               </div>
 
-              {/* Açı */}
-              <div className="flex items-center gap-2">
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Açı</span>
-                <input type="range" min="0" max="360" value={editAngle}
-                  onChange={e => setEditAngle(Number(e.target.value))} className="flex-1 accent-[var(--zet-primary)]" />
-                <span className="text-xs w-8 text-right font-mono" style={{ color: 'var(--zet-text)' }}>{editAngle}°</span>
-              </div>
-
               <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                Sol tık → durak ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil
+                Sol tık → renk ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil &nbsp;·&nbsp; ⊕ merkezi sürükle
               </p>
 
               <div className="flex gap-1.5">
-                <button onClick={() => { setShowEditor(false); setEditStops([]); setRightClickId(null); }}
+                <button onClick={() => { setShowEditor(false); setEditStops([]); setEditCenter({ x: 50, y: 50 }); setRightClickId(null); }}
                   className="flex-1 text-xs py-1.5 rounded"
                   style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
                   İptal
@@ -298,7 +356,7 @@ const ColorPickerPanel = () => {
             </div>
           ) : (
             <button
-              onClick={() => { setShowEditor(true); setEditStops([]); setEditAngle(90); setRightClickId(null); }}
+              onClick={() => { setShowEditor(true); setEditStops([]); setEditCenter({ x: 50, y: 50 }); setRightClickId(null); }}
               className="w-full text-xs py-2 rounded font-medium transition-colors hover:bg-white/5"
               style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}>
               + Gradient Renk Oluştur
