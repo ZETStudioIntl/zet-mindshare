@@ -759,11 +759,20 @@ export const CanvasArea = ({
 
   // Seçili metni butona tıklamadan önce klonla — tıklama selection'ı siliyor
   const savedRangeRef = useRef(null);
+  const savedCoveredIdRef = useRef(null);
   useEffect(() => {
     const onSelChange = () => {
       const sel = window.getSelection();
       if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-        try { savedRangeRef.current = sel.getRangeAt(0).cloneRange(); } catch { /* ignore */ }
+        try {
+          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
+          // activeElement = text-element-{id} contentEditable → element ID'yi kaydet
+          const ae = document.activeElement;
+          const tid = ae?.dataset?.testid || '';
+          savedCoveredIdRef.current = tid.startsWith('text-element-')
+            ? tid.replace('text-element-', '')
+            : null;
+        } catch { /* ignore */ }
       }
     };
     document.addEventListener('selectionchange', onSelChange);
@@ -781,18 +790,21 @@ export const CanvasArea = ({
     const pageRect = pageEl.getBoundingClientRect();
     const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 2);
     if (rects.length === 0) return;
-    // DOM'dan hangi canvas element'in içinde olduğunu bul (ID tabanlı güvenilir eşleşme için)
-    let coveredElementId = null;
-    let node = range.commonAncestorContainer;
-    while (node && node !== pageEl) {
-      const el = node.nodeType === 1 ? node : node.parentElement;
-      if (!el) break;
-      const testId = el.dataset?.testid || '';
-      if (testId.startsWith('canvas-element-')) {
-        coveredElementId = testId.replace('canvas-element-', '');
-        break;
+    // activeElement kaydından al (selectionchange anında yakalandı), yoksa DOM walk fallback
+    let coveredElementId = savedCoveredIdRef.current || null;
+    savedCoveredIdRef.current = null;
+    if (!coveredElementId) {
+      let node = range.commonAncestorContainer;
+      while (node && node !== pageEl) {
+        const el = node.nodeType === 1 ? node : node.parentElement;
+        if (!el) break;
+        const testId = el.dataset?.testid || '';
+        if (testId.startsWith('canvas-element-') || testId.startsWith('text-element-')) {
+          coveredElementId = testId.replace('canvas-element-', '').replace('text-element-', '');
+          break;
+        }
+        node = el.parentElement;
       }
-      node = el.parentElement;
     }
     const segmentId = `seg_${Date.now()}`;
     // Sansür: metni elementten gerçekten sil, veriyi redactSegments'a kaydet
