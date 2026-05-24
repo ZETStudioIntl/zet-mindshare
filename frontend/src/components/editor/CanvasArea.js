@@ -757,68 +757,51 @@ export const CanvasArea = ({
   const markingColorRef = useRef(markingColor);
   useEffect(() => { markingColorRef.current = markingColor; }, [markingColor]);
 
-  // Seçili metni butona tıklamadan önce klonla — tıklama selection'ı siliyor
-  const savedRangeRef = useRef(null);
-  const savedCoveredIdRef = useRef(null);
-  useEffect(() => {
-    const onSelChange = () => {
-      const sel = window.getSelection();
-      if (sel && !sel.isCollapsed && sel.rangeCount > 0) {
-        try {
-          savedRangeRef.current = sel.getRangeAt(0).cloneRange();
-          // activeElement = text-element-{id} contentEditable → element ID'yi kaydet
-          const ae = document.activeElement;
-          const tid = ae?.dataset?.testid || '';
-          savedCoveredIdRef.current = tid.startsWith('text-element-')
-            ? tid.replace('text-element-', '')
-            : null;
-        } catch { /* ignore */ }
-      }
-    };
-    document.addEventListener('selectionchange', onSelChange);
-    return () => document.removeEventListener('selectionchange', onSelChange);
-  }, []);
+  const activeToolRef = useRef(activeTool);
+  useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
 
-  // Metin seçimi + Highlighter/Sansür tool tıklaması → overlay oluştur
+  // Highlight / Redact: mouseup anında seçim hâlâ geçerli, activeElement doğru
   useEffect(() => {
     if (activeTool !== 'highlighter' && activeTool !== 'redact') return;
-    const range = savedRangeRef.current;
-    if (!range || range.collapsed) return;
-    savedRangeRef.current = null;
-    const pageEl = canvasRef.current;
-    if (!pageEl) return;
-    const pageRect = pageEl.getBoundingClientRect();
-    const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 2);
-    if (rects.length === 0) return;
-    // activeElement kaydından al (selectionchange anında yakalandı), yoksa DOM walk fallback
-    let coveredElementId = savedCoveredIdRef.current || null;
-    savedCoveredIdRef.current = null;
-    if (!coveredElementId) {
-      let node = range.commonAncestorContainer;
-      while (node && node !== pageEl) {
-        const el = node.nodeType === 1 ? node : node.parentElement;
-        if (!el) break;
-        const testId = el.dataset?.testid || '';
-        if (testId.startsWith('canvas-element-') || testId.startsWith('text-element-')) {
-          coveredElementId = testId.replace('canvas-element-', '').replace('text-element-', '');
-          break;
+    const tool = activeTool;
+    const onMouseUp = () => {
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      const range = sel.getRangeAt(0);
+      const pageEl = canvasRef.current;
+      if (!pageEl) return;
+      const pageRect = pageEl.getBoundingClientRect();
+      const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 2);
+      if (rects.length === 0) return;
+
+      // Element ID'yi activeElement'ten al, yoksa DOM walk
+      let coveredElementId = null;
+      const ae = document.activeElement;
+      const aTid = ae?.dataset?.testid || '';
+      if (aTid.startsWith('text-element-')) {
+        coveredElementId = aTid.replace('text-element-', '');
+      } else {
+        let node = range.commonAncestorContainer;
+        while (node && node !== pageEl) {
+          const domEl = node.nodeType === 1 ? node : node.parentElement;
+          if (!domEl) break;
+          const tid = domEl.dataset?.testid || '';
+          if (tid.startsWith('text-element-') || tid.startsWith('canvas-element-')) {
+            coveredElementId = tid.replace('text-element-', '').replace('canvas-element-', '');
+            break;
+          }
+          node = domEl.parentElement;
         }
-        node = el.parentElement;
       }
-    }
-    const segmentId = `seg_${Date.now()}`;
-    console.log('[REDACT-DBG] coveredElementId:', coveredElementId, typeof coveredElementId, '| text:', range.toString());
-    // Sansür: metni elementten gerçekten sil, veriyi redactSegments'a kaydet
-    if (activeTool === 'redact' && coveredElementId) {
-      const selectedText = range.toString();
-      if (selectedText.trim()) {
-        setCanvasElements(prev => {
-          prev.forEach(el => console.log('[REDACT-DBG] el.id:', el.id, typeof el.id, 'match:', String(el.id) === String(coveredElementId)));
-          return prev.map(el => {
+
+      const segmentId = `seg_${Date.now()}`;
+      if (tool === 'redact' && coveredElementId) {
+        const selectedText = range.toString();
+        if (selectedText.trim()) {
+          setCanvasElements(prev => prev.map(el => {
             if (String(el.id) !== String(coveredElementId)) return el;
             const origHtml = el.htmlContent || el.content || '';
             const origContent = el.content || '';
-            console.log('[REDACT-DBG] MATCH! origContent:', origContent, '| sel:', selectedText);
             const pos = origContent.indexOf(selectedText);
             const newContent = pos >= 0
               ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
@@ -837,24 +820,28 @@ export const CanvasArea = ({
                 { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
               ],
             };
-          });
-        });
+          }));
+        }
       }
-    }
-    const newOverlays = rects.map((rect, i) => ({
-      id: `overlay_${Date.now()}_${i}`,
-      type: 'overlay',
-      overlayType: activeTool === 'highlighter' ? 'highlight' : 'redact',
-      x: (rect.left - pageRect.left) / zoomRef.current,
-      y: (rect.top - pageRect.top) / zoomRef.current,
-      width: rect.width / zoomRef.current,
-      height: rect.height / zoomRef.current,
-      color: markingColorRef.current || '#fbbf24',
-      coveredElementId,
-      segmentId: activeTool === 'redact' ? segmentId : null,
-    }));
-    setDrawPaths(prev => [...prev, ...newOverlays]);
-    window.getSelection()?.removeAllRanges();
+
+      const newOverlays = rects.map((rect, i) => ({
+        id: `overlay_${Date.now()}_${i}`,
+        type: 'overlay',
+        overlayType: tool === 'highlighter' ? 'highlight' : 'redact',
+        x: (rect.left - pageRect.left) / zoomRef.current,
+        y: (rect.top - pageRect.top) / zoomRef.current,
+        width: rect.width / zoomRef.current,
+        height: rect.height / zoomRef.current,
+        color: markingColorRef.current || '#fbbf24',
+        coveredElementId,
+        segmentId: tool === 'redact' ? segmentId : null,
+      }));
+      setDrawPaths(prev => [...prev, ...newOverlays]);
+      sel.removeAllRanges();
+    };
+
+    document.addEventListener('mouseup', onMouseUp);
+    return () => document.removeEventListener('mouseup', onMouseUp);
   }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
