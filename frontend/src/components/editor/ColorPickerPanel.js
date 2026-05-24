@@ -35,6 +35,9 @@ const ColorPickerPanel = () => {
     try { return JSON.parse(localStorage.getItem(LS_KEY) || '[]'); } catch { return []; }
   });
   const [openMenuId, setOpenMenuId] = useState(null);
+  const [editingNameId, setEditingNameId] = useState(null);
+  const [editingNameValue, setEditingNameValue] = useState('');
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
 
   const [showEditor, setShowEditor] = useState(false);
   const [editStops, setEditStops] = useState([]);
@@ -86,7 +89,7 @@ const ColorPickerPanel = () => {
     const x = Math.min(100, Math.max(0, ((e.clientX - rect.left) / rect.width) * 100));
     const y = Math.min(100, Math.max(0, ((e.clientY - rect.top) / rect.height) * 100));
     const id = `es_${Date.now()}`;
-    setEditStops(prev => [...prev, { id, x, y, color: '#000000' }]);
+    setEditStops(prev => [...prev, { id, x, y, color: '#ffffff' }]);
     setActiveStopId(id);
     setRightClickId(null);
   };
@@ -151,31 +154,30 @@ const ColorPickerPanel = () => {
     applyGradientFromSaved(newG);
   };
 
-  /* ── Rename / Delete saved gradient ── */
-  const renameGradient = (id) => {
-    const g = savedGradients.find(x => x.id === id);
-    if (!g) return;
-    const name = window.prompt('Yeni isim:', g.name);
-    if (!name || !name.trim()) return;
-    const updated = savedGradients.map(x => x.id === id ? { ...x, name: name.trim() } : x);
+  /* ── In-app rename ── */
+  const startRename = (g) => { setEditingNameId(g.id); setEditingNameValue(g.name); setOpenMenuId(null); };
+  const commitRename = (id) => {
+    if (!editingNameValue.trim()) { setEditingNameId(null); return; }
+    const updated = savedGradients.map(x => x.id === id ? { ...x, name: editingNameValue.trim() } : x);
     localStorage.setItem(LS_KEY, JSON.stringify(updated));
     setSavedGradients(updated);
-    setOpenMenuId(null);
+    setEditingNameId(null);
   };
 
+  /* ── In-app delete ── */
+  const startDelete = (id) => { setConfirmDeleteId(id); setOpenMenuId(null); };
   const deleteGradient = (id) => {
-    if (!window.confirm('Bu gradient silinsin mi?')) return;
     const updated = savedGradients.filter(x => x.id !== id);
     localStorage.setItem(LS_KEY, JSON.stringify(updated));
     setSavedGradients(updated);
-    setOpenMenuId(null);
+    setConfirmDeleteId(null);
   };
 
   const editorCss = radialCss(editStops, editCenter.x, editCenter.y);
 
   return (
     <DraggablePanel title={t('colorPicker')} onClose={() => setShowColor(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 150 }}>
-      <div className="space-y-3 w-72" onClick={() => setOpenMenuId(null)}>
+      <div className="space-y-3 w-72" onClick={() => { setOpenMenuId(null); setEditingNameId(null); }}>
 
         {/* Material selector */}
         <div className="flex gap-1">
@@ -214,30 +216,57 @@ const ColorPickerPanel = () => {
           {savedGradients.length > 0 && (
             <div className="space-y-1.5 mb-3">
               {savedGradients.map(g => (
-                <div key={g.id} className="flex items-center gap-2">
-                  <button onClick={() => applyGradientFromSaved(g)} title="Uygula"
-                    style={{ width: 56, height: 22, borderRadius: 4, flexShrink: 0, background: gradientToCss(g), border: '1px solid var(--zet-border)' }} />
-                  <span className="flex-1 text-xs truncate" style={{ color: 'var(--zet-text)' }}>{g.name}</span>
-                  <div className="relative" onClick={e => e.stopPropagation()}>
-                    <button onClick={() => setOpenMenuId(openMenuId === g.id ? null : g.id)}
-                      className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10"
-                      style={{ color: 'var(--zet-text-muted)' }}>
-                      <MoreHorizontal className="h-3.5 w-3.5" />
-                    </button>
-                    {openMenuId === g.id && (
-                      <div className="absolute right-0 top-full mt-0.5 z-50 rounded-lg shadow-xl overflow-hidden"
-                        style={{ background: 'var(--zet-card)', border: '1px solid var(--zet-border)', minWidth: 128 }}>
-                        <button onClick={() => renameGradient(g.id)}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10" style={{ color: 'var(--zet-text)' }}>
-                          İsim Değiştir
+                <div key={g.id}>
+                  {confirmDeleteId === g.id ? (
+                    /* Silme onayı — inline */
+                    <div className="flex items-center gap-2 px-1 py-0.5 rounded" style={{ background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)' }}>
+                      <span className="flex-1 text-xs" style={{ color: 'var(--zet-text-muted)' }}>"{g.name}" silinsin mi?</span>
+                      <button onClick={() => deleteGradient(g.id)}
+                        className="text-xs px-2 py-0.5 rounded font-medium"
+                        style={{ background: '#ef4444', color: '#fff' }}>Evet</button>
+                      <button onClick={() => setConfirmDeleteId(null)}
+                        className="text-xs px-2 py-0.5 rounded"
+                        style={{ background: 'var(--zet-bg)', color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>Hayır</button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => applyGradientFromSaved(g)} title="Uygula"
+                        style={{ width: 56, height: 22, borderRadius: 4, flexShrink: 0, background: gradientToCss(g), border: '1px solid var(--zet-border)' }} />
+                      {editingNameId === g.id ? (
+                        /* İsim düzenleme — inline input */
+                        <input
+                          autoFocus type="text" value={editingNameValue}
+                          onChange={e => setEditingNameValue(e.target.value)}
+                          onKeyDown={e => { if (e.key === 'Enter') commitRename(g.id); if (e.key === 'Escape') setEditingNameId(null); }}
+                          onBlur={() => commitRename(g.id)}
+                          className="flex-1 text-xs zet-input"
+                          onClick={e => e.stopPropagation()}
+                        />
+                      ) : (
+                        <span className="flex-1 text-xs truncate" style={{ color: 'var(--zet-text)' }}>{g.name}</span>
+                      )}
+                      <div className="relative" onClick={e => e.stopPropagation()}>
+                        <button onClick={() => setOpenMenuId(openMenuId === g.id ? null : g.id)}
+                          className="w-5 h-5 flex items-center justify-center rounded hover:bg-white/10"
+                          style={{ color: 'var(--zet-text-muted)' }}>
+                          <MoreHorizontal className="h-3.5 w-3.5" />
                         </button>
-                        <button onClick={() => deleteGradient(g.id)}
-                          className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10" style={{ color: '#ef4444' }}>
-                          Sil
-                        </button>
+                        {openMenuId === g.id && (
+                          <div className="absolute right-0 top-full mt-0.5 z-50 rounded-lg shadow-xl overflow-hidden"
+                            style={{ background: 'var(--zet-card)', border: '1px solid var(--zet-border)', minWidth: 128 }}>
+                            <button onClick={() => startRename(g)}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10" style={{ color: 'var(--zet-text)' }}>
+                              İsim Değiştir
+                            </button>
+                            <button onClick={() => startDelete(g.id)}
+                              className="w-full text-left px-3 py-1.5 text-xs hover:bg-white/10" style={{ color: '#ef4444' }}>
+                              Sil
+                            </button>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
@@ -256,27 +285,23 @@ const ColorPickerPanel = () => {
                   cursor: 'crosshair', userSelect: 'none', overflow: 'hidden',
                 }}
               >
-                {/* Merkez noktası */}
+                {/* Merkez noktası — z-index 3, stops her zaman üstte */}
                 <div
                   style={{
                     position: 'absolute',
                     left: `${editCenter.x}%`, top: `${editCenter.y}%`,
                     transform: 'translate(-50%, -50%)',
-                    width: 20, height: 20, borderRadius: '50%',
+                    width: 16, height: 16, borderRadius: '50%',
                     background: 'rgba(255,255,255,0.9)',
                     border: '2px solid #333',
-                    cursor: 'move', zIndex: 9,
+                    cursor: 'move', zIndex: 3,
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     boxShadow: '0 1px 5px rgba(0,0,0,0.5)',
                   }}
                   onMouseDown={startCenterDrag}
                   onClick={e => e.stopPropagation()}
                 >
-                  <svg width="10" height="10" viewBox="0 0 10 10">
-                    <line x1="5" y1="0" x2="5" y2="10" stroke="#333" strokeWidth="1.5" />
-                    <line x1="0" y1="5" x2="10" y2="5" stroke="#333" strokeWidth="1.5" />
-                    <circle cx="5" cy="5" r="1.5" fill="#333" />
-                  </svg>
+                  <div style={{ width: 4, height: 4, borderRadius: '50%', background: '#333' }} />
                 </div>
 
                 {editStops.map(stop => {
@@ -338,7 +363,7 @@ const ColorPickerPanel = () => {
               </div>
 
               <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                Sol tık → renk ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil &nbsp;·&nbsp; ⊕ merkezi sürükle
+                Sol tık → renk ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil &nbsp;·&nbsp; ● merkezi sürükle
               </p>
 
               <div className="flex gap-1.5">
