@@ -504,7 +504,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
           paddingTop: ((el.paddingTop || 0) + (el.paragraphSpaceBefore || 0)) * zoom,
           paddingBottom: ((el.paddingBottom || 0) + (el.paragraphSpaceAfter || 0)) * zoom,
           textIndent: (el.textIndent || 0) * zoom,
-          backgroundColor: el.highlightColor || undefined,
+          backgroundColor: el.highlightColor ? el.highlightColor + '66' : undefined,
           '--lh': el.lineHeight || 1.5,
           ...gradientStyle,
         }}
@@ -2013,6 +2013,8 @@ export const CanvasArea = ({
                             ) : <div key={i} className="border-t my-1" style={{ borderColor: 'var(--zet-border)' }} />)}
                           </div>
                         )}
+                        {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
+                        {el.isHighlighted && !el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: el.highlightColor || '#fbbf24', opacity: 0.6, zIndex: 1, borderRadius: 2, pointerEvents: 'none' }} />}
                         {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, origWidth: el.width || 200, origFontSize: el.tableFontSize || 12 }); }} />
                           <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                           {elementMenu === el.id && <ElementMenu el={{...el, type: 'table'}} onDelete={onDeleteElement} onChangeImage={() => {}} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onSetTextWrap={onSetTextWrap} onClose={() => setElementMenu(null)} />}
@@ -2023,6 +2025,8 @@ export const CanvasArea = ({
                   {el.type === 'table' && !el.tableData && el.src && (
                     <div className="relative w-full h-full group">
                       <img src={el.src} alt="" className="w-full h-full object-contain" draggable={false} />
+                      {el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: '#111', zIndex: 2, borderRadius: 2, pointerEvents: 'none' }} />}
+                      {el.isHighlighted && !el.isRedacted && <div style={{ position: 'absolute', inset: 0, background: el.highlightColor || '#fbbf24', opacity: 0.6, zIndex: 1, borderRadius: 2, pointerEvents: 'none' }} />}
                       {isSel && !isLocked && (<><div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
                         <button className="absolute -top-2 -right-2 w-5 h-5 rounded-full flex items-center justify-center shadow-md" style={{ background: 'var(--zet-bg-card)' }} onClick={(e) => { e.stopPropagation(); setElementMenu(elementMenu === el.id ? null : el.id); }}><MoreVertical className="h-3 w-3" style={{ color: 'var(--zet-text)' }} /></button>
                         {elementMenu === el.id && <ElementMenu el={{...el, type: 'image'}} onDelete={onDeleteElement} onChangeImage={onChangeImage} onAddImageToShape={() => {}} onAddAiImage={() => {}} onCopy={onCopyElement} onMirror={onMirrorElement} onSetTextWrap={onSetTextWrap} onClose={() => setElementMenu(null)} />}
