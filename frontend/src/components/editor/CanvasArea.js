@@ -702,7 +702,6 @@ export const CanvasArea = ({
   // Snap indicator: shows a crosshair when element snaps to a grid line
   const [snapIndicator, setSnapIndicator] = useState(null);
   const [knifePreview, setKnifePreview] = useState(null); // {x1,y1,x2,y2} only for rendering
-  const [overlayDraft, setOverlayDraft] = useState(null);
   const knifeStartRef = useRef(null);
   const knifeEndRef = useRef(null);
 
@@ -754,6 +753,34 @@ export const CanvasArea = ({
   useEffect(() => { penAnchorsRef.current = penAnchors; }, [penAnchors]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { currentColorRef.current = currentColor; }, [currentColor]);
+
+  const markingColorRef = useRef(markingColor);
+  useEffect(() => { markingColorRef.current = markingColor; }, [markingColor]);
+
+  // Metin seçimi + Highlighter/Sansür tool tıklaması → overlay oluştur
+  useEffect(() => {
+    if (activeTool !== 'highlighter' && activeTool !== 'redact') return;
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return;
+    const range = sel.getRangeAt(0);
+    const pageEl = canvasRef.current;
+    if (!pageEl) return;
+    const pageRect = pageEl.getBoundingClientRect();
+    const rects = Array.from(range.getClientRects()).filter(r => r.width > 1 && r.height > 2);
+    if (rects.length === 0) return;
+    const newOverlays = rects.map((rect, i) => ({
+      id: `overlay_${Date.now()}_${i}`,
+      type: 'overlay',
+      overlayType: activeTool === 'highlighter' ? 'highlight' : 'redact',
+      x: (rect.left - pageRect.left) / zoomRef.current,
+      y: (rect.top - pageRect.top) / zoomRef.current,
+      width: rect.width / zoomRef.current,
+      height: rect.height / zoomRef.current,
+      color: markingColorRef.current || '#fbbf24',
+    }));
+    setDrawPaths(prev => [...prev, ...newOverlays]);
+    sel.removeAllRanges();
+  }, [activeTool]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (activeTool === 'cut' && selectedElement) {
@@ -1053,11 +1080,6 @@ export const CanvasArea = ({
       return;
     }
     
-    if (activeTool === 'highlighter' || activeTool === 'redact') {
-      setIsDrawing(true);
-      setOverlayDraft({ x, y, w: 0, h: 0 });
-      return;
-    }
     if (activeTool === 'knife') {
       knifeStartRef.current = { x, y };
       knifeEndRef.current = { x, y };
@@ -1203,10 +1225,6 @@ export const CanvasArea = ({
         return;
       }
     }
-    if ((activeTool === 'highlighter' || activeTool === 'redact') && isDrawing && overlayDraft) {
-      setOverlayDraft(prev => ({ ...prev, w: x - prev.x, h: y - prev.y }));
-      return;
-    }
     if ((activeTool === 'draw' || activeTool === 'marking') && isDrawing) { setCurrentPath(p => [...p, { x, y }]); return; }
     if (activeTool === 'eraser' && isDrawing) { setEraserTrail(p => [...p, { x, y }]); return; }
     if (activeTool === 'select' && isDrawing) { 
@@ -1309,7 +1327,7 @@ export const CanvasArea = ({
         }));
       }
     }
-  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, isRectSelecting, overlayDraft, rectSelectStart, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
+  }, [activeTool, canvasElements, cropDragging, cropStart, currentPage, dragging, draggingVector, dragOffset, drawPaths, getCoords, isDrawing, isRectSelecting, rectSelectStart, resizing, selectionStart, setCanvasElements, setDrawPaths, vectorDragOffset]);
 
   const handleMouseUp = useCallback(() => {
     // Right-click rectangle selection - find elements inside rectangle
@@ -1458,26 +1476,6 @@ export const CanvasArea = ({
       setKnifePreview(null);
     }
 
-    if ((activeTool === 'highlighter' || activeTool === 'redact') && isDrawing && overlayDraft) {
-      const ox = Math.min(overlayDraft.x, overlayDraft.x + overlayDraft.w);
-      const oy = Math.min(overlayDraft.y, overlayDraft.y + overlayDraft.h);
-      const ow = Math.abs(overlayDraft.w);
-      const oh = Math.abs(overlayDraft.h);
-      if (ow > 5 && oh > 5) {
-        const newOverlay = {
-          id: `overlay_${Date.now()}`,
-          type: 'overlay',
-          overlayType: activeTool === 'highlighter' ? 'highlight' : 'redact',
-          x: ox, y: oy, width: ow, height: oh,
-          color: markingColor || '#fbbf24',
-        };
-        setDrawPaths(prev => [...prev, newOverlay]);
-      }
-      setOverlayDraft(null);
-      setIsDrawing(false);
-      return;
-    }
-
     setIsDrawing(false); setCurrentPath([]); setEraserTrail([]); setLassoPath([]);
     setSelectionRect(null); setSelectionStart(null);
     cropWasDraggedRef.current = false;
@@ -1485,7 +1483,7 @@ export const CanvasArea = ({
     setIsPanning(false); panStartRef.current = null;
     setDragging(null); activeDragRef.current = null; setResizing(null);
     setSnapIndicator(null);
-  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, overlayDraft, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -2122,23 +2120,6 @@ export const CanvasArea = ({
                 onRemove={(id) => setDrawPaths(prev => prev.filter(p => p.id !== id))}
               />
             ))}
-            {idx === currentPage && overlayDraft && (
-              <div
-                style={{
-                  position: 'absolute',
-                  left: Math.min(overlayDraft.x, overlayDraft.x + overlayDraft.w) * zoom,
-                  top: Math.min(overlayDraft.y, overlayDraft.y + overlayDraft.h) * zoom,
-                  width: Math.abs(overlayDraft.w) * zoom,
-                  height: Math.abs(overlayDraft.h) * zoom,
-                  background: activeTool === 'redact' ? '#333' : (markingColor || '#fbbf24'),
-                  opacity: 0.35,
-                  border: `2px dashed ${activeTool === 'redact' ? '#999' : '#f59e0b'}`,
-                  pointerEvents: 'none',
-                  zIndex: 14, borderRadius: 1,
-                }}
-              />
-            )}
-
             {/* Watermark overlay */}
             {doc.watermark && (
               <div className="absolute inset-0 flex items-center justify-center pointer-events-none overflow-hidden" style={{ opacity: (doc.watermark.opacity || 20) / 100 }}>
