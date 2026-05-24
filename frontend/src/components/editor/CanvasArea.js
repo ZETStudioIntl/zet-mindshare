@@ -807,33 +807,38 @@ export const CanvasArea = ({
       }
     }
     const segmentId = `seg_${Date.now()}`;
+    console.log('[REDACT-DBG] coveredElementId:', coveredElementId, typeof coveredElementId, '| text:', range.toString());
     // Sansür: metni elementten gerçekten sil, veriyi redactSegments'a kaydet
     if (activeTool === 'redact' && coveredElementId) {
       const selectedText = range.toString();
       if (selectedText.trim()) {
-        setCanvasElements(prev => prev.map(el => {
-          if (String(el.id) !== String(coveredElementId)) return el;
-          const origHtml = el.htmlContent || el.content || '';
-          const origContent = el.content || '';
-          const pos = origContent.indexOf(selectedText);
-          const newContent = pos >= 0
-            ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
-            : origContent;
-          let newHtml = origHtml;
-          try {
-            const esc = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            newHtml = origHtml.replace(new RegExp(esc), '');
-          } catch { /* keep origHtml */ }
-          return {
-            ...el,
-            content: newContent,
-            htmlContent: newHtml,
-            redactSegments: [
-              ...(el.redactSegments || []),
-              { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
-            ],
-          };
-        }));
+        setCanvasElements(prev => {
+          prev.forEach(el => console.log('[REDACT-DBG] el.id:', el.id, typeof el.id, 'match:', String(el.id) === String(coveredElementId)));
+          return prev.map(el => {
+            if (String(el.id) !== String(coveredElementId)) return el;
+            const origHtml = el.htmlContent || el.content || '';
+            const origContent = el.content || '';
+            console.log('[REDACT-DBG] MATCH! origContent:', origContent, '| sel:', selectedText);
+            const pos = origContent.indexOf(selectedText);
+            const newContent = pos >= 0
+              ? origContent.slice(0, pos) + origContent.slice(pos + selectedText.length)
+              : origContent;
+            let newHtml = origHtml;
+            try {
+              const esc = selectedText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+              newHtml = origHtml.replace(new RegExp(esc), '');
+            } catch { /* keep origHtml */ }
+            return {
+              ...el,
+              content: newContent,
+              htmlContent: newHtml,
+              redactSegments: [
+                ...(el.redactSegments || []),
+                { segmentId, originalText: selectedText, originalHtml: origHtml, position: Math.max(0, pos) },
+              ],
+            };
+          });
+        });
       }
     }
     const newOverlays = rects.map((rect, i) => ({
