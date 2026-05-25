@@ -700,12 +700,15 @@ const Editor = () => {
   useEffect(() => {
     if (document) {
       setSaveStatus('unsaved');
-      // Always save locally first (offline backup)
-      if (docId) {
+      // Always save locally first (offline backup) — correct key + full doc format
+      if (docId && document) {
         try {
-          localStorage.setItem(`zet_offline_${docId}`, JSON.stringify({
-            canvasElements, drawPaths, currentPage,
-            pageSize, pageBackground, timestamp: Date.now(),
+          const pages = [...(document.pages || [])];
+          if (pages[currentPage]) {
+            pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths, pageSize };
+          }
+          localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
+            title: document.title, subtitle: document.subtitle || null, pages, savedAt: Date.now(),
           }));
         } catch {}
       }
@@ -717,23 +720,34 @@ const Editor = () => {
 
   // Ref'i her zaman güncel tut — unmount ve visibilitychange kayıtları için
   useEffect(() => {
-    latestSaveDataRef.current = { canvasElements, drawPaths, currentPage, pageSize };
-  }, [canvasElements, drawPaths, currentPage, pageSize]);
+    latestSaveDataRef.current = { canvasElements, drawPaths, currentPage, pageSize, document };
+  }, [canvasElements, drawPaths, currentPage, pageSize, document]);
 
   // Sayfa kapanırken veya arka plana geçerken kaydet (mobil dahil)
   useEffect(() => {
     const flushSave = () => {
       const d = latestSaveDataRef.current;
-      if (!d || !docId || !navigator.onLine) return;
-      // saveDocument closure'u kullanmak yerine doğrudan axios
-      axios.get(`${API}/documents/${docId}`, { withCredentials: true })
-        .then(res => {
-          const updatedPages = [...(res.data.pages || [])];
-          if (updatedPages[d.currentPage]) {
-            updatedPages[d.currentPage] = { ...updatedPages[d.currentPage], elements: d.canvasElements, drawPaths: d.drawPaths, pageSize: d.pageSize };
-          }
-          return axios.put(`${API}/documents/${docId}`, { title: res.data.title, subtitle: res.data.subtitle || null, content: res.data.content, pages: updatedPages }, { withCredentials: true });
-        }).catch(() => {});
+      if (!d || !docId) return;
+      // 1) localStorage'a senkron yaz — sekme kapansa bile tamamlanır
+      try {
+        const pages = d.document?.pages ? [...d.document.pages] : [];
+        if (pages[d.currentPage]) {
+          pages[d.currentPage] = { ...pages[d.currentPage], elements: d.canvasElements, drawPaths: d.drawPaths, pageSize: d.pageSize };
+        }
+        localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
+          title: d.document?.title || '', subtitle: d.document?.subtitle || null, pages, savedAt: Date.now(),
+        }));
+      } catch {}
+      // 2) Ağ varsa sunucuya da gönder (fire-and-forget, tamamlanmasa sorun değil — localStorage backup var)
+      if (!navigator.onLine || !d.document) return;
+      const pages2 = d.document.pages ? [...d.document.pages] : [];
+      if (pages2[d.currentPage]) {
+        pages2[d.currentPage] = { ...pages2[d.currentPage], elements: d.canvasElements, drawPaths: d.drawPaths, pageSize: d.pageSize };
+      }
+      axios.put(`${API}/documents/${docId}`, {
+        title: d.document.title, subtitle: d.document.subtitle || null,
+        content: d.document.content, pages: pages2,
+      }, { withCredentials: true }).catch(() => {});
     };
     const onVis = () => { if (window.document.visibilityState === 'hidden') flushSave(); };
     window.addEventListener('visibilitychange', onVis);
