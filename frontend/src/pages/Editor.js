@@ -760,16 +760,21 @@ const Editor = () => {
   const fetchDocument = async () => {
     try {
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
-      setDocument(res.data);
-      // Sync any pending offline changes
+      // Önce local backup var mı bak — varsa o daha güncel, onu kullan
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
       if (offlineDoc) {
         try {
           const local = JSON.parse(offlineDoc);
-          await axios.put(`${API}/documents/${docId}`, { title: local.title, subtitle: local.subtitle || null, content: res.data.content, pages: local.pages }, { withCredentials: true });
+          const localPages = local.pages || res.data.pages;
+          await axios.put(`${API}/documents/${docId}`, { title: local.title || res.data.title, subtitle: local.subtitle || null, content: res.data.content, pages: localPages }, { withCredentials: true });
           localStorage.removeItem(`zet_offline_doc_${docId}`);
-        } catch {}
+          setDocument({ ...res.data, pages: localPages });
+          return;
+        } catch {
+          localStorage.removeItem(`zet_offline_doc_${docId}`);
+        }
       }
+      setDocument(res.data);
     } catch {
       // Try loading from offline cache
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
