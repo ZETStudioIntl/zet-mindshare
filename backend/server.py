@@ -1958,6 +1958,48 @@ async def delete_document(doc_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Document not found")
     return {"message": "Document deleted"}
 
+# ============ DOCUMENT PRESENCE (edit lock) ============
+
+class PresenceRequest(BaseModel):
+    session_id: str
+
+PRESENCE_TTL = 90  # seconds — stale threshold
+
+async def _get_active_sessions(doc_id: str):
+    cutoff = (datetime.now(timezone.utc) - timedelta(seconds=PRESENCE_TTL)).isoformat()
+    sessions = await db.doc_presence.find(
+        {"doc_id": doc_id, "last_seen": {"$gt": cutoff}},
+        {"_id": 0}
+    ).sort("joined_at", 1).to_list(length=50)
+    return sessions
+
+@api_router.post("/documents/{doc_id}/presence")
+async def register_presence(doc_id: str, body: PresenceRequest, user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    # Atomic upsert — race condition'ı önler: find+insert yerine tek operasyon
+    await db.doc_presence.find_one_and_update(
+        {"doc_id": doc_id, "session_id": body.session_id},
+        {
+            "$set": {"last_seen": now, "user_id": user.user_id},
+            "$setOnInsert": {"doc_id": doc_id, "session_id": body.session_id, "joined_at": now},
+        },
+        upsert=True,
+    )
+    sessions = await _get_active_sessions(doc_id)
+    is_primary = bool(sessions and sessions[0]["session_id"] == body.session_id)
+    return {"is_primary": is_primary, "active_count": len(sessions)}
+
+@api_router.delete("/documents/{doc_id}/presence/{session_id}")
+async def clear_presence(doc_id: str, session_id: str, user: User = Depends(get_current_user)):
+    await db.doc_presence.delete_one({"doc_id": doc_id, "session_id": session_id})
+    return {"ok": True}
+
+@api_router.post("/documents/{doc_id}/presence/{session_id}/clear")
+async def clear_presence_beacon(doc_id: str, session_id: str):
+    # Auth yok — sendBeacon cookie gönderemez; session_id yeterince rastgele
+    await db.doc_presence.delete_one({"doc_id": doc_id, "session_id": session_id})
+    return {"ok": True}
+
 # ============ NOTEBOOKS ROUTES ============
 
 @api_router.get("/notebooks", response_model=List[dict])
@@ -5343,6 +5385,9 @@ async def _check_season_end():
 async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
     asyncio.create_task(expire_boosts_loop())
+    # doc_presence index — hızlı sorgu için
+    await db.doc_presence.create_index([("doc_id", 1), ("last_seen", 1)])
+    await db.doc_presence.create_index([("doc_id", 1), ("session_id", 1)], unique=True)
 
     if _APSCHEDULER_AVAILABLE:
         scheduler = AsyncIOScheduler(timezone="UTC")

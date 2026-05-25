@@ -116,6 +116,11 @@ const Editor = () => {
   const [saving, setSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState('saved'); // 'saved' | 'saving' | 'unsaved'
 
+  // Presence / edit lock
+  const [isReadOnly, setIsReadOnly] = useState(false);
+  const sessionIdRef = useRef(`sess_${Date.now()}_${Math.random().toString(36).slice(2)}`);
+  const presenceIntervalRef = useRef(null);
+
   // Tool state
   const [activeTool, setActiveTool] = useState('select');
   const [toolboxOpen, setToolboxOpen] = useState(true);
@@ -596,6 +601,58 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDocument(); }, [docId]);
 
+  // === PRESENCE (edit lock) ===
+  useEffect(() => {
+    if (!docId) return;
+    const sessionId = sessionIdRef.current;
+    let active = true; // StrictMode double-invoke guard
+
+    const ping = async () => {
+      if (!active) return;
+      try {
+        const res = await axios.post(`${API}/documents/${docId}/presence`, { session_id: sessionId }, { withCredentials: true });
+        if (!active) return;
+        setIsReadOnly(!res.data.is_primary);
+      } catch {}
+    };
+
+    // Önceki interval'i temizle, sonra yenisini kur
+    if (presenceIntervalRef.current) clearInterval(presenceIntervalRef.current);
+    ping();
+    presenceIntervalRef.current = setInterval(ping, 30000);
+
+    const clearPresence = () => {
+      active = false;
+      clearInterval(presenceIntervalRef.current);
+      presenceIntervalRef.current = null;
+      // sendBeacon — tab kapanırken bile tamamlanır (POST /clear unauthenticated endpoint)
+      navigator.sendBeacon(`${API}/documents/${docId}/presence/${sessionId}/clear`);
+      axios.delete(`${API}/documents/${docId}/presence/${sessionId}`, { withCredentials: true }).catch(() => {});
+    };
+
+    window.addEventListener('beforeunload', clearPresence);
+    return () => {
+      clearPresence();
+      window.removeEventListener('beforeunload', clearPresence);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [docId]);
+
+  // Primary olunca localStorage'daki bekleyen değişiklikleri server'a gönder
+  useEffect(() => {
+    if (isReadOnly || !docId || !document) return;
+    const offline = localStorage.getItem(`zet_offline_doc_${docId}`);
+    if (!offline) return;
+    try {
+      const local = JSON.parse(offline);
+      const serverUpdatedAt = document.updated_at ? new Date(document.updated_at).getTime() : 0;
+      if ((local.savedAt || 0) > serverUpdatedAt) {
+        saveDocument(true);
+      }
+    } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isReadOnly]);
+
   // Fetch user usage and plan
   const refreshCredits = async () => {
     try {
@@ -698,23 +755,21 @@ const Editor = () => {
   // === AUTO-SAVE (elements + drawPaths) ===
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (document) {
-      setSaveStatus('unsaved');
-      // Always save locally first (offline backup) — correct key + full doc format
-      if (docId && document) {
-        try {
-          const pages = [...(document.pages || [])];
-          if (pages[currentPage]) {
-            pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths, pageSize };
-          }
-          localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
-            title: document.title, subtitle: document.subtitle || null, pages, savedAt: Date.now(),
-          }));
-        } catch {}
+    if (!document || !docId) return;
+    // Her durumda localStorage'a yaz — read-only'de de, primary olunca sync edilir
+    try {
+      const pages = [...(document.pages || [])];
+      if (pages[currentPage]) {
+        pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths, pageSize };
       }
-      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-      autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 500);
-    }
+      localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
+        title: document.title, subtitle: document.subtitle || null, pages, savedAt: Date.now(),
+      }));
+    } catch {}
+    if (isReadOnly) return; // Server'a gitme
+    setSaveStatus('unsaved');
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 500);
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
   }, [canvasElements, drawPaths]);
 
@@ -833,7 +888,7 @@ const Editor = () => {
     if (!navigator.onLine) {
       // Offline: save to localStorage only
       try {
-        localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({ title: document.title, subtitle: document.subtitle, pages: updatedPages }));
+        localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({ title: document.title, subtitle: document.subtitle || null, pages: updatedPages, savedAt: Date.now() }));
       } catch {}
       setSaveStatus('unsaved');
       if (!silent) setSaving(false);
@@ -843,9 +898,8 @@ const Editor = () => {
       await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages }, { withCredentials: true });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
-      // Clear offline cache on successful server save
       localStorage.removeItem(`zet_offline_doc_${docId}`);
-    } catch { setSaveStatus('unsaved'); } finally { if (!silent) setSaving(false); }
+    } catch { setSaveStatus('error'); } finally { if (!silent) setSaving(false); }
   };
 
   // === PAGE CHANGE (saves current page first) ===
@@ -2806,7 +2860,7 @@ const Editor = () => {
     mirrorElementById, mobilePanel, setMobilePanel,
     navigate, pdfImporting, pdfInputRef, playVoiceFrom, refreshCredits,
     rightOpen, setRightOpen, rightWidth, setRightWidth,
-    saveDocument, saveStatus, saving,
+    isReadOnly, saveDocument, saveStatus, saving,
     selectedElements, setSelectedElements,
     selectedVoice, setSelectedVoice,
     setChangeImageTarget, setIsPlaying, setShowCreditModal, setShowImageUpload, setShowShareDialog, setShowVoice,

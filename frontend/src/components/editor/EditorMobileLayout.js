@@ -8,7 +8,7 @@ import EditorPanels from './EditorPanels';
 import { TOOLS } from '../../lib/editorConstants';
 import {
   Home, Undo, Redo, Zap, Save, Menu, Layers, Download, Sparkles,
-  X, Loader2, Pause, Play, SkipBack, SkipForward, Upload,
+  X, Loader2, Pause, Play, SkipBack, SkipForward, Upload, Lock,
 } from 'lucide-react';
 
 const EditorMobileLayout = () => {
@@ -29,7 +29,7 @@ const EditorMobileLayout = () => {
     handleChangeImage, handleEditChart, handleElementSelect, handleImageUpload,
     handleInsertText, handleLinkClick, handleRedo, handleSaveHistory, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
-    history, isBold, isItalic, isMobile, isPlaying, isStrikethrough, isUnderline,
+    history, isBold, isItalic, isMobile, isPlaying, isReadOnly, isStrikethrough, isUnderline,
     judgeMood, magnifierBorderColor, magnifierGradientEnd, magnifierGradientStart,
     magnifierPos, marginBottom, marginLeft, marginRight, marginTop,
     mirrorElementById, mobilePanel, pageBackground, pageSize, playVoiceFrom,
@@ -67,6 +67,19 @@ const EditorMobileLayout = () => {
 
         {/* Mobile Canvas */}
         <div className="flex-1 relative" style={{ touchAction: 'pan-y', overflowY: 'scroll', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
+          {isReadOnly && (
+            <>
+              <div style={{ position: 'sticky', top: 0, zIndex: 40, display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', background: 'rgba(245,158,11,0.18)', borderBottom: '1px solid rgba(245,158,11,0.35)', fontSize: 11, color: '#f59e0b', fontWeight: 500 }}>
+                <Lock size={11} style={{ flexShrink: 0 }} />
+                <span>Başka bir cihazda açık — düzenleme kilitli</span>
+              </div>
+              <div style={{ position: 'absolute', inset: 0, zIndex: 39, cursor: 'not-allowed' }}
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+              />
+            </>
+          )}
           <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
             canvasElements={canvasElements} setCanvasElements={setCanvasElements}
             drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}

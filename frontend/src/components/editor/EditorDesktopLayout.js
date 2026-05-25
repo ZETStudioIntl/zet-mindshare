@@ -17,7 +17,7 @@ import {
   Menu, Layers, Sparkles, Zap, Keyboard, Download,
   Share2, MessageSquare, Users,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Group, Ungroup, CircleCheck, Cloud, Crown,
+  Group, Ungroup, CircleCheck, Cloud, Crown, Lock, AlertTriangle, RotateCcw,
 } from 'lucide-react';
 
 const EditorDesktopLayout = () => {
@@ -48,7 +48,7 @@ const EditorDesktopLayout = () => {
     mirrorElementById, mobilePanel, pageBackground, pageSize, pdfImporting, pdfInputRef,
     playVoiceFrom, refreshCredits,
     rightOpen, setRightOpen, rightWidth, setRightWidth,
-    rulerVisible, saveDocument, saveStatus, saving,
+    isReadOnly, rulerVisible, saveDocument, saveStatus, saving,
     selectedElement, selectedElements, selectedVoice,
     setCanvasElements, setChangeImageTarget, setDocument, setDrawPaths,
     setIsPlaying, setMagnifierPos, setMobilePanel, setSelectedElement, setSelectedElements,
@@ -165,10 +165,17 @@ const EditorDesktopLayout = () => {
             </button>
           )}
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
-          <div data-testid="save-status" className="flex items-center gap-1 text-xs ml-1" style={{ color: saveStatus === 'saved' ? '#22c55e' : saveStatus === 'saving' ? '#f59e0b' : 'var(--zet-text-muted)' }}>
-            {saveStatus === 'saved' && <><CircleCheck className="h-3 w-3" /><span className="hidden sm:inline">Kaydedildi</span></>}
-            {saveStatus === 'saving' && <><Cloud className="h-3 w-3 animate-pulse" /><span className="hidden sm:inline">Kaydediliyor...</span></>}
-            {saveStatus === 'unsaved' && <><Cloud className="h-3 w-3" /><span className="hidden sm:inline">Kaydedilmedi</span></>}
+          <div data-testid="save-status" className="flex items-center gap-1 text-xs ml-1">
+            {saveStatus === 'saved' && <><CircleCheck className="h-3 w-3" style={{ color: '#22c55e' }} /><span className="hidden sm:inline" style={{ color: '#22c55e' }}>Kaydedildi</span></>}
+            {saveStatus === 'saving' && <><Cloud className="h-3 w-3 animate-pulse" style={{ color: '#f59e0b' }} /><span className="hidden sm:inline" style={{ color: '#f59e0b' }}>Kaydediliyor...</span></>}
+            {saveStatus === 'unsaved' && <><Cloud className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /><span className="hidden sm:inline" style={{ color: 'var(--zet-text-muted)' }}>Kaydedilmedi</span></>}
+            {saveStatus === 'error' && (
+              <button onClick={() => saveDocument()} className="flex items-center gap-1 hover:opacity-80" style={{ color: '#ef4444', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}>
+                <AlertTriangle className="h-3 w-3" />
+                <span className="hidden sm:inline">Kaydedilemedi</span>
+                <RotateCcw className="h-3 w-3 ml-1" />
+              </button>
+            )}
           </div>
           <img src="/logo.svg" alt="ZET" className="h-7 w-7 ml-1" />
         </div>
@@ -188,7 +195,20 @@ const EditorDesktopLayout = () => {
         <ResizableDivider onResize={delta => setLeftWidth(w => Math.max(48, Math.min(300, w + delta)))} />
 
         {/* Orta canvas */}
-        <div style={{ flex: 1, height: '100%', minWidth: 0 }}>
+        <div style={{ flex: 1, height: '100%', minWidth: 0, position: 'relative' }}>
+          {isReadOnly && (
+            <>
+              <div style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 40, display: 'flex', alignItems: 'center', gap: 8, padding: '7px 14px', background: 'rgba(245,158,11,0.18)', borderBottom: '1px solid rgba(245,158,11,0.35)', backdropFilter: 'blur(4px)', fontSize: 12, color: '#f59e0b', fontWeight: 500 }}>
+                <Lock size={13} style={{ flexShrink: 0 }} />
+                <span>Bu belge başka bir cihazda açık — düzenleme kilitli. Diğer cihaz kapandığında otomatik olarak aktif olacaksınız.</span>
+              </div>
+              <div style={{ position: 'absolute', inset: 0, zIndex: 39, cursor: 'not-allowed' }}
+                onMouseDown={e => e.stopPropagation()}
+                onClick={e => e.stopPropagation()}
+                onTouchStart={e => e.stopPropagation()}
+              />
+            </>
+          )}
           <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
             canvasElements={canvasElements} setCanvasElements={setCanvasElements}
             drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
