@@ -177,6 +177,14 @@ const isVectorInLasso = (path, lasso) => {
 };
 
 const buildGradientCss = (el, defaultAngle = 135) => {
+  // Multi-point radial: each stop radiates from its own x/y position like a light source
+  if (el.gradientType === 'radial-multi' && el.gradientStops?.length >= 1) {
+    const layers = el.gradientStops.map(s =>
+      `radial-gradient(circle at ${s.stopX ?? 50}% ${s.stopY ?? 50}%, ${s.color} 0%, transparent 100%)`
+    );
+    const base = el.gradientStops[el.gradientStops.length - 1].color;
+    return [...layers, base].join(', ');
+  }
   if (el.gradientStops?.length >= 2) {
     const sorted = [...el.gradientStops].sort((a, b) => a.pos - b.pos);
     if (el.gradientType === 'radial') {
@@ -658,6 +666,8 @@ export const CanvasArea = ({
   };
   const canvasRef = useRef(null);
   const lastTouchDistRef = useRef(null);
+  const lastTapTimeRef = useRef(0);
+  const lastTapPosRef = useRef({ x: 0, y: 0 });
   const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
   const [editingId, setEditingId] = useState(null);
   const pendingEditRef = useRef(null);
@@ -1725,6 +1735,20 @@ export const CanvasArea = ({
             }}
             onTouchStart={(e) => {
               if (e.touches.length === 2) { lastTouchDistRef.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); return; }
+              // Double-tap = right-click on mobile
+              const touch = e.touches[0];
+              const now = Date.now();
+              const last = lastTapTimeRef.current;
+              const lastPos = lastTapPosRef.current;
+              if (last && (now - last) < 300 && Math.abs(touch.clientX - lastPos.x) < 30 && Math.abs(touch.clientY - lastPos.y) < 30) {
+                lastTapTimeRef.current = 0;
+                e.preventDefault();
+                const synth = { button: 2, clientX: touch.clientX, clientY: touch.clientY, changedTouches: [touch], touches: [], currentTarget: e.currentTarget, preventDefault: () => e.preventDefault(), stopPropagation: () => e.stopPropagation() };
+                handleMouseDown(synth, idx);
+                return;
+              }
+              lastTapTimeRef.current = now;
+              lastTapPosRef.current = { x: touch.clientX, y: touch.clientY };
               if (['draw', 'pen', 'eraser'].includes(activeTool)) { e.stopPropagation(); handleMouseDown(e, idx); return; }
               if (activeTool === 'hand') { e.stopPropagation(); handleMouseDown(e, idx); return; }
               handleMouseDown(e, idx);

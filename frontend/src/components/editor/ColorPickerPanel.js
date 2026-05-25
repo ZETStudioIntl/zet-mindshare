@@ -7,16 +7,17 @@ import { X, Highlighter, MoreHorizontal } from 'lucide-react';
 
 const LS_KEY = 'zet_saved_gradients';
 
-const radialCss = (stops, cx, cy) => {
+// Each stop radiates from its own (x,y) position — light source style
+const multiRadialCss = (stops) => {
   if (!stops || stops.length === 0) return '#ffffff';
   if (stops.length === 1) return stops[0].color;
-  const sorted = [...stops].sort((a, b) => a.x - b.x);
-  const n = sorted.length;
-  const withPos = sorted.map((s, i) => ({ ...s, pos: Math.round((i / (n - 1)) * 100) }));
-  return `radial-gradient(circle at ${Math.round(cx)}% ${Math.round(cy)}%, ${withPos.map(s => `${s.color} ${s.pos}%`).join(', ')})`;
+  const layers = stops.map(s =>
+    `radial-gradient(circle at ${Math.round(s.x ?? 50)}% ${Math.round(s.y ?? 50)}%, ${s.color} 0%, transparent 100%)`
+  );
+  return [...layers, stops[stops.length - 1].color].join(', ');
 };
 
-const gradientToCss = (g) => radialCss(g.stops, g.centerX ?? 50, g.centerY ?? 50);
+const gradientToCss = (g) => multiRadialCss(g.stops);
 
 const ColorPickerPanel = () => {
   const { t } = useLanguage();
@@ -41,6 +42,7 @@ const ColorPickerPanel = () => {
   const [activeStopId, setActiveStopId] = useState(null);
   const [rightClickId, setRightClickId] = useState(null);
   const rectRef = useRef(null);
+  const doubleTapRef = useRef({ time: 0, id: null });
 
   if (!showColor) return null;
 
@@ -54,14 +56,12 @@ const ColorPickerPanel = () => {
           ? [lastSelectedRef.current]
           : [];
     if (!targets.length) return;
-    const cx = g.centerX ?? 50;
-    const cy = g.centerY ?? 50;
-    const rawStops = (g.stops || []).sort((a, b) => a.x - b.x);
-    const n = rawStops.length;
-    const stops = n === 0 ? [] : rawStops.map((s, i) => ({
+    const rawStops = (g.stops || []);
+    const stops = rawStops.map(s => ({
       id: s.id,
-      pos: n === 1 ? 0 : Math.round((i / (n - 1)) * 100),
       color: s.color,
+      stopX: Math.round(s.x ?? 50),
+      stopY: Math.round(s.y ?? 50),
     }));
     const firstColor = stops[0]?.color || '#000000';
     setCanvasElements(prev => {
@@ -73,9 +73,9 @@ const ColorPickerPanel = () => {
         return {
           ...el,
           gradientStops: stops,
-          gradientType: 'radial',
-          gradientCenterX: Math.round(cx),
-          gradientCenterY: Math.round(cy),
+          gradientType: 'radial-multi',
+          gradientCenterX: undefined,
+          gradientCenterY: undefined,
           gradientAngle: undefined,
           gradientStart: undefined,
           gradientEnd: undefined,
@@ -163,7 +163,7 @@ const ColorPickerPanel = () => {
     setConfirmDeleteId(null);
   };
 
-  const editorCss = radialCss(editStops, editCenter.x, editCenter.y);
+  const editorCss = multiRadialCss(editStops);
 
   return (
     <DraggablePanel title={t('colorPicker')} onClose={() => setShowColor(false)} initialPosition={{ x: isMobile ? 20 : 320, y: 150 }}>
@@ -298,6 +298,17 @@ const ColorPickerPanel = () => {
                         }}
                         onMouseDown={e => startDrag(e, stop.id)}
                         onContextMenu={e => handleStopRightClick(e, stop.id)}
+                        onTouchEnd={e => {
+                          e.preventDefault();
+                          const now = Date.now();
+                          const dt = doubleTapRef.current;
+                          if (dt.id === stop.id && (now - dt.time) < 300) {
+                            doubleTapRef.current = { time: 0, id: null };
+                            handleStopRightClick(e, stop.id);
+                          } else {
+                            doubleTapRef.current = { time: now, id: stop.id };
+                          }
+                        }}
                         onClick={e => e.stopPropagation()}
                       />
                       {/* Sağ tık renk seçici */}
@@ -338,7 +349,9 @@ const ColorPickerPanel = () => {
               </div>
 
               <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                Sol tık → renk ekle &nbsp;·&nbsp; Sağ tık → renk seç / sil
+                {isMobile
+                  ? 'Dokun → renk ekle · Çift dokun → renk seç / sil'
+                  : 'Sol tık → renk ekle · Sağ tık → renk seç / sil'}
               </p>
 
               <div className="flex gap-1.5">
