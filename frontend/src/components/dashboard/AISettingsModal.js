@@ -1,5 +1,6 @@
 import React from 'react';
 import { X, Sparkles, Scale } from 'lucide-react';
+import { savePreference } from '../../lib/preferences';
 
 const AISettingsModal = ({ zetaMood, setZetaMood, zetaEmoji, setZetaEmoji, zetaCustomPrompt, setZetaCustomPrompt, judgeMood, setJudgeMood, onClose }) => (
   <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4" onClick={onClose}>
@@ -19,7 +20,7 @@ const AISettingsModal = ({ zetaMood, setZetaMood, zetaEmoji, setZetaEmoji, zetaC
           <div className="space-y-3">
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-              <select value={zetaMood} onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }} className="zet-input text-sm w-full">
+              <select value={zetaMood} onChange={e => { setZetaMood(e.target.value); savePreference('zet_zeta_mood', e.target.value); }} className="zet-input text-sm w-full">
                 <option value="cheerful">Neşeli</option>
                 <option value="professional">Profesyonel</option>
                 <option value="curious">Meraklı</option>
@@ -29,12 +30,12 @@ const AISettingsModal = ({ zetaMood, setZetaMood, zetaEmoji, setZetaEmoji, zetaC
             {zetaMood === 'custom' && (
               <div>
                 <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Özel Prompt</label>
-                <textarea value={zetaCustomPrompt} onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }} placeholder="ZETA nasıl davransın?" className="zet-input text-sm w-full h-20 resize-none" />
+                <textarea value={zetaCustomPrompt} onChange={e => { setZetaCustomPrompt(e.target.value); savePreference('zet_zeta_custom', e.target.value); }} placeholder="ZETA nasıl davransın?" className="zet-input text-sm w-full h-20 resize-none" />
               </div>
             )}
             <div>
               <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
-              <select value={zetaEmoji} onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }} className="zet-input text-sm w-full">
+              <select value={zetaEmoji} onChange={e => { setZetaEmoji(e.target.value); savePreference('zet_zeta_emoji', e.target.value); }} className="zet-input text-sm w-full">
                 <option value="none">Kullanma</option>
                 <option value="low">Az Kullan</option>
                 <option value="medium">Orta</option>
@@ -50,7 +51,7 @@ const AISettingsModal = ({ zetaMood, setZetaMood, zetaEmoji, setZetaEmoji, zetaC
           </div>
           <div>
             <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-            <select value={judgeMood} onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }} className="zet-input text-sm w-full">
+            <select value={judgeMood} onChange={e => { setJudgeMood(e.target.value); savePreference('zet_judge_mood', e.target.value); }} className="zet-input text-sm w-full">
               <option value="normal">Normal (Yapıcı eleştiri)</option>
               <option value="harsh">Sert (Esprili dalga geçme)</option>
             </select>

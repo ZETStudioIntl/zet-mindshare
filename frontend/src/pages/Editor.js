@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
+import { savePreference } from '../lib/preferences';
 import { Toolbox, SHAPE_LIST, PUNCTUATION_LIST } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
@@ -1806,7 +1807,7 @@ const Editor = () => {
     // Add new key
     if (key) newShortcuts[key.toUpperCase()] = editingShortcut;
     setShortcuts(newShortcuts);
-    localStorage.setItem('zet_shortcuts', JSON.stringify(newShortcuts));
+    savePreference('zet_shortcuts', JSON.stringify(newShortcuts));
     setEditingShortcut(null);
   };
 

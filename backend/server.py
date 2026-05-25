@@ -1209,6 +1209,22 @@ async def get_fonts():
         logging.error(f"Google Fonts API error: {e}")
         return []
 
+@api_router.get("/users/preferences")
+async def get_preferences(user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"preferences": 1, "_id": 0})
+    return {"preferences": (doc or {}).get("preferences", {})}
+
+class PreferencesUpdate(BaseModel):
+    preferences: Dict[str, Any]
+
+@api_router.put("/users/preferences")
+async def update_preferences(body: PreferencesUpdate, user: User = Depends(get_current_user)):
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {f"preferences.{k}": v for k, v in body.preferences.items()}}
+    )
+    return {"ok": True}
+
 @api_router.get("/users/me")
 async def get_me(user: User = Depends(get_current_user)):
     data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "followers": 0, "following": 0})

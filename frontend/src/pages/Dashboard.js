@@ -4,6 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
+import { savePreference } from '../lib/preferences';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { RARITY_COLORS } from '../components/dashboard/CaseOpenModal';
@@ -750,7 +751,7 @@ const Dashboard = () => {
             setUserSubscription('free');
             const newTools = fastSelectTools.slice(0, 3);
             setFastSelectTools(newTools);
-            localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+            savePreference('zet_fast_select', JSON.stringify(newTools));
             showToast('Aboneliğiniz iptal edildi.', 'info');
           }
         } catch {
@@ -3616,7 +3617,7 @@ MATCHES:[1,3,5]`;
                             Object.keys(newShortcuts).forEach(k => { if (newShortcuts[k] === tool.id) delete newShortcuts[k]; });
                             newShortcuts[e.key.toUpperCase()] = tool.id;
                             setShortcuts(newShortcuts);
-                            localStorage.setItem('zet_shortcuts', JSON.stringify(newShortcuts));
+                            savePreference('zet_shortcuts', JSON.stringify(newShortcuts));
                             setEditingShortcut(null);
                           } else if (e.key === 'Escape') setEditingShortcut(null); 
                         }} 
@@ -3699,11 +3700,11 @@ MATCHES:[1,3,5]`;
                     if (fastSelectTools.includes(tool.id)) {
                       const newTools = fastSelectTools.filter(t => t !== tool.id);
                       setFastSelectTools(newTools);
-                      localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+                      savePreference('zet_fast_select', JSON.stringify(newTools));
                     } else if (fastSelectTools.length < fastSelectLimit) {
                       const newTools = [...fastSelectTools, tool.id];
                       setFastSelectTools(newTools);
-                      localStorage.setItem('zet_fast_select', JSON.stringify(newTools));
+                      savePreference('zet_fast_select', JSON.stringify(newTools));
                     }
                   }}
                   className={`p-2 rounded flex flex-col items-center transition-all ${fastSelectTools.includes(tool.id) ? 'ring-2 ring-blue-500' : 'hover:bg-white/10'}`}

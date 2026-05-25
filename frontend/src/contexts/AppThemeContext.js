@@ -35,9 +35,19 @@ export const AppThemeProvider = ({ children }) => {
   }, [activeApp]);
 
   const switchApp = (app) => {
-    localStorage.setItem('zet_active_app', app);
+    const { savePreference } = require('../lib/preferences');
+    savePreference('zet_active_app', app);
     setActiveApp(app);
   };
+
+  // Auth sonrası server'dan gelen tercih güncellenir
+  useEffect(() => {
+    const onPrefsLoaded = (e) => {
+      if (e.detail['zet_active_app']) setActiveApp(e.detail['zet_active_app']);
+    };
+    window.addEventListener('zet:preferences-loaded', onPrefsLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onPrefsLoaded);
+  }, []);
 
   return (
     <AppThemeContext.Provider value={{ activeApp, switchApp }}>

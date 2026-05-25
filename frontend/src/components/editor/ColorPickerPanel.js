@@ -4,6 +4,7 @@ import { useLanguage } from '../../contexts/LanguageContext';
 import { DraggablePanel } from './DraggablePanel';
 import { PRESET_COLORS } from '../../lib/editorConstants';
 import { X, Highlighter, MoreHorizontal } from 'lucide-react';
+import { savePreference } from '../../lib/preferences';
 
 const LS_KEY = 'zet_saved_gradients';
 
@@ -135,7 +136,7 @@ const ColorPickerPanel = () => {
     const name = `Gradient ${savedGradients.length + 1}`;
     const newG = { id: `grad_${Date.now()}`, name, stops: editStops, centerX: editCenter.x, centerY: editCenter.y };
     const updated = [...savedGradients, newG];
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    savePreference(LS_KEY, JSON.stringify(updated));
     setSavedGradients(updated);
     setShowEditor(false);
     setEditStops([]);
@@ -149,7 +150,7 @@ const ColorPickerPanel = () => {
   const commitRename = (id) => {
     if (!editingNameValue.trim()) { setEditingNameId(null); return; }
     const updated = savedGradients.map(x => x.id === id ? { ...x, name: editingNameValue.trim() } : x);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    savePreference(LS_KEY, JSON.stringify(updated));
     setSavedGradients(updated);
     setEditingNameId(null);
   };
@@ -158,7 +159,7 @@ const ColorPickerPanel = () => {
   const startDelete = (id) => { setConfirmDeleteId(id); setOpenMenuId(null); };
   const deleteGradient = (id) => {
     const updated = savedGradients.filter(x => x.id !== id);
-    localStorage.setItem(LS_KEY, JSON.stringify(updated));
+    savePreference(LS_KEY, JSON.stringify(updated));
     setSavedGradients(updated);
     setConfirmDeleteId(null);
   };

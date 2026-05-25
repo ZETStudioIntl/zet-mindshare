@@ -543,8 +543,18 @@ export const LanguageProvider = ({ children }) => {
   });
 
   useEffect(() => {
-    localStorage.setItem('zet-language', language);
+    const { savePreference } = require('../lib/preferences');
+    savePreference('zet-language', language);
   }, [language]);
+
+  // Auth sonrası server'dan gelen tercih güncellenir
+  useEffect(() => {
+    const onPrefsLoaded = (e) => {
+      if (e.detail['zet-language']) setLanguage(e.detail['zet-language']);
+    };
+    window.addEventListener('zet:preferences-loaded', onPrefsLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onPrefsLoaded);
+  }, []);
 
   const t = (key) => {
     return translations[language]?.[key] || translations['en'][key] || key;
