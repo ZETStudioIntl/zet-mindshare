@@ -760,16 +760,23 @@ const Editor = () => {
   const fetchDocument = async () => {
     try {
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
-      // Önce local backup var mı bak — varsa o daha güncel, onu kullan
+      // Local backup varsa timestamp karşılaştır — hangisi daha yeniyse onu kullan
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
       if (offlineDoc) {
         try {
           const local = JSON.parse(offlineDoc);
-          const localPages = local.pages || res.data.pages;
-          await axios.put(`${API}/documents/${docId}`, { title: local.title || res.data.title, subtitle: local.subtitle || null, content: res.data.content, pages: localPages }, { withCredentials: true });
+          const localSavedAt = local.savedAt || 0;
+          const serverUpdatedAt = res.data.updated_at ? new Date(res.data.updated_at).getTime() : 0;
+          if (localSavedAt > serverUpdatedAt) {
+            // Bu cihazın kaydedilmemiş değişiklikleri daha yeni → server'a push et ve göster
+            const localPages = local.pages || res.data.pages;
+            await axios.put(`${API}/documents/${docId}`, { title: local.title || res.data.title, subtitle: local.subtitle || null, content: res.data.content, pages: localPages }, { withCredentials: true });
+            localStorage.removeItem(`zet_offline_doc_${docId}`);
+            setDocument({ ...res.data, pages: localPages });
+            return;
+          }
+          // Server daha yeni (başka cihazdan kayıt var) → local'i sil, server'ı kullan
           localStorage.removeItem(`zet_offline_doc_${docId}`);
-          setDocument({ ...res.data, pages: localPages });
-          return;
         } catch {
           localStorage.removeItem(`zet_offline_doc_${docId}`);
         }
