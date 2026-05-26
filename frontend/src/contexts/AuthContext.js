@@ -33,7 +33,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
-      await loadPreferences();
+      loadPreferences();
     } catch (error) {
       localStorage.removeItem('session_token');
       setUser(null);

@@ -78,8 +78,8 @@ const Dashboard = () => {
     return () => { window.removeEventListener('online', up); window.removeEventListener('offline', dn); };
   }, []);
   const [activeTab, setActiveTab] = useState('documents');
-  const [documents, setDocuments] = useState([]);
-  const [notes, setNotes] = useState([]);
+  const [documents, setDocuments] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_docs_cache') || '[]'); } catch { return []; } });
+  const [notes, setNotes] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_notes_cache') || '[]'); } catch { return []; } });
   // Media feed state
   const [mediaFeedTab, setMediaFeedTab] = useState('feed'); // 'feed' | 'explore'
   const [mediaPosts, setMediaPosts] = useState([]);
@@ -132,7 +132,7 @@ const Dashboard = () => {
   const [newDocType, setNewDocType] = useState('new'); // 'new' or 'pdf'
   const [pdfFile, setPdfFile] = useState(null);
   const [selectedPageSize, setSelectedPageSize] = useState(PAGE_SIZES[0]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(() => !localStorage.getItem('zet_docs_cache'));
   const [driveConnected, setDriveConnected] = useState(false);
   const [connectingDrive, setConnectingDrive] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
@@ -461,16 +461,17 @@ const Dashboard = () => {
   }, [notes, alarmTick]);
 
   const fetchSubscription = async () => {
-    try {
-      const res = await axios.get(`${API}/subscription`, { withCredentials: true });
-      setUserSubscription(res.data.plan || 'free');
-    } catch { setUserSubscription('free'); }
-    try {
-      const spRes = await axios.get(`${API}/quests/progress`, { withCredentials: true });
-      setUserZP(spRes.data.quest_xp || 0);
-      setActiveTimeSeconds(spRes.data.active_time_seconds || 0);
-      setCompletedQuestCount((spRes.data.completed_quests || []).length);
-    } catch { /* ignore */ }
+    const [subRes, spRes] = await Promise.allSettled([
+      axios.get(`${API}/subscription`, { withCredentials: true }),
+      axios.get(`${API}/quests/progress`, { withCredentials: true }),
+    ]);
+    if (subRes.status === 'fulfilled') setUserSubscription(subRes.value.data.plan || 'free');
+    else setUserSubscription('free');
+    if (spRes.status === 'fulfilled') {
+      setUserZP(spRes.value.data.quest_xp || 0);
+      setActiveTimeSeconds(spRes.value.data.active_time_seconds || 0);
+      setCompletedQuestCount((spRes.value.data.completed_quests || []).length);
+    }
   };
 
   const handleSubscribe = async (planId) => {
@@ -793,6 +794,8 @@ const Dashboard = () => {
       ]);
       setDocuments(docsRes.data);
       setNotes(notesRes.data);
+      localStorage.setItem('zet_docs_cache', JSON.stringify(docsRes.data));
+      localStorage.setItem('zet_notes_cache', JSON.stringify(notesRes.data));
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
