@@ -792,8 +792,12 @@ const Dashboard = () => {
       ]);
       setDocuments(docsRes.data);
       setNotes(notesRes.data);
-      localStorage.setItem('zet_docs_cache', JSON.stringify(docsRes.data));
-      localStorage.setItem('zet_notes_cache', JSON.stringify(notesRes.data));
+      try {
+        const docsMeta = docsRes.data.map(({ doc_id, title, subtitle, updated_at, pinned, page_count }) => ({ doc_id, title, subtitle, updated_at, pinned, page_count }));
+        const notesMeta = notesRes.data.map(({ note_id, content, updated_at, reminder_time, reminder_sent, notebook_id }) => ({ note_id, content: (content || '').slice(0, 200), updated_at, reminder_time, reminder_sent, notebook_id }));
+        localStorage.setItem('zet_docs_cache', JSON.stringify(docsMeta));
+        localStorage.setItem('zet_notes_cache', JSON.stringify(notesMeta));
+      } catch { /* quota aşıldıysa cache atla */ }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
