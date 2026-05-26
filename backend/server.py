@@ -958,6 +958,13 @@ async def admin_free_subscription(user: User = Depends(get_current_user)):
     }})
     return {"success": True, "plan": "pro", "expires": expires}
 
+@api_router.get("/admin/check-documents")
+async def admin_check_documents(user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403)
+    docs = await db.documents.find({}, {"_id": 0, "doc_id": 1, "title": 1, "user_id": 1, "updated_at": 1, "pages": 1}).to_list(1000)
+    return [{"doc_id": d["doc_id"], "title": d.get("title", ""), "pages_count": len(d.get("pages", [])), "has_content": any(len(p.get("elements", [])) > 0 for p in d.get("pages", [])), "updated_at": d.get("updated_at", "")} for d in docs]
+
 @api_router.get("/admin/list-users")
 async def admin_list_users(user: User = Depends(get_current_user)):
     """Privileged hesaplara tüm kayıtlı kullanıcıları döner."""
