@@ -1929,12 +1929,11 @@ async def apple_auth_callback(request: Request, response: Response):
 # ============ DOCUMENTS ROUTES ============
 
 @api_router.get("/documents", response_model=List[dict])
-async def get_documents(user: User = Depends(get_current_user)):
+async def get_documents(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
     docs = await db.documents.find(
         {"user_id": user.user_id},
         {"_id": 0, "pages": 0}
-    ).to_list(100)
-    docs.sort(key=lambda d: (not d.get("pinned", False), d.get("updated_at", "")), reverse=False)
+    ).sort([("pinned", -1), ("updated_at", -1)]).skip(skip).limit(limit).to_list(limit)
     return docs
 
 @api_router.post("/documents")

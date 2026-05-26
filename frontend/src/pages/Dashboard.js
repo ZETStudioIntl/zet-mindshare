@@ -158,6 +158,10 @@ const Dashboard = () => {
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const sessionSecondsRef = useRef(0);
+  const [docsHasMore, setDocsHasMore] = useState(true);
+  const docsSkipRef = useRef(0);
+  const docsLoadingMoreRef = useRef(false);
+  const docsBottomRef = useRef(null);
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
   const [showRankBadge, setShowRankBadge] = useState(() => localStorage.getItem('zet_show_rank') !== 'false');
   
@@ -447,6 +451,17 @@ const Dashboard = () => {
     }, 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Infinite scroll — belgeler için
+  useEffect(() => {
+    const el = docsBottomRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) loadMoreDocs();
+    }, { threshold: 0.1 });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [docsHasMore]);
 
   // notes veya tick değişince alarm kontrol et
   useEffect(() => {
@@ -792,11 +807,14 @@ const Dashboard = () => {
 
   const fetchData = async () => {
     try {
+      docsSkipRef.current = 0;
       const [docsRes, notesRes] = await Promise.all([
-        axios.get(`${API}/documents`, { withCredentials: true }),
+        axios.get(`${API}/documents?skip=0&limit=20`, { withCredentials: true }),
         axios.get(`${API}/notes`, { withCredentials: true })
       ]);
       setDocuments(docsRes.data);
+      docsSkipRef.current = docsRes.data.length;
+      setDocsHasMore(docsRes.data.length === 20);
       setNotes(notesRes.data);
       try {
         const docsMeta = docsRes.data.map(({ doc_id, title, subtitle, updated_at, pinned, page_count }) => ({ doc_id, title, subtitle, updated_at, pinned, page_count }));
@@ -816,6 +834,21 @@ const Dashboard = () => {
       setNotebooks(nbs);
     } catch (error) {
       console.error('Error fetching notebooks:', error);
+    }
+  };
+
+  const loadMoreDocs = async () => {
+    if (docsLoadingMoreRef.current || !docsHasMore) return;
+    docsLoadingMoreRef.current = true;
+    try {
+      const res = await axios.get(`${API}/documents?skip=${docsSkipRef.current}&limit=20`, { withCredentials: true });
+      setDocuments(prev => [...prev, ...res.data]);
+      docsSkipRef.current += res.data.length;
+      setDocsHasMore(res.data.length === 20);
+    } catch (e) {
+      console.error('loadMoreDocs error', e);
+    } finally {
+      docsLoadingMoreRef.current = false;
     }
   };
 
@@ -3051,6 +3084,11 @@ MATCHES:[1,3,5]`;
                 )}
               </div>
             ))}
+
+            {/* Infinite scroll sentinel */}
+            {!searchQuery && docsHasMore && (
+              <div ref={docsBottomRef} style={{ gridColumn: '1 / -1', height: 40 }} />
+            )}
 
             {/* Document menu dropdown (fixed, not clipped) */}
             {openMenuDocId && (
