@@ -156,7 +156,8 @@ const Dashboard = () => {
   const [subscribing, setSubscribing] = useState(false);
   const [userZP, setUserZP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
-  const [sessionSeconds, setSessionSeconds] = useState(0); // mevcut oturum süresi (yerel)
+  const [sessionSeconds, setSessionSeconds] = useState(0);
+  const sessionSecondsRef = useRef(0);
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
   const [showRankBadge, setShowRankBadge] = useState(() => localStorage.getItem('zet_show_rank') !== 'false');
   
@@ -434,10 +435,15 @@ const Dashboard = () => {
     return () => clearInterval(id);
   }, []);
 
-  // Yerel session sayacı — her saniye +1, rank barı anlık güncellenir
+  // Yerel session sayacı — ref her saniye artar, state dakikada bir güncellenir
   useEffect(() => {
     const id = setInterval(() => {
-      if (!document.hidden) setSessionSeconds(prev => prev + 1);
+      if (!document.hidden) {
+        sessionSecondsRef.current += 1;
+        if (sessionSecondsRef.current % 60 === 0) {
+          setSessionSeconds(sessionSecondsRef.current);
+        }
+      }
     }, 1000);
     return () => clearInterval(id);
   }, []);
