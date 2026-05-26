@@ -784,16 +784,19 @@ const Dashboard = () => {
   };
 
   const fetchData = async () => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
     try {
       const [docsRes, notesRes] = await Promise.all([
-        axios.get(`${API}/documents`, { withCredentials: true }),
-        axios.get(`${API}/notes`, { withCredentials: true })
+        axios.get(`${API}/documents`, { withCredentials: true, signal: controller.signal }),
+        axios.get(`${API}/notes`, { withCredentials: true, signal: controller.signal })
       ]);
       setDocuments(docsRes.data);
       setNotes(notesRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
+      clearTimeout(timeout);
       setLoading(false);
     }
     try {

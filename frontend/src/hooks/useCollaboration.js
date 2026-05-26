@@ -10,6 +10,7 @@ export function useCollaboration(docId, userId, userName, enabled = false) {
   const wsRef = useRef(null);
   const reconnectTimer = useRef(null);
   const pingTimer = useRef(null);
+  const unmountedRef = useRef(false);
 
   const connect = useCallback(() => {
     if (!docId || !userId || !enabled) return;
@@ -58,7 +59,7 @@ export function useCollaboration(docId, userId, userName, enabled = false) {
     ws.onclose = () => {
       setConnected(false);
       if (pingTimer.current) clearInterval(pingTimer.current);
-      if (enabled) {
+      if (enabled && !unmountedRef.current) {
         reconnectTimer.current = setTimeout(connect, 3000);
       }
     };
@@ -67,8 +68,10 @@ export function useCollaboration(docId, userId, userName, enabled = false) {
   }, [docId, userId, userName, enabled]);
 
   useEffect(() => {
+    unmountedRef.current = false;
     if (enabled) connect();
     return () => {
+      unmountedRef.current = true;
       if (wsRef.current) wsRef.current.close();
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       if (pingTimer.current) clearInterval(pingTimer.current);

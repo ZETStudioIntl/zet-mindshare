@@ -532,6 +532,7 @@ const Editor = () => {
   }, [collab.connected, collab.onCollabMessage]);
   const autoSaveTimerRef = useRef(null);
   const latestSaveDataRef = useRef(null);
+  const isMountedRef = useRef(true);
   const canvasContainerRef = useRef(null);
   const gradientBarRef = useRef(null);
   const activeToolRef = useRef('select');
@@ -808,6 +809,7 @@ const Editor = () => {
     const onVis = () => { if (window.document.visibilityState === 'hidden') flushSave(); };
     window.addEventListener('visibilitychange', onVis);
     return () => {
+      isMountedRef.current = false;
       window.removeEventListener('visibilitychange', onVis);
       flushSave();
     };
@@ -816,6 +818,7 @@ const Editor = () => {
   const fetchDocument = async () => {
     try {
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
+      if (!isMountedRef.current) return;
       // Local backup varsa timestamp karşılaştır — hangisi daha yeniyse onu kullan
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
       if (offlineDoc) {
@@ -827,6 +830,7 @@ const Editor = () => {
             // Bu cihazın kaydedilmemiş değişiklikleri daha yeni → server'a push et ve göster
             const localPages = local.pages || res.data.pages;
             await axios.put(`${API}/documents/${docId}`, { title: local.title || res.data.title, subtitle: local.subtitle || null, content: res.data.content, pages: localPages }, { withCredentials: true });
+            if (!isMountedRef.current) return;
             localStorage.removeItem(`zet_offline_doc_${docId}`);
             setDocument({ ...res.data, pages: localPages });
             return;
@@ -839,6 +843,7 @@ const Editor = () => {
       }
       setDocument(res.data);
     } catch {
+      if (!isMountedRef.current) return;
       // Try loading from offline cache
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
       if (offlineDoc) {
