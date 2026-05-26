@@ -828,7 +828,7 @@ const Editor = () => {
           const serverUpdatedAt = res.data.updated_at ? new Date(res.data.updated_at).getTime() : 0;
           if (localSavedAt > serverUpdatedAt) {
             // Bu cihazın kaydedilmemiş değişiklikleri daha yeni → server'a push et ve göster
-            const localPages = local.pages || res.data.pages;
+            const localPages = (local.pages && local.pages.length > 0) ? local.pages : res.data.pages;
             await axios.put(`${API}/documents/${docId}`, { title: local.title || res.data.title, subtitle: local.subtitle || null, content: res.data.content, pages: localPages }, { withCredentials: true });
             if (!isMountedRef.current) return;
             localStorage.removeItem(`zet_offline_doc_${docId}`);
