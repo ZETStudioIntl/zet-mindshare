@@ -1965,16 +1965,58 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
 async def update_document(doc_id: str, update: DocumentUpdate, user: User = Depends(get_current_user)):
     update_data = {k: v for k, v in update.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
-    
+
+    if "pages" in update_data:
+        old = await db.documents.find_one(
+            {"doc_id": doc_id, "user_id": user.user_id},
+            {"_id": 0, "pages": 1}
+        )
+        if old and old.get("pages"):
+            await db.document_history.insert_one({
+                "doc_id": doc_id,
+                "user_id": user.user_id,
+                "pages": old["pages"],
+                "saved_at": datetime.now(timezone.utc).isoformat()
+            })
+            versions = await db.document_history.find(
+                {"doc_id": doc_id},
+                {"_id": 1}
+            ).sort("saved_at", -1).to_list(20)
+            if len(versions) > 5:
+                old_ids = [v["_id"] for v in versions[5:]]
+                await db.document_history.delete_many({"_id": {"$in": old_ids}})
+
     result = await db.documents.update_one(
         {"doc_id": doc_id, "user_id": user.user_id},
         {"$set": update_data}
     )
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")
-    
+
     doc = await db.documents.find_one({"doc_id": doc_id}, {"_id": 0})
     return doc
+
+@api_router.get("/documents/{doc_id}/history")
+async def get_document_history(doc_id: str, user: User = Depends(get_current_user)):
+    versions = await db.document_history.find(
+        {"doc_id": doc_id, "user_id": user.user_id},
+        {"_id": 0, "pages": 0}
+    ).sort("saved_at", -1).to_list(5)
+    return versions
+
+@api_router.post("/documents/{doc_id}/restore/{version_index}")
+async def restore_document_version(doc_id: str, version_index: int, user: User = Depends(get_current_user)):
+    versions = await db.document_history.find(
+        {"doc_id": doc_id, "user_id": user.user_id}
+    ).sort("saved_at", -1).to_list(5)
+    if version_index >= len(versions):
+        raise HTTPException(status_code=404, detail="Version not found")
+    pages = versions[version_index]["pages"]
+    await db.documents.update_one(
+        {"doc_id": doc_id, "user_id": user.user_id},
+        {"$set": {"pages": pages, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"restored": True, "pages_count": len(pages)}
 
 @api_router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, user: User = Depends(get_current_user)):
