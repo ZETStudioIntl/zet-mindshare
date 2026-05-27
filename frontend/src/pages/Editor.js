@@ -97,6 +97,7 @@ const Editor = () => {
   }, []);
 
   // Offline detection
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
@@ -276,7 +277,6 @@ const Editor = () => {
   const [showExport, setShowExport] = useState(false);
   const [showShapes, setShowShapes] = useState(false);
   const [showPunctuation, setShowPunctuation] = useState(false);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPhotoEdit, setShowPhotoEdit] = useState(false);
   const [uploadForShape, setUploadForShape] = useState(null);
