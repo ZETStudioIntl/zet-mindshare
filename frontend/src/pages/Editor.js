@@ -892,7 +892,7 @@ const Editor = () => {
     setBuyingCredits(false);
   };
 
-  const saveDocument = async (silent = false) => {
+  async function saveDocument(silent = false) {
     if (!document) return;
     if (!silent) setSaving(true);
     setSaveStatus('saving');
@@ -900,8 +900,6 @@ const Editor = () => {
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
     }
-    // Önce localStorage'a yaz — ağ kesilse bile veri korunur
-    // Free kullanıcı: canvas verisi olmadan sakla (zaten kullanamıyor)
     const pagesToCache = userPlan !== 'free'
       ? updatedPages
       : updatedPages.map(p => ({ ...p, elements: [], drawPaths: [] }));
@@ -922,7 +920,7 @@ const Editor = () => {
       setSaveStatus('saved');
       localStorage.removeItem(`zet_offline_doc_${docId}`);
     } catch { setSaveStatus('error'); } finally { if (!silent) setSaving(false); }
-  };
+  }
 
   // === PAGE CHANGE (saves current page first) ===
   const changePage = useCallback((newPage) => {
