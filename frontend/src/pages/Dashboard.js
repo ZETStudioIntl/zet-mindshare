@@ -159,6 +159,9 @@ const Dashboard = () => {
   const [sessionSeconds, setSessionSeconds] = useState(0);
   const sessionSecondsRef = useRef(0);
   const [docsHasMore, setDocsHasMore] = useState(true);
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashDocs, setTrashDocs] = useState([]);
+  const [trashLoading, setTrashLoading] = useState(false);
   const docsSkipRef = useRef(0);
   const docsLoadingMoreRef = useRef(false);
   const docsBottomRef = useRef(null);
@@ -1152,8 +1155,41 @@ const Dashboard = () => {
       await axios.delete(`${API}/documents/${docId}`, { withCredentials: true });
       setDocuments(docs => docs.filter(d => d.doc_id !== docId));
     } catch (error) {
+      const msg = error.response?.data?.detail;
+      if (msg) showToast(msg, 'error');
       console.error('Error deleting document:', error);
     }
+  };
+
+  const fetchTrash = async () => {
+    setTrashLoading(true);
+    try {
+      const res = await axios.get(`${API}/trash`, { withCredentials: true });
+      setTrashDocs(res.data);
+    } catch {}
+    setTrashLoading(false);
+  };
+
+  const restoreDocument = async (docId) => {
+    try {
+      await axios.post(`${API}/trash/${docId}/restore`, {}, { withCredentials: true });
+      setTrashDocs(prev => prev.filter(d => d.doc_id !== docId));
+      fetchData();
+    } catch {}
+  };
+
+  const permanentDelete = async (docId) => {
+    try {
+      await axios.delete(`${API}/trash/${docId}`, { withCredentials: true });
+      setTrashDocs(prev => prev.filter(d => d.doc_id !== docId));
+    } catch {}
+  };
+
+  const emptyTrash = async () => {
+    try {
+      await axios.delete(`${API}/trash`, { withCredentials: true });
+      setTrashDocs([]);
+    } catch {}
   };
 
   const renameDocument = async (docId, newTitle) => {
@@ -3012,6 +3048,11 @@ MATCHES:[1,3,5]`;
           );
         })() : activeTab === 'documents' ? (
           <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+          <div className="flex justify-end mb-3">
+            <button onClick={() => { setShowTrash(true); fetchTrash(); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
+              <Trash2 className="h-3.5 w-3.5" /> Çöp Kutusu
+            </button>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card */}
             <button
@@ -3437,11 +3478,52 @@ MATCHES:[1,3,5]`;
       {/* Delete Document Confirmation */}
       {confirmDeleteDocId && (
         <DeleteConfirmModal
-          title={t('deleteNote')} subtitle={t('cannotUndo')}
+          title="Çöp Kutusuna Taşı" subtitle="Belge çöp kutusuna taşınacak. İstersen geri alabilirsin."
           onConfirm={() => { deleteDocument(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
           onCancel={() => setConfirmDeleteDocId(null)}
-          cancelLabel={t('cancel')} confirmLabel={t('yesDelete')}
+          cancelLabel={t('cancel')} confirmLabel="Taşı"
         />
+      )}
+
+      {/* Trash Modal */}
+      {showTrash && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: 'rgba(0,0,0,0.6)' }} onClick={() => setShowTrash(false)}>
+          <div className="w-full max-w-lg rounded-2xl p-6" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Çöp Kutusu</h2>
+                <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>{trashDocs.length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                {trashDocs.length > 0 && (
+                  <button onClick={emptyTrash} className="text-xs px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Tümünü Sil</button>
+                )}
+                <button onClick={() => setShowTrash(false)} className="p-1.5 rounded-lg hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+              </div>
+            </div>
+            {trashLoading ? (
+              <p className="text-sm text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</p>
+            ) : trashDocs.length === 0 ? (
+              <p className="text-sm text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>Çöp kutusu boş</p>
+            ) : (
+              <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
+                {trashDocs.map(doc => (
+                  <div key={doc.doc_id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(doc.deleted_at)}</p>
+                    </div>
+                    <div className="flex items-center gap-2 ml-3">
+                      <button onClick={() => restoreDocument(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>Geri Al</button>
+                      <button onClick={() => permanentDelete(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Kalıcı Sil</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Notebook Password Modal */}

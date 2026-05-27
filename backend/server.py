@@ -1931,7 +1931,7 @@ async def apple_auth_callback(request: Request, response: Response):
 @api_router.get("/documents", response_model=List[dict])
 async def get_documents(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
     docs = await db.documents.find(
-        {"user_id": user.user_id},
+        {"user_id": user.user_id, "deleted": {"$ne": True}},
         {"_id": 0, "pages": 0}
     ).sort([("pinned", -1), ("updated_at", -1)]).skip(skip).limit(limit).to_list(limit)
     return docs
@@ -2018,12 +2018,60 @@ async def restore_document_version(doc_id: str, version_index: int, user: User =
     )
     return {"restored": True, "pages_count": len(pages)}
 
+TRASH_QUOTA = {"free": 10, "plus": 50, "pro": 100, "creative_station": 500}
+
 @api_router.delete("/documents/{doc_id}")
 async def delete_document(doc_id: str, user: User = Depends(get_current_user)):
-    result = await db.documents.delete_one({"doc_id": doc_id, "user_id": user.user_id})
-    if result.deleted_count == 0:
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"subscription": 1})
+    sub = normalize_subscription(user_doc.get("subscription") if user_doc else None)
+    plan = sub.get("plan", "free")
+    quota = TRASH_QUOTA.get(plan, TRASH_QUOTA["free"])
+    trash_count = await db.documents.count_documents({"user_id": user.user_id, "deleted": True})
+    if trash_count >= quota:
+        raise HTTPException(status_code=403, detail=f"Çöp kutusu dolu ({quota} belge limiti). Kalıcı silmek için önce çöp kutusunu boşalt.")
+    result = await db.documents.update_one(
+        {"doc_id": doc_id, "user_id": user.user_id, "deleted": {"$ne": True}},
+        {"$set": {"deleted": True, "deleted_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Document not found")
-    return {"message": "Document deleted"}
+    return {"message": "Document moved to trash"}
+
+@api_router.get("/trash")
+async def get_trash(user: User = Depends(get_current_user)):
+    docs = await db.documents.find(
+        {"user_id": user.user_id, "deleted": True},
+        {"_id": 0, "pages": 0}
+    ).sort("deleted_at", -1).to_list(500)
+    return docs
+
+@api_router.post("/trash/{doc_id}/restore")
+async def restore_from_trash(doc_id: str, user: User = Depends(get_current_user)):
+    result = await db.documents.update_one(
+        {"doc_id": doc_id, "user_id": user.user_id, "deleted": True},
+        {"$unset": {"deleted": "", "deleted_at": ""}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found in trash")
+    return {"message": "Document restored"}
+
+@api_router.delete("/trash/{doc_id}")
+async def permanent_delete(doc_id: str, user: User = Depends(get_current_user)):
+    result = await db.documents.delete_one({"doc_id": doc_id, "user_id": user.user_id, "deleted": True})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found in trash")
+    await db.document_history.delete_many({"doc_id": doc_id})
+    return {"message": "Document permanently deleted"}
+
+@api_router.delete("/trash")
+async def empty_trash(user: User = Depends(get_current_user)):
+    doc_ids = [d["doc_id"] for d in await db.documents.find(
+        {"user_id": user.user_id, "deleted": True}, {"doc_id": 1}
+    ).to_list(500)]
+    await db.documents.delete_many({"user_id": user.user_id, "deleted": True})
+    if doc_ids:
+        await db.document_history.delete_many({"doc_id": {"$in": doc_ids}})
+    return {"deleted": len(doc_ids)}
 
 # ============ DOCUMENT PRESENCE (edit lock) ============
 
