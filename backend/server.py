@@ -47,7 +47,7 @@ load_dotenv(ROOT_DIR / '.env')
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
-client = AsyncIOMotorClient(mongo_url)
+client = AsyncIOMotorClient(mongo_url, minPoolSize=1, maxPoolSize=10, serverSelectionTimeoutMS=10000)
 db = client[os.environ['DB_NAME']]
 users_collection = db.users
 docs_collection = db.documents
@@ -5406,10 +5406,19 @@ async def _check_season_end():
     except Exception as e:
         logging.error(f"Season end check error: {e}")
 
+async def keepalive_ping():
+    while True:
+        try:
+            await db.command("ping")
+        except Exception:
+            pass
+        await asyncio.sleep(60)
+
 @app.on_event("startup")
 async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
     asyncio.create_task(expire_boosts_loop())
+    asyncio.create_task(keepalive_ping())
     await db.doc_presence.create_index([("doc_id", 1), ("last_seen", 1)])
     await db.documents.create_index([("user_id", 1), ("updated_at", -1)])
     await db.documents.create_index([("user_id", 1), ("pinned", -1)])
