@@ -410,7 +410,7 @@ const Dashboard = () => {
         setNotes(res.data);
       } catch {}
     };
-    const interval = setInterval(fetchNotes, 30000);
+    const interval = setInterval(fetchNotes, 300000);
     return () => clearInterval(interval);
   }, []);
 
