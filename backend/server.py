@@ -5410,8 +5410,15 @@ async def _check_season_end():
 async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
     asyncio.create_task(expire_boosts_loop())
-    # doc_presence index — hızlı sorgu için
     await db.doc_presence.create_index([("doc_id", 1), ("last_seen", 1)])
+    await db.documents.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.documents.create_index([("user_id", 1), ("pinned", -1)])
+    await db.notes.create_index([("user_id", 1), ("updated_at", -1)])
+    await db.notebooks.create_index([("user_id", 1)])
+    await db.quests.create_index([("user_id", 1)])
+    await db.users.create_index([("user_id", 1)], unique=True)
+    await db.subscriptions.create_index([("user_id", 1)])
+    await db.inventory.create_index([("user_id", 1)])
     await db.doc_presence.create_index([("doc_id", 1), ("session_id", 1)], unique=True)
 
     if _APSCHEDULER_AVAILABLE:
