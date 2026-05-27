@@ -183,7 +183,7 @@ const buildGradientCss = (el, defaultAngle = 135) => {
       `radial-gradient(circle at ${s.stopX ?? 50}% ${s.stopY ?? 50}%, ${s.color} 0%, transparent 100%)`
     );
     const base = el.gradientStops[el.gradientStops.length - 1].color;
-    return [...layers, base].join(', ');
+    return [...layers, `linear-gradient(${base}, ${base})`].join(', ');
   }
   if (el.gradientStops?.length >= 2) {
     const sorted = [...el.gradientStops].sort((a, b) => a.pos - b.pos);
