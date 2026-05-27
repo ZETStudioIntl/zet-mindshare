@@ -1961,30 +1961,30 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
 
+async def _save_document_version(doc_id: str, user_id: str):
+    try:
+        old = await db.documents.find_one({"doc_id": doc_id, "user_id": user_id}, {"_id": 0, "pages": 1})
+        if not old or not old.get("pages"):
+            return
+        await db.document_history.insert_one({
+            "doc_id": doc_id,
+            "user_id": user_id,
+            "pages": old["pages"],
+            "saved_at": datetime.now(timezone.utc).isoformat()
+        })
+        versions = await db.document_history.find({"doc_id": doc_id}, {"_id": 1}).sort("saved_at", -1).to_list(20)
+        if len(versions) > 5:
+            await db.document_history.delete_many({"_id": {"$in": [v["_id"] for v in versions[5:]]}})
+    except Exception:
+        pass
+
 @api_router.put("/documents/{doc_id}")
 async def update_document(doc_id: str, update: DocumentUpdate, user: User = Depends(get_current_user)):
     update_data = {k: v for k, v in update.model_dump().items() if v is not None}
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     if "pages" in update_data:
-        old = await db.documents.find_one(
-            {"doc_id": doc_id, "user_id": user.user_id},
-            {"_id": 0, "pages": 1}
-        )
-        if old and old.get("pages"):
-            await db.document_history.insert_one({
-                "doc_id": doc_id,
-                "user_id": user.user_id,
-                "pages": old["pages"],
-                "saved_at": datetime.now(timezone.utc).isoformat()
-            })
-            versions = await db.document_history.find(
-                {"doc_id": doc_id},
-                {"_id": 1}
-            ).sort("saved_at", -1).to_list(20)
-            if len(versions) > 5:
-                old_ids = [v["_id"] for v in versions[5:]]
-                await db.document_history.delete_many({"_id": {"$in": old_ids}})
+        asyncio.create_task(_save_document_version(doc_id, user.user_id))
 
     result = await db.documents.update_one(
         {"doc_id": doc_id, "user_id": user.user_id},
