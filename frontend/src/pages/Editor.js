@@ -108,6 +108,15 @@ const Editor = () => {
     };
   }, []);
 
+  // Bağlantı geri gelince pending sync varsa otomatik gönder
+  useEffect(() => {
+    if (!isOnline || !docId) return;
+    try {
+      const local = JSON.parse(localStorage.getItem(`zet_offline_doc_${docId}`) || 'null');
+      if (local?.pending_sync) saveDocument(true);
+    } catch {}
+  }, [isOnline]); // eslint-disable-line
+
   // Mobile panels
   const [mobilePanel, setMobilePanel] = useState(null); // 'pages' | 'zeta' | null
 
@@ -891,11 +900,18 @@ const Editor = () => {
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
     }
+    // Önce localStorage'a yaz — ağ kesilse bile veri korunur
+    // Free kullanıcı: canvas verisi olmadan sakla (zaten kullanamıyor)
+    const pagesToCache = userPlan !== 'free'
+      ? updatedPages
+      : updatedPages.map(p => ({ ...p, elements: [], drawPaths: [] }));
+    try {
+      localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
+        title: document.title, subtitle: document.subtitle || null,
+        pages: pagesToCache, savedAt: Date.now(), pending_sync: true
+      }));
+    } catch {}
     if (!navigator.onLine) {
-      // Offline: save to localStorage only
-      try {
-        localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({ title: document.title, subtitle: document.subtitle || null, pages: updatedPages, savedAt: Date.now() }));
-      } catch {}
       setSaveStatus('unsaved');
       if (!silent) setSaving(false);
       return;
