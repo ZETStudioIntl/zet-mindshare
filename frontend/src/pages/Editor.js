@@ -2676,7 +2676,7 @@ const Editor = () => {
       const updated = prev.map(el => {
         if (!targets.includes(el.id)) return el;
         if (isMulti && el.type !== colorTarget) return el;
-        return { ...el, color, fill: color, gradientStops: null };
+        return { ...el, color, fill: color, gradientStops: null, gradientStart: null, gradientEnd: null, gradientType: null };
       });
       handleSaveHistory(updated);
       return updated;

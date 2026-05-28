@@ -68,18 +68,25 @@ const ColorPickerPanel = () => {
 
   const applyColorToTargets = (color) => {
     const tids = getTids();
-    if (!tids.length) { applyColor(color); return; }
+    if (!tids.length) { applyColor(color); setHexInput(color); setCustomColor(color); return; }
     setCanvasElements(prev => {
       const updated = prev.map(el => {
         if (!tids.includes(el.id)) return el;
         if (!applyTargets.includes(getElCategory(el))) return el;
-        return { ...el, color, fill: color, gradientStops: null };
+        if (el.svgContent) {
+          const recolored = el.svgContent
+            .replace(/fill="(?!none\b)[^"]*"/g, `fill="${color}"`)
+            .replace(/fill:\s*(?!none\b)[^;}"']*/g, `fill:${color}`);
+          return { ...el, svgContent: recolored, color, fill: color, gradientStops: null, gradientStart: null, gradientEnd: null, gradientType: null };
+        }
+        return { ...el, color, fill: color, gradientStops: null, gradientStart: null, gradientEnd: null, gradientType: null };
       });
       handleSaveHistory(updated);
       return updated;
     });
     setCurrentColor(color);
     setHexInput(color);
+    setCustomColor(color);
   };
 
   const applyGradientFromSaved = (g) => {
@@ -192,7 +199,7 @@ const ColorPickerPanel = () => {
           <input type="text" value={hexInput} onChange={e => setHexInput(e.target.value)} placeholder="#000000"
             className="zet-input flex-1 text-xs font-mono" maxLength={7} />
           <button onClick={() => { if (/^#[0-9A-Fa-f]{6}$/.test(hexInput)) applyColorToTargets(hexInput); }}
-            className="zet-btn px-2 text-xs">OK</button>
+            className="zet-btn px-2 text-xs">Uygula</button>
           <input type="color" value={customColor} onChange={e => { setCustomColor(e.target.value); applyColorToTargets(e.target.value); }}
             className="h-8 w-10 rounded cursor-pointer" style={{ padding: 2, border: '1px solid var(--zet-border)' }} />
         </div>
@@ -209,7 +216,7 @@ const ColorPickerPanel = () => {
                 style={{ background: c }} data-testid={`highlight-color-${c}`} />
             ))}
             <button onClick={() => {
-              const target = selectedElement || lastSelectedRef.current;
+              const target = selectedElement;
               if (!target) return;
               setCanvasElements(prev => {
                 const updated = prev.map(el => {
