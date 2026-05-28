@@ -29,9 +29,9 @@ const ColorPickerPanel = () => {
   const { t } = useLanguage();
   const {
     isMobile, showColor, setShowColor,
-    applyColor, currentColor, hexInput, setHexInput, customColor, setCustomColor,
+    applyColor, currentColor, setCurrentColor, hexInput, setHexInput, customColor, setCustomColor,
     highlighterColor, setHighlighterColor,
-    selectedElement, selectedElements, lastSelectedRef, setCanvasElements, handleSaveHistory,
+    selectedElement, selectedElements, setCanvasElements, handleSaveHistory,
   } = useContext(EditorStateContext);
 
   const [savedGradients, setSavedGradients] = useState(() => {
@@ -61,42 +61,38 @@ const ColorPickerPanel = () => {
     );
   };
 
-  const getTargetIds = () => {
-    const sel = (selectedElements || []).length > 0
-      ? selectedElements
-      : selectedElement ? [selectedElement]
-      : lastSelectedRef?.current ? [lastSelectedRef.current]
-      : null;
-    return sel;
-  };
+  const getTids = () =>
+    selectedElements.length > 0 ? selectedElements
+    : selectedElement ? [selectedElement]
+    : [];
 
   const applyColorToTargets = (color) => {
-    const targets = getTargetIds();
-    if (!targets) { applyColor(color); return; }
+    const tids = getTids();
+    if (!tids.length) { applyColor(color); return; }
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (!targets.includes(el.id)) return el;
+        if (!tids.includes(el.id)) return el;
         if (!applyTargets.includes(getElCategory(el))) return el;
         return { ...el, color, fill: color, gradientStops: null };
       });
       handleSaveHistory(updated);
       return updated;
     });
+    setCurrentColor(color);
     setHexInput(color);
   };
 
   const applyGradientFromSaved = (g) => {
-    const targets = getTargetIds();
-    if (!targets) return;
-    const rawStops = (g.stops || []);
-    const stops = rawStops.map(s => ({
+    const tids = getTids();
+    if (!tids.length) return;
+    const stops = (g.stops || []).map(s => ({
       id: s.id, color: s.color,
       stopX: Math.round(s.x ?? 50), stopY: Math.round(s.y ?? 50),
     }));
     const firstColor = stops[0]?.color || '#000000';
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (!targets.includes(el.id)) return el;
+        if (!tids.includes(el.id)) return el;
         if (!applyTargets.includes(getElCategory(el))) return el;
         if (el.type === 'text') {
           return { ...el, color: firstColor, fill: firstColor, gradientStops: null };
