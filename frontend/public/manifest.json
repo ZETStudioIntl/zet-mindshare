@@ -1,7 +1,7 @@
 {
   "name": "ZET Portal",
   "short_name": "ZET Portal",
-  "description": "AI destekli belge editörü ve canvas aracı",
+  "description": "AI destekli eğlenceli üretkenlik platformu",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
@@ -18,5 +18,5 @@
     }
   ],
   "screenshots": [],
-  "categories": ["productivity", "utilities", "education"]
+  "categories": ["productivity", "entertainment", "education"]
 }
