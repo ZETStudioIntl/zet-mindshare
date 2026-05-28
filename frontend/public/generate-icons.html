@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head><title>Icon Generator</title></head>
+<body>
+<p>İkonlar indiriliyor...</p>
+<canvas id="c" style="display:none"></canvas>
+<script>
+const sizes = [192, 512];
+const svg = '/logo-cs.svg';
+const img = new Image();
+img.onload = () => {
+  sizes.forEach(size => {
+    const c = document.getElementById('c');
+    c.width = size; c.height = size;
+    const ctx = c.getContext('2d');
+    ctx.clearRect(0, 0, size, size);
+    ctx.drawImage(img, 0, 0, size, size);
+    const a = document.createElement('a');
+    a.href = c.toDataURL('image/png');
+    a.download = `icon-${size}.png`;
+    a.click();
+  });
+  document.querySelector('p').textContent = 'Tamamlandı! icon-192.png ve icon-512.png indirildi.';
+};
+img.src = svg;
+</script>
+</body>
+</html>
