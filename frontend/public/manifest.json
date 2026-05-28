@@ -1,6 +1,6 @@
 {
-  "name": "ZET Mindshare",
-  "short_name": "Mindshare",
+  "name": "ZET Portal",
+  "short_name": "ZET Portal",
   "description": "AI destekli belge editörü ve canvas aracı",
   "start_url": "/",
   "display": "standalone",
@@ -11,7 +11,7 @@
   "lang": "tr",
   "icons": [
     {
-      "src": "/logo-mindshare.svg",
+      "src": "/logo-cs.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
