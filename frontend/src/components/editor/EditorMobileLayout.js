@@ -250,19 +250,24 @@ const EditorMobileLayout = () => {
         {showVoice && (
           <div className="p-2 border-t flex-shrink-0" style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
             <div className="flex items-center gap-2 mb-2">
-              <select 
-                value={selectedVoice} 
+              <select
+                value={selectedVoice}
                 onChange={(e) => setSelectedVoice(e.target.value)}
                 onClick={() => { if (availableVoices.length === 0) fetchVoices(); }}
                 className="zet-input text-xs flex-1"
               >
-                <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</option>
-                <option value="VR6AewLTigWG4xSOukaG">Arnold (Male)</option>
-                <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</option>
-                <option value="ErXwobaYiN019PkySvjV">Antoni (Male)</option>
-                {availableVoices.filter(v => !['21m00Tcm4TlvDq8ikWAM', 'VR6AewLTigWG4xSOukaG', 'EXAVITQu4vr4xnSDxMaL', 'ErXwobaYiN019PkySvjV'].includes(v.voice_id)).map(v => (
-                  <option key={v.voice_id} value={v.voice_id}>{v.name} {v.gender ? `(${v.gender})` : ''}</option>
-                ))}
+                {availableVoices.length > 0 ? (
+                  availableVoices.map(v => (
+                    <option key={v.voice_id} value={v.voice_id}>{v.name}{v.gender ? ` (${v.gender})` : ''}</option>
+                  ))
+                ) : (
+                  <>
+                    <option value="21m00Tcm4TlvDq8ikWAM">Rachel (Female)</option>
+                    <option value="VR6AewLTigWG4xSOukaG">Arnold (Male)</option>
+                    <option value="EXAVITQu4vr4xnSDxMaL">Bella (Female)</option>
+                    <option value="ErXwobaYiN019PkySvjV">Antoni (Male)</option>
+                  </>
+                )}
               </select>
               <button onClick={generateTTS} disabled={voiceLoading} className="zet-btn text-xs px-3">
                 {voiceLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : 'Generate'}
