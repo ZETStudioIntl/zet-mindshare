@@ -55,7 +55,8 @@ export const useVoice = ({ canvasElements, setCanvasElements, history, document,
       const res = await axios.get(`${API}/voice/list`, { withCredentials: true });
       setAvailableVoices(res.data.voices || []);
     } catch (err) {
-      console.error('Failed to fetch voices:', err);
+      const detail = err.response?.data?.detail || err.message;
+      alert('ElevenLabs ses listesi alınamadı: ' + detail);
     }
   };
 
@@ -88,8 +89,8 @@ export const useVoice = ({ canvasElements, setCanvasElements, history, document,
         setIsPlaying(true);
       }
     } catch (err) {
-      console.error('TTS generation failed:', err);
-      playVoiceFromBrowser();
+      const detail = err.response?.data?.detail || err.message;
+      alert('ElevenLabs TTS hatası: ' + detail);
     }
     setVoiceLoading(false);
   };
