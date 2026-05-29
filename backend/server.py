@@ -4337,15 +4337,13 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
     quality_prompt = "high quality, professional, detailed, " if req.pro else ""
     full_prompt = f"{aspect_prompt}{quality_prompt}{req.prompt}".strip()
 
-    client = google_genai.Client(api_key=imagen_key)
-
-    # Both paths use Gemini 2.0 Flash image generation
+    image_model = "gemini-3-pro-image" if req.pro else "gemini-3.1-flash-image"
     client_img = google_genai.Client(api_key=gemini_key or imagen_key, http_options={"api_version": "v1beta"})
     try:
         if not req.reference_image:
             # Text-to-image
             resp = await gemini_generate(
-                client_img, "gemini-2.0-flash-exp-image-generation",
+                client_img, image_model,
                 [genai_types.Content(role="user", parts=[genai_types.Part(text=full_prompt)])],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
@@ -4362,7 +4360,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
                 genai_types.Part(text=full_prompt),
             ]
             resp = await gemini_generate(
-                client_img, "gemini-2.0-flash-exp-image-generation",
+                client_img, image_model,
                 [genai_types.Content(role="user", parts=parts)],
                 genai_types.GenerateContentConfig(response_modalities=["IMAGE", "TEXT"])
             )
