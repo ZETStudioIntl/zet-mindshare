@@ -29,9 +29,9 @@ const ColorPickerPanel = () => {
   const { t } = useLanguage();
   const {
     isMobile, showColor, setShowColor,
-    applyColor, currentColor, setCurrentColor, hexInput, setHexInput, customColor, setCustomColor,
+    currentColor, setCurrentColor, hexInput, setHexInput, customColor, setCustomColor,
     highlighterColor, setHighlighterColor,
-    selectedElement, selectedElements, setCanvasElements, handleSaveHistory,
+    selectedElement, setCanvasElements, handleSaveHistory,
   } = useContext(EditorStateContext);
 
   const [savedGradients, setSavedGradients] = useState(() => {
@@ -61,17 +61,13 @@ const ColorPickerPanel = () => {
     );
   };
 
-  const getTids = () =>
-    selectedElements.length > 0 ? selectedElements
-    : selectedElement ? [selectedElement]
-    : [];
-
   const applyColorToTargets = (color) => {
-    const tids = getTids();
-    if (!tids.length) { applyColor(color); setHexInput(color); setCustomColor(color); return; }
+    setCurrentColor(color);
+    setHexInput(color);
+    setCustomColor(color);
+    if (!applyTargets.length) return;
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (!tids.includes(el.id)) return el;
         if (!applyTargets.includes(getElCategory(el))) return el;
         if (el.svgContent) {
           const recolored = el.svgContent
@@ -84,21 +80,16 @@ const ColorPickerPanel = () => {
       handleSaveHistory(updated);
       return updated;
     });
-    setCurrentColor(color);
-    setHexInput(color);
-    setCustomColor(color);
   };
 
   const applyGradientFromSaved = (g) => {
-    const tids = getTids();
-    if (!tids.length) return;
+    if (!applyTargets.length) return;
     const stops = (g.stops || []).map(s => ({
       id: s.id, color: s.color,
       stopX: Math.round(s.x ?? 50), stopY: Math.round(s.y ?? 50),
     }));
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (!tids.includes(el.id)) return el;
         if (!applyTargets.includes(getElCategory(el))) return el;
         return {
           ...el,
