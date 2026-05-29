@@ -4479,6 +4479,7 @@ async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current
 
 # ============ ELEVENLABS TTS ROUTES ============
 
+
 class TTSRequest(BaseModel):
     text: str
     voice_id: str = "21m00Tcm4TlvDq8ikWAM"  # Default: Rachel (female)
