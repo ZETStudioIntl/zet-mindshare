@@ -96,14 +96,10 @@ const ColorPickerPanel = () => {
       id: s.id, color: s.color,
       stopX: Math.round(s.x ?? 50), stopY: Math.round(s.y ?? 50),
     }));
-    const firstColor = stops[0]?.color || '#000000';
     setCanvasElements(prev => {
       const updated = prev.map(el => {
         if (!tids.includes(el.id)) return el;
         if (!applyTargets.includes(getElCategory(el))) return el;
-        if (el.type === 'text') {
-          return { ...el, color: firstColor, fill: firstColor, gradientStops: null };
-        }
         return {
           ...el,
           gradientStops: stops, gradientType: 'radial-multi',

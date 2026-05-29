@@ -498,7 +498,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
         style={{
           visibility: el.isRedacted && !isEditing ? 'hidden' : undefined,
           fontSize: (el.fontSize || 16) * zoom, fontFamily: el.fontFamily || 'Arial',
-          color: (el.gradientStops?.length >= 2 || (el.gradientStart && el.gradientEnd)) ? undefined : (
+          color: (el.gradientStops?.length >= 1 || (el.gradientStart && el.gradientEnd)) ? undefined : (
             el.color && el.color !== '#000000' && el.color !== '#000'
               ? el.color
               : pageDark ? '#ffffff' : '#000000'
@@ -2128,6 +2128,7 @@ export const CanvasArea = ({
                       return;
                     }
                     setSelectedElement(el.id);
+                    setSelectedElements([el.id]);
                     if (activeTool === 'text' && el.type === 'text') setEditingId(el.id);
                     if (onElementSelect) onElementSelect(el);
                   }}>
