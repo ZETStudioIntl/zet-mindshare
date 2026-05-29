@@ -19,11 +19,6 @@ const multiRadialCss = (stops) => {
 
 const gradientToCss = (g) => multiRadialCss(g.stops);
 
-const getElCategory = (el) => {
-  if (el.type === 'text') return 'text';
-  if (el.svgContent) return 'vector';
-  return 'shape';
-};
 
 const ColorPickerPanel = () => {
   const { t } = useLanguage();
@@ -51,24 +46,15 @@ const ColorPickerPanel = () => {
   const doubleTapRef = useRef({ time: 0, id: null });
 
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [applyTargets, setApplyTargets] = useState(['text', 'shape', 'vector']);
 
   if (!showColor) return null;
-
-  const toggleTarget = (type) => {
-    setApplyTargets(prev =>
-      prev.includes(type) ? prev.filter(t => t !== type) : [...prev, type]
-    );
-  };
 
   const applyColorToTargets = (color) => {
     setCurrentColor(color);
     setHexInput(color);
     setCustomColor(color);
-    if (!applyTargets.length) return;
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (!applyTargets.includes(getElCategory(el))) return el;
         if (el.svgContent) {
           const recolored = el.svgContent
             .replace(/fill="(?!none\b)[^"]*"/g, `fill="${color}"`)
@@ -83,14 +69,12 @@ const ColorPickerPanel = () => {
   };
 
   const applyGradientFromSaved = (g) => {
-    if (!applyTargets.length) return;
     const stops = (g.stops || []).map(s => ({
       id: s.id, color: s.color,
       stopX: Math.round(s.x ?? 50), stopY: Math.round(s.y ?? 50),
     }));
     setCanvasElements(prev => {
       const updated = prev.map(el => {
-        if (!applyTargets.includes(getElCategory(el))) return el;
         return {
           ...el,
           gradientStops: stops, gradientType: 'radial-multi',
@@ -236,22 +220,6 @@ const ColorPickerPanel = () => {
 
           {showAdvanced && (
             <div className="space-y-3 pb-1">
-
-              {/* Uygulama hedefleri */}
-              <div className="flex gap-3">
-                {[['text', 'Yazılar'], ['shape', 'Şekiller'], ['vector', 'Vektörler']].map(([type, label]) => (
-                  <label key={type} className="flex items-center gap-1.5 cursor-pointer select-none">
-                    <input
-                      type="checkbox"
-                      checked={applyTargets.includes(type)}
-                      onChange={() => toggleTarget(type)}
-                      className="rounded"
-                      style={{ accentColor: 'var(--zet-primary)' }}
-                    />
-                    <span className="text-xs" style={{ color: 'var(--zet-text)' }}>{label}</span>
-                  </label>
-                ))}
-              </div>
 
               {/* Kayıtlı gradientler */}
               {savedGradients.length > 0 && (
