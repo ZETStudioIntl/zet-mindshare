@@ -236,6 +236,11 @@ const EditorMobileLayout = () => {
                 onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
                 onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
                 onInsertText={handleInsertText}
+                onAddImageToCanvas={(src) => {
+                  const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'image', x: 20, y: 40, width: 200, height: 200, src }];
+                  setCanvasElements(updated);
+                  handleSaveHistory(updated);
+                }}
                 canvasElements={canvasElements} activeTool={activeTool} />
             </div>
           </div>

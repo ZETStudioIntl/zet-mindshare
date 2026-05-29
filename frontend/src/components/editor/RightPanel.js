@@ -38,6 +38,7 @@ export const RightPanel = ({
   onTakeNote,
   onInsertText,
   onApplyEdit,
+  onAddImageToCanvas,
   canvasElements,
   activeTool,
 }) => {
@@ -840,6 +841,15 @@ export const RightPanel = ({
                   <a href={colorResult} download="zeta-colors.png" className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]" style={{ background: 'rgba(236,72,153,0.15)', color: '#ec4899', border: '1px solid rgba(236,72,153,0.3)' }}>
                     <Download className="h-3.5 w-3.5" /> İndir
                   </a>
+                  {onAddImageToCanvas && (
+                    <button
+                      onClick={() => onAddImageToCanvas(colorResult)}
+                      className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all hover:scale-[1.02]"
+                      style={{ background: 'rgba(76,168,173,0.15)', color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Belgeye Ekle
+                    </button>
+                  )}
                 </div>
               )}
             </div>

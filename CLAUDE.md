@@ -65,6 +65,10 @@ backend/
 | `frontend/src/components/editor/ColorPickerPanel.js` | Tüm dosya — renk paneli (checkbox'lar kaldırıldı, gradient dahil) | Kilitlendi, dokunma |
 | `frontend/src/components/editor/CanvasArea.js` | `emoji` aracı | Kilitlendi, dokunma |
 | `frontend/src/components/editor/CanvasArea.js` | `text` / metin aracı — EditableText ve metin oluşturma mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `pen` / kalem aracı — çizim mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `eraser` / silgi aracı — silgi mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `layers` / katmanlar paneli ve mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `image` / resim aracı — resim ekleme ve render mantığı | Kilitlendi, dokunma |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma

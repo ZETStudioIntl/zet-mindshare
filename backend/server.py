@@ -4493,11 +4493,11 @@ class VoiceInfo(BaseModel):
 async def list_voices(user: User = Depends(get_current_user)):
     """List available ElevenLabs voices"""
     from elevenlabs import ElevenLabs
-    
-    api_key = os.getenv("ELEVENLABS_API_KEY")
+
+    api_key = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
     if not api_key:
         raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
-    
+
     try:
         client = ElevenLabs(api_key=api_key)
         voices_response = client.voices.get_all()
@@ -4523,25 +4523,26 @@ async def list_voices(user: User = Depends(get_current_user)):
 async def generate_tts(req: TTSRequest, user: User = Depends(get_current_user)):
     """Generate text-to-speech audio using ElevenLabs"""
     from elevenlabs import ElevenLabs
-    
-    api_key = os.getenv("ELEVENLABS_API_KEY")
+
+    api_key = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
     if not api_key:
         raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
-    
+
     try:
         client = ElevenLabs(api_key=api_key)
-        
+
         # Generate audio
         audio_generator = client.text_to_speech.convert(
-            text=req.text,
+            text=req.text[:5000],
             voice_id=req.voice_id,
-            model_id=req.model_id
+            model_id=req.model_id,
         )
-        
-        # Collect audio data
-        audio_data = b""
-        for chunk in audio_generator:
-            audio_data += chunk
+
+        # Handle both Iterator[bytes] and bytes return types
+        if isinstance(audio_generator, bytes):
+            audio_data = audio_generator
+        else:
+            audio_data = b"".join(audio_generator)
         
         # Convert to base64 for transfer
         audio_b64 = base64.b64encode(audio_data).decode()
@@ -4580,7 +4581,7 @@ async def speech_to_text(audio: UploadFile = File(...), language: str = "tr", us
     """Convert speech to text using ElevenLabs Scribe STT"""
     from elevenlabs import ElevenLabs
 
-    api_key = os.getenv("ELEVENLABS_API_KEY")
+    api_key = (os.getenv("ELEVENLABS_API_KEY") or "").strip()
     if not api_key:
         raise HTTPException(status_code=503, detail="ElevenLabs API key not configured")
 
@@ -4588,11 +4589,15 @@ async def speech_to_text(audio: UploadFile = File(...), language: str = "tr", us
         audio_bytes = await audio.read()
         el_client = ElevenLabs(api_key=api_key)
         import io
-        result = el_client.speech_to_text.convert(
+        kwargs = dict(
             audio=io.BytesIO(audio_bytes),
             model_id="scribe_v1",
-            language_code=language if language != "auto" else None,
+            tag_audio_events=False,
+            diarize=False,
         )
+        if language and language != "auto":
+            kwargs["language_code"] = language
+        result = el_client.speech_to_text.convert(**kwargs)
         return {"transcript": result.text}
     except Exception as e:
         logging.error(f"STT error: {str(e)}")
