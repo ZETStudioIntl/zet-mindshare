@@ -80,6 +80,9 @@ backend/
 | `frontend/src/components/editor/EditorPanels.js` | Çeviri paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/QRCodePanel.js` | QR kod paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Kopyalama (copy) mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Noktalama işaretleri paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/WatermarkPanel.js` | Watermark paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Zoom paneli | Kilitlendi, dokunma |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma
