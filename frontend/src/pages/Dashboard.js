@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { A4LoadingScreen } from '../components/LoadingScreens';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -1559,13 +1560,7 @@ MATCHES:[1,3,5]`;
     </div>
   );
 
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
-        <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }}></div>
-      </div>
-    );
-  }
+  if (loading) return <A4LoadingScreen />;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>

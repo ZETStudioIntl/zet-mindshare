@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { A4LoadingScreen } from '../components/LoadingScreens';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,7 +18,7 @@ import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import {
   Home, Save, Undo, Redo, ArrowLeft, ArrowRight,
-  Upload, Search, Loader2, X, Wand2, Plus, Check,
+  Upload, Search, X, Wand2, Plus, Check,
   Play, Pause, SkipBack, SkipForward, Volume2, Languages,
   Bold, Italic, Underline, Strikethrough, Highlighter,
   Menu, Layers, Sparkles, AlignLeft, AlignCenter, AlignRight, AlignJustify,
@@ -2864,9 +2865,7 @@ const Editor = () => {
     if (showFont) filteredFonts.slice(0, 60).forEach(f => loadGoogleFont(f));
   }, [showFont, fontSearch]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  if (!document) {
-    return <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}><Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--zet-primary)' }} /></div>;
-  }
+  if (!document) return <A4LoadingScreen bg="var(--zet-bg)" />;
 
   // ============================
   // FLOATING PANELS (shared between mobile and desktop)

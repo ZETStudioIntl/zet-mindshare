@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { ScalesLoadingScreen } from '../components/LoadingScreens';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -487,10 +488,7 @@ const JudgeDashboard = () => {
         {activeTab === 'projects' && (
           <div>
             {sessionsLoading ? (
-              <div style={{ textAlign: 'center', padding: '80px 0', color: 'rgba(255,255,255,0.3)' }}>
-                <Loader size={24} style={{ margin: '0 auto 12px', display: 'block', animation: 'spin 1s linear infinite' }} />
-                Analizler yükleniyor...
-              </div>
+              <ScalesLoadingScreen fullscreen={false} playSound={false} label="Analizler yükleniyor" />
             ) : sessions.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '100px 0' }}>
                 <div style={{ width: 72, height: 72, borderRadius: 20, background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' }}>
@@ -603,9 +601,7 @@ const JudgeDashboard = () => {
             )}
 
             {mediaLoading && mediaPosts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.3)' }}>
-                <Loader size={24} style={{ margin: '0 auto 12px', display: 'block', animation: 'spin 1s linear infinite' }} />
-              </div>
+              <ScalesLoadingScreen fullscreen={false} playSound={false} label="Yükleniyor" />
             ) : mediaPosts.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
                 {mediaFeedTab === 'feed' ? 'Takip ettiğin kimse yok henüz.' : 'Gönderi bulunamadı.'}
