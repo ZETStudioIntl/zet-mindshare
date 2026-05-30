@@ -69,6 +69,17 @@ backend/
 | `frontend/src/components/editor/CanvasArea.js` | `eraser` / silgi aracı — silgi mantığı | Kilitlendi, dokunma |
 | `frontend/src/components/editor/CanvasArea.js` | `layers` / katmanlar paneli ve mantığı | Kilitlendi, dokunma |
 | `frontend/src/components/editor/CanvasArea.js` | `image` / resim aracı — resim ekleme ve render mantığı | Kilitlendi, dokunma |
+| `frontend/src/hooks/useVoice.js` | `startElevenLabsSTT` / `stopElevenLabsSTT` — ses girişi (voice input) mantığı | Kilitlendi, dokunma |
+| `frontend/src/hooks/useVoice.js` | `generateTTS` / `fetchVoices` — ElevenLabs seslendirme (TTS) mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Şekiller paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Hesap makinası paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/RightPanel.js` | Sayfa ekle butonu ve mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Header/Footer paneli (tek mod: tüm sayfalara uygula, tek/çift kaldırıldı) | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Sayfa rengi paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/PageNumbersPanel.js` | Sayfa numaraları paneli (page/sayfa ön eki kaldırıldı, sadece sayı) | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Çeviri paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/QRCodePanel.js` | QR kod paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Kopyalama (copy) mantığı | Kilitlendi, dokunma |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma

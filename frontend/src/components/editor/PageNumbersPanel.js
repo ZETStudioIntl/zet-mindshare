@@ -33,8 +33,6 @@ const PageNumbersPanel = ({ pageNumbersEnabled, togglePageNumbers, pageNumberPos
         <select value={pageNumberStyle} onChange={e => { setPageNumberStyle(e.target.value); updatePageNumberSettings({ style: e.target.value }); }} className="zet-input text-xs w-full">
           <option value="n">1</option>
           <option value="n/total">1 / 5</option>
-          <option value="page-n">Sayfa 1</option>
-          <option value="page-n-of-total">Sayfa 1 / 5</option>
         </select>
       </div>
       <div>
