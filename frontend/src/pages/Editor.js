@@ -1821,26 +1821,7 @@ const Editor = () => {
     }
     setShowGraphic(false);
 
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const play = (freq, start, dur, type = 'sine', gainVal = 0.18) => {
-        const osc = ctx.createOscillator();
-        const g = ctx.createGain();
-        osc.connect(g); g.connect(ctx.destination);
-        osc.type = type; osc.frequency.setValueAtTime(freq, ctx.currentTime + start);
-        osc.frequency.exponentialRampToValueAtTime(freq * 1.6, ctx.currentTime + start + dur * 0.6);
-        g.gain.setValueAtTime(0, ctx.currentTime + start);
-        g.gain.linearRampToValueAtTime(gainVal, ctx.currentTime + start + 0.02);
-        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur);
-        osc.start(ctx.currentTime + start);
-        osc.stop(ctx.currentTime + start + dur);
-      };
-      play(320, 0,    0.12, 'square', 0.12);
-      play(480, 0.1,  0.1,  'sine',   0.15);
-      play(640, 0.18, 0.1,  'sine',   0.14);
-      play(880, 0.26, 0.14, 'sine',   0.16);
-      play(1200, 0.36, 0.2, 'sine',   0.12);
-    } catch (_) {}
+    try { const a = new Audio('/sounds/chart-create.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
   };
 
   // === UPDATE SHORTCUT ===

@@ -48,6 +48,7 @@ const AppSelector = () => {
   const handleSelect = (app) => {
     setSelecting(app.id);
     switchApp(app.id);
+    try { const a = new Audio('/sounds/app-select.wav'); a.volume = 0.6; a.play().catch(() => {}); } catch (_) {}
     setTimeout(() => navigate(app.route), 350);
   };
 
