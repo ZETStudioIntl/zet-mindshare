@@ -1757,13 +1757,13 @@ const Editor = () => {
         const x1 = cx + r * Math.cos(sa), y1 = cy + r * Math.sin(sa);
         const x2 = cx + r * Math.cos(ea), y2 = cy + r * Math.sin(ea);
         const la = angle > Math.PI ? 1 : 0;
-        svg += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${la} 1 ${x2},${y2} Z" fill="${fill(i)}" stroke="white" stroke-width="2"/>`;
-        // Label on slice
+        const delay = (i * 0.09).toFixed(2);
+        svg += `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${la} 1 ${x2},${y2} Z" fill="${fill(i)}" stroke="white" stroke-width="2" opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.35s" begin="${delay}s" fill="freeze"/></path>`;
         const mid = sa + angle / 2;
         const lx = cx + (r * 0.65) * Math.cos(mid);
         const ly = cy + (r * 0.65) * Math.sin(mid);
         const pct = Math.round((data[i] / total) * 100);
-        if (pct >= 5) svg += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" font-size="9" fill="white" font-weight="600">${pct}%</text>`;
+        if (pct >= 5) svg += `<text x="${lx}" y="${ly + 4}" text-anchor="middle" font-size="9" fill="white" font-weight="600" opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.25s" begin="${(i * 0.09 + 0.3).toFixed(2)}s" fill="freeze"/></text>`;
         sa = ea;
       });
       // Legend
@@ -1797,13 +1797,14 @@ const Editor = () => {
         svg += `<text x="${x}" y="${pad.top + ch + 14}" text-anchor="middle" font-size="9" fill="#6b7280">${label.length > 8 ? label.slice(0, 8) + '..' : label}</text>`;
       });
       area += `L${pad.left + (labels.length - 1) * sp},${pad.top + ch}Z`;
-      svg += `<path d="${area}" fill="${lc}" opacity="0.1"/>`;
-      svg += `<path d="${line}" stroke="${lc}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+      svg += `<path d="${area}" fill="${lc}" opacity="0"><animate attributeName="opacity" from="0" to="0.1" dur="0.4s" begin="0.7s" fill="freeze"/></path>`;
+      svg += `<path d="${line}" stroke="${lc}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round" stroke-dasharray="10000" stroke-dashoffset="10000"><animate attributeName="stroke-dashoffset" from="10000" to="0" dur="0.8s" fill="freeze"/></path>`;
       labels.forEach((label, i) => {
         const x = pad.left + i * sp;
         const y = pad.top + ch - (data[i] / maxVal) * ch;
-        svg += `<circle cx="${x}" cy="${y}" r="4" fill="white" stroke="${lc}" stroke-width="2"/>`;
-        svg += `<text x="${x}" y="${y - 8}" text-anchor="middle" font-size="9" fill="#374151" font-weight="500">${data[i]}</text>`;
+        const delay = (0.4 + i * 0.06).toFixed(2);
+        svg += `<circle cx="${x}" cy="${y}" r="0" fill="white" stroke="${lc}" stroke-width="2"><animate attributeName="r" from="0" to="4" dur="0.25s" begin="${delay}s" fill="freeze"/></circle>`;
+        svg += `<text x="${x}" y="${y - 8}" text-anchor="middle" font-size="9" fill="#374151" font-weight="500" opacity="0"><animate attributeName="opacity" from="0" to="1" dur="0.2s" begin="${delay}s" fill="freeze"/></text>`;
       });
     }
     
