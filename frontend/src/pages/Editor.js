@@ -1,5 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { A4LoadingScreen } from '../components/LoadingScreens';
+import * as pdfjsLib from 'pdfjs-dist';
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -1680,10 +1682,27 @@ const Editor = () => {
     if (!file || !file.name.toLowerCase().endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
     setPdfImporting(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file, file.name);
-      const res = await axios.post(`${API}/pdf/extract-text`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
-      let pdfPages = res.data.pages || [];
+      // Client-side PDF extraction via pdfjs-dist — no backend needed
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const rawPages = [];
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const content = await page.getTextContent();
+        let text = '';
+        let lastY = null;
+        for (const item of content.items) {
+          if (!('str' in item)) continue;
+          if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4) text += '\n';
+          text += item.str;
+          if (item.hasEOL) text += '\n';
+          lastY = item.transform[5];
+        }
+        const firstItem = content.items.find(it => 'str' in it && it.str.trim());
+        const fontName = firstItem ? (content.styles?.[firstItem.fontName]?.fontFamily || firstItem.fontName || null) : null;
+        rawPages.push({ page_num: i, text: text.trim(), font_name: fontName });
+      }
+      let pdfPages = rawPages;
       if (pdfPages.length === 0 || pdfPages.every(p => !p.text)) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
 
       const pageLimit = PDF_PAGE_LIMITS[userPlan] ?? 20;
