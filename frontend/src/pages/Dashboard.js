@@ -102,6 +102,8 @@ const Dashboard = () => {
   const [noteReminder, setNoteReminder] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
+  const [sfxEnabled, setSfxEnabled] = useState(() => localStorage.getItem('zet_sfx_enabled') !== 'false');
+  const [sfxVolume, setSfxVolume] = useState(() => parseFloat(localStorage.getItem('zet_sfx_volume') || '0.35'));
   const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
   const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
   const isPrivileged = isCEO || isAdminMode;
@@ -758,6 +760,11 @@ const Dashboard = () => {
         setSubscribing(false);
       }
     );
+  };
+
+  const playSfx = (file) => {
+    if (!sfxEnabled) return;
+    try { const a = new Audio(`/sounds/${file}`); a.volume = sfxVolume; a.play().catch(() => {}); } catch (_) {}
   };
 
   const handleCancelSubscription = async () => {
@@ -1744,6 +1751,33 @@ MATCHES:[1,3,5]`;
                           {language === lang.code && <Check className="h-3 w-3 ml-auto" />}
                         </button>
                       ))}
+                    </div>
+                  </div>
+
+                  {/* Ses Efektleri */}
+                  <div className="mb-8">
+                    <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Ses Efektleri</p>
+                    <div className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
+                      <div className="flex items-center justify-between mb-4">
+                        <span className="text-sm" style={{ color: 'var(--zet-text)' }}>Ses efektleri</span>
+                        <button
+                          onClick={() => { const v = !sfxEnabled; setSfxEnabled(v); localStorage.setItem('zet_sfx_enabled', v); }}
+                          className="relative w-10 h-5 rounded-full transition-colors"
+                          style={{ background: sfxEnabled ? 'var(--zet-primary)' : 'rgba(255,255,255,0.15)' }}
+                        >
+                          <span className="absolute top-0.5 transition-all w-4 h-4 rounded-full bg-white" style={{ left: sfxEnabled ? '1.25rem' : '0.125rem' }} />
+                        </button>
+                      </div>
+                      {sfxEnabled && (
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs w-12" style={{ color: 'var(--zet-text-muted)' }}>Ses: {Math.round(sfxVolume * 100)}%</span>
+                          <input
+                            type="range" min="0" max="1" step="0.05" value={sfxVolume}
+                            onChange={(e) => { const v = parseFloat(e.target.value); setSfxVolume(v); localStorage.setItem('zet_sfx_volume', v); }}
+                            className="flex-1 accent-[var(--zet-primary)]"
+                          />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -3072,6 +3106,7 @@ MATCHES:[1,3,5]`;
                 key={doc.doc_id}
                 className="zet-card p-4 cursor-pointer group relative"
                 style={{ border: doc.pinned ? '1px solid rgba(245,158,11,0.4)' : undefined }}
+                onMouseEnter={() => playSfx('mixkit-interface-device-click-2577.wav')}
                 onClick={() => { if (renamingDocId !== doc.doc_id) navigate(`/editor/${doc.doc_id}`); }}
                 data-testid={`doc-card-${doc.doc_id}`}
               >
