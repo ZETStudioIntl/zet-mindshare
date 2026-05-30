@@ -61,6 +61,11 @@ export const Toolbox = ({
   const [hoveredTool, setHoveredTool] = useState(null);
   const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
   const containerRef = useRef(null);
+  const hoverAudioRef = useRef(null);
+  if (!hoverAudioRef.current) {
+    hoverAudioRef.current = new Audio('/sounds/tool-hover.wav');
+    hoverAudioRef.current.volume = 0.35;
+  }
 
   const filtered = tools.filter(tool =>
     t(tool.nameKey).toLowerCase().includes(toolSearch.toLowerCase()) ||
@@ -121,6 +126,7 @@ export const Toolbox = ({
                   key={tool.id}
                   data-testid={`tool-${tool.id}`}
                   onClick={() => handleToolClick(tool)}
+                  onMouseEnter={() => { const a = hoverAudioRef.current; if (a) { a.currentTime = 0; a.play().catch(() => {}); } }}
                   onMouseMove={(e) => handleMouseMove(e, tool.id)}
                   onMouseLeave={() => setHoveredTool(null)}
                   className={`tool-btn h-10 w-full relative ${isActive ? 'active' : ''} ${isLocked ? 'opacity-40' : ''}`}
