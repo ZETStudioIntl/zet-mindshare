@@ -1665,37 +1665,46 @@ const Editor = () => {
       const formData = new FormData();
       formData.append('file', file, file.name);
       const res = await axios.post(`${API}/pdf/extract-text`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
-      const pages = res.data.pages || [];
+      const pdfPages = (res.data.pages || []).filter(p => p.text);
+      if (pdfPages.length === 0) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
+
       const ml = marginLeft || 40, mr = marginRight || 40, mt = marginTop || 40;
       const textWidth = pageSize.width - ml - mr;
-      const newElements = [];
-      pages.forEach((pg, idx) => {
-        if (!pg.text) return;
-        // Add extra pages to document if needed
-        if (idx > 0) {
-          setDocument(prev => ({
-            ...prev,
-            pages: prev.pages.length <= idx
-              ? [...(prev.pages || []), { page_id: `page_pdf_${Date.now()}_${idx}`, elements: [], drawPaths: [] }]
-              : prev.pages
-          }));
-        }
-        newElements.push({
-          id: `el_pdf_${Date.now()}_${idx}`,
-          type: 'text',
-          x: ml, y: mt,
-          content: pg.text,
-          htmlContent: pg.text.replace(/\n/g, '<br>'),
-          fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
-          width: textWidth, lineHeight: currentLineHeight,
-          textAlign: 'left', bold: false, italic: false, underline: false,
-        });
+      const t = Date.now();
+      const makeTextEl = (pg, idx) => ({
+        id: `el_pdf_${t}_${idx}`,
+        type: 'text',
+        x: ml, y: mt,
+        content: pg.text,
+        htmlContent: pg.text.replace(/\n/g, '<br>'),
+        fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
+        width: textWidth, lineHeight: currentLineHeight,
+        textAlign: 'left', bold: false, italic: false, underline: false,
       });
-      if (newElements.length === 0) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
-      const updated = [...canvasElements, ...newElements];
-      setCanvasElements(updated);
-      handleSaveHistory(updated);
-      alert(`PDF içe aktarıldı — ${pages.length} sayfa düzenlenebilir metin olarak eklendi.`);
+
+      // First PDF page → appended to current canvas page
+      const firstEl = makeTextEl(pdfPages[0], 0);
+      const updatedCurrentElements = [...canvasElements, firstEl];
+
+      // Remaining PDF pages → new canvas pages inserted after current page
+      const newCanvasPages = pdfPages.slice(1).map((pg, i) => ({
+        page_id: `page_pdf_${t}_${i + 1}`,
+        elements: [makeTextEl(pg, i + 1)],
+        drawPaths: [],
+        pageSize,
+      }));
+
+      setDocument(prev => {
+        if (!prev?.pages) return prev;
+        const pages = [...prev.pages];
+        pages[currentPage] = { ...pages[currentPage], elements: updatedCurrentElements, drawPaths };
+        pages.splice(currentPage + 1, 0, ...newCanvasPages);
+        return { ...prev, pages };
+      });
+
+      setCanvasElements(updatedCurrentElements);
+      handleSaveHistory(updatedCurrentElements);
+      alert(`PDF içe aktarıldı — ${pdfPages.length} sayfa düzenlenebilir metin olarak eklendi.`);
     } catch (err) {
       console.error('PDF import failed:', err);
       alert('PDF içe aktarma başarısız: ' + (err.response?.data?.detail || err.message));
