@@ -62,6 +62,13 @@ function _splitByKnife(el, kx1, ky1, kx2, ky2) {
 
   return [makePiece(pos, 'a'), makePiece(neg, 'b')];
 }
+function _extendKnifeLine(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const ux = dx / len, uy = dy / len;
+  const ext = 10000;
+  return [x1 - ux * ext, y1 - uy * ext, x2 + ux * ext, y2 + uy * ext];
+}
 // ─────────────────────────────────────────────────────────────────────────────
 
 const isColorDark = (hex) => {
@@ -1602,11 +1609,12 @@ export const CanvasArea = ({
       const x1 = knifeStartRef.current.x, y1 = knifeStartRef.current.y;
       const x2 = knifeEndRef.current.x,   y2 = knifeEndRef.current.y;
       if (Math.abs(x2 - x1) > 5 || Math.abs(y2 - y1) > 5) {
+        const [ex1, ey1, ex2, ey2] = _extendKnifeLine(x1, y1, x2, y2);
         const next = [];
         let didCut = false;
         canvasElements.forEach(el => {
-          if (el.locked || el.hidden || el.type === 'text') { next.push(el); return; }
-          const pieces = _splitByKnife(el, x1, y1, x2, y2);
+          if (el.locked || el.hidden || el.type !== 'shape') { next.push(el); return; }
+          const pieces = _splitByKnife(el, ex1, ey1, ex2, ey2);
           if (pieces) { next.push(...pieces); didCut = true; }
           else next.push(el);
         });
@@ -1773,47 +1781,63 @@ export const CanvasArea = ({
             }}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
             
-            {/* Ruler - Horizontal */}
-            {rulerVisible && idx === currentPage && (
-              <>
-                {/* Horizontal ruler — sayfa üzerinde sabit şerit */}
-                <div
-                  className="absolute left-0 flex items-end pointer-events-none"
-                  style={{
-                    top: 0, height: 20, width: (page.pageSize?.width || pageSize.width) * zoom,
-                    background: 'rgba(30,30,50,0.82)', zIndex: 10, borderBottom: '1px solid rgba(100,100,220,0.5)',
-                  }}
-                >
-                  {Array.from({ length: Math.ceil((page.pageSize?.width || pageSize.width) / 50) + 1 }).map((_, i) => (
-                    <div key={`rh${i}`} className="flex-shrink-0 relative" style={{ width: 50 * zoom }}>
-                      <div style={{ position: 'absolute', left: 0, bottom: 0, height: i % 2 === 0 ? 10 : 5, width: 1, background: 'rgba(180,180,255,0.7)' }} />
-                      {i > 0 && i % 2 === 0 && (
-                        <span style={{ position: 'absolute', left: 2, bottom: 11, fontSize: 10, color: 'rgba(220,220,255,1)', userSelect: 'none', whiteSpace: 'nowrap' }}>
-                          {i * 50}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                {/* Vertical ruler — sayfa solunda sabit şerit */}
-                <div
-                  className="absolute top-0 pointer-events-none"
-                  style={{
-                    left: 0, width: 20, height: (page.pageSize?.height || pageSize.height) * zoom,
-                    background: 'rgba(30,30,50,0.82)', zIndex: 10, borderRight: '1px solid rgba(100,100,220,0.5)',
-                  }}
-                >
-                  {Array.from({ length: Math.ceil((page.pageSize?.height || pageSize.height) / 50) + 1 }).map((_, i) => (
-                    <div key={`rv${i}`} className="relative" style={{ position: 'absolute', top: i * 50 * zoom, left: 0, width: 20, height: 1 }}>
-                      <div style={{ position: 'absolute', right: 0, top: 0, width: i % 2 === 0 ? 10 : 6, height: 1, background: 'rgba(180,180,255,0.7)' }} />
-                      {i % 2 === 0 && (
-                        <span style={{ position: 'absolute', left: 2, top: -5, fontSize: 10, color: 'rgba(220,220,255,1)', userSelect: 'none', writingMode: 'horizontal-tb' }}>{i * 50}</span>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
+            {/* Ruler */}
+            {rulerVisible && idx === currentPage && (() => {
+              const pW = (page.pageSize?.width || pageSize.width);
+              const pH = (page.pageSize?.height || pageSize.height);
+              const PX_PER_CM = 37.8;
+              const hTicks = Math.ceil(pW / PX_PER_CM * 2) + 2;
+              const vTicks = Math.ceil(pH / PX_PER_CM * 2) + 2;
+              const rulerBg = 'rgba(10,12,26,0.92)';
+              const tickMajor = 'rgba(76,168,173,0.9)';
+              const tickMinor = 'rgba(76,168,173,0.35)';
+              const labelColor = 'rgba(100,200,210,0.85)';
+              return (
+                <>
+                  {/* Horizontal ruler — above the page */}
+                  <div className="absolute pointer-events-none" style={{ top: -20, left: 0, height: 20, width: pW * zoom, zIndex: 10, overflow: 'hidden' }}>
+                    <svg width={pW * zoom} height={20} style={{ display: 'block' }}>
+                      <rect width={pW * zoom} height={20} fill={rulerBg} />
+                      <line x1={0} y1={19.5} x2={pW * zoom} y2={19.5} stroke="rgba(76,168,173,0.25)" strokeWidth={1} />
+                      {Array.from({ length: hTicks }).map((_, i) => {
+                        const isCm = i % 2 === 0;
+                        const x = i * 0.5 * PX_PER_CM * zoom;
+                        if (x > pW * zoom) return null;
+                        return (
+                          <g key={i}>
+                            <line x1={x} y1={20 - (isCm ? 13 : 7)} x2={x} y2={20} stroke={isCm ? tickMajor : tickMinor} strokeWidth={isCm ? 1 : 0.7} />
+                            {isCm && i > 0 && (
+                              <text x={x + 2} y={9} fontSize={8} fill={labelColor} fontFamily="monospace">{i / 2}</text>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+
+                  {/* Vertical ruler — left of the page */}
+                  <div className="absolute pointer-events-none" style={{ left: -20, top: 0, width: 20, height: pH * zoom, zIndex: 10, overflow: 'hidden' }}>
+                    <svg width={20} height={pH * zoom} style={{ display: 'block' }}>
+                      <rect width={20} height={pH * zoom} fill={rulerBg} />
+                      <line x1={19.5} y1={0} x2={19.5} y2={pH * zoom} stroke="rgba(76,168,173,0.25)" strokeWidth={1} />
+                      {Array.from({ length: vTicks }).map((_, i) => {
+                        const isCm = i % 2 === 0;
+                        const y = i * 0.5 * PX_PER_CM * zoom;
+                        if (y > pH * zoom) return null;
+                        return (
+                          <g key={i}>
+                            <line x1={20 - (isCm ? 13 : 7)} y1={y} x2={20} y2={y} stroke={isCm ? tickMajor : tickMinor} strokeWidth={isCm ? 1 : 0.7} />
+                            {isCm && i > 0 && (
+                              <text x={1} y={y + 9} fontSize={8} fill={labelColor} fontFamily="monospace">{i / 2}</text>
+                            )}
+                          </g>
+                        );
+                      })}
+                    </svg>
+                  </div>
+                </>
+              );
+            })()}
             
             {/* Grid */}
             {gridVisible && idx === currentPage && (

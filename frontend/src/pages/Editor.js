@@ -1459,25 +1459,41 @@ const Editor = () => {
     if (!canvasContainerRef.current) return;
     setExporting(true);
     try {
-      const pdf = new jsPDF({ orientation: pageSize.width > pageSize.height ? 'l' : 'p', unit: 'px', format: [pageSize.width, pageSize.height] });
       const allPages = document?.pages || [{ elements: canvasElements }];
       const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
+      if (!pageElements.length) return;
+      const firstPSize = allPages[0]?.pageSize || pageSize;
+      const pdf = new jsPDF({ orientation: firstPSize.width > firstPSize.height ? 'l' : 'p', unit: 'px', format: [firstPSize.width, firstPSize.height], hotfixes: ['px_scaling'] });
       for (let i = 0; i < pageElements.length; i++) {
-        if (i > 0) pdf.addPage([pageSize.width, pageSize.height], pageSize.width > pageSize.height ? 'l' : 'p');
-        const canvas = await html2canvas(pageElements[i], { scale: 2, useCORS: true, backgroundColor: pageBackground });
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
-        pdf.addImage(imgData, 'JPEG', 0, 0, pageSize.width, pageSize.height);
+        const pSize = allPages[i]?.pageSize || pageSize;
+        if (i > 0) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
+        const el = pageElements[i];
+        // Capture scale: make captured image exactly pSize at 2x quality, regardless of current zoom
+        const captureScale = (pSize.width / el.offsetWidth) * 2;
+        // Temporarily clip overflow so rulers/handles outside page bounds don't bleed into capture
+        const prevOverflow = el.style.overflow;
+        el.style.overflow = 'hidden';
+        const capturedCanvas = await html2canvas(el, {
+          scale: captureScale,
+          useCORS: true,
+          backgroundColor: pageBackground,
+          width: el.offsetWidth,
+          height: el.offsetHeight,
+        });
+        el.style.overflow = prevOverflow;
+        const imgData = capturedCanvas.toDataURL('image/jpeg', 0.92);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pSize.width, pSize.height);
         // Invisible text layer for searchability
         const pageEls = i === currentPage ? canvasElements : (allPages[i]?.elements || []);
         pdf.setTextColor(0, 0, 0);
         pdf.setGState(new pdf.GState({ opacity: 0 }));
-        pageEls.forEach(el => {
-          if (el.type === 'text' && el.content) {
-            const fs = (el.fontSize || 14);
+        pageEls.forEach(textEl => {
+          if (textEl.type === 'text' && textEl.content) {
+            const fs = (textEl.fontSize || 14);
             pdf.setFontSize(fs);
-            const lines = (el.content || '').split('\n');
+            const lines = (textEl.content || '').split('\n');
             lines.forEach((line, li) => {
-              pdf.text(line, el.x, el.y + fs + li * fs * (el.lineHeight || 1.5));
+              pdf.text(line, textEl.x, textEl.y + fs + li * fs * (textEl.lineHeight || 1.5));
             });
           }
         });

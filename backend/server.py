@@ -4439,10 +4439,10 @@ async def zeta_photo_edit(req: PhotoEditRequest, user: User = Depends(get_curren
         if "jpeg" in header or "jpg" in header:
             mime_type = "image/jpeg"
 
-    # v1alpha required for response_modalities=["IMAGE", "TEXT"]
-    client = google_genai.Client(api_key=api_key, http_options={"api_version": "v1alpha"})
+    image_model = "gemini-3-pro-image" if req.pro else "gemini-3.1-flash-image"
+    client = google_genai.Client(api_key=api_key, http_options={"api_version": "v1beta"})
     resp = await gemini_generate(
-        client, "gemini-2.0-flash",
+        client, image_model,
         [genai_types.Content(role="user", parts=[
             genai_types.Part(inline_data=genai_types.Blob(mime_type=mime_type, data=base64.b64decode(image_data))),
             genai_types.Part(text=f"Edit this image: {req.edit_prompt}")

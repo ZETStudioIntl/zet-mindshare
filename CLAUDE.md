@@ -84,6 +84,39 @@ backend/
 | `frontend/src/components/editor/WatermarkPanel.js` | Watermark paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Zoom paneli | Kilitlendi, dokunma |
 | `frontend/src/pages/Editor.js` | Chart animasyonları — pie slice opacity, line stroke-dashoffset, circle r, label fade SMIL animasyonları | Kilitlendi, dokunma |
+| `frontend/src/components/editor/PageSizePanel.js` | Tüm dosya — sayfa boyutu paneli (A4 794×1123, oranlar doğru) | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | Ruler (cetvel) — SVG tabanlı cm cetveli (yatay + dikey, PX_PER_CM=37.8) | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `knife` aracı — `_extendKnifeLine` + `_splitByKnife`, sadece `type==='shape'` keser | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Kalın/İtalik/Altı çizili (wordtype) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Font boyutu / punto (textsize) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Satır aralığı (linespacing) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Madde imi (bulletlist) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Numaralı liste (numberedlist) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Kalem ayarları (draw) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Tablo (table) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Izgara (grid) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Şablonlar (templates) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Bul & Değiştir (findreplace) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | PDF içe aktar (importpdf) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Grafik oluştur (graphic/chart) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Paragraf stilleri (styles) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/EditorPanels.js` | Bağlantı (link) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `cut` / kırpma aracı — crop mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/CanvasArea.js` | `draw` / serbest çizim aracı — freehand drawing mantığı | Kilitlendi, dokunma |
+| `frontend/src/components/editor/FontPanel.js` | Tüm dosya — font seçici paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/ParagraphPanel.js` | Tüm dosya — paragraf paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/IndentPanel.js` | Tüm dosya — girinti paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/MarginsPanel.js` | Tüm dosya — kenar boşlukları paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/ColumnsPanel.js` | Tüm dosya — sütunlar paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/AIImagePanel.js` | Tüm dosya — AI görsel oluşturma (Zeta Colors) paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/PhotoEditPanel.js` | Tüm dosya — AI fotoğraf düzenleme paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/SignaturePanel.js` | Tüm dosya — dijital imza paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/MagnifierPanel.js` | Tüm dosya — büyüteç paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/TOCPanel.js` | Tüm dosya — içindekiler tablosu paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/FootnotePanel.js` | Tüm dosya — dipnot paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/ChatSettingsPanel.js` | Tüm dosya — chat ayarları paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/ExportPanel.js` | Tüm dosya — dışa aktarma paneli | Kilitlendi, dokunma |
+| `frontend/src/components/editor/SelfTestPanel.js` | Tüm dosya — self test paneli | Kilitlendi, dokunma |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma
