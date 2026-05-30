@@ -770,19 +770,11 @@ const Editor = () => {
   }, [document, currentPage]);
 
   // === PENDING PDF IMPORT (from Dashboard "PDF Düzenle" flow) ===
-  // Fires after document state is set; uses direct base64 parsing (no fetch())
   useEffect(() => {
     if (!document || !pendingPdfRef.current) return;
-    const dataUrl = pendingPdfRef.current;
+    const file = pendingPdfRef.current;
     pendingPdfRef.current = null;
-    try {
-      const b64 = dataUrl.split(',')[1];
-      const binary = atob(b64);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const file = new File([new Blob([bytes], { type: 'application/pdf' })], 'document.pdf', { type: 'application/pdf' });
-      importPDF(file);
-    } catch (_) {}
+    importPDF(file);
   }, [document]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // === AUTO-SAVE (elements + drawPaths) ===
@@ -873,11 +865,10 @@ const Editor = () => {
         }
       }
       setDocument(res.data);
-      // Stash pending PDF for the useEffect below to pick up after document loads
-      const pendingPdf = localStorage.getItem(`zet_pending_pdf_${docId}`);
-      if (pendingPdf) {
-        localStorage.removeItem(`zet_pending_pdf_${docId}`);
-        pendingPdfRef.current = pendingPdf;
+      // Pick up pending PDF passed from Dashboard via window (no localStorage size limit)
+      if (window.__zetPdf?.docId === docId) {
+        pendingPdfRef.current = window.__zetPdf.file;
+        window.__zetPdf = null;
       }
     } catch {
       if (!isMountedRef.current) return;

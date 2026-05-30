@@ -1137,9 +1137,10 @@ const Dashboard = () => {
         payload.file_data = pdfFile;
       }
       const res = await axios.post(`${API}/documents`, payload, { withCredentials: true });
-      // If PDF file selected, stash it in localStorage so Editor can import on load
-      if (newDocType === 'pdf' && pdfFile) {
-        localStorage.setItem(`zet_pending_pdf_${res.data.doc_id}`, pdfFile);
+      // Pass original File object via window so Editor can import it — no localStorage size limit
+      if (newDocType === 'pdf' && window.__zetPdfFile) {
+        window.__zetPdf = { docId: res.data.doc_id, file: window.__zetPdfFile };
+        window.__zetPdfFile = null;
       }
       setShowNewDoc(false);
       setNewDocTitle('');
@@ -1154,6 +1155,7 @@ const Dashboard = () => {
   const handlePdfUpload = (e) => {
     const file = e.target.files[0];
     if (file && file.type === 'application/pdf') {
+      window.__zetPdfFile = file; // keep original File for later Editor import
       const reader = new FileReader();
       reader.onload = (ev) => {
         setPdfFile(ev.target.result);
