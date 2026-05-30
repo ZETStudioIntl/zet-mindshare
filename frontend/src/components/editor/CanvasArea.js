@@ -1147,12 +1147,13 @@ export const CanvasArea = ({
     } else if (activeTool === 'pen') {
       // Skip if this was a drag (smooth anchor already committed in mouseUp)
       if (penDragRef.current?.wasDrag) { penDragRef.current = null; return; }
+      const currentAnchors = penAnchorsRef.current;
       // Auto-close: if near first point, close the path
-      if (penAnchors.length > 2 && dist({ x, y }, penAnchors[0]) < 25 / zoom) {
+      if (currentAnchors.length > 2 && dist({ x, y }, currentAnchors[0]) < 25 / zoom) {
         const newPath = {
           id: `vec_${Date.now()}`,
-          anchors: penAnchors,
-          points: penAnchors.map(a => ({ x: a.x, y: a.y })),
+          anchors: currentAnchors,
+          points: currentAnchors.map(a => ({ x: a.x, y: a.y })),
           size: 2, opacity: 100, color: currentColor, isPen: true, isClosed: true,
           fillColor: currentColor, fillOpacity: 30, image: null,
         };
@@ -1161,7 +1162,7 @@ export const CanvasArea = ({
         setPenAnchors([]);
       } else {
         const anchor = { x, y, hx: 0, hy: 0 };
-        const newAnchors = [...penAnchors, anchor];
+        const newAnchors = [...currentAnchors, anchor];
         penAnchorsRef.current = newAnchors;
         setPenAnchors(newAnchors);
       }
