@@ -1084,6 +1084,7 @@ const Dashboard = () => {
         message: `Bu notu kısaca özetle ve önemli noktaları belirt: "${note.content}"`
       }, { withCredentials: true });
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: res.data.response, sources: res.data.sources || [] });
+      try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
     } catch (error) {
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: 'Analiz başarısız oldu.' });
     }

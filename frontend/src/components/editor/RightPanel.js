@@ -172,6 +172,7 @@ export const RightPanel = ({
         audioRef.current.src = res.data.audio_url;
         audioRef.current.onended = () => setSpeakingMsg(null);
         await audioRef.current.play();
+        try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
       }
     } catch (err) {
       window.speechSynthesis.cancel();
@@ -192,6 +193,7 @@ export const RightPanel = ({
       setPrevModel(null);
     }
     setZetaMode(newMode);
+    try { const a = new Audio('/sounds/zeta-mode.wav'); a.volume = 0.55; a.play().catch(() => {}); } catch (_) {}
   };
 
   const handleColorGenerate = async () => {
@@ -206,6 +208,7 @@ export const RightPanel = ({
       if (res.data.images?.length) {
         const img = res.data.images[0];
         setColorResult(`data:${img.mime_type};base64,${img.data}`);
+        try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
       } else {
         setColorError('Görsel oluşturulamadı');
       }
@@ -424,6 +427,7 @@ export const RightPanel = ({
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
+      try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
       if (res.data.actions?.length) await executeActions(res.data.actions);
     } catch {
       setZetaMessages(prev => [...prev, { role: 'assistant', content: 'Hata olustu!' }]);
@@ -552,7 +556,7 @@ export const RightPanel = ({
                       return (
                         <button
                           key={m.id}
-                          onClick={() => { setZetaModel(m.id); setShowModelPicker(false); }}
+                          onClick={() => { setZetaModel(m.id); setShowModelPicker(false); try { const a = new Audio('/sounds/zeta-mode.wav'); a.volume = 0.55; a.play().catch(() => {}); } catch (_) {} }}
                           className="w-full flex items-start gap-3 px-3 py-2.5 transition-colors text-left hover:bg-white/5"
                           style={{ borderBottom: idx < MODELS.length - 1 ? '1px solid var(--zet-border)' : 'none' }}
                         >

@@ -83,6 +83,7 @@ backend/
 | `frontend/src/components/editor/EditorPanels.js` | Noktalama işaretleri paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/WatermarkPanel.js` | Watermark paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Zoom paneli | Kilitlendi, dokunma |
+| `frontend/src/pages/Editor.js` | Chart animasyonları — pie slice opacity, line stroke-dashoffset, circle r, label fade SMIL animasyonları | Kilitlendi, dokunma |
 
 ### Asla yapma
 - İstenmeden refactor veya "temizlik" yapma

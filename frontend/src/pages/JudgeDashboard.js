@@ -318,6 +318,7 @@ const JudgeDashboard = () => {
       const newSid = res.data.session_id || sessionId;
       setSessionId(newSid);
       setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.response, sources: res.data.sources || [] }]);
+      try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
       if (res.data.risk_score != null) setJudgeScores({ risk: res.data.risk_score, success: res.data.success_score });
       fetchSessions();
     } catch (err) {
