@@ -1747,6 +1747,8 @@ const Editor = () => {
         return { ...prev, pages };
       });
 
+      // Reset so [document, currentPage] effect re-syncs canvasElements from the updated document
+      lastLoadedPageRef.current = null;
       setCanvasElements(updatedCurrentElements);
       handleSaveHistory(updatedCurrentElements);
       alert(`PDF içe aktarıldı — ${pdfPages.length} sayfa düzenlenebilir metin olarak eklendi.`);
