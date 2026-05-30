@@ -74,6 +74,8 @@ export const RightPanel = ({
   const [ttsLoading, setTtsLoading] = useState(false);
   const audioRef = useRef(null);
   const chatEndRef = useRef(null);
+  const typingAudioRef = useRef(null);
+  const typingIntervalRef = useRef(null);
 
   // ZETA sub-mode: 'chat' | 'patch' | 'puzzle' | 'colors'
   const [zetaMode, setZetaMode] = useState('chat');
@@ -391,6 +393,43 @@ export const RightPanel = ({
   };
   // ─────────────────────────────────────────────────────────────
 
+  const startZetaTyping = (fullContent, onDone) => {
+    // Stop any previous typing
+    if (typingIntervalRef.current) { clearInterval(typingIntervalRef.current); typingIntervalRef.current = null; }
+    if (typingAudioRef.current) { typingAudioRef.current.pause(); typingAudioRef.current = null; }
+
+    // Loop sound
+    try {
+      const ta = new Audio('/sounds/mixkit-sci-fi-loading-operative-system-2529.wav');
+      ta.loop = true; ta.volume = 0.35; ta.play().catch(() => {});
+      typingAudioRef.current = ta;
+    } catch (_) {}
+
+    let idx = 0;
+    const STEP = 18; // characters per tick
+    typingIntervalRef.current = setInterval(() => {
+      idx = Math.min(idx + STEP, fullContent.length);
+      setZetaMessages(prev => {
+        const msgs = [...prev];
+        const last = msgs[msgs.length - 1];
+        if (last?.isTyping) msgs[msgs.length - 1] = { ...last, content: fullContent.slice(0, idx) };
+        return msgs;
+      });
+      if (idx >= fullContent.length) {
+        clearInterval(typingIntervalRef.current); typingIntervalRef.current = null;
+        if (typingAudioRef.current) { typingAudioRef.current.pause(); typingAudioRef.current = null; }
+        setZetaMessages(prev => {
+          const msgs = [...prev];
+          const last = msgs[msgs.length - 1];
+          if (last?.isTyping) msgs[msgs.length - 1] = { ...last, content: fullContent, isTyping: false };
+          return msgs;
+        });
+        try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
+        if (onDone) onDone();
+      }
+    }, 20);
+  };
+
   const sendZetaMessage = async () => {
     if (!zetaInput.trim() || zetaLoading) return;
     // Intercept console command
@@ -426,9 +465,10 @@ export const RightPanel = ({
         canvas_context: buildCanvasContext(),
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
-      setZetaMessages(prev => [...prev, { role: 'assistant', content: res.data.response }]);
-      try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
-      if (res.data.actions?.length) await executeActions(res.data.actions);
+      const fullResp = res.data.response;
+      setZetaMessages(prev => [...prev, { role: 'assistant', content: '', fullContent: fullResp, isTyping: true }]);
+      const actions = res.data.actions;
+      startZetaTyping(fullResp, () => { if (actions?.length) executeActions(actions); });
     } catch {
       setZetaMessages(prev => [...prev, { role: 'assistant', content: 'Hata olustu!' }]);
     }
@@ -629,7 +669,7 @@ export const RightPanel = ({
                 </div>
               )}
               {zetaMessages.map((msg, i) => {
-                const patchMatch = msg.role === 'assistant' ? msg.content.match(/\[PATCH_START\]([\s\S]*?)\[PATCH_END\]/) : null;
+                const patchMatch = msg.role === 'assistant' && !msg.isTyping ? msg.content.match(/\[PATCH_START\]([\s\S]*?)\[PATCH_END\]/) : null;
                 const patchContent = patchMatch ? patchMatch[1].trim() : null;
                 const displayContent = patchContent
                   ? msg.content.replace(/\[PATCH_START\][\s\S]*?\[PATCH_END\]/, '✅ Düzeltilmiş metin hazır.')
@@ -649,7 +689,7 @@ export const RightPanel = ({
                       )}
                       <div className="flex-1 min-w-0">
                         <div className="px-2.5 py-1.5 rounded-lg whitespace-pre-wrap" style={{ background: msg.role === 'user' ? 'var(--zet-primary)' : 'var(--zet-bg-card)', color: 'var(--zet-text)' }}>
-                          {displayContent}
+                          {displayContent}{msg.isTyping && <span style={{ display: 'inline-block', width: 2, height: '1em', background: 'var(--zet-primary)', marginLeft: 1, verticalAlign: 'text-bottom', animation: 'zeta-cursor-blink 0.7s steps(1) infinite' }} />}
                         </div>
                         {patchContent && onApplyEdit && (
                           <button
