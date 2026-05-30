@@ -4570,8 +4570,30 @@ async def extract_pdf_text(file: UploadFile = File(...), user: User = Depends(ge
         reader = _PR(_io.BytesIO(raw))
         pages = []
         for i, page in enumerate(reader.pages):
-            text = (page.extract_text() or "").strip()
-            pages.append({"page_num": i + 1, "text": text})
+            # Layout mode preserves spatial positioning (spaces/indentation)
+            try:
+                text = (page.extract_text(extraction_mode="layout") or "").strip()
+            except Exception:
+                text = (page.extract_text() or "").strip()
+
+            # Extract primary font name from page resources
+            font_name = None
+            try:
+                res = page.get("/Resources") or {}
+                fonts = res.get("/Font") or {}
+                for fobj in fonts.values():
+                    try:
+                        fobj = fobj.get_object() if hasattr(fobj, "get_object") else fobj
+                        base = str(fobj.get("/BaseFont") or "")
+                        if base:
+                            font_name = base.split("+")[-1]  # strip subset prefix
+                            break
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+
+            pages.append({"page_num": i + 1, "text": text, "font_name": font_name})
         return {"pages": pages, "total": len(pages)}
     except Exception as e:
         logging.error(f"PDF extract error: {e}")

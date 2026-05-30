@@ -1665,20 +1665,40 @@ const Editor = () => {
       const formData = new FormData();
       formData.append('file', file, file.name);
       const res = await axios.post(`${API}/pdf/extract-text`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
-      const pdfPages = (res.data.pages || []).filter(p => p.text);
-      if (pdfPages.length === 0) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
+      const pdfPages = res.data.pages || [];
+      if (pdfPages.length === 0 || pdfPages.every(p => !p.text)) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
 
       const ml = marginLeft || 40, mr = marginRight || 40, mt = marginTop || 40;
       const textWidth = pageSize.width - ml - mr;
       const t = Date.now();
+
+      // Map PDF font name to a web-safe font family
+      const resolvePdfFont = (fontName) => {
+        if (!fontName) return currentFont;
+        const fn = fontName.toLowerCase();
+        if (fn.includes('courier')) return 'Courier New';
+        if (fn.includes('times')) return 'Times New Roman';
+        if (fn.includes('helvetica') || fn.includes('arial')) return 'Arial';
+        if (fn.includes('calibri')) return 'Calibri';
+        if (fn.includes('georgia')) return 'Georgia';
+        return currentFont;
+      };
+
+      // Detect dominant font from first non-empty page
+      const firstWithFont = pdfPages.find(p => p.font_name);
+      const pdfFont = resolvePdfFont(firstWithFont?.font_name);
+
       const makeTextEl = (pg, idx) => ({
         id: `el_pdf_${t}_${idx}`,
         type: 'text',
         x: ml, y: mt,
-        content: pg.text,
-        htmlContent: pg.text.replace(/\n/g, '<br>'),
-        fontSize: currentFontSize, fontFamily: currentFont, color: currentColor,
-        width: textWidth, lineHeight: currentLineHeight,
+        content: pg.text || '',
+        htmlContent: (pg.text || '').replace(/\n/g, '<br>'),
+        fontSize: currentFontSize,
+        fontFamily: pdfFont,
+        color: currentColor,
+        width: textWidth,
+        lineHeight: 1.5,
         textAlign: 'left', bold: false, italic: false, underline: false,
       });
 
