@@ -1136,6 +1136,10 @@ const Dashboard = () => {
         payload.file_data = pdfFile;
       }
       const res = await axios.post(`${API}/documents`, payload, { withCredentials: true });
+      // If PDF file selected, stash it in localStorage so Editor can import on load
+      if (newDocType === 'pdf' && pdfFile) {
+        localStorage.setItem(`zet_pending_pdf_${res.data.doc_id}`, pdfFile);
+      }
       setShowNewDoc(false);
       setNewDocTitle('');
       setNewDocType('new');

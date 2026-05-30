@@ -615,6 +615,7 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { fetchDocument(); }, [docId]);
 
+
   // === PRESENCE (edit lock) ===
   useEffect(() => {
     if (!docId) return;
@@ -854,6 +855,16 @@ const Editor = () => {
         }
       }
       setDocument(res.data);
+      // Check for pending PDF import (from Dashboard "PDF Düzenle" creation flow)
+      const pendingPdf = localStorage.getItem(`zet_pending_pdf_${docId}`);
+      if (pendingPdf) {
+        localStorage.removeItem(`zet_pending_pdf_${docId}`);
+        setTimeout(() => {
+          fetch(pendingPdf).then(r => r.blob()).then(blob => {
+            importPDF(new File([blob], 'document.pdf', { type: 'application/pdf' }));
+          }).catch(() => {});
+        }, 400);
+      }
     } catch {
       if (!isMountedRef.current) return;
       // Try loading from offline cache
