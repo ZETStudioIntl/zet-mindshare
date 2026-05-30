@@ -1673,6 +1673,8 @@ const Editor = () => {
     reader.readAsText(file);
   };
 
+  const PDF_PAGE_LIMITS = { free: 20, plus: 50, pro: 100, creative_station: Infinity };
+
   // Import PDF
   const importPDF = async (file) => {
     if (!file || !file.name.toLowerCase().endsWith('.pdf')) { alert('Lütfen bir PDF dosyası seçin'); return; }
@@ -1681,8 +1683,15 @@ const Editor = () => {
       const formData = new FormData();
       formData.append('file', file, file.name);
       const res = await axios.post(`${API}/pdf/extract-text`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
-      const pdfPages = res.data.pages || [];
+      let pdfPages = res.data.pages || [];
       if (pdfPages.length === 0 || pdfPages.every(p => !p.text)) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
+
+      const pageLimit = PDF_PAGE_LIMITS[userPlan] ?? 20;
+      if (pdfPages.length > pageLimit) {
+        const planLabel = userPlan === 'creative_station' ? 'Creative Station' : userPlan === 'pro' ? 'Pro' : userPlan === 'plus' ? 'Plus' : 'Free';
+        alert(`${pdfPages.length} sayfalık PDF, ${planLabel} planı için ${pageLimit} sayfa limitini aşıyor.\nİlk ${pageLimit} sayfa aktarılacak.`);
+        pdfPages = pdfPages.slice(0, pageLimit);
+      }
 
       const ml = marginLeft || 40, mr = marginRight || 40, mt = marginTop || 40;
       const textWidth = pageSize.width - ml - mr;
