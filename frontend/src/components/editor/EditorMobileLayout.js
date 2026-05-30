@@ -44,9 +44,12 @@ const EditorMobileLayout = () => {
     voiceLoading, voiceProgress, zoom, zoomLevel, zoomRadius,
     docId, exportToPDF,
     zetaCustomPrompt, zetaEmoji, zetaMood,
+    pdfInputRef, importPDF,
   } = useContext(EditorStateContext);
   return (
       <div data-testid="editor-page" className="flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)', height: '100dvh', maxHeight: '100dvh' }}>
+        {/* Hidden PDF file input — same as desktop, needed for importpdf tool */}
+        <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importPDF(f); e.target.value = ''; }} />
         {/* Mobile Header */}
         <header className="h-11 px-2 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
           <div className="flex items-center gap-1 min-w-0 flex-1">
