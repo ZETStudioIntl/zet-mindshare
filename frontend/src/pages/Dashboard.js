@@ -1140,39 +1140,75 @@ const Dashboard = () => {
         try {
           const pdfjsLib = await import('pdfjs-dist');
           pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+
+          // CEO/admin get unlimited pages, otherwise plan-based limits
+          const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
+          const isAdmin = localStorage.getItem('zet_admin_mode') === 'true';
           const PDF_PAGE_LIMITS = { free: 20, plus: 50, pro: 100, creative_station: Infinity };
-          const pageLimit = PDF_PAGE_LIMITS[userSubscription] ?? 20;
+          const pageLimit = (isCEO || isAdmin) ? Infinity : (PDF_PAGE_LIMITS[userSubscription] ?? 20);
+
+          const resolvePdfFont = (fontName) => {
+            if (!fontName) return 'Arial';
+            const fn = fontName.toLowerCase();
+            if (fn.includes('courier')) return 'Courier New';
+            if (fn.includes('times')) return 'Times New Roman';
+            if (fn.includes('helvetica') || fn.includes('arial')) return 'Arial';
+            if (fn.includes('calibri')) return 'Calibri';
+            if (fn.includes('georgia')) return 'Georgia';
+            if (fn.includes('verdana')) return 'Verdana';
+            return 'Arial';
+          };
+
           const arrayBuffer = await window.__zetPdfFile.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           const numPages = Math.min(pdf.numPages, pageLimit);
           const canvasPages = [];
           const t = Date.now();
+
           for (let i = 1; i <= numPages; i++) {
-            const page = await pdf.getPage(i);
-            const content = await page.getTextContent();
-            let text = '';
-            let lastY = null;
-            for (const item of content.items) {
-              if (!('str' in item)) continue;
-              if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4) text += '\n';
-              text += item.str;
-              if (item.hasEOL) text += '\n';
-              lastY = item.transform[5];
+            try {
+              const page = await pdf.getPage(i);
+              const content = await page.getTextContent();
+
+              // Detect dominant font for this page
+              const firstItem = content.items.find(it => 'str' in it && it.str.trim());
+              const rawFont = firstItem ? (content.styles?.[firstItem.fontName]?.fontFamily || firstItem.fontName || null) : null;
+              const fontFamily = resolvePdfFont(rawFont);
+              // Detect font size from transform matrix (index 3 = vertical scale ≈ font size)
+              const rawSize = firstItem ? Math.abs(firstItem.transform[3]) : 12;
+              const fontSize = Math.min(Math.max(Math.round(rawSize), 8), 48);
+
+              // Build text preserving line breaks
+              let text = '';
+              let lastY = null;
+              for (const item of content.items) {
+                if (!('str' in item)) continue;
+                const y = item.transform[5];
+                if (lastY !== null && Math.abs(y - lastY) > 2) text += '\n';
+                text += item.str;
+                if (item.hasEOL) text += '\n';
+                lastY = y;
+              }
+
+              canvasPages.push({
+                page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`,
+                elements: text.trim() ? [{
+                  id: `el_pdf_${t}_${i}`,
+                  type: 'text', x: 40, y: 40,
+                  content: text.trim(),
+                  htmlContent: text.trim().replace(/\n/g, '<br>'),
+                  fontSize, fontFamily, color: '#000000',
+                  width: 714, lineHeight: 1.5,
+                  textAlign: 'left', bold: false, italic: false, underline: false,
+                }] : [],
+                drawPaths: [],
+              });
+            } catch (pageErr) {
+              console.warn(`PDF page ${i} extraction failed:`, pageErr);
+              canvasPages.push({ page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`, elements: [], drawPaths: [] });
             }
-            canvasPages.push({
-              page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`,
-              elements: text.trim() ? [{
-                id: `el_pdf_${t}_${i}`,
-                type: 'text', x: 40, y: 40,
-                content: text.trim(),
-                htmlContent: text.trim().replace(/\n/g, '<br>'),
-                fontSize: 16, fontFamily: 'Arial', color: '#000000',
-                width: 714, lineHeight: 1.5,
-                textAlign: 'left', bold: false, italic: false, underline: false,
-              }] : [],
-              drawPaths: [],
-            });
           }
+
           if (canvasPages.some(p => p.elements.length > 0)) {
             await axios.put(`${API}/documents/${docId}`, { pages: canvasPages }, { withCredentials: true });
           }
