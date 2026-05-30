@@ -4570,11 +4570,7 @@ async def extract_pdf_text(file: UploadFile = File(...), user: User = Depends(ge
         reader = _PR(_io.BytesIO(raw))
         pages = []
         for i, page in enumerate(reader.pages):
-            # Layout mode preserves spatial positioning (spaces/indentation)
-            try:
-                text = (page.extract_text(extraction_mode="layout") or "").strip()
-            except Exception:
-                text = (page.extract_text() or "").strip()
+            text = (page.extract_text() or "").strip()
 
             # Extract primary font name from page resources
             font_name = None
