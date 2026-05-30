@@ -251,8 +251,8 @@ const EditorPanels = () => {
               key={i}
               title={char}
               onMouseDown={(e) => {
-                e.preventDefault(); // focus'u contenteditable'da tutar
-                document.execCommand('insertText', false, char);
+                e.preventDefault();
+                window.document.execCommand('insertText', false, char);
               }}
               className="w-8 h-8 rounded font-mono text-sm flex items-center justify-center hover:bg-white/15 transition-colors"
               style={{ border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
