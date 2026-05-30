@@ -40,7 +40,7 @@ import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify,
   Eye, EyeOff, Lock, Unlock,
   ChevronUp, ChevronDown, Trash2, Table, Zap, Mic, Pencil, ImagePlus,
-  Copy as CopyIcon,
+  Copy as CopyIcon, Link2,
 } from 'lucide-react';
 
 const PARA_STYLES = [
@@ -126,6 +126,7 @@ const EditorPanels = () => {
     updatePageNumberSettings, updateShortcut, useMagnifierGradient, voiceTranscript,
     watermarkColor, watermarkOpacity, watermarkText,
     zetaCustomPrompt, zetaEmoji, zetaMood, zoomLevel, zoomRadius,
+    showLink, setShowLink, linkUrl, setLinkUrl, linkText, setLinkText, addLinkToCanvas,
   } = useContext(EditorStateContext);
   const { t } = useLanguage();
 
@@ -360,19 +361,8 @@ const EditorPanels = () => {
     {/* Header/Footer Panel */}
     {showHeaderFooter && <DraggablePanel title="Header & Footer" onClose={() => setShowHeaderFooter(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-72 space-y-3">
-        <div className="flex gap-2">
-          <button onClick={() => setHeaderFooterMode('all')} className={`flex-1 py-1 rounded text-xs transition-colors ${headerFooterMode === 'all' ? 'zet-btn' : 'zet-btn-outline'}`}>Tüm Sayfalar</button>
-          <button onClick={() => setHeaderFooterMode('odd-even')} className={`flex-1 py-1 rounded text-xs transition-colors ${headerFooterMode === 'odd-even' ? 'zet-btn' : 'zet-btn-outline'}`}>Tek/Çift</button>
-        </div>
-        {headerFooterMode === 'all' ? (<>
           <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Header</label><input type="text" value={headerText} onChange={e => setHeaderText(e.target.value)} placeholder="Header text" className="zet-input text-xs w-full" /></div>
           <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Footer</label><input type="text" value={footerText} onChange={e => setFooterText(e.target.value)} placeholder="Footer text" className="zet-input text-xs w-full" /></div>
-        </>) : (<>
-          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Tek Sayfa Header</label><input type="text" value={headerOdd} onChange={e => setHeaderOdd(e.target.value)} placeholder="Tek sayfa başlık" className="zet-input text-xs w-full" /></div>
-          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Çift Sayfa Header</label><input type="text" value={headerEven} onChange={e => setHeaderEven(e.target.value)} placeholder="Çift sayfa başlık" className="zet-input text-xs w-full" /></div>
-          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Tek Sayfa Footer</label><input type="text" value={footerOdd} onChange={e => setFooterOdd(e.target.value)} placeholder="Tek sayfa alt" className="zet-input text-xs w-full" /></div>
-          <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Çift Sayfa Footer</label><input type="text" value={footerEven} onChange={e => setFooterEven(e.target.value)} placeholder="Çift sayfa alt" className="zet-input text-xs w-full" /></div>
-        </>)}
         <button onClick={applyHeaderFooter} className="zet-btn w-full">Uygula</button>
       </div>
     </DraggablePanel>}
@@ -415,6 +405,28 @@ const EditorPanels = () => {
 
     {/* Voice Input (STT) Panel */}
     <VoiceInputPanel />
+
+    {/* Link Panel */}
+    {showLink && <DraggablePanel title="Bağlantı Ekle" onClose={() => setShowLink(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+      <div className="w-64 space-y-3">
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>URL</label>
+          <input type="url" value={linkUrl} onChange={e => setLinkUrl(e.target.value)} placeholder="https://example.com" className="zet-input text-xs w-full" />
+        </div>
+        <div>
+          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Görünen Metin</label>
+          <input type="text" value={linkText} onChange={e => setLinkText(e.target.value)} placeholder="Metin (boş bırakılırsa URL gösterilir)" className="zet-input text-xs w-full" />
+        </div>
+        <button
+          onClick={addLinkToCanvas}
+          disabled={!linkUrl.trim()}
+          className="w-full py-2 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+          style={{ background: linkUrl.trim() ? 'rgba(76,168,173,0.15)' : 'rgba(76,168,173,0.05)', color: linkUrl.trim() ? '#4ca8ad' : 'var(--zet-text-muted)', border: '1px solid rgba(76,168,173,0.3)', cursor: linkUrl.trim() ? 'pointer' : 'not-allowed' }}
+        >
+          <Link2 className="h-3.5 w-3.5" /> Belgeye Ekle
+        </button>
+      </div>
+    </DraggablePanel>}
     </>
   );
 };

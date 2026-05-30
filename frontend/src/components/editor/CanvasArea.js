@@ -2254,6 +2254,23 @@ export const CanvasArea = ({
                       </>)}
                     </div>
                   )}
+                  {el.type === 'link' && (
+                    <div className="relative w-full h-full group" style={{ display: 'flex', alignItems: 'center' }}>
+                      <a
+                        href={el.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => { e.stopPropagation(); if (activeTool !== 'hand') e.preventDefault(); }}
+                        style={{ fontSize: (el.fontSize || 14) * zoom, color: '#4ca8ad', textDecoration: 'underline', wordBreak: 'break-word', pointerEvents: activeTool === 'hand' ? 'auto' : 'none', maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {el.text || el.url}
+                      </a>
+                      {isSel && !isLocked && (
+                        <div className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm"
+                          onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }}
+                          onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y }); }} />
+                      )}
+                    </div>
+                  )}
                   {hoveredElementId === el.id && (el.isRedacted || el.isHighlighted) && editingId !== el.id && (
                     <button
                       className="absolute z-30 rounded-full flex items-center justify-center text-xs font-bold shadow-lg"

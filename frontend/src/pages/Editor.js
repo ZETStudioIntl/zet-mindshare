@@ -407,6 +407,9 @@ const Editor = () => {
   const [currentNumberStyle, setCurrentNumberStyle] = useState('decimal');
   const [showChatSettings, setShowChatSettings] = useState(false);
   const [showEmoji, setShowEmoji] = useState(false);
+  const [showLink, setShowLink] = useState(false);
+  const [linkUrl, setLinkUrl] = useState('');
+  const [linkText, setLinkText] = useState('');
   const [showFootnote, setShowFootnote] = useState(false);
   const [showTOC, setShowTOC] = useState(false);
 
@@ -1184,6 +1187,7 @@ const Editor = () => {
       numberedlist: () => setShowNumberedList(p => !p),
       emoji: () => setShowEmoji(!showEmoji),
       zoom: () => setShowZoom(true),
+      link: () => setShowLink(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -1862,6 +1866,18 @@ const Editor = () => {
       setShowQRCode(false);
       setQrText('');
     } catch (err) { console.error('QR generation failed:', err); }
+  };
+
+  // === LINK ===
+  const addLinkToCanvas = () => {
+    if (!linkUrl.trim()) return;
+    const url = /^https?:\/\//i.test(linkUrl) ? linkUrl : `https://${linkUrl}`;
+    const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'link', x: 60, y: 60, width: 220, height: 24, url, text: linkText.trim() || url }];
+    setCanvasElements(updated);
+    history.push(updated);
+    setShowLink(false);
+    setLinkUrl('');
+    setLinkText('');
   };
 
   // === WATERMARK ===
@@ -2889,6 +2905,7 @@ const Editor = () => {
     skipVoice, stopVoice,
     toolboxOpen, setToolboxOpen, upgradeReason, uploadForShape,
     useGradient, userPlan, userUsage, voiceLoading, voiceProgress, zoom,
+    showLink, setShowLink, linkUrl, setLinkUrl, linkText, setLinkText, addLinkToCanvas,
   };
   // =============================
   if (isMobile) {
