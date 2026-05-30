@@ -952,7 +952,7 @@ const Editor = () => {
   };
 
   // === TEXT FLOW — carries overflow content to next page (or below an obstacle on same page) ===
-  const handleTextFlow = useCallback(({ elementId, overflowHtml, el: srcEl, obstacleBottom }) => {
+  const handleTextFlow = useCallback(({ elementId, overflowHtml, el: srcEl, obstacleBottom, keepHtml }) => {
     const makeOverflowEl = (y) => ({
       id: `el_${Date.now()}`,
       type: 'text',
@@ -988,7 +988,14 @@ const Editor = () => {
     setDocument(prev => {
       if (!prev?.pages) return prev;
       const pages = [...prev.pages];
-      if (pages[currentPage]) pages[currentPage] = { ...pages[currentPage], elements: canvasElements, drawPaths };
+      if (pages[currentPage]) {
+        const correctedElements = keepHtml && elementId
+          ? canvasElements.map(e => e.id === elementId
+              ? { ...e, htmlContent: keepHtml, content: keepHtml.replace(/<[^>]*>/g, '') }
+              : e)
+          : canvasElements;
+        pages[currentPage] = { ...pages[currentPage], elements: correctedElements, drawPaths };
+      }
       if (pages[nextPageIdx]) {
         pages[nextPageIdx] = { ...pages[nextPageIdx], elements: [overflowEl, ...(pages[nextPageIdx].elements || [])] };
       } else {
