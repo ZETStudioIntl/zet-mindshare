@@ -751,6 +751,7 @@ const Editor = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastLoadedPageRef = useRef(null);
+  const pendingPdfRef = useRef(null);
   useEffect(() => {
     if (document?.pages?.[currentPage]) {
       const pageKey = `${currentPage}`;
@@ -767,6 +768,22 @@ const Editor = () => {
       }
     } else { setCanvasElements([]); setDrawPaths([]); lastLoadedPageRef.current = null; }
   }, [document, currentPage]);
+
+  // === PENDING PDF IMPORT (from Dashboard "PDF Düzenle" flow) ===
+  // Fires after document state is set; uses direct base64 parsing (no fetch())
+  useEffect(() => {
+    if (!document || !pendingPdfRef.current) return;
+    const dataUrl = pendingPdfRef.current;
+    pendingPdfRef.current = null;
+    try {
+      const b64 = dataUrl.split(',')[1];
+      const binary = atob(b64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+      const file = new File([new Blob([bytes], { type: 'application/pdf' })], 'document.pdf', { type: 'application/pdf' });
+      importPDF(file);
+    } catch (_) {}
+  }, [document]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // === AUTO-SAVE (elements + drawPaths) ===
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -856,15 +873,11 @@ const Editor = () => {
         }
       }
       setDocument(res.data);
-      // Check for pending PDF import (from Dashboard "PDF Düzenle" creation flow)
+      // Stash pending PDF for the useEffect below to pick up after document loads
       const pendingPdf = localStorage.getItem(`zet_pending_pdf_${docId}`);
       if (pendingPdf) {
         localStorage.removeItem(`zet_pending_pdf_${docId}`);
-        setTimeout(() => {
-          fetch(pendingPdf).then(r => r.blob()).then(blob => {
-            importPDF(new File([blob], 'document.pdf', { type: 'application/pdf' }));
-          }).catch(() => {});
-        }, 400);
+        pendingPdfRef.current = pendingPdf;
       }
     } catch {
       if (!isMountedRef.current) return;
