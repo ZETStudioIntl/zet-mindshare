@@ -127,6 +127,7 @@ const EditorPanels = () => {
     watermarkColor, watermarkOpacity, watermarkText,
     zetaCustomPrompt, zetaEmoji, zetaMood, zoomLevel, zoomRadius,
     showLink, setShowLink, linkUrl, setLinkUrl, linkText, setLinkText, addLinkToCanvas,
+    sigPhotoRaw, sigPhotoThreshold, handleSigPhotoThresholdChange,
   } = useContext(EditorStateContext);
   const { t } = useLanguage();
 
@@ -269,7 +270,7 @@ const EditorPanels = () => {
     <PhotoEditPanel />
 
     {/* Signature Panel */}
-    {showSignature && <SignaturePanel signatureCanvasRef={signatureCanvasRef} handleSignatureMouseDown={handleSignatureMouseDown} handleSignatureMouseMove={handleSignatureMouseMove} handleSignatureMouseUp={handleSignatureMouseUp} clearSignature={clearSignature} addSignatureToCanvas={addSignatureToCanvas} signatureData={signatureData} handleSignaturePhotoUpload={handleSignaturePhotoUpload} isMobile={isMobile} onClose={() => { setShowSignature(false); clearSignature(); }} />}
+    {showSignature && <SignaturePanel signatureCanvasRef={signatureCanvasRef} handleSignatureMouseDown={handleSignatureMouseDown} handleSignatureMouseMove={handleSignatureMouseMove} handleSignatureMouseUp={handleSignatureMouseUp} clearSignature={clearSignature} addSignatureToCanvas={addSignatureToCanvas} signatureData={signatureData} handleSignaturePhotoUpload={handleSignaturePhotoUpload} sigPhotoRaw={sigPhotoRaw} sigPhotoThreshold={sigPhotoThreshold} handleSigPhotoThresholdChange={handleSigPhotoThresholdChange} isMobile={isMobile} onClose={() => { setShowSignature(false); clearSignature(); }} />}
 
     {/* Bullet List Panel */}
     <BulletListPanel />

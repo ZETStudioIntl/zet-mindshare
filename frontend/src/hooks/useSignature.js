@@ -6,10 +6,13 @@ export const useSignature = ({ canvasElements, setCanvasElements, handleSaveHist
   const [isDrawingSignature, setIsDrawingSignature] = useState(false);
   const [signaturePoints, setSignaturePoints] = useState([]);
   const [showSignature, setShowSignature] = useState(false);
+  const [sigPhotoRaw, setSigPhotoRaw] = useState(null);
+  const [sigPhotoThreshold, setSigPhotoThreshold] = useState(200);
 
   const clearSignature = () => {
     setSignaturePoints([]);
     setSignatureData(null);
+    setSigPhotoRaw(null);
     const canvas = signatureCanvasRef.current;
     if (canvas) {
       const ctx = canvas.getContext('2d');
@@ -68,29 +71,60 @@ export const useSignature = ({ canvasElements, setCanvasElements, handleSaveHist
     clearSignature();
   };
 
+  const processAndPreviewPhoto = (rawDataUrl, threshold) => {
+    const img = new Image();
+    img.onload = () => {
+      const tmpCanvas = document.createElement('canvas');
+      tmpCanvas.width = img.width;
+      tmpCanvas.height = img.height;
+      const ctx = tmpCanvas.getContext('2d');
+      ctx.drawImage(img, 0, 0);
+      const imageData = ctx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
+      const d = imageData.data;
+      for (let i = 0; i < d.length; i += 4) {
+        const luma = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        if (luma > threshold) {
+          // Soft edge: smooth transition over 20 luma units near the threshold
+          d[i + 3] = Math.round(Math.max(0, (threshold - luma + 20) / 20) * d[i + 3]);
+        }
+      }
+      ctx.putImageData(imageData, 0, 0);
+      const processed = tmpCanvas.toDataURL('image/png');
+
+      // Show preview in the signature canvas
+      const sigCanvas = signatureCanvasRef.current;
+      if (sigCanvas) {
+        const sigCtx = sigCanvas.getContext('2d');
+        sigCtx.clearRect(0, 0, sigCanvas.width, sigCanvas.height);
+        const preview = new Image();
+        preview.onload = () => {
+          const scale = Math.min(sigCanvas.width / preview.width, sigCanvas.height / preview.height);
+          const w = preview.width * scale;
+          const h = preview.height * scale;
+          sigCtx.drawImage(preview, (sigCanvas.width - w) / 2, (sigCanvas.height - h) / 2, w, h);
+        };
+        preview.src = processed;
+      }
+      setSignatureData(processed);
+    };
+    img.src = rawDataUrl;
+  };
+
   const handleSignaturePhotoUpload = (e) => {
     const file = e.target.files[0];
     if (!file) return;
+    e.target.value = '';
     const reader = new FileReader();
     reader.onload = (ev) => {
-      const img = new Image();
-      img.onload = () => {
-        const tmpCanvas = document.createElement('canvas');
-        tmpCanvas.width = img.width;
-        tmpCanvas.height = img.height;
-        const ctx = tmpCanvas.getContext('2d');
-        ctx.drawImage(img, 0, 0);
-        const imageData = ctx.getImageData(0, 0, tmpCanvas.width, tmpCanvas.height);
-        const d = imageData.data;
-        for (let i = 0; i < d.length; i += 4) {
-          if (d[i] > 200 && d[i + 1] > 200 && d[i + 2] > 200) d[i + 3] = 0;
-        }
-        ctx.putImageData(imageData, 0, 0);
-        addSignatureToCanvas(tmpCanvas.toDataURL('image/png'));
-      };
-      img.src = ev.target.result;
+      setSigPhotoRaw(ev.target.result);
+      processAndPreviewPhoto(ev.target.result, sigPhotoThreshold);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleSigPhotoThresholdChange = (val) => {
+    setSigPhotoThreshold(val);
+    if (sigPhotoRaw) processAndPreviewPhoto(sigPhotoRaw, val);
   };
 
   return {
@@ -105,5 +139,6 @@ export const useSignature = ({ canvasElements, setCanvasElements, handleSaveHist
     handleSignatureMouseUp,
     addSignatureToCanvas,
     handleSignaturePhotoUpload,
+    sigPhotoRaw, sigPhotoThreshold, handleSigPhotoThresholdChange,
   };
 };

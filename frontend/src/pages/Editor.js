@@ -511,7 +511,7 @@ const Editor = () => {
   const handleUndo = () => { const prev = history.undo(); if (prev) setCanvasElements(prev); };
   const handleRedo = () => { const next = history.redo(); if (next) setCanvasElements(next); };
   // === CUSTOM HOOKS ===
-  const { signatureData, setSignatureData, signatureCanvasRef, isDrawingSignature, setIsDrawingSignature, signaturePoints, setSignaturePoints, showSignature, setShowSignature, clearSignature, handleSignatureMouseDown, handleSignatureMouseMove, handleSignatureMouseUp, addSignatureToCanvas, handleSignaturePhotoUpload } = useSignature({ canvasElements, setCanvasElements, handleSaveHistory, currentColor });
+  const { signatureData, setSignatureData, signatureCanvasRef, isDrawingSignature, setIsDrawingSignature, signaturePoints, setSignaturePoints, showSignature, setShowSignature, clearSignature, handleSignatureMouseDown, handleSignatureMouseMove, handleSignatureMouseUp, addSignatureToCanvas, handleSignaturePhotoUpload, sigPhotoRaw, sigPhotoThreshold, handleSigPhotoThresholdChange } = useSignature({ canvasElements, setCanvasElements, handleSaveHistory, currentColor });
   const { moveLayerUp, moveLayerDown, toggleLayerVisibility, toggleLayerLock, copyElement, pasteElement, alignElements, mirrorElement, rotateElement, copyElementById, mirrorElementById } = useLayerOps({ canvasElements, setCanvasElements, history, handleSaveHistory, selectedElement, selectedElements, setSelectedElement, setSelectedElements, setShowMirror });
   const { isPlaying, setIsPlaying, voiceProgress, setVoiceProgress, audioRef, availableVoices, selectedVoice, setSelectedVoice, voiceLoading, ttsAudio, setTtsAudio, showVoice, setShowVoice, showVoiceInput, setShowVoiceInput, isListening, voiceTranscript, setVoiceTranscript, isRecordingEL, elSttLoading, generateTTS, fetchVoices, playVoiceFrom, skipVoice, stopVoice, startListening, stopListening, startElevenLabsSTT, stopElevenLabsSTT, addVoiceTextToDocument } = useVoice({ canvasElements, setCanvasElements, history, document, currentPage, currentFont, currentFontSize, currentColor, language });
 
@@ -2826,6 +2826,7 @@ const Editor = () => {
     gradientAngle, gradientBarRef, gradientEnd, gradientStart, gradientStops,
     gridSize, gridVisible, handleExport, handlePhotoEditUpload, handleSaveHistory,
     handleSignatureMouseDown, handleSignatureMouseMove, handleSignatureMouseUp, handleSignaturePhotoUpload, handleTranslate,
+    sigPhotoRaw, sigPhotoThreshold, handleSigPhotoThresholdChange,
     headerEven, headerFooterMode, headerOdd, headerText, hexInput, highlighterColor, history,
     importFromMS, indentBottom, indentLeft, indentRight, indentTop, insertEmoji,
     isBold, isDrawingOnPhoto, isItalic, isListening, isMobile, isRecordingEL, isStrikethrough, isUnderline,
