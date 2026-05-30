@@ -753,7 +753,6 @@ const Editor = () => {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastLoadedPageRef = useRef(null);
-  const pendingPdfRef = useRef(null);
   useEffect(() => {
     if (document?.pages?.[currentPage]) {
       const pageKey = `${currentPage}`;
@@ -770,14 +769,6 @@ const Editor = () => {
       }
     } else { setCanvasElements([]); setDrawPaths([]); lastLoadedPageRef.current = null; }
   }, [document, currentPage]);
-
-  // === PENDING PDF IMPORT (from Dashboard "PDF Düzenle" flow) ===
-  useEffect(() => {
-    if (!document || !pendingPdfRef.current) return;
-    const file = pendingPdfRef.current;
-    pendingPdfRef.current = null;
-    importPDF(file);
-  }, [document]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // === AUTO-SAVE (elements + drawPaths) ===
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -867,11 +858,6 @@ const Editor = () => {
         }
       }
       setDocument(res.data);
-      // Pick up pending PDF passed from Dashboard via window (no localStorage size limit)
-      if (window.__zetPdf?.docId === docId) {
-        pendingPdfRef.current = window.__zetPdf.file;
-        window.__zetPdf = null;
-      }
     } catch {
       if (!isMountedRef.current) return;
       // Try loading from offline cache

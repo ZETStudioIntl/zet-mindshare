@@ -134,6 +134,7 @@ const Dashboard = () => {
   const [newDocTitle, setNewDocTitle] = useState('');
   const [newDocType, setNewDocType] = useState('new'); // 'new' or 'pdf'
   const [pdfFile, setPdfFile] = useState(null);
+  const [creatingDoc, setCreatingDoc] = useState(false);
   const [selectedPageSize, setSelectedPageSize] = useState(PAGE_SIZES[0]);
   const [loading, setLoading] = useState(() => !localStorage.getItem('zet_docs_cache'));
   const [driveConnected, setDriveConnected] = useState(false);
@@ -1126,29 +1127,70 @@ const Dashboard = () => {
 
   const createDocument = async () => {
     const title = newDocTitle.trim() || 'İsimsiz Belge';
+    setCreatingDoc(true);
     try {
-      const payload = {
-        title: title,
+      const res = await axios.post(`${API}/documents`, {
+        title,
         doc_type: newDocType === 'pdf' ? 'pdf_edit' : 'document',
-        pageSize: selectedPageSize
-      };
-      // If PDF file is selected, add file_data
-      if (newDocType === 'pdf' && pdfFile) {
-        payload.file_data = pdfFile;
-      }
-      const res = await axios.post(`${API}/documents`, payload, { withCredentials: true });
-      // Pass original File object via window so Editor can import it — no localStorage size limit
+      }, { withCredentials: true });
+      const docId = res.data.doc_id;
+
+      // PDF: extract text client-side and save pages before navigating
       if (newDocType === 'pdf' && window.__zetPdfFile) {
-        window.__zetPdf = { docId: res.data.doc_id, file: window.__zetPdfFile };
+        try {
+          const pdfjsLib = await import('pdfjs-dist');
+          pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
+          const PDF_PAGE_LIMITS = { free: 20, plus: 50, pro: 100, creative_station: Infinity };
+          const pageLimit = PDF_PAGE_LIMITS[userSubscription] ?? 20;
+          const arrayBuffer = await window.__zetPdfFile.arrayBuffer();
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const numPages = Math.min(pdf.numPages, pageLimit);
+          const canvasPages = [];
+          const t = Date.now();
+          for (let i = 1; i <= numPages; i++) {
+            const page = await pdf.getPage(i);
+            const content = await page.getTextContent();
+            let text = '';
+            let lastY = null;
+            for (const item of content.items) {
+              if (!('str' in item)) continue;
+              if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4) text += '\n';
+              text += item.str;
+              if (item.hasEOL) text += '\n';
+              lastY = item.transform[5];
+            }
+            canvasPages.push({
+              page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`,
+              elements: text.trim() ? [{
+                id: `el_pdf_${t}_${i}`,
+                type: 'text', x: 40, y: 40,
+                content: text.trim(),
+                htmlContent: text.trim().replace(/\n/g, '<br>'),
+                fontSize: 16, fontFamily: 'Arial', color: '#000000',
+                width: 714, lineHeight: 1.5,
+                textAlign: 'left', bold: false, italic: false, underline: false,
+              }] : [],
+              drawPaths: [],
+            });
+          }
+          if (canvasPages.some(p => p.elements.length > 0)) {
+            await axios.put(`${API}/documents/${docId}`, { pages: canvasPages }, { withCredentials: true });
+          }
+        } catch (pdfErr) {
+          console.error('PDF extraction failed:', pdfErr);
+        }
         window.__zetPdfFile = null;
       }
+
       setShowNewDoc(false);
       setNewDocTitle('');
       setNewDocType('new');
       setPdfFile(null);
-      navigate(`/editor/${res.data.doc_id}`);
+      navigate(`/editor/${docId}`);
     } catch (error) {
       console.error('Error creating document:', error);
+    } finally {
+      setCreatingDoc(false);
     }
   };
 
@@ -3726,12 +3768,12 @@ MATCHES:[1,3,5]`;
               </div>
             )}
 
-            <button 
-              onClick={createDocument} 
-              disabled={newDocType === 'pdf' && !pdfFile}
+            <button
+              onClick={createDocument}
+              disabled={(newDocType === 'pdf' && !pdfFile) || creatingDoc}
               className="zet-btn w-full disabled:opacity-50"
             >
-              {newDocType === 'pdf' ? t('openPDF') : t('createDocument')}
+              {creatingDoc ? 'PDF işleniyor...' : newDocType === 'pdf' ? t('openPDF') : t('createDocument')}
             </button>
           </div>
         </div>
