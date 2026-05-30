@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { A4LoadingScreen } from '../components/LoadingScreens';
+import { A4LoadingScreen, MiniDocLoader } from '../components/LoadingScreens';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -2355,9 +2355,7 @@ MATCHES:[1,3,5]`;
                   )}
                   <div className="space-y-2.5">
                     {creditPackages.length === 0 ? (
-                      <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
-                        <div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin mx-auto" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} />
-                      </div>
+                      <MiniDocLoader />
                     ) : creditPackages.map(pkg => {
                       const hasDiscount = pkg.discounted_price !== pkg.price;
                       return (
@@ -2540,7 +2538,7 @@ MATCHES:[1,3,5]`;
                     setIdentityStatus(res.data.identity_status || 'none');
                   } catch { setIdentityStatus('none'); }
                 };
-                if (identityStatus === null) { loadIdentityStatus(); return <div className="flex items-center justify-center py-8"><div className="w-6 h-6 border-2 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} /></div>; }
+                if (identityStatus === null) { loadIdentityStatus(); return <MiniDocLoader />; }
 
                 const toBase64 = (file) => new Promise((res, rej) => { const r = new FileReader(); r.onload = e => res(e.target.result); r.onerror = rej; r.readAsDataURL(file); });
                 const handleImg = async (field, e) => { const f = e.target.files[0]; if (!f) return; const b64 = await toBase64(f); setIdentityForm(p => ({ ...p, [field]: b64 })); };

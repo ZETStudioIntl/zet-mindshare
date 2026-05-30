@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ScalesLoadingScreen } from '../components/LoadingScreens';
+import { ScalesLoadingScreen, MiniDocLoader } from '../components/LoadingScreens';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
@@ -1263,10 +1263,7 @@ const JudgeDashboard = () => {
                   <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 24, color: '#fff' }}>Kredi Al</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                     {creditPackages.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '40px 0', color: 'rgba(255,255,255,0.35)' }}>
-                        <Loader size={22} style={{ margin: '0 auto 10px', display: 'block', animation: 'spin 1s linear infinite' }} />
-                        Yükleniyor...
-                      </div>
+                      <MiniDocLoader />
                     ) : creditPackages.map(pkg => {
                       const hasDiscount = pkg.discounted_price !== pkg.price;
                       return (

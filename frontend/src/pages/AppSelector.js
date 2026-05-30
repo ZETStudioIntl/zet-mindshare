@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppTheme } from '../contexts/AppThemeContext';
+import { RainbowSpinner } from '../components/LoadingScreens';
 
 const MindshareIcon = () => (
   <img src="/logo-mindshare.svg" alt="ZET Mindshare" style={{ width: 44, height: 44, objectFit: 'contain' }} />
@@ -126,7 +127,10 @@ const AppSelector = () => {
                 <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 14, fontWeight: 600 }}>
                   {isSelecting ? 'Açılıyor...' : 'Başla'}
                 </span>
-                <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 18 }}>→</span>
+                {isSelecting
+                  ? <RainbowSpinner size={20} thickness={3} />
+                  : <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 18 }}>→</span>
+                }
               </div>
             </button>
           );

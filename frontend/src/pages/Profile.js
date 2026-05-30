@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import axios from 'axios';
 import { ArrowLeft, FileText, Globe } from 'lucide-react';
+import { A4LoadingScreen } from '../components/LoadingScreens';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -66,11 +67,7 @@ export default function Profile() {
 
   const isOwn = me?.username === username || me?.user_id === profile?.user_id;
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
-      <div className="w-10 h-10 border-4 border-t-transparent rounded-full animate-spin" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} />
-    </div>
-  );
+  if (loading) return <A4LoadingScreen playSound={false} />;
 
   if (!profile) return (
     <div className="min-h-screen flex flex-col items-center justify-center gap-4" style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>

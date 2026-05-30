@@ -210,3 +210,51 @@ export function ScalesLoadingScreen({ fullscreen = true, playSound = true, label
     </div>
   );
 }
+
+/* ─── Mini Doc Loader (inline panels) ────────────────────────────── */
+
+export function MiniDocLoader({ padding = '28px 0' }) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding, gap: 8 }}>
+      <style>{A4_CSS}</style>
+      <div style={{ animation: 'a4-float 2.8s ease-in-out infinite, a4-glow 2.8s ease-in-out infinite' }}>
+        <svg width="46" height="65" viewBox="0 0 90 127" fill="none">
+          <path d="M8 6 L64 6 L82 24 L82 121 L8 121 Z"
+            fill="rgba(59,130,246,0.06)" stroke="rgba(59,130,246,0.55)" strokeWidth="1.8" strokeLinejoin="round"/>
+          <path d="M64 6 L64 24 L82 24"
+            fill="rgba(59,130,246,0.14)" stroke="rgba(59,130,246,0.55)" strokeWidth="1.8" strokeLinejoin="round"/>
+          {LINES.map((l, i) => (
+            <rect key={i} x="16" y={l.y} width={l.w} height="4" rx="2"
+              style={{ fill: 'rgba(96,165,250,0.55)', transformBox: 'fill-box', transformOrigin: 'left center', animation: `a4-line 0.55s ${l.d} cubic-bezier(.4,0,.2,1) both` }}
+            />
+          ))}
+        </svg>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Rainbow Spinner (AppSelector) ──────────────────────────────── */
+
+const RAINBOW_CSS = `
+@keyframes rainbow-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+`;
+
+export function RainbowSpinner({ size = 32, thickness = 4 }) {
+  const hole = Math.round(((size - thickness * 2) / size) * 100);
+  return (
+    <>
+      <style>{RAINBOW_CSS}</style>
+      <div style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        background: 'conic-gradient(from 0deg, #ff6b6b, #ffd93d, #6bcb77, #4d96ff, #c77dff, #ff9f43, #ff6b6b)',
+        animation: 'rainbow-spin 0.7s linear infinite',
+        WebkitMask: `radial-gradient(farthest-side, transparent ${hole}%, black ${hole + 1}%)`,
+        mask: `radial-gradient(farthest-side, transparent ${hole}%, black ${hole + 1}%)`,
+      }} />
+    </>
+  );
+}

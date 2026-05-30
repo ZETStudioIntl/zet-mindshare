@@ -11,6 +11,7 @@ import ShareDialog from './ShareDialog';
 import CommentsPanel from './CommentsPanel';
 import { startCheckout } from '../../lib/lemonSqueezy';
 import { TOOLS } from '../../lib/editorConstants';
+import { MiniDocLoader } from '../LoadingScreens';
 import {
   Home, Save, Undo, Redo, ArrowLeft, ArrowRight,
   Upload, Loader2, X, Play, Pause, SkipBack, SkipForward, Volume2,
@@ -77,7 +78,7 @@ const EditorDesktopLayout = () => {
       )}
       {/* Hidden PDF input */}
       <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importPDF(f); e.target.value = ''; }} />
-      {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><div className="animate-spin w-8 h-8 border-2 border-t-transparent rounded-full mx-auto mb-3" style={{ borderColor: 'var(--zet-primary)', borderTopColor: 'transparent' }} /><p style={{ color: 'var(--zet-text)' }}>PDF içe aktarılıyor...</p></div></div>}
+      {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><MiniDocLoader padding="8px 0" /><p style={{ color: 'var(--zet-text)', marginTop: 4 }}>PDF içe aktarılıyor...</p></div></div>}
       <header data-testid="editor-header" className="h-12 px-3 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-2">
           <button data-testid="home-btn" onClick={() => navigate('/dashboard')} className="tool-btn w-8 h-8"><Home className="h-4 w-4" /></button>

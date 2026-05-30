@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { Users, Eye, Edit3, Loader2 } from 'lucide-react';
+import { Users, Eye, Edit3 } from 'lucide-react';
+import { A4LoadingScreen } from '../components/LoadingScreens';
 import axios from 'axios';
 
 const API = process.env.REACT_APP_BACKEND_URL;
@@ -31,11 +32,7 @@ export default function SharedView() {
     setLoading(false);
   };
 
-  if (loading) return (
-    <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
-      <Loader2 className="h-8 w-8 animate-spin" style={{ color: 'var(--zet-primary)' }} />
-    </div>
-  );
+  if (loading) return <A4LoadingScreen playSound={false} />;
 
   if (error) return (
     <div className="min-h-screen flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
