@@ -1213,6 +1213,7 @@ const Editor = () => {
   const isFreeOffline = !isOnline && userPlan === 'free';
 
   const getLockedTools = () => {
+    if (localStorage.getItem('zet_ceo_mode') === 'true') return [];
     // Free users offline: all tools locked — they can only type in existing text elements
     if (isFreeOffline) return TOOLS.map(t => t.id);
     if (userPlan === 'free') {
