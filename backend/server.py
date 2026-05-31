@@ -4598,12 +4598,16 @@ Kullanılabilir shapeType değerleri:
 ━━━ OPERASYONLAR ━━━
 Her operasyon şu formatlardan biri:
 
-EKLE element:    {{"action": "add",       "element": {{...format...}},      "target_page": <indeks>}}
-DEĞİŞTİR:        {{"action": "modify",    "element_id": "<id>",  "changes": {{...}}, "target_page": <indeks>}}
-SİL:             {{"action": "delete",    "element_id": "<id>",              "target_page": <indeks>}}
-ÇİZİM EKLE:     {{"action": "add_path",  "path": {{...}},                   "target_page": <indeks>}}
+EKLE element:    {{"action": "add",          "element": {{...format...}},      "target_page": <indeks>}}
+DEĞİŞTİR:        {{"action": "modify",       "element_id": "<id>",  "changes": {{...}}, "target_page": <indeks>}}
+SİL:             {{"action": "delete",       "element_id": "<id>",              "target_page": <indeks>}}
+ÇİZİM EKLE:     {{"action": "add_path",     "path": {{...}},                   "target_page": <indeks>}}
+SAYFA SİL:       {{"action": "delete_page",                                     "target_page": <indeks>}}
+SAYFA TEMİZLE:   {{"action": "clear_page",                                      "target_page": <indeks>}}
+AI GÖRSEL:       {{"action": "generate_ai_image", "prompt": "<İngilizce görsel açıklaması>", "x": <n>, "y": <n>, "width": <200-500>, "height": <150-400>, "target_page": <indeks>}}
 
 target_page belirtilmezse aktif sayfa ({req.page_index}) kullanılır.
+@N sayfa referansı: kullanıcı "@1", "@2" gibi yazarsa bu sayfa indeksi N-1 demektir (1-indexed).
 
 ━━━ ÇIKTI FORMAT ━━━
 Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
@@ -4611,8 +4615,11 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
   "explanation": "<Türkçe, max 2 cümle, ne yaptığını açıkla>",
   "operations": [
     // Operasyon listesi
-  ]
+  ],
+  "suggestions": ["<kısa Türkçe öneri 1>", "<kısa Türkçe öneri 2>"]
 }}
+// suggestions: işlemle ilgili 0-3 adet takip önerisi (örn: "Tablo ekleyeyim mi?", "Şekil ekleyeyim mi?")
+// Hiçbir öneri gerekmiyorsa boş dizi []
 
 ━━━ KURALLAR ━━━
 - Elementleri sayfa dışına çıkarma: x + width <= {pw}, y + height <= {ph}
@@ -4625,6 +4632,10 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 - Kullanıcı "sil" diyorsa element_id'yi mevcut elementlerden al
 - Kullanıcı "değiştir/düzenle/taşı" diyorsa mevcut element'i modify et, yenisini ekleme
 - Başka sayfaya element eklerken doğru target_page belirt
+- "Yazıları sil" = sadece type:"text" elementlerini delete et; "Her şeyi sil" = clear_page kullan
+- "Sadece [X] sil" = ilgili type/içerik filtrele; "Tüm sayfayı sil" = delete_page (1 sayfa kalırsa yapma)
+- delete_page: sadece birden fazla sayfa varsa kullan; tek sayfa kaldığında clear_page kullan
+- generate_ai_image: prompt İngilizce olmalı, kısa ve açıklayıcı (örn: "a mountain landscape, photorealistic")
 """
 
     full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"
@@ -4645,11 +4656,12 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
         await add_token_usage(user.user_id, getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0)
         return {
             "explanation": result.get("explanation", ""),
-            "operations": result.get("operations", [])
+            "operations": result.get("operations", []),
+            "suggestions": result.get("suggestions", []),
         }
     except json.JSONDecodeError:
         logging.error(f"zeta_document_edit JSON parse error, raw[:300]: {raw[:300] if 'raw' in dir() else 'N/A'}")
-        return {"explanation": "JSON ayrıştırma hatası.", "operations": []}
+        return {"explanation": "JSON ayrıştırma hatası.", "operations": [], "suggestions": []}
     except Exception as e:
         logging.error(f"zeta_document_edit error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

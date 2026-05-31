@@ -260,6 +260,7 @@ const Editor = () => {
   const [zetaEditInput, setZetaEditInput] = useState('');
   const [zetaEditLoading, setZetaEditLoading] = useState(false);
   const [zetaEditExplanation, setZetaEditExplanation] = useState('');
+  const [zetaEditSuggestions, setZetaEditSuggestions] = useState([]);
   const pendingOpsRef = useRef([]); // { action, elementId, originalState }
 
   // Text/style state
@@ -1090,17 +1091,73 @@ const Editor = () => {
         is_ceo: isCEO,
         all_pages: allPagesPayload,
       }, { withCredentials: true });
-      const { operations = [], explanation = '' } = res.data;
+      const { operations = [], explanation = '', suggestions = [] } = res.data;
       setZetaEditExplanation(explanation);
+      setZetaEditSuggestions(suggestions);
       setZetaEditInput('');
       const newPendingLog = [];
+
+      // Handle delete_page / clear_page first (structural ops)
+      for (const op of operations) {
+        const tPage = op.target_page ?? currentPage;
+        if (op.action === 'delete_page') {
+          deletePage(tPage);
+        } else if (op.action === 'clear_page') {
+          if (tPage === currentPage) {
+            setCanvasElements([]);
+            history.reset([]);
+          } else {
+            setDocument(prev => {
+              const pages = [...(prev.pages || [])];
+              if (pages[tPage]) pages[tPage] = { ...pages[tPage], elements: [] };
+              return { ...prev, pages };
+            });
+          }
+        } else if (op.action === 'generate_ai_image') {
+          // Fire-and-forget: call generate-image API then add to canvas
+          (async () => {
+            try {
+              const imgRes = await axios.post(`${API}/zeta/generate-image`, {
+                prompt: op.prompt,
+                aspect_ratio: '1:1',
+                pro: false,
+              }, { withCredentials: true });
+              if (imgRes.data.images?.length > 0) {
+                const imgData = imgRes.data.images[0];
+                const src = `data:${imgData.mime_type || 'image/png'};base64,${imgData.data}`;
+                const newEl = {
+                  id: `el_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                  type: 'image',
+                  x: op.x ?? 60,
+                  y: op.y ?? 60,
+                  width: op.width ?? 300,
+                  height: op.height ?? 240,
+                  src,
+                };
+                const targetPage = op.target_page ?? currentPage;
+                if (targetPage === currentPage) {
+                  setCanvasElements(prev => [...prev, newEl]);
+                } else {
+                  setDocument(prev => {
+                    const pages = [...(prev.pages || [])];
+                    if (pages[targetPage]) pages[targetPage] = { ...pages[targetPage], elements: [...(pages[targetPage].elements || []), newEl] };
+                    return { ...prev, pages };
+                  });
+                }
+              }
+            } catch (_) {}
+          })();
+        }
+      }
+
       // Handle add_path operations (drawPaths, not canvasElements)
       const pathOpsForCurrentPage = operations.filter(op => op.action === 'add_path' && (op.target_page == null || op.target_page === currentPage));
       if (pathOpsForCurrentPage.length > 0) {
         setDrawPaths(prev => [...prev, ...pathOpsForCurrentPage.map(op => ({ ...op.path, id: `path_${Date.now()}_${Math.random().toString(36).slice(2,6)}` }))]);
       }
       // Handle operations targeting other pages
-      const otherPageOps = operations.filter(op => op.action !== 'add_path' && op.target_page != null && op.target_page !== currentPage);
+      const skipActions = new Set(['add_path', 'delete_page', 'clear_page', 'generate_ai_image']);
+      const otherPageOps = operations.filter(op => !skipActions.has(op.action) && op.target_page != null && op.target_page !== currentPage);
       if (otherPageOps.length > 0) {
         setDocument(prev => {
           const pages = [...(prev.pages || [])];
@@ -1124,7 +1181,7 @@ const Editor = () => {
       setCanvasElements(prev => {
         let els = [...prev];
         for (const op of operations) {
-          if (op.action === 'add_path') continue;
+          if (skipActions.has(op.action)) continue;
           if (op.target_page != null && op.target_page !== currentPage) continue;
           if (op.action === 'add' && op.element && op.element.type === 'chart' && op.element.chartMeta) {
             const { svg, imgSrc, width, height } = generateChartSVG(op.element.chartMeta);
@@ -3143,6 +3200,7 @@ const Editor = () => {
     zetaCustomPrompt, zetaEmoji, zetaMood, zoomLevel, zoomRadius,
     zetaEditMode, setZetaEditMode, zetaEditInput, setZetaEditInput,
     zetaEditLoading, zetaEditExplanation, zetaPendingCount,
+    zetaEditSuggestions, setZetaEditSuggestions,
     applyZetaDocEdit, approveZetaOps, rejectZetaOps,
     addPage, alignElements, audioRef, availableVoices,
     buyingCredits, canvasContainerRef, changePage, changeImageTarget, collab, collabEnabled, setCollabEnabled,

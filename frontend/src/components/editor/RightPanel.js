@@ -45,7 +45,7 @@ export const RightPanel = ({
 }) => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation } = useContext(EditorStateContext);
+  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation, zetaEditSuggestions, setZetaEditSuggestions } = useContext(EditorStateContext);
   const [pagesOpen, setPagesOpen] = useState(true);
 
   // CEO / Admin / console state
@@ -821,6 +821,17 @@ export const RightPanel = ({
                 </div>
               )}
               <input ref={docFileRef} type="file" accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py" onChange={handleDocFileChange} className="hidden" />
+              {zetaMode === 'edit' && zetaEditSuggestions && zetaEditSuggestions.length > 0 && (
+                <div className="mb-2 flex flex-wrap gap-1">
+                  {zetaEditSuggestions.map((s, i) => (
+                    <button key={i} onClick={() => { setZetaInput(s); setZetaEditSuggestions([]); }}
+                      className="text-[10px] px-2 py-0.5 rounded-full transition-colors"
+                      style={{ background: 'rgba(76,168,173,0.12)', border: '1px solid rgba(76,168,173,0.3)', color: '#4ca8ad' }}>
+                      {s}
+                    </button>
+                  ))}
+                </div>
+              )}
               <div className="flex gap-1">
                 {/* Gear/settings button — shows active mode colour */}
                 {(() => {
