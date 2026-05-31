@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_ID: inbound-mote-491904-v2
   SERVICE_NAME: zet-backend
   REGION: europe-west1
-  IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/zet-backend
+  IMAGE: gcr.io/inbound-mote-491904-v2/zet-backend
 
 jobs:
   deploy:
