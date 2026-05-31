@@ -398,6 +398,7 @@ class ZetaDocEditRequest(BaseModel):
     page_index: int = 0
     doc_id: Optional[str] = None
     is_ceo: bool = False
+    all_pages: Optional[List[Dict[str, Any]]] = None  # [{page_index, elements}]
 
 class TranslateRequest(BaseModel):
     text: str
@@ -4462,14 +4463,26 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
         for el in req.page_elements
     ], ensure_ascii=False)
 
-    system_prompt = f"""Sen ZETA, ZET Mindshare belge editörünün AI asistanısın.
-Görevin: Kullanıcının isteğine göre belge sayfasına JSON operasyonları üretmek.
+    all_pages_summary = ""
+    if req.all_pages:
+        for pg in req.all_pages:
+            pi = pg.get("page_index", 0)
+            els = pg.get("elements", [])
+            if pi == req.page_index:
+                continue
+            pg_summary = json.dumps([{k: v for k, v in el.items() if k not in ("src","svgContent","htmlContent")} for el in els], ensure_ascii=False)
+            all_pages_summary += f"\n  Sayfa {pi}: {pg_summary if pg_summary != '[]' else '(boş)'}"
 
-━━━ SAYFA BİLGİSİ ━━━
+    system_prompt = f"""Sen ZETA, ZET Mindshare belge editörünün AI asistanısın.
+Görevin: Kullanıcının isteğine göre belge sayfalarına JSON operasyonları üretmek.
+
+━━━ BELGE BİLGİSİ ━━━
 Sayfa boyutu: {pw}×{ph} piksel (koordinat başlangıcı sol-üst köşe)
-Mevcut sayfa indeksi: {req.page_index}
-Mevcut elementler:
+Toplam sayfa sayısı: {len(req.all_pages) if req.all_pages else 1}
+Aktif sayfa indeksi: {req.page_index}
+Aktif sayfa elementleri:
 {existing_summary if existing_summary != "[]" else "(sayfa boş)"}
+{f"Diğer sayfalar:{all_pages_summary}" if all_pages_summary else ""}
 
 ━━━ ELEMENT TİPLERİ VE FORMATLARI ━━━
 
@@ -4548,8 +4561,8 @@ Kullanılabilir shapeType değerleri:
   "height": 320,
   "chartMeta": {{
     "type": "bar" | "pie" | "line",
-    "labels": "Ocak,Şubat,Mart",           // virgülle ayrılmış etiketler
-    "data": "10,20,30",                     // virgülle ayrılmış sayılar (label sayısıyla eşit)
+    "labels": "Ocak,Şubat,Mart",
+    "data": "10,20,30",
     "title": "Grafik Başlığı",
     "colors": ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6"],
     "gradientStart": null,
@@ -4557,12 +4570,40 @@ Kullanılabilir shapeType değerleri:
   }}
 }}
 
-━━━ OPERASYONLARo ━━━
+6. GÖRSEL (type: "image")
+{{
+  "id": "el_<timestamp>_<random4>",
+  "type": "image",
+  "x": <number>,
+  "y": <number>,
+  "width": <number>,    // genelde 200-400
+  "height": <number>,   // genelde 150-300
+  "src": "https://placehold.co/<width>x<height>/eee/999?text=<URLencoded_label>"
+}}
+// Kullanıcı belirli bir görsel URL'si verdiyse onu kullan. Aksi hâlde placehold.co placeholder ekle.
+
+7. ÇİZİM (type: "draw_path") — basit düz çizgiler ve geometrik yollar
+{{
+  "action": "add_path",
+  "path": {{
+    "points": [{{"x": <n>, "y": <n>}}, {{"x": <n>, "y": <n>}}, ...],  // en az 2 nokta
+    "color": "#000000",
+    "size": 2,          // çizgi kalınlığı px
+    "opacity": 100      // 0-100
+  }},
+  "target_page": <sayfa_indeksi>   // varsayılan: aktif sayfa
+}}
+// Düz çizgi = 2 nokta, dikdörtgen = 5 nokta (başlangıç tekrar), ok = 3 nokta
+
+━━━ OPERASYONLAR ━━━
 Her operasyon şu formatlardan biri:
 
-EKLE:   {{"action": "add",    "element": {{...yukarıdaki format...}}}}
-DEĞİŞTİR: {{"action": "modify", "element_id": "<mevcut element id>", "changes": {{...değişen alanlar...}}}}
-SİL:    {{"action": "delete", "element_id": "<mevcut element id>"}}
+EKLE element:    {{"action": "add",       "element": {{...format...}},      "target_page": <indeks>}}
+DEĞİŞTİR:        {{"action": "modify",    "element_id": "<id>",  "changes": {{...}}, "target_page": <indeks>}}
+SİL:             {{"action": "delete",    "element_id": "<id>",              "target_page": <indeks>}}
+ÇİZİM EKLE:     {{"action": "add_path",  "path": {{...}},                   "target_page": <indeks>}}
+
+target_page belirtilmezse aktif sayfa ({req.page_index}) kullanılır.
 
 ━━━ ÇIKTI FORMAT ━━━
 Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
@@ -4573,15 +4614,17 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
   ]
 }}
 
-━━━ KURALLLAR ━━━
+━━━ KURALLAR ━━━
 - Elementleri sayfa dışına çıkarma: x + width <= {pw}, y + height <= {ph}
 - Mevcut elementlerin üzerine binme — mevcut elementlerin y koordinatlarına dikkat et
+- Taşıma: modify ile x ve/veya y koordinatlarını değiştir
 - ID'ler benzersiz olmalı: "el_" + büyük sayı (örn: el_1717000000000_a3b2)
 - Metin genişliği genellikle {pw - 80} piksel (kenar boşlukları için)
 - Başlıklar için fontSize 24-48, gövde metin için 14-18 kullan
 - Renk belirtilmemişse koyu metinler #000000, başlıklar #1a1a2e, vurgular #292f91 kullan
 - Kullanıcı "sil" diyorsa element_id'yi mevcut elementlerden al
-- Kullanıcı "değiştir/düzenle" diyorsa mevcut element'i modify et, yenisini ekleme
+- Kullanıcı "değiştir/düzenle/taşı" diyorsa mevcut element'i modify et, yenisini ekleme
+- Başka sayfaya element eklerken doğru target_page belirt
 """
 
     full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"

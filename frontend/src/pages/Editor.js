@@ -1075,6 +1075,12 @@ const Editor = () => {
     setZetaEditExplanation('');
     try {
       const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
+      const allPagesPayload = (document.pages || []).map((p, i) => ({
+        page_index: i,
+        elements: i === currentPage
+          ? canvasElements.filter(el => !el.isPending && !el.isPendingDelete)
+          : (p.elements || []),
+      }));
       const res = await axios.post(`${API}/zeta/document-edit`, {
         user_request: request,
         page_elements: canvasElements.filter(el => !el.isPending && !el.isPendingDelete),
@@ -1082,14 +1088,44 @@ const Editor = () => {
         page_index: currentPage,
         doc_id: docId,
         is_ceo: isCEO,
+        all_pages: allPagesPayload,
       }, { withCredentials: true });
       const { operations = [], explanation = '' } = res.data;
       setZetaEditExplanation(explanation);
       setZetaEditInput('');
       const newPendingLog = [];
+      // Handle add_path operations (drawPaths, not canvasElements)
+      const pathOpsForCurrentPage = operations.filter(op => op.action === 'add_path' && (op.target_page == null || op.target_page === currentPage));
+      if (pathOpsForCurrentPage.length > 0) {
+        setDrawPaths(prev => [...prev, ...pathOpsForCurrentPage.map(op => ({ ...op.path, id: `path_${Date.now()}_${Math.random().toString(36).slice(2,6)}` }))]);
+      }
+      // Handle operations targeting other pages
+      const otherPageOps = operations.filter(op => op.action !== 'add_path' && op.target_page != null && op.target_page !== currentPage);
+      if (otherPageOps.length > 0) {
+        setDocument(prev => {
+          const pages = [...(prev.pages || [])];
+          for (const op of otherPageOps) {
+            const pi = op.target_page;
+            if (!pages[pi]) continue;
+            let els = [...(pages[pi].elements || [])];
+            if (op.action === 'add' && op.element) {
+              if (op.element.type === 'chart' && op.element.chartMeta) { const g = generateChartSVG(op.element.chartMeta); op.element.svgContent = g.svg; op.element.src = g.imgSrc; op.element.width = op.element.width || g.width; op.element.height = op.element.height || g.height; }
+              els.push(op.element);
+            } else if (op.action === 'modify' && op.element_id) {
+              els = els.map(el => el.id === op.element_id ? { ...el, ...op.changes } : el);
+            } else if (op.action === 'delete' && op.element_id) {
+              els = els.filter(el => el.id !== op.element_id);
+            }
+            pages[pi] = { ...pages[pi], elements: els };
+          }
+          return { ...prev, pages };
+        });
+      }
       setCanvasElements(prev => {
         let els = [...prev];
         for (const op of operations) {
+          if (op.action === 'add_path') continue;
+          if (op.target_page != null && op.target_page !== currentPage) continue;
           if (op.action === 'add' && op.element && op.element.type === 'chart' && op.element.chartMeta) {
             const { svg, imgSrc, width, height } = generateChartSVG(op.element.chartMeta);
             op.element.svgContent = svg;
