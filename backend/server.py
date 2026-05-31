@@ -4565,29 +4565,20 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 - Kullanıcı "değiştir/düzenle" diyorsa mevcut element'i modify et, yenisini ekleme
 """
 
+    full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"
+
     try:
         client_g = google_genai.Client(api_key=api_key)
         response = client_g.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[
-                {"role": "user", "parts": [{"text": system_prompt}]},
-                {"role": "model", "parts": [{"text": '{"explanation":"'}]},
-                {"role": "user", "parts": [{"text": req.user_request}]},
-            ],
+            contents=[{"role": "user", "parts": [{"text": full_prompt}]}],
             config=genai_types.GenerateContentConfig(
                 temperature=0.4,
                 max_output_tokens=4096,
+                response_mime_type="application/json",
             )
         )
         raw = (response.text or "").strip()
-        # Eğer partial prefill bıraktıysak düzelt
-        if not raw.startswith("{"):
-            raw = '{"explanation":"' + raw
-        # JSON çıkarma: ```json bloğu varsa temizle
-        import re as _re
-        json_match = _re.search(r'\{[\s\S]*\}', raw)
-        if json_match:
-            raw = json_match.group(0)
         result = json.loads(raw)
         await add_token_usage(user.user_id, getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0)
         return {
@@ -4595,6 +4586,7 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
             "operations": result.get("operations", [])
         }
     except json.JSONDecodeError:
+        logging.error(f"zeta_document_edit JSON parse error, raw[:300]: {raw[:300] if 'raw' in dir() else 'N/A'}")
         return {"explanation": "JSON ayrıştırma hatası.", "operations": []}
     except Exception as e:
         logging.error(f"zeta_document_edit error: {e}")
