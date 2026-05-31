@@ -4538,6 +4538,25 @@ Kullanılabilir shapeType değerleri:
   "color": "#3b82f6"
 }}
 
+5. GRAFİK (type: "chart")
+{{
+  "id": "el_<timestamp>_<random4>",
+  "type": "chart",
+  "x": <number>,
+  "y": <number>,
+  "width": 420,
+  "height": 320,
+  "chartMeta": {{
+    "type": "bar" | "pie" | "line",
+    "labels": "Ocak,Şubat,Mart",           // virgülle ayrılmış etiketler
+    "data": "10,20,30",                     // virgülle ayrılmış sayılar (label sayısıyla eşit)
+    "title": "Grafik Başlığı",
+    "colors": ["#3b82f6","#10b981","#f59e0b","#ef4444","#8b5cf6"],
+    "gradientStart": null,
+    "gradientEnd": null
+  }}
+}}
+
 ━━━ OPERASYONLARo ━━━
 Her operasyon şu formatlardan biri:
 

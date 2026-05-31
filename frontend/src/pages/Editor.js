@@ -83,6 +83,43 @@ const ResizableDivider = ({ onResize }) => {
   );
 };
 
+function generateChartSVG(meta) {
+  const { type, labels: labelsStr, data: dataStr, title = '', colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'], gradientStart = null, gradientEnd = null } = meta || {};
+  const labels = (labelsStr || '').split(',').map(l => l.trim()).filter(Boolean);
+  const rawData = (dataStr || '').split(',').map(d => parseFloat(d.trim()));
+  const data = rawData.map(d => isNaN(d) ? 0 : d);
+  while (data.length < labels.length) data.push(0);
+  const width = 420, height = 320;
+  const pad = { top: 40, right: 20, bottom: 45, left: 50 };
+  const cw = width - pad.left - pad.right, ch = height - pad.top - pad.bottom;
+  const maxVal = Math.max(...data, 1);
+  let defs = '<defs>';
+  if (gradientStart && gradientEnd) data.forEach((_, i) => { defs += `<linearGradient id="cg${i}" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="${gradientStart}"/><stop offset="100%" stop-color="${gradientEnd}"/></linearGradient>`; });
+  defs += '</defs>';
+  const fill = (i) => gradientStart && gradientEnd ? `url(#cg${i})` : (colors || [])[i % (colors || ['#3b82f6']).length] || '#3b82f6';
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" style="font-family:Arial,sans-serif"><rect width="${width}" height="${height}" fill="white" rx="8"/>${defs}<text x="${width/2}" y="24" text-anchor="middle" font-size="14" font-weight="600" fill="#1a1a2e">${(title||'').replace(/</g,'&lt;')}</text>`;
+  if (type === 'bar') {
+    svg += `<line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top+ch}" stroke="#e5e7eb" stroke-width="1"/><line x1="${pad.left}" y1="${pad.top+ch}" x2="${pad.left+cw}" y2="${pad.top+ch}" stroke="#e5e7eb" stroke-width="1"/>`;
+    for (let g=0;g<=4;g++){const gy=pad.top+ch-(g/4)*ch,gv=Math.round((maxVal*g)/4);svg+=`<line x1="${pad.left}" y1="${gy}" x2="${pad.left+cw}" y2="${gy}" stroke="#f3f4f6" stroke-width="0.5"/><text x="${pad.left-6}" y="${gy+4}" text-anchor="end" font-size="9" fill="#9ca3af">${gv}</text>`;}
+    const gap=8,bw=Math.max(10,(cw-gap*(labels.length+1))/labels.length);
+    labels.forEach((label,i)=>{const bh=Math.max(2,(data[i]/maxVal)*ch),x=pad.left+gap+i*(bw+gap),y=pad.top+ch-bh;svg+=`<rect x="${x}" y="${y}" width="${bw}" height="${bh}" fill="${fill(i)}" rx="3"/><text x="${x+bw/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="#374151" font-weight="500">${data[i]}</text><text x="${x+bw/2}" y="${pad.top+ch+14}" text-anchor="middle" font-size="9" fill="#6b7280">${label.length>8?label.slice(0,8)+'..':label}</text>`;});
+  } else if (type === 'pie') {
+    const total=data.reduce((a,b)=>a+b,0)||1,cx=width/2,cy=height/2+10,r=Math.min(cw,ch)/2-20;let sa=-Math.PI/2;
+    labels.forEach((label,i)=>{const angle=(data[i]/total)*Math.PI*2;if(angle<0.001){sa+=angle;return;}const ea=sa+angle,x1=cx+r*Math.cos(sa),y1=cy+r*Math.sin(sa),x2=cx+r*Math.cos(ea),y2=cy+r*Math.sin(ea),la=angle>Math.PI?1:0;svg+=`<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${la} 1 ${x2},${y2} Z" fill="${fill(i)}" stroke="white" stroke-width="2"/>`;const mid=sa+angle/2,lx=cx+(r*0.65)*Math.cos(mid),ly=cy+(r*0.65)*Math.sin(mid),pct=Math.round((data[i]/total)*100);if(pct>=5)svg+=`<text x="${lx}" y="${ly+4}" text-anchor="middle" font-size="9" fill="white" font-weight="600">${pct}%</text>`;sa=ea;});
+    const lgX=10,lgY=height-18;labels.forEach((label,i)=>{const lx=lgX+i*Math.min(90,width/labels.length);svg+=`<rect x="${lx}" y="${lgY}" width="8" height="8" fill="${fill(i)}" rx="2"/><text x="${lx+12}" y="${lgY+8}" font-size="8" fill="#6b7280">${label.length>8?label.slice(0,8)+'..':label}</text>`;});
+  } else if (type === 'line') {
+    svg+=`<line x1="${pad.left}" y1="${pad.top}" x2="${pad.left}" y2="${pad.top+ch}" stroke="#e5e7eb" stroke-width="1"/><line x1="${pad.left}" y1="${pad.top+ch}" x2="${pad.left+cw}" y2="${pad.top+ch}" stroke="#e5e7eb" stroke-width="1"/>`;
+    for(let g=0;g<=4;g++){const gy=pad.top+ch-(g/4)*ch,gv=Math.round((maxVal*g)/4);svg+=`<line x1="${pad.left}" y1="${gy}" x2="${pad.left+cw}" y2="${gy}" stroke="#f3f4f6" stroke-width="0.5"/><text x="${pad.left-6}" y="${gy+4}" text-anchor="end" font-size="9" fill="#9ca3af">${gv}</text>`;}
+    const sp=cw/Math.max(1,labels.length-1),lc=gradientStart||((colors||['#3b82f6'])[0]);let area=`M${pad.left},${pad.top+ch}`,line='';
+    labels.forEach((label,i)=>{const x=pad.left+i*sp,y=pad.top+ch-(data[i]/maxVal)*ch;line+=(i===0?'M':'L')+`${x},${y}`;area+=`L${x},${y}`;svg+=`<text x="${x}" y="${pad.top+ch+14}" text-anchor="middle" font-size="9" fill="#6b7280">${label.length>8?label.slice(0,8)+'..':label}</text>`;});
+    area+=`L${pad.left+(labels.length-1)*sp},${pad.top+ch}Z`;svg+=`<path d="${area}" fill="${lc}" opacity="0.1"/><path d="${line}" stroke="${lc}" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>`;
+    labels.forEach((label,i)=>{const x=pad.left+i*sp,y=pad.top+ch-(data[i]/maxVal)*ch;svg+=`<circle cx="${x}" cy="${y}" r="4" fill="white" stroke="${lc}" stroke-width="2"/><text x="${x}" y="${y-8}" text-anchor="middle" font-size="9" fill="#374151" font-weight="500">${data[i]}</text>`;});
+  }
+  svg += '</svg>';
+  const imgSrc = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svg)));
+  return { svg, imgSrc, width, height };
+}
+
 const Editor = () => {
   const { docId } = useParams();
   const navigate = useNavigate();
@@ -1053,6 +1090,13 @@ const Editor = () => {
       setCanvasElements(prev => {
         let els = [...prev];
         for (const op of operations) {
+          if (op.action === 'add' && op.element && op.element.type === 'chart' && op.element.chartMeta) {
+            const { svg, imgSrc, width, height } = generateChartSVG(op.element.chartMeta);
+            op.element.svgContent = svg;
+            op.element.src = imgSrc;
+            op.element.width = op.element.width || width;
+            op.element.height = op.element.height || height;
+          }
           if (op.action === 'add' && op.element) {
             const el = { ...op.element, isPending: true };
             els.push(el);
