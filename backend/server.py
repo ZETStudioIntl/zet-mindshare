@@ -1,3 +1,4 @@
+import sys; print("SRV_BOOT: import start", flush=True)
 from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
@@ -42,17 +43,22 @@ try:
 except ImportError:
     _PROFANITY_AVAILABLE = False
 
+print("SRV_BOOT: imports done", flush=True)
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
+print("SRV_BOOT: env loaded", flush=True)
 
 # MongoDB connection
 mongo_url = os.environ['MONGO_URL']
+print("SRV_BOOT: mongo_url read", flush=True)
 client = AsyncIOMotorClient(mongo_url, minPoolSize=1, maxPoolSize=10, serverSelectionTimeoutMS=10000)
 db = client[os.environ['DB_NAME']]
 users_collection = db.users
 docs_collection = db.documents
+print("SRV_BOOT: mongo client created", flush=True)
 
 app = FastAPI()
+print("SRV_BOOT: fastapi app created", flush=True)
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
 ADMIN_EMAILS = {"info@zetstudiointl.com", "support@zetstudiointl.com", "ideas@zetstudiointl.com"}
 api_router = APIRouter(prefix="/api")
@@ -5855,14 +5861,17 @@ async def _ensure_indexes():
 
 @app.on_event("startup")
 async def start_background_tasks():
+    print("SRV_BOOT: startup handler called", flush=True)
     try:
         asyncio.create_task(send_weekly_report())
         asyncio.create_task(expire_boosts_loop())
         asyncio.create_task(keepalive_ping())
         asyncio.create_task(_ensure_indexes())
         logging.info("Background tasks created successfully")
+        print("SRV_BOOT: background tasks created", flush=True)
     except Exception as e:
         logging.error(f"Background task creation failed (non-fatal): {e}")
+        print(f"SRV_BOOT: background task error: {e}", flush=True)
 
     if _APSCHEDULER_AVAILABLE:
         try:
@@ -5871,10 +5880,14 @@ async def start_background_tasks():
             scheduler.add_job(_check_season_end, "cron", hour=0, minute=5)
             scheduler.start()
             logging.info("APScheduler started — renewal check 08:00 UTC, season check 00:05 UTC")
+            print("SRV_BOOT: APScheduler started", flush=True)
         except Exception as e:
             logging.error(f"APScheduler failed to start (non-fatal): {e}")
+            print(f"SRV_BOOT: APScheduler error: {e}", flush=True)
+    print("SRV_BOOT: startup complete", flush=True)
 
 app.include_router(api_router)
+print("SRV_BOOT: router included", flush=True)
 
 frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
@@ -5899,6 +5912,7 @@ app.add_middleware(
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+print("SRV_BOOT: module load complete", flush=True)
 
 @app.on_event("shutdown")
 async def shutdown_db_client():
