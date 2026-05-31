@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
-import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette } from 'lucide-react';
+import { EditorStateContext } from '../../contexts/EditorStateContext';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 import SelfTestPanel from './SelfTestPanel';
@@ -42,10 +43,10 @@ export const RightPanel = ({
   canvasElements,
   activeTool,
 }) => {
-  const { t, language } = useLanguage();
+  const { t } = useLanguage();
   const { user } = useAuth();
+  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation } = useContext(EditorStateContext);
   const [pagesOpen, setPagesOpen] = useState(true);
-  const [zetaOpen, setZetaOpen] = useState(true);
 
   // CEO / Admin / console state
   const [isCEO, setIsCEO] = useState(() => localStorage.getItem('zet_ceo_mode') === 'true');
@@ -77,10 +78,23 @@ export const RightPanel = ({
   const typingAudioRef = useRef(null);
   const typingIntervalRef = useRef(null);
 
-  // ZETA sub-mode: 'chat' | 'patch' | 'puzzle' | 'colors'
+  // ZETA sub-mode: 'chat' | 'patch' | 'puzzle' | 'colors' | 'edit'
   const [zetaMode, setZetaMode] = useState('chat');
-  const [prevModel, setPrevModel] = useState(null); // model saved before entering puzzle
+  const [prevModel, setPrevModel] = useState(null);
   const [showModePanel, setShowModePanel] = useState(false);
+
+  // Attached document state
+  const [attachedDoc, setAttachedDoc] = useState(null);
+  const docFileRef = useRef(null);
+
+  const handleDocFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setAttachedDoc({ name: file.name, content: ev.target.result });
+    reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
 
   // Model selection
   const [zetaModel, setZetaModel] = useState('prime');
@@ -430,6 +444,26 @@ export const RightPanel = ({
     }, 20);
   };
 
+  const lastEditExplRef = useRef('');
+  useEffect(() => {
+    if (zetaMode !== 'edit') return;
+    if (!zetaEditExplanation || zetaEditExplanation === lastEditExplRef.current) return;
+    if (zetaEditLoading) return;
+    lastEditExplRef.current = zetaEditExplanation;
+    setZetaMessages(prev => [...prev, { role: 'assistant', content: zetaEditExplanation }]);
+  }, [zetaEditExplanation, zetaEditLoading, zetaMode]);
+
+  const sendEditMessage = () => {
+    if (!zetaInput.trim() || zetaEditLoading) return;
+    const raw = zetaInput.trim();
+    const displayMsg = attachedDoc ? `[📎 ${attachedDoc.name}]\n${raw}` : raw;
+    const prompt = attachedDoc ? `Ekteki belge içeriği:\n"""\n${attachedDoc.content}\n"""\n\n${raw}` : raw;
+    setZetaMessages(prev => [...prev, { role: 'user', content: displayMsg }]);
+    setZetaInput('');
+    setAttachedDoc(null);
+    applyZetaDocEdit(prompt);
+  };
+
   const sendZetaMessage = async () => {
     if (!zetaInput.trim() || zetaLoading) return;
     // Intercept console command
@@ -438,11 +472,14 @@ export const RightPanel = ({
       setShowConsole(true);
       return;
     }
-    const msg = zetaInput;
+    const rawMsg = zetaInput;
     const imageToSend = zetaImage;
-    setZetaMessages(prev => [...prev, { role: 'user', content: msg, image: imageToSend || null }]);
+    const msg = attachedDoc ? `Ekteki belge içeriği:\n"""\n${attachedDoc.content}\n"""\n\n${rawMsg}` : rawMsg;
+    const displayMsg = attachedDoc ? `[📎 ${attachedDoc.name}]\n${rawMsg}` : rawMsg;
+    setZetaMessages(prev => [...prev, { role: 'user', content: displayMsg, image: imageToSend || null }]);
     setZetaInput('');
     setZetaImage(null);
+    setAttachedDoc(null);
     setZetaLoading(true);
     // Build live canvas context snapshot
     const buildCanvasContext = () => {
@@ -639,7 +676,7 @@ export const RightPanel = ({
 
 
         {/* ── Chat / Patch / Puzzle: shared messages + input layout ── */}
-        {(zetaMode === 'chat' || zetaMode === 'patch' || zetaMode === 'puzzle') && (
+        {(zetaMode === 'chat' || zetaMode === 'patch' || zetaMode === 'puzzle' || zetaMode === 'edit') && (
           <>
             {zetaMode === 'puzzle' && (
               <div className="flex-shrink-0 flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }}>
@@ -659,6 +696,11 @@ export const RightPanel = ({
                     <>
                       <p className="text-xs font-medium">Puzzle modu</p>
                       <p className="text-[10px] mt-2 opacity-70">Karmaşık sorunlar için derin analiz. Zeta Aziz modeli kullanılıyor.</p>
+                    </>
+                  ) : zetaMode === 'edit' ? (
+                    <>
+                      <p className="text-xs font-medium">Edit modu</p>
+                      <p className="text-[10px] mt-2 opacity-70">Canvas elementlerini ekle, değiştir veya sil. Örnek: "Kırmızı bir başlık ekle"</p>
                     </>
                   ) : (
                     <>
@@ -731,6 +773,7 @@ export const RightPanel = ({
                   { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                   { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',            desc: 'Derin problem çözme · Aziz' },
                   { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
+                  { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#4ca8ad',            desc: 'Canvas elementleri düzenle' },
                 ];
                 return (
                   <div className="absolute bottom-full left-0 right-0 mx-2 mb-1 rounded-lg shadow-xl overflow-hidden z-50 border"
@@ -752,16 +795,32 @@ export const RightPanel = ({
                   </div>
                 );
               })()}
+              {/* Edit mode: approve/reject bar */}
+              {zetaMode === 'edit' && zetaPendingCount > 0 && (
+                <div className="mb-2 flex items-center gap-2 px-1">
+                  <span className="text-[10px] flex-1" style={{ color: 'var(--zet-text-muted)' }}>{zetaPendingCount} değişiklik bekliyor</span>
+                  <button onClick={approveZetaOps} className="text-[10px] px-2 py-1 rounded-md font-semibold" style={{ background: 'rgba(76,168,173,0.2)', color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>Onayla</button>
+                  <button onClick={rejectZetaOps} className="text-[10px] px-2 py-1 rounded-md font-semibold" style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>Reddet</button>
+                </div>
+              )}
               {zetaImage && (
                 <div className="mb-2 relative inline-block">
                   <img src={zetaImage} alt="To send" className="max-w-[80px] max-h-[60px] rounded" />
                   <button onClick={() => setZetaImage(null)} className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-xs flex items-center justify-center">x</button>
                 </div>
               )}
+              {attachedDoc && (
+                <div className="mb-2 flex items-center gap-1.5 px-2 py-1 rounded-md text-[10px]" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.2)', color: '#4ca8ad' }}>
+                  <Paperclip className="h-2.5 w-2.5 flex-shrink-0" />
+                  <span className="flex-1 truncate">{attachedDoc.name}</span>
+                  <button onClick={() => setAttachedDoc(null)} className="opacity-60 hover:opacity-100">×</button>
+                </div>
+              )}
+              <input ref={docFileRef} type="file" accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py" onChange={handleDocFileChange} className="hidden" />
               <div className="flex gap-1">
                 {/* Gear/settings button — shows active mode colour */}
                 {(() => {
-                  const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'puzzle' ? '#f59e0b' : zetaMode === 'colors' ? '#ec4899' : 'var(--zet-primary)';
+                  const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'puzzle' ? '#f59e0b' : zetaMode === 'colors' ? '#ec4899' : zetaMode === 'edit' ? '#4ca8ad' : 'var(--zet-primary)';
                   return (
                     <button onClick={() => setShowModePanel(v => !v)} className="zet-btn px-2 flex-shrink-0" title="Mod seç"
                       style={{ color: modeColor, background: showModePanel ? modeColor + '18' : undefined }}>
@@ -769,20 +828,29 @@ export const RightPanel = ({
                     </button>
                   );
                 })()}
+                <button onClick={() => docFileRef.current?.click()} className="zet-btn px-2 flex-shrink-0" title="Belge ekle"
+                  style={{ color: attachedDoc ? '#4ca8ad' : undefined, background: attachedDoc ? 'rgba(76,168,173,0.15)' : undefined }}>
+                  <Paperclip className="h-3 w-3" />
+                </button>
                 <input
                   data-testid="zeta-input"
                   placeholder={
                     zetaMode === 'patch'  ? 'Örn: "5-6. sayfalardaki yazım hatalarını bul"' :
                     zetaMode === 'puzzle' ? 'Karmaşık sorununu yaz…' :
+                    zetaMode === 'edit'   ? 'Örn: "Kırmızı bir başlık ekle, tablo oluştur"' :
                     t('askZeta')
                   }
                   value={zetaInput}
                   onChange={e => setZetaInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) sendZetaMessage(); }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { if (zetaMode === 'edit') sendEditMessage(); else sendZetaMessage(); } }}
                   className="zet-input flex-1 text-xs py-1.5"
                 />
-                <button data-testid="zeta-send-btn" onClick={sendZetaMessage} className="zet-btn px-2">
-                  <Send className="h-3 w-3" />
+                <button data-testid="zeta-send-btn" onClick={zetaMode === 'edit' ? sendEditMessage : sendZetaMessage}
+                  disabled={zetaMode === 'edit' ? zetaEditLoading : zetaLoading}
+                  className="zet-btn px-2">
+                  {(zetaMode === 'edit' ? zetaEditLoading : zetaLoading)
+                    ? <Loader2 className="h-3 w-3 animate-spin" />
+                    : <Send className="h-3 w-3" />}
                 </button>
               </div>
             </div>
