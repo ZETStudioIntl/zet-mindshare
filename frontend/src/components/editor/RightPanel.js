@@ -91,7 +91,22 @@ export const RightPanel = ({
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => setAttachedDoc({ name: file.name, content: ev.target.result });
+    reader.onload = (ev) => {
+      let content = ev.target.result;
+      if (file.name.endsWith('.ms')) {
+        try {
+          const ms = JSON.parse(content);
+          const title = ms.meta?.title || 'İsimsiz';
+          const pageCount = ms.pages?.length || 0;
+          const pageLines = (ms.pages || []).map((p, i) => {
+            const text = (p.blocks || []).map(b => (b.content || '').replace(/<[^>]*>/g, '').trim()).filter(Boolean).join(' ').slice(0, 300);
+            return `Sayfa ${i + 1}: ${text || '(boş)'}`;
+          }).join('\n');
+          content = `[.ms belgesi] "${title}" — ${pageCount} sayfa\n${pageLines}`;
+        } catch (_) {}
+      }
+      setAttachedDoc({ name: file.name, content });
+    };
     reader.readAsText(file, 'UTF-8');
     e.target.value = '';
   };
@@ -820,7 +835,7 @@ export const RightPanel = ({
                   <button onClick={() => setAttachedDoc(null)} className="opacity-60 hover:opacity-100">×</button>
                 </div>
               )}
-              <input ref={docFileRef} type="file" accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py" onChange={handleDocFileChange} className="hidden" />
+              <input ref={docFileRef} type="file" accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py,.ms" onChange={handleDocFileChange} className="hidden" />
               {zetaMode === 'edit' && zetaEditSuggestions && zetaEditSuggestions.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1">
                   {zetaEditSuggestions.map((s, i) => (

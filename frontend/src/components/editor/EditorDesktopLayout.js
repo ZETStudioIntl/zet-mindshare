@@ -42,7 +42,7 @@ const EditorDesktopLayout = () => {
     handleChangeImage, handleEditChart, handleElementSelect, handleImageUpload,
     handleInsertText, handleLinkClick, handleRedo, handleSaveHistory, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
-    history, importPDF, isOnline, isFreeOffline,
+    history, importPDF, importFromMS, isOnline, isFreeOffline,
     isBold, isItalic, isMobile, isPlaying, isStrikethrough, isUnderline,
     judgeMood, leftWidth, setLeftWidth,
     magnifierBorderColor, magnifierGradientEnd, magnifierGradientStart,
@@ -79,7 +79,7 @@ const EditorDesktopLayout = () => {
         </div>
       )}
       {/* Hidden PDF input */}
-      <input ref={pdfInputRef} type="file" accept=".pdf" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importPDF(f); e.target.value = ''; }} />
+      <input ref={pdfInputRef} type="file" accept=".pdf,.ms" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) { f.name.endsWith('.ms') ? importFromMS(f) : importPDF(f); } e.target.value = ''; }} />
       {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><MiniDocLoader padding="8px 0" /><p style={{ color: 'var(--zet-text)', marginTop: 4 }}>PDF içe aktarılıyor...</p></div></div>}
       <header data-testid="editor-header" className="h-12 px-3 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-2">

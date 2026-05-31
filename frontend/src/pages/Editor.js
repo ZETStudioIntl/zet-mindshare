@@ -3212,7 +3212,7 @@ const Editor = () => {
     handleChangeImage, handleEditChart, handleElementSelect, handleImageUpload,
     handleInsertText, handleLinkClick, handleRedo, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
-    importPDF, isOnline, isFreeOffline, isPlaying,
+    importPDF, importFromMS, isOnline, isFreeOffline, isPlaying,
     leftWidth, setLeftWidth, magnifierPos, setMagnifierPos,
     mirrorElementById, mobilePanel, setMobilePanel,
     navigate, pdfImporting, pdfInputRef, playVoiceFrom, refreshCredits,

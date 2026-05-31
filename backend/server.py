@@ -128,8 +128,11 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
             raise  # non-503 hataları direkt fırlat
     raise last_exc
 
+_FAKE_DOMAINS = {'example.com', 'example.org', 'example.net', 'localhost', 'test.com', 'test.org', 'placeholder.com'}
+
 def extract_sources(resp) -> list:
     """Gemini grounding_metadata'dan web kaynaklarını çıkarır."""
+    from urllib.parse import urlparse
     sources = []
     try:
         candidates = getattr(resp, 'candidates', None) or []
@@ -146,7 +149,15 @@ def extract_sources(resp) -> list:
                 continue
             url   = getattr(web, 'uri',   '') or ''
             title = getattr(web, 'title', '') or url
-            if url and url not in seen:
+            if not url or not url.startswith(('http://', 'https://')):
+                continue
+            try:
+                netloc = urlparse(url).netloc.lower().removeprefix('www.')
+                if netloc in _FAKE_DOMAINS:
+                    continue
+            except Exception:
+                continue
+            if url not in seen:
                 seen.add(url)
                 sources.append({"title": title, "url": url})
     except Exception:
