@@ -2141,6 +2141,8 @@ export const CanvasArea = ({
                     transform: transformStyle,
                     transformOrigin: 'center center',
                     clipPath: el.clipPath ? `polygon(${el.clipPath})` : undefined,
+                    ...(el.isPending ? { outline: '2px dashed #ef4444', boxShadow: '0 0 10px rgba(239,68,68,0.35)', zIndex: 50 } : {}),
+                    ...(el.isPendingDelete ? { outline: '2px dashed #ef4444', opacity: 0.35, pointerEvents: 'none' } : {}),
                   }}
                   onMouseEnter={() => setHoveredElementId(el.id)}
                   onMouseLeave={() => setHoveredElementId(null)}

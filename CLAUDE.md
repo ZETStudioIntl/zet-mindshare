@@ -151,13 +151,17 @@ CanvasArea.js içindeki render/davranış mantığı ayrıdır — ikisine aynı
 
 ## Dil Kararları
 
+**Varsayılan dil: C++**
+
+Zorunlu olmadıkça her yeni proje, modül veya bağımsız araç C++ ile yazılır. Web versiyonu için hangi teknoloji gerekiyorsa (React, JS, Python vb.) kullanılır — web katmanı bu kuralın dışındadır.
+
 | Proje | Dil |
 |-------|-----|
 | Web frontend (Dashboard, Editor, vb.) | React / JavaScript |
 | Backend API | Python / FastAPI |
-| **Canvas ve tool projeleri (yeni/bağımsız)** | **C++** |
+| **Diğer her şey (yeni/bağımsız proje, araç, modül)** | **C++** |
 
-> Canvas ve tool mantığı bağımsız bir modül/proje olarak yazılacaksa C++ kullanılır. Mevcut `CanvasArea.js` React içinde kalmaya devam eder — yalnızca yeni bağımsız projeler için geçerli.
+> Web dışındaki her yeni proje varsayılan olarak C++ ile başlar. "Zorunlu" istisna: platforma özgü bir SDK sadece başka bir dilde mevcutsa veya kullanıcı açıkça farklı bir dil belirtirse.
 
 ---
 

@@ -17,6 +17,7 @@ import RanksModal from '../components/dashboard/RanksModal';
 import NotebookPasswordModal from '../components/dashboard/NotebookPasswordModal';
 import MissionsModal from '../components/dashboard/MissionsModal';
 import SubscriptionModal from '../components/dashboard/SubscriptionModal';
+import UpgradePromptModal from '../components/dashboard/UpgradePromptModal';
 import DeleteConfirmModal from '../components/dashboard/DeleteConfirmModal';
 import ConfirmModal from '../components/dashboard/ConfirmModal';
 import ironRankImg from '../assets/rank-iron.svg';
@@ -153,6 +154,8 @@ const Dashboard = () => {
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
   });
   const [showSubscription, setShowSubscription] = useState(false);
+  const [upgradePrompt, setUpgradePrompt] = useState(null); // { featureName, requiredPlan }
+  const showUpgradePrompt = (featureName, requiredPlan) => setUpgradePrompt({ featureName, requiredPlan });
   const [billingCycle, setBillingCycle] = useState('yearly');
   const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
   const [userSubscription, setUserSubscription] = useState('free');
@@ -299,18 +302,19 @@ const Dashboard = () => {
     {
       id: 'plus',
       name: 'Plus',
-      monthlyPrice: 10,
-      yearlyPrice: 100,
+      monthlyPrice: 9.99,
+      yearlyPrice: 99,
       zpCost: 10000,
       scope: 'mindshare',
       scopeLabel: 'Sadece ZET Mindshare',
       features: [
-        '40 Kredi/gün',
-        'ZETA 500 token',
-        '3 Görsel Boyutu (16:9, 9:16, 1:1)',
-        'Katmanlar, Sayfa Rengi, Grafikler',
-        'Sınırsız Fast Select',
-        'E-posta Desteği',
+        '250 Kredi/gün',
+        '480K Token/gün (Zeta + Judge)',
+        'Tüm araçlar açık (Katmanlar, Gradyan, Şablonlar...)',
+        '10 Defter, 5 Fast Select',
+        'Judge Aziz modeli',
+        '20GB Prime Drive',
+        'Günde %40 sandık, aylık maks 10',
       ],
       color: '#3b82f6',
       recommended: false
@@ -318,18 +322,18 @@ const Dashboard = () => {
     {
       id: 'pro',
       name: 'Pro',
-      monthlyPrice: 25,
-      yearlyPrice: 250,
+      monthlyPrice: 19.99,
+      yearlyPrice: 199,
       zpCost: 30000,
       scope: 'mindshare',
       scopeLabel: 'Sadece ZET Mindshare',
       features: [
-        '130 Kredi/gün',
-        'ZETA Sınırsız',
-        'zeta colors pro',
-        '7 Görsel Boyutu',
-        'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
-        'Sınırsız Fast Select',
+        '500 Kredi/gün',
+        '1.3M Token/gün (Zeta + Judge)',
+        'Nano Banana Pro görsel üretimi',
+        '8 Fast Select, 50GB Prime Drive',
+        'Filigransız Auto-Write',
+        'Günde %60 sandık, aylık maks 20',
         'Öncelikli Destek',
       ],
       color: '#8b5cf6',
@@ -338,20 +342,17 @@ const Dashboard = () => {
     {
       id: 'creative_station',
       name: 'Creative Station',
-      monthlyPrice: 40,
-      yearlyPrice: 400,
+      monthlyPrice: 49,
+      yearlyPrice: 490,
       zpCost: 50000,
       scope: 'both',
-      scopeLabel: 'ZET Mindshare + ZET Judge',
+      scopeLabel: 'Tam Kapsamlı',
       features: [
-        '1200 Kredi/gün',
-        'ZETA Sınırsız',
-        'ZET Judge Sınırsız + Derin Analiz',
-        'zeta colors ultra',
-        'Tüm Görsel Boyutları (7 boyut)',
-        'Katmanlar, İmza, Filigran, Sayfa Rengi, Grafikler',
-        'Sınırsız Fast Select',
-        '7/24 Öncelikli Destek + API Erişimi',
+        '4000 Ortak Kredi/gün',
+        '4.8M Token/gün',
+        '1TB Prime Drive',
+        'Garantili Günlük Sandık (maks 30/ay)',
+        'Öncelikli Destek',
       ],
       color: '#f59e0b',
       recommended: false
@@ -1147,18 +1148,6 @@ const Dashboard = () => {
           const PDF_PAGE_LIMITS = { free: 20, plus: 50, pro: 100, creative_station: Infinity };
           const pageLimit = (isCEO || isAdmin) ? Infinity : (PDF_PAGE_LIMITS[userSubscription] ?? 20);
 
-          const resolvePdfFont = (fontName) => {
-            if (!fontName) return 'Arial';
-            const fn = fontName.toLowerCase();
-            if (fn.includes('courier')) return 'Courier New';
-            if (fn.includes('times')) return 'Times New Roman';
-            if (fn.includes('helvetica') || fn.includes('arial')) return 'Arial';
-            if (fn.includes('calibri')) return 'Calibri';
-            if (fn.includes('georgia')) return 'Georgia';
-            if (fn.includes('verdana')) return 'Verdana';
-            return 'Arial';
-          };
-
           const arrayBuffer = await window.__zetPdfFile.arrayBuffer();
           const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
           const numPages = Math.min(pdf.numPages, pageLimit);
@@ -1168,43 +1157,43 @@ const Dashboard = () => {
           for (let i = 1; i <= numPages; i++) {
             try {
               const page = await pdf.getPage(i);
-              const content = await page.getTextContent();
+              const viewport = page.getViewport({ scale: 1 });
+              const renderScale = Math.min(794 / viewport.width, 1123 / viewport.height);
+              const scaledViewport = page.getViewport({ scale: renderScale });
+              const renderCanvas = window.document.createElement('canvas');
+              renderCanvas.width = Math.round(scaledViewport.width);
+              renderCanvas.height = Math.round(scaledViewport.height);
+              const renderCtx = renderCanvas.getContext('2d');
+              await page.render({ canvasContext: renderCtx, viewport: scaledViewport }).promise;
+              const imgSrc = renderCanvas.toDataURL('image/jpeg', 0.88);
 
-              // Detect dominant font for this page
-              const firstItem = content.items.find(it => 'str' in it && it.str.trim());
-              const rawFont = firstItem ? (content.styles?.[firstItem.fontName]?.fontFamily || firstItem.fontName || null) : null;
-              const fontFamily = resolvePdfFont(rawFont);
-              // Detect font size from transform matrix (index 3 = vertical scale ≈ font size)
-              const rawSize = firstItem ? Math.abs(firstItem.transform[3]) : 12;
-              const fontSize = Math.min(Math.max(Math.round(rawSize), 8), 48);
-
-              // Build text preserving line breaks
-              let text = '';
+              // Extract text for Zeta analysis (invisible to editor, used only for summarize)
+              const textContent = await page.getTextContent();
+              let pageText = '';
               let lastY = null;
-              for (const item of content.items) {
+              for (const item of textContent.items) {
                 if (!('str' in item)) continue;
                 const y = item.transform[5];
-                if (lastY !== null && Math.abs(y - lastY) > 2) text += '\n';
-                text += item.str;
-                if (item.hasEOL) text += '\n';
+                if (lastY !== null && Math.abs(y - lastY) > 2) pageText += '\n';
+                pageText += item.str;
+                if (item.hasEOL) pageText += '\n';
                 lastY = y;
               }
 
               canvasPages.push({
                 page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`,
-                elements: text.trim() ? [{
+                elements: [{
                   id: `el_pdf_${t}_${i}`,
-                  type: 'text', x: 40, y: 40,
-                  content: text.trim(),
-                  htmlContent: text.trim().replace(/\n/g, '<br>'),
-                  fontSize, fontFamily, color: '#000000',
-                  width: 714, lineHeight: 1.5,
-                  textAlign: 'left', bold: false, italic: false, underline: false,
-                }] : [],
+                  type: 'image', x: 0, y: 0,
+                  width: renderCanvas.width,
+                  height: renderCanvas.height,
+                  src: imgSrc,
+                }],
                 drawPaths: [],
+                pageText: pageText.trim(),
               });
             } catch (pageErr) {
-              console.warn(`PDF page ${i} extraction failed:`, pageErr);
+              console.warn(`PDF page ${i} render failed:`, pageErr);
               canvasPages.push({ page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`, elements: [], drawPaths: [] });
             }
           }
@@ -1318,8 +1307,13 @@ const Dashboard = () => {
       const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
       const pages = res.data.pages || [];
       const text = pages.map(p => {
-        const ops = p.content?.ops || [];
-        return ops.map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
+        // Quill delta format (normal belgeler)
+        const quillText = (p.content?.ops || []).map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
+        if (quillText.trim()) return quillText;
+        // PDF import: pageText alanı
+        if (p.pageText) return p.pageText;
+        // Canvas elements (tip=text)
+        return (p.elements || []).filter(el => el.type === 'text').map(el => el.content || '').join('\n');
       }).join('\n').trim();
       if (!text) {
         setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: 'Belge boş.' });
@@ -1336,7 +1330,12 @@ const Dashboard = () => {
 
   const extractDocText = (docData) => {
     const pages = docData.pages || [];
-    return pages.map(p => (p.content?.ops || []).map(op => typeof op.insert === 'string' ? op.insert : '').join('')).join(' ').trim();
+    return pages.map(p => {
+      const quillText = (p.content?.ops || []).map(op => typeof op.insert === 'string' ? op.insert : '').join('');
+      if (quillText.trim()) return quillText;
+      if (p.pageText) return p.pageText;
+      return (p.elements || []).filter(el => el.type === 'text').map(el => el.content || '').join(' ');
+    }).join(' ').trim();
   };
 
   const handleZetaSearch = async () => {
@@ -3982,6 +3981,25 @@ MATCHES:[1,3,5]`;
         />
       )}
 
+
+      {upgradePrompt && (
+        <UpgradePromptModal
+          featureName={upgradePrompt.featureName}
+          requiredPlan={upgradePrompt.requiredPlan}
+          currentPlan={userSubscription || 'free'}
+          onClose={() => setUpgradePrompt(null)}
+          onSubscribe={(planId) => {
+            setUpgradePrompt(null);
+            const planIdx = SUBSCRIPTION_PLANS.findIndex(p => p.id === planId);
+            if (planIdx >= 0) setCurrentPlanIndex(planIdx);
+            setShowSubscription(true);
+          }}
+          onDetails={() => {
+            setUpgradePrompt(null);
+            setShowSubscription(true);
+          }}
+        />
+      )}
 
       {/* AI Settings Modal */}
       {showAISettings && (

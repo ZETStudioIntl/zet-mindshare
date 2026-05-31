@@ -351,7 +351,7 @@ class ChatMessage(BaseModel):
     timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 ZETA_MODEL_MAP = {
-    "spark": ("gemini-2.0-flash", 1024),    # hızlı + ucuz
+    "spark": ("gemini-2.5-flash", 1024),    # hızlı + ucuz
     "prime": ("gemini-2.5-flash", 4096),    # dengeli
     "aziz": ("gemini-2.5-pro", 8192),       # en güçlü
 }
@@ -390,6 +390,14 @@ class ZetaImageRequest(BaseModel):
     reference_image: Optional[str] = None
     pro: Optional[bool] = False
     aspect_ratio: Optional[str] = "16:9"
+
+class ZetaDocEditRequest(BaseModel):
+    user_request: str
+    page_elements: List[Dict[str, Any]] = []
+    page_size: Dict[str, int] = {"width": 794, "height": 1123}
+    page_index: int = 0
+    doc_id: Optional[str] = None
+    is_ceo: bool = False
 
 class TranslateRequest(BaseModel):
     text: str
@@ -1132,24 +1140,59 @@ def _roll_case_reward() -> dict:
 
 @api_router.get("/inventory")
 async def get_inventory(user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc)
+    this_month = now.strftime("%Y-%m")
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1, "last_daily_case": 1})
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    plan = get_plan_name(user_data)
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    monthly_doc = await db.chest_usage.find_one({"user_id": user.user_id, "month": this_month}) or {}
+    cases_this_month = monthly_doc.get("count", 0)
     return {
         "cases": doc.get("inventory") or [],
         "last_daily_case": doc.get("last_daily_case"),
+        "chest_daily_chance": limits.get('chest_daily_chance', 20),
+        "chest_monthly_max": limits.get('chest_monthly_max', 3),
+        "chest_monthly_used": cases_this_month,
     }
 
 @api_router.post("/inventory/claim-daily")
 async def claim_daily_case(user: User = Depends(get_current_user)):
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "last_daily_case": 1})
-    if doc and doc.get("last_daily_case") == today:
+    now = datetime.now(timezone.utc)
+    today = now.strftime("%Y-%m-%d")
+    this_month = now.strftime("%Y-%m")
+
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "last_daily_case": 1})
+    if user_data and user_data.get("last_daily_case") == today:
         return {"claimed": False, "reason": "already_claimed"}
-    case_obj = {"id": f"case_{uuid.uuid4().hex[:12]}", "type": "daily_case", "acquired_at": datetime.now(timezone.utc).isoformat()}
-    await db.users.update_one(
-        {"user_id": user.user_id},
-        {"$push": {"inventory": case_obj}, "$set": {"last_daily_case": today}},
+
+    plan = get_plan_name(await db.users.find_one({"user_id": user.user_id}))
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    chest_chance = limits.get('chest_daily_chance', 20)
+    chest_monthly_max = limits.get('chest_monthly_max', 3)
+
+    # Aylık limit kontrolü
+    monthly_doc = await db.chest_usage.find_one({"user_id": user.user_id, "month": this_month}) or {}
+    cases_this_month = monthly_doc.get("count", 0)
+    if cases_this_month >= chest_monthly_max:
+        await db.users.update_one({"user_id": user.user_id}, {"$set": {"last_daily_case": today}})
+        return {"claimed": False, "reason": "monthly_limit", "monthly_limit": chest_monthly_max, "used": cases_this_month}
+
+    # Şans turu
+    won = chest_chance >= 100 or (random.random() * 100 < chest_chance)
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"last_daily_case": today}})
+
+    if not won:
+        return {"claimed": False, "reason": "no_luck", "chance": chest_chance}
+
+    case_obj = {"id": f"case_{uuid.uuid4().hex[:12]}", "type": "daily_case", "acquired_at": now.isoformat()}
+    await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": case_obj}})
+    await db.chest_usage.update_one(
+        {"user_id": user.user_id, "month": this_month},
+        {"$inc": {"count": 1}},
+        upsert=True
     )
-    return {"claimed": True, "case": case_obj}
+    return {"claimed": True, "case": case_obj, "chance": chest_chance, "monthly_remaining": chest_monthly_max - cases_this_month - 1}
 
 @api_router.post("/inventory/open-case")
 async def open_case(case_id: str = Body(..., embed=True), user: User = Depends(get_current_user)):
@@ -2915,66 +2958,105 @@ async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_curre
 # ============ USAGE LIMITS ============
 
 # Plan limits
+_ALL_IMAGE_SIZES = ['16:9', '9:16', '1:1', '2.55:1', '2.39:1', '1.85:1', '2.00:1']
+_BASIC_SHAPES = ['rect', 'circle', 'triangle', 'ring', 'heart', 'diamond', 'hexagon', 'pentagon', 'parallelogram', 'oval']
+
 PLAN_LIMITS = {
     'free': {
-        'daily_credits': 20,
-        'judge_enabled': False,
-        'judge_deep': False,
-        'zeta_chars': 250,
-        'judge_chars': 0,
+        'daily_credits': 80,
+        'daily_tokens': 100_000,
+        'notebooks_max': 1,
         'fastselect_limit': 3,
+        'prime_drive_gb': 1,
+        'chest_daily_chance': 20,
+        'chest_monthly_max': 3,
+        'elevenlabs_daily': 1,
+        'judge_aziz': False,
         'nano_pro': False,
-        'custom_image_sizes': ['16:9'],
-        'layers': False,
-        'signature': False,
+        'gradient': False,
+        'templates': False,
+        'basic_shapes_only': True,
         'watermark': False,
-        'page_color': False,
         'charts': False,
+        'signature': False,
+        'photo_edit': False,
+        'auto_write_watermark': 'mindshare',
+        'puzzle': False,
+        'custom_image_sizes': ['16:9', '9:16', '1:1'],
+        'layers': False,
+        'page_color': False,
     },
     'plus': {
-        'daily_credits': 40,
-        'judge_enabled': True,
-        'judge_deep': False,
-        'zeta_chars': 500,
-        'judge_chars': 200,
-        'fastselect_limit': 999,
+        'daily_credits': 250,
+        'daily_tokens': 480_000,
+        'notebooks_max': 10,
+        'fastselect_limit': 5,
+        'prime_drive_gb': 20,
+        'chest_daily_chance': 40,
+        'chest_monthly_max': 10,
+        'elevenlabs_daily': 999,
+        'judge_aziz': True,
         'nano_pro': False,
-        'custom_image_sizes': ['16:9', '9:16', '1:1'],
-        'layers': True,
-        'signature': True,
+        'gradient': True,
+        'templates': True,
+        'basic_shapes_only': False,
         'watermark': True,
-        'page_color': True,
         'charts': True,
+        'signature': True,
+        'photo_edit': True,
+        'auto_write_watermark': 'z_logo',
+        'puzzle': True,
+        'custom_image_sizes': _ALL_IMAGE_SIZES,
+        'layers': True,
+        'page_color': True,
     },
     'pro': {
-        'daily_credits': 130,
-        'judge_enabled': True,
-        'judge_deep': True,
-        'zeta_chars': 99999,
-        'judge_chars': 600,
-        'fastselect_limit': 999,
+        'daily_credits': 500,
+        'daily_tokens': 1_300_000,
+        'notebooks_max': 999,
+        'fastselect_limit': 8,
+        'prime_drive_gb': 50,
+        'chest_daily_chance': 60,
+        'chest_monthly_max': 20,
+        'elevenlabs_daily': 999,
+        'judge_aziz': True,
         'nano_pro': True,
-        'custom_image_sizes': ['16:9', '9:16', '1:1', '2.55:1', '2.39:1', '1.85:1', '2.00:1'],
-        'layers': True,
-        'signature': True,
+        'gradient': True,
+        'templates': True,
+        'basic_shapes_only': False,
         'watermark': True,
-        'page_color': True,
         'charts': True,
+        'signature': True,
+        'photo_edit': True,
+        'auto_write_watermark': None,
+        'puzzle': True,
+        'custom_image_sizes': _ALL_IMAGE_SIZES,
+        'layers': True,
+        'page_color': True,
     },
     'creative_station': {
-        'daily_credits': 1200,
-        'judge_enabled': True,
-        'judge_deep': True,
-        'zeta_chars': 99999,
-        'judge_chars': 99999,
+        'daily_credits': 4000,
+        'daily_tokens': 4_800_000,
+        'notebooks_max': 999,
         'fastselect_limit': 999,
+        'prime_drive_gb': 1024,
+        'chest_daily_chance': 100,
+        'chest_monthly_max': 30,
+        'elevenlabs_daily': 999,
+        'judge_aziz': True,
         'nano_pro': True,
-        'custom_image_sizes': ['16:9', '9:16', '1:1', '2.55:1', '2.39:1', '1.85:1', '2.00:1'],
-        'layers': True,
-        'signature': True,
+        'gradient': True,
+        'templates': True,
+        'basic_shapes_only': False,
         'watermark': True,
-        'page_color': True,
         'charts': True,
+        'signature': True,
+        'photo_edit': True,
+        'auto_write_watermark': None,
+        'puzzle': True,
+        'custom_image_sizes': _ALL_IMAGE_SIZES,
+        'layers': True,
+        'page_color': True,
     }
 }
 
@@ -2984,11 +3066,9 @@ CREDIT_COSTS = {
     'nano_banana_pro': 50,
     'photo_edit': 15,
     'photo_edit_pro': 40,
-    'judge_basic': 25,
-    'judge_deep': 70,
     'deep_analysis': 100,
-    'zeta_chat': 0,  # Free, limited by char count
     'auto_write': 15,  # per page
+    'doc_edit': 5,
 }
 
 async def get_user_credits(user_id: str):
@@ -3028,6 +3108,29 @@ async def get_user_credits(user_id: str):
         "credits_remaining": max(0, total_available - credits_used),
         "limits": limits
     }
+
+async def get_token_usage_today(user_id: str) -> int:
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    doc = await db.token_usage.find_one({"user_id": user_id, "date": today})
+    return doc.get("tokens_used", 0) if doc else 0
+
+async def add_token_usage(user_id: str, tokens: int):
+    if tokens <= 0:
+        return
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.token_usage.update_one(
+        {"user_id": user_id, "date": today},
+        {"$inc": {"tokens_used": tokens}},
+        upsert=True
+    )
+
+async def check_token_limit(user_id: str, user_data: dict) -> tuple[bool, int, int]:
+    """Returns (allowed, used_today, daily_limit). CEO always allowed."""
+    plan = get_plan_name(user_data)
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    daily_limit = limits.get('daily_tokens', 100_000)
+    used = await get_token_usage_today(user_id)
+    return used < daily_limit, used, daily_limit
 
 async def spend_credits(user_id: str, action: str) -> dict:
     """Attempt to spend credits. Order: daily -> package_credits -> rank_credits."""
@@ -3082,6 +3185,8 @@ async def get_usage(user: User = Depends(get_current_user)):
     credits_info = await get_user_credits(user.user_id)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     usage_doc = await db.usage.find_one({"user_id": user.user_id, "date": today}) or {}
+    tokens_used_today = await get_token_usage_today(user.user_id)
+    daily_tokens = credits_info['limits'].get('daily_tokens', 100_000)
     return {
         "plan": credits_info['plan'],
         "daily_credits": credits_info['daily_credits'],
@@ -3090,6 +3195,9 @@ async def get_usage(user: User = Depends(get_current_user)):
         "credits_used": credits_info['credits_used'],
         "credits_remaining": credits_info['credits_remaining'],
         "zeta_chat_count": usage_doc.get("zeta_chat_count", 0),
+        "tokens_used_today": tokens_used_today,
+        "daily_tokens": daily_tokens,
+        "tokens_remaining": max(0, daily_tokens - tokens_used_today),
         "limits": credits_info['limits'],
         "credit_costs": CREDIT_COSTS
     }
@@ -3148,18 +3256,26 @@ async def list_gemini_models():
 # ZET Judge Mini - Business Analysis AI
 @api_router.post("/judge/chat")
 async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
-    # Get user's plan and limits
     user_data = await db.users.find_one({"user_id": user.user_id})
     plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
 
-    # Check if Judge is available for this plan (CEO modunda tüm kısıtlar kalkar)
-    if not req.is_ceo and not limits.get('judge_enabled', False):
-        return {"response": "ZET Judge Mini, Free planda kullanılamaz. Lütfen Plus veya üzeri bir plana yükseltin.", "session_id": None, "locked": True}
+    # Aziz modeli sadece Plus+ (CEO her zaman geçer)
+    judge_model_name = req.model or "prime"
+    if not req.is_ceo and judge_model_name == "aziz" and not limits.get('judge_aziz', False):
+        return {"response": "Judge Aziz modeli Plus ve üzeri planlarda kullanılabilir.", "session_id": None, "locked": True}
 
-    # Check character limit
-    if not req.is_ceo and len(req.message) > limits.get('judge_chars', 0):
-        return {"response": f"Mesaj çok uzun! {plan.upper()} planında maksimum {limits['judge_chars']} karakter kullanabilirsiniz.", "session_id": None, "char_limit_exceeded": True}
+    # Check daily token limit (CEO bypasses)
+    if not req.is_ceo:
+        token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
+        if not token_allowed:
+            return {"response": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "session_id": None, "token_limit_exceeded": True}
+
+    api_key = os.getenv("GEMINI_API_KEY")
+    session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
+
+    # Model seçimi
+    gemini_model, max_tokens = ZETA_MODEL_MAP.get(judge_model_name, ZETA_MODEL_MAP["prime"])
 
     # CEO mode block for Judge
     judge_ceo_section = ""
@@ -3183,35 +3299,15 @@ ZORUNLU DAVRANIŞ KURALLARI:
 
 """
 
-    # Determine usage type based on mode
     mode = req.mode or "fast"
-
-    # Check deep analysis availability
-    if mode == "deep" and not limits.get('judge_deep', False):
-        return {"response": f"Derin analiz, {plan.upper()} planında kullanılamaz. Pro veya Ultra plana yükseltin.", "session_id": None, "locked": True}
-
-    # Spend credits
-    credit_action = "judge_deep" if mode == "deep" else "judge_basic"
-    credit_result = await spend_credits(user.user_id, credit_action)
-    if not credit_result['success']:
-        return {"response": f"Yetersiz kredi! Bu analiz {credit_result['cost']} kredi gerektirir. Kalan: {credit_result['credits_remaining']} kredi.", "session_id": None, "insufficient_credits": True, "credits_remaining": credit_result['credits_remaining']}
-
-    api_key = os.getenv("GEMINI_API_KEY")
-    session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
-    
-    # Different system messages for fast vs deep mode
-    mode_instruction = ""
-    if mode == "deep":
-        mode_instruction = """
+    mode_instruction = """
 DERİN ANALİZ MODU:
 - Detaylı ve kapsamlı analiz yap
 - Tüm açılardan incele
 - Rakamlar, metrikler, projeksiyonlar sun
 - Alternatif senaryolar öner
 - Uzun vadeli stratejiler belirt
-"""
-    else:
-        mode_instruction = """
+""" if mode == "deep" or judge_model_name == "aziz" else """
 HIZLI ANALİZ MODU:
 - Kısa ve öz ol
 - Ana noktaları vurgula
@@ -3353,14 +3449,17 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
     try:
         client = google_genai.Client(api_key=api_key)
         resp = await gemini_generate(
-            client, "gemini-2.5-flash", contents,
+            client, gemini_model, contents,
             genai_types.GenerateContentConfig(
                 system_instruction=system_message,
+                max_output_tokens=max_tokens,
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
             )
         )
         response = resp.text
         sources = extract_sources(resp)
+        tokens_used_now = getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0
+        await add_token_usage(user.user_id, tokens_used_now)
     except Exception as e:
         logging.error(f"Judge chat Gemini error: {e}")
         return {"response": f"AI hatası: {str(e)}", "session_id": session_id}
@@ -3439,7 +3538,7 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
                 gc = google_genai.Client(api_key=api_key)
                 resp = await asyncio.to_thread(
                     gc.models.generate_content,
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=[genai_types.Content(role="user", parts=[
                         genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=raw_bytes)),
                         genai_types.Part(text="Extract verbatim plain text from the first 3 pages. Do not summarize.")
@@ -3481,7 +3580,7 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
                 gc = google_genai.Client(api_key=api_key)
                 resp = await asyncio.to_thread(
                     gc.models.generate_content,
-                    model="gemini-2.0-flash",
+                    model="gemini-2.5-flash",
                     contents=[genai_types.Content(role="user", parts=[
                         genai_types.Part(inline_data=genai_types.Blob(mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", data=raw_bytes)),
                         genai_types.Part(text="Extract all text content from this Word document verbatim.")
@@ -3509,7 +3608,7 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
             gc = google_genai.Client(api_key=api_key)
             resp = await asyncio.to_thread(
                 gc.models.generate_content,
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=[genai_types.Content(role="user", parts=[
                     genai_types.Part(inline_data=genai_types.Blob(mime_type=mime, data=raw_bytes)),
                     genai_types.Part(text=(
@@ -3549,7 +3648,7 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
                 await asyncio.sleep(2)
             resp = await asyncio.to_thread(
                 gc.models.generate_content,
-                model="gemini-2.0-flash",
+                model="gemini-2.5-flash",
                 contents=[
                     file_status,
                     ("Provide a detailed scene-by-scene breakdown of this video. "
@@ -3643,6 +3742,11 @@ async def zeta_auto_write(req: ZetaAutoWriteRequest, user: User = Depends(get_cu
             "credits_remaining": credit_info['credits_remaining']
         }
 
+    # Check daily token limit
+    token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
+    if not token_allowed:
+        return {"success": False, "error": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "token_limit_exceeded": True}
+
     api_key = os.getenv("GEMINI_API_KEY")
 
     style_prompts = {
@@ -3691,6 +3795,7 @@ FORMAT KURALLARI:
         genai_types.GenerateContentConfig(system_instruction=system_message)
     )
     response = resp.text
+    await add_token_usage(user.user_id, getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0)
 
     # Spend credits (with bonus deduction)
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -3713,10 +3818,13 @@ FORMAT KURALLARI:
     pages = response.split('---SAYFA SONU---')
     pages = [p.strip() for p in pages if p.strip()]
 
+    auto_write_watermark = limits.get('auto_write_watermark', 'mindshare')
+
     return {
         "success": True,
         "content": response,
         "pages": pages,
+        "watermark": auto_write_watermark,
         "credits_spent": total_cost,
         "credits_remaining": max(0, credit_info['credits_remaining'] - total_cost)
     }
@@ -3734,6 +3842,11 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
     if not credit_result['success']:
         raise HTTPException(status_code=402, detail=credit_result.get('message', 'Yetersiz kredi'))
 
+    # Check daily token limit
+    token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
+    if not token_allowed:
+        raise HTTPException(status_code=429, detail=f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.")
+
     api_key = os.getenv("GEMINI_API_KEY")
     genai_client = google_genai.Client(api_key=api_key)
 
@@ -3746,6 +3859,7 @@ async def zeta_deep_analysis(req: ZetaDeepAnalysisRequest, user: User = Depends(
         )
     )
     queries_raw = q_resp.text
+    await add_token_usage(user.user_id, getattr(getattr(q_resp, 'usage_metadata', None), 'total_token_count', 0) or 0)
     search_queries = [q.strip() for q in queries_raw.strip().split('\n') if q.strip()][:5]
 
     # Step 2: Use DuckDuckGo for each query - collect links and snippets
@@ -3849,6 +3963,7 @@ KURALLAR:
         genai_types.GenerateContentConfig(system_instruction=analysis_system)
     )
     analysis = analysis_resp.text
+    await add_token_usage(user.user_id, getattr(getattr(analysis_resp, 'usage_metadata', None), 'total_token_count', 0) or 0)
 
     return {
         "success": True,
@@ -3871,10 +3986,11 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
     user_plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(user_plan, PLAN_LIMITS['free'])
 
-    # Check ZETA character limit (CEO modunda limit yok)
-    zeta_char_limit = limits.get('zeta_chars', 250)
-    if not req.is_ceo and zeta_char_limit < 99999 and len(req.message) > zeta_char_limit:
-        return {"response": f"Mesaj çok uzun! {user_plan.upper()} planında ZETA'ya maksimum {zeta_char_limit} karakter gönderebilirsiniz. Daha uzun mesajlar için planınızı yükseltin.", "session_id": None, "char_limit_exceeded": True}
+    # Check daily token limit (CEO bypasses)
+    if not req.is_ceo:
+        token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
+        if not token_allowed:
+            return {"response": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "session_id": None, "token_limit_exceeded": True}
 
     # Load user's Zeta memories
     memories = await db.zeta_memories.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(30)
@@ -4270,6 +4386,8 @@ The user may ask questions about this document. Use this content to provide rele
         )
         response = resp.text
         sources = extract_sources(resp)
+        tokens_used_now = getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0
+        await add_token_usage(user.user_id, tokens_used_now)
     except Exception as e:
         logging.error(f"Zeta chat Gemini error: {e}")
         return {"response": f"AI hatası: {str(e)}", "session_id": session_id}
@@ -4301,6 +4419,175 @@ The user may ask questions about this document. Use this content to provide rele
     })
 
     return {"response": clean_response, "session_id": session_id, "actions": actions, "sources": sources}
+
+@api_router.post("/zeta/document-edit")
+async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_current_user)):
+    """Zeta belge düzenleme: kullanıcı isteğine göre canvas elementleri oluşturur/değiştirir."""
+    api_key = os.getenv("GEMINI_API_KEY")
+
+    # CEO modunda kredi ve token kontrolü yok
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    if not req.is_ceo:
+        credit_result = await spend_credits(user.user_id, 'doc_edit')
+        if not credit_result['success']:
+            raise HTTPException(status_code=402, detail=f"Yetersiz kredi. Bu işlem {credit_result['cost']} kredi gerektirir, kalan: {credit_result['credits_remaining']} kredi.")
+
+        token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
+        if not token_allowed:
+            raise HTTPException(status_code=429, detail=f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.")
+
+    pw = req.page_size.get("width", 794)
+    ph = req.page_size.get("height", 1123)
+
+    plan = get_plan_name(user_data)
+    doc_edit_limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    basic_shapes_only = doc_edit_limits.get('basic_shapes_only', False) and not req.is_ceo
+    allowed_shapes = _BASIC_SHAPES if basic_shapes_only else None
+
+    existing_summary = json.dumps([
+        {k: v for k, v in el.items() if k not in ("src", "svgContent", "htmlContent")}
+        for el in req.page_elements
+    ], ensure_ascii=False)
+
+    system_prompt = f"""Sen ZETA, ZET Mindshare belge editörünün AI asistanısın.
+Görevin: Kullanıcının isteğine göre belge sayfasına JSON operasyonları üretmek.
+
+━━━ SAYFA BİLGİSİ ━━━
+Sayfa boyutu: {pw}×{ph} piksel (koordinat başlangıcı sol-üst köşe)
+Mevcut sayfa indeksi: {req.page_index}
+Mevcut elementler:
+{existing_summary if existing_summary != "[]" else "(sayfa boş)"}
+
+━━━ ELEMENT TİPLERİ VE FORMATLARI ━━━
+
+1. METİN (type: "text")
+{{
+  "id": "el_<timestamp>_<random4>",   // benzersiz — Date.now() + random 4 karakter
+  "type": "text",
+  "x": <0-{pw-40}>,   // sol kenardan piksel (genelde 40-80 arası başla)
+  "y": <0-{ph-40}>,   // üst kenardan piksel
+  "content": "<düz metin, satır başı için \\n>",
+  "htmlContent": "<aynı metin, satır başı için <br>>",
+  "fontSize": <8-96>,          // punto, varsayılan 16
+  "fontFamily": "Arial",        // herhangi bir Google Font ismi
+  "color": "#000000",           // hex renk
+  "width": <100-{pw-80}>,      // metin kutusu genişliği (genelde 714)
+  "lineHeight": 1.5,            // satır aralığı: 1.0 / 1.15 / 1.5 / 2.0 / 2.5 / 3.0
+  "textAlign": "left",          // "left" | "center" | "right" | "justify"
+  "bold": false,
+  "italic": false,
+  "underline": false
+}}
+
+2. ŞEKİL (type: "shape")
+{{
+  "id": "el_<timestamp>_<random4>",
+  "type": "shape",
+  "shapeType": "<tip>",   // aşağıdaki listeden biri
+  "x": <number>,
+  "y": <number>,
+  "width": <number>,
+  "height": <number>,
+  "fill": "#3b82f6",            // hex dolgu rengi
+  "gradientStart": null,        // opsiyonel: gradient başlangıç rengi
+  "gradientEnd": null           // opsiyonel: gradient bitiş rengi
+}}
+Kullanılabilir shapeType değerleri:
+{'  ' + ', '.join(f'"{s}"' for s in _BASIC_SHAPES) + ' (sadece temel şekiller — Free plan)' if basic_shapes_only else
+'  "rect" (dikdörtgen), "circle" (daire), "ring" (halka), "triangle", "star", "hexagon",\n  "diamond", "pentagon", "arrow" (sağa ok), "parallelogram", "heart",\n  "arrow-right", "arrow-left", "arrow-up", "arrow-down", "arrow-double",\n  "star3", "star4", "star6", "bubble" (sağa konuşma balonu), "bubble-left",\n  "diamond-flow", "oval", "cylinder",\n  "math-sum" (∑), "math-pi" (π), "math-sqrt" (√), "math-inf" (∞), "math-int" (∫),\n  "bracket-sq" ([ ]), "brace-curly" ({{ }})'}
+
+3. TABLO (type: "table")
+{{
+  "id": "el_<timestamp>_<random4>",
+  "type": "table",
+  "x": <number>,
+  "y": <number>,
+  "width": <number>,   // genelde 400-700
+  "height": <number>,  // genelde rows * 36
+  "rows": <satır sayısı>,
+  "cols": <sütun sayısı>,
+  "tableData": [        // 2D dizi: tableData[satır][sütun] = hücre metni
+    ["Başlık 1", "Başlık 2", "Başlık 3"],
+    ["Veri 1",   "Veri 2",   "Veri 3"],
+    ["Veri 4",   "Veri 5",   "Veri 6"]
+  ]
+}}
+
+4. BAĞLANTI (type: "link")
+{{
+  "id": "el_<timestamp>_<random4>",
+  "type": "link",
+  "x": <number>,
+  "y": <number>,
+  "width": <number>,
+  "height": <number>,
+  "url": "https://...",
+  "label": "Bağlantı metni",
+  "color": "#3b82f6"
+}}
+
+━━━ OPERASYONLARo ━━━
+Her operasyon şu formatlardan biri:
+
+EKLE:   {{"action": "add",    "element": {{...yukarıdaki format...}}}}
+DEĞİŞTİR: {{"action": "modify", "element_id": "<mevcut element id>", "changes": {{...değişen alanlar...}}}}
+SİL:    {{"action": "delete", "element_id": "<mevcut element id>"}}
+
+━━━ ÇIKTI FORMAT ━━━
+Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
+{{
+  "explanation": "<Türkçe, max 2 cümle, ne yaptığını açıkla>",
+  "operations": [
+    // Operasyon listesi
+  ]
+}}
+
+━━━ KURALLLAR ━━━
+- Elementleri sayfa dışına çıkarma: x + width <= {pw}, y + height <= {ph}
+- Mevcut elementlerin üzerine binme — mevcut elementlerin y koordinatlarına dikkat et
+- ID'ler benzersiz olmalı: "el_" + büyük sayı (örn: el_1717000000000_a3b2)
+- Metin genişliği genellikle {pw - 80} piksel (kenar boşlukları için)
+- Başlıklar için fontSize 24-48, gövde metin için 14-18 kullan
+- Renk belirtilmemişse koyu metinler #000000, başlıklar #1a1a2e, vurgular #292f91 kullan
+- Kullanıcı "sil" diyorsa element_id'yi mevcut elementlerden al
+- Kullanıcı "değiştir/düzenle" diyorsa mevcut element'i modify et, yenisini ekleme
+"""
+
+    try:
+        client_g = google_genai.Client(api_key=api_key)
+        response = client_g.models.generate_content(
+            model="gemini-2.5-flash",
+            contents=[
+                {"role": "user", "parts": [{"text": system_prompt}]},
+                {"role": "model", "parts": [{"text": '{"explanation":"'}]},
+                {"role": "user", "parts": [{"text": req.user_request}]},
+            ],
+            config=genai_types.GenerateContentConfig(
+                temperature=0.4,
+                max_output_tokens=4096,
+            )
+        )
+        raw = (response.text or "").strip()
+        # Eğer partial prefill bıraktıysak düzelt
+        if not raw.startswith("{"):
+            raw = '{"explanation":"' + raw
+        # JSON çıkarma: ```json bloğu varsa temizle
+        import re as _re
+        json_match = _re.search(r'\{[\s\S]*\}', raw)
+        if json_match:
+            raw = json_match.group(0)
+        result = json.loads(raw)
+        await add_token_usage(user.user_id, getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0)
+        return {
+            "explanation": result.get("explanation", ""),
+            "operations": result.get("operations", [])
+        }
+    except json.JSONDecodeError:
+        return {"explanation": "JSON ayrıştırma hatası.", "operations": []}
+    except Exception as e:
+        logging.error(f"zeta_document_edit error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @api_router.post("/zeta/generate-image")
 async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_current_user)):
@@ -4475,6 +4762,7 @@ async def zeta_translate(req: TranslateRequest, user: User = Depends(get_current
             system_instruction=f"You are a translator. Translate the given text to {req.target_language}. Return ONLY the translated text, nothing else. No explanations, no quotes."
         )
     )
+    await add_token_usage(user.user_id, getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0)
     return {"translated_text": resp.text.strip(), "target_language": req.target_language}
 
 # ============ ELEVENLABS TTS ROUTES ============
@@ -4529,6 +4817,17 @@ async def generate_tts(req: TTSRequest, user: User = Depends(get_current_user)):
     if not api_key:
         raise HTTPException(status_code=500, detail="ElevenLabs API key not configured")
 
+    # Günlük ElevenLabs limiti kontrol
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    plan = get_plan_name(user_data)
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    elevenlabs_daily_limit = limits.get('elevenlabs_daily', 1)
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    usage_doc = await db.usage.find_one({"user_id": user.user_id, "date": today}) or {}
+    tts_count_today = usage_doc.get("tts_count", 0)
+    if tts_count_today >= elevenlabs_daily_limit:
+        raise HTTPException(status_code=429, detail=f"Günlük seslendirme limitine ulaştınız ({elevenlabs_daily_limit}/gün). Daha fazlası için planınızı yükseltin.")
+
     try:
         client = ElevenLabs(api_key=api_key)
 
@@ -4547,12 +4846,20 @@ async def generate_tts(req: TTSRequest, user: User = Depends(get_current_user)):
         
         # Convert to base64 for transfer
         audio_b64 = base64.b64encode(audio_data).decode()
-        
+
+        await db.usage.update_one(
+            {"user_id": user.user_id, "date": today},
+            {"$inc": {"tts_count": 1}},
+            upsert=True
+        )
+
         return {
             "audio_url": f"data:audio/mpeg;base64,{audio_b64}",
             "text": req.text,
             "voice_id": req.voice_id
         }
+    except HTTPException:
+        raise
     except Exception as e:
         logging.error(f"Error generating TTS: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error generating TTS: {str(e)}")
@@ -5541,6 +5848,10 @@ async def start_background_tasks():
     await db.subscriptions.create_index([("user_id", 1)])
     await db.inventory.create_index([("user_id", 1)])
     await db.doc_presence.create_index([("doc_id", 1), ("session_id", 1)], unique=True)
+    await db.user_sessions.create_index([("session_token", 1)], unique=True)
+    await db.user_sessions.create_index([("expires_at", 1)], expireAfterSeconds=0)
+    await db.token_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
+    await db.chest_usage.create_index([("user_id", 1), ("month", 1)], unique=True)
 
     if _APSCHEDULER_AVAILABLE:
         scheduler = AsyncIOScheduler(timezone="UTC")

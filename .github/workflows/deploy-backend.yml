@@ -69,7 +69,7 @@ jobs:
             --region $REGION \
             --platform managed \
             --allow-unauthenticated \
-            --min-instances 0 \
+            --min-instances 1 \
             --update-env-vars "$ENV_VARS" \
             --quiet
 

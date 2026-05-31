@@ -9,6 +9,7 @@ import { ResizableDivider } from './ResizableDivider';
 import EditorPanels from './EditorPanels';
 import ShareDialog from './ShareDialog';
 import CommentsPanel from './CommentsPanel';
+import ZetaEditPanel from './ZetaEditPanel';
 import { startCheckout } from '../../lib/lemonSqueezy';
 import { TOOLS } from '../../lib/editorConstants';
 import { MiniDocLoader } from '../LoadingScreens';
@@ -63,6 +64,7 @@ const EditorDesktopLayout = () => {
     voiceLoading, voiceProgress, zoom, zoomLevel, zoomRadius,
     docId, exportToPDF,
     zetaCustomPrompt, zetaEmoji, zetaMood,
+    zetaEditMode, setZetaEditMode, zetaPendingCount,
   } = useContext(EditorStateContext);
   return (
     <div data-testid="editor-page" className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
@@ -157,6 +159,31 @@ const EditorDesktopLayout = () => {
             <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
             <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
           </div>
+          {/* Zeta Edit Mode toggle */}
+          <button
+            onClick={() => setZetaEditMode(m => !m)}
+            title="Zeta Edit Mode"
+            style={{
+              display: 'flex', alignItems: 'center', gap: 4,
+              padding: '4px 10px', borderRadius: 8, border: 'none', cursor: 'pointer',
+              background: zetaEditMode
+                ? 'linear-gradient(135deg,#292f91,#4ca8ad)'
+                : 'rgba(41,47,145,0.2)',
+              color: zetaEditMode ? '#fff' : '#4ca8ad',
+              fontSize: 11, fontWeight: 600, transition: 'all 0.2s',
+              position: 'relative',
+            }}>
+            <Sparkles className="h-3 w-3" />
+            <span>Zeta Edit</span>
+            {zetaPendingCount > 0 && (
+              <span style={{
+                position: 'absolute', top: -4, right: -4,
+                background: '#ef4444', color: '#fff',
+                borderRadius: '50%', width: 14, height: 14,
+                fontSize: 9, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}>{zetaPendingCount}</span>
+            )}
+          </button>
           <button onClick={() => setToolboxOpen(o => !o)} className="tool-btn w-8 h-8" title="Sol Panel">
             {toolboxOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
           </button>
@@ -460,6 +487,7 @@ const EditorDesktopLayout = () => {
 
       {/* Share Dialog */}
       {showShareDialog && <ShareDialog docId={docId} onClose={() => setShowShareDialog(false)} />}
+      <ZetaEditPanel />
 
       {/* Comments Panel - slides in from right */}
       {showComments && (

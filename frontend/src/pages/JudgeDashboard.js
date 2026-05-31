@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
+import UpgradePromptModal from '../components/dashboard/UpgradePromptModal';
 import { ScalesLoadingScreen, MiniDocLoader } from '../components/LoadingScreens';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -154,6 +155,7 @@ const JudgeDashboard = () => {
   const fileInputRef = useRef(null);
 
   const [sessionFiles, setSessionFiles] = useState([]);
+  const [upgradePrompt, setUpgradePrompt] = useState(null);
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [mobileProjectTab, setMobileProjectTab] = useState('chat');
 
@@ -318,6 +320,16 @@ const JudgeDashboard = () => {
       }, { withCredentials: true });
       const newSid = res.data.session_id || sessionId;
       setSessionId(newSid);
+      if (res.data.locked) {
+        setChatMessages(prev => prev.slice(0, -1));
+        setUpgradePrompt({ featureName: 'Judge Aziz Modeli', requiredPlan: 'plus' });
+        return;
+      }
+      if (res.data.token_limit_exceeded) {
+        setChatMessages(prev => prev.slice(0, -1));
+        setUpgradePrompt({ featureName: 'Günlük Token Limiti Aşıldı', requiredPlan: 'plus' });
+        return;
+      }
       setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.response, sources: res.data.sources || [] }]);
       try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
       if (res.data.risk_score != null) setJudgeScores({ risk: res.data.risk_score, success: res.data.success_score });
@@ -1427,6 +1439,16 @@ const JudgeDashboard = () => {
           .md-settings-sidebar { display: flex !important; }
         }
       `}</style>
+      {upgradePrompt && (
+        <UpgradePromptModal
+          featureName={upgradePrompt.featureName}
+          requiredPlan={upgradePrompt.requiredPlan}
+          currentPlan={userSubscription || 'free'}
+          onClose={() => setUpgradePrompt(null)}
+          onSubscribe={() => { setUpgradePrompt(null); window.location.href = '/'; }}
+          onDetails={() => { setUpgradePrompt(null); window.location.href = '/'; }}
+        />
+      )}
     </div>
   );
 };

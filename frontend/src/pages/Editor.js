@@ -218,6 +218,13 @@ const Editor = () => {
   const [zoom, setZoom] = useState(DEFAULT_ZOOM);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
+  // Zeta Edit Mode
+  const [zetaEditMode, setZetaEditMode] = useState(false);
+  const [zetaEditInput, setZetaEditInput] = useState('');
+  const [zetaEditLoading, setZetaEditLoading] = useState(false);
+  const [zetaEditExplanation, setZetaEditExplanation] = useState('');
+  const pendingOpsRef = useRef([]); // { action, elementId, originalState }
+
   // Text/style state
   const [currentFontSize, setCurrentFontSize] = useState(DEFAULT_FONT_SIZE);
   const [currentFont, setCurrentFont] = useState(DEFAULT_FONT);
@@ -1024,6 +1031,87 @@ const Editor = () => {
 
   const handleZetaTakeNote = async (content) => {
     // Note already saved by RightPanel; this can trigger a UI refresh if needed
+  };
+
+  const applyZetaDocEdit = async (request) => {
+    setZetaEditLoading(true);
+    setZetaEditExplanation('');
+    try {
+      const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
+      const res = await axios.post(`${API}/zeta/document-edit`, {
+        user_request: request,
+        page_elements: canvasElements.filter(el => !el.isPending && !el.isPendingDelete),
+        page_size: { width: pageSize.width, height: pageSize.height },
+        page_index: currentPage,
+        doc_id: docId,
+        is_ceo: isCEO,
+      }, { withCredentials: true });
+      const { operations = [], explanation = '' } = res.data;
+      setZetaEditExplanation(explanation);
+      setZetaEditInput('');
+      const newPendingLog = [];
+      setCanvasElements(prev => {
+        let els = [...prev];
+        for (const op of operations) {
+          if (op.action === 'add' && op.element) {
+            const el = { ...op.element, isPending: true };
+            els.push(el);
+            newPendingLog.push({ action: 'add', elementId: el.id });
+          } else if (op.action === 'modify' && op.element_id && op.changes) {
+            els = els.map(el => {
+              if (el.id !== op.element_id) return el;
+              newPendingLog.push({ action: 'modify', elementId: el.id, originalState: { ...el } });
+              return { ...el, ...op.changes, isPending: true };
+            });
+          } else if (op.action === 'delete' && op.element_id) {
+            const target = els.find(el => el.id === op.element_id);
+            if (target) {
+              newPendingLog.push({ action: 'delete', elementId: op.element_id, originalState: { ...target } });
+              els = els.map(el => el.id === op.element_id ? { ...el, isPendingDelete: true } : el);
+            }
+          }
+        }
+        pendingOpsRef.current = newPendingLog;
+        return els;
+      });
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Bir hata oluştu';
+      setZetaEditExplanation(`Hata: ${msg}`);
+    } finally {
+      setZetaEditLoading(false);
+    }
+  };
+
+  const approveZetaOps = () => {
+    setCanvasElements(prev => {
+      const kept = prev
+        .filter(el => !el.isPendingDelete)
+        .map(el => {
+          const { isPending, _pendingOriginal, ...rest } = el;
+          return rest;
+        });
+      handleSaveHistory(kept);
+      return kept;
+    });
+    pendingOpsRef.current = [];
+    setZetaEditExplanation('');
+  };
+
+  const rejectZetaOps = () => {
+    const log = pendingOpsRef.current;
+    setCanvasElements(prev => {
+      let els = prev
+        .filter(el => !el.isPending)
+        .map(el => { const { isPendingDelete, ...rest } = el; return rest; });
+      for (const entry of log) {
+        if (entry.action === 'modify' && entry.originalState) {
+          els = els.map(el => el.id === entry.elementId ? { ...entry.originalState } : el);
+        }
+      }
+      return els;
+    });
+    pendingOpsRef.current = [];
+    setZetaEditExplanation('');
   };
 
   const handleInsertText = (content) => {
@@ -2868,6 +2956,7 @@ const Editor = () => {
   }, [activeTool]);
 
   // === COMPUTED ===
+  const zetaPendingCount = canvasElements.filter(el => el.isPending || el.isPendingDelete).length;
   const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (el.content?.length || 0), 0);
   // Merge system fonts (FONTS) + Google Fonts, deduplicated; selected font always first
   const allFonts = (() => {
@@ -2967,6 +3056,9 @@ const Editor = () => {
     updatePageNumberSettings, updateShortcut, useMagnifierGradient, voiceTranscript,
     watermarkColor, watermarkOpacity, watermarkText,
     zetaCustomPrompt, zetaEmoji, zetaMood, zoomLevel, zoomRadius,
+    zetaEditMode, setZetaEditMode, zetaEditInput, setZetaEditInput,
+    zetaEditLoading, zetaEditExplanation, zetaPendingCount,
+    applyZetaDocEdit, approveZetaOps, rejectZetaOps,
     addPage, alignElements, audioRef, availableVoices,
     buyingCredits, canvasContainerRef, changePage, changeImageTarget, collab, collabEnabled, setCollabEnabled,
     copyElementById, creditPackages, deletePage, docId, drawPaths, setDrawPaths,
