@@ -7,6 +7,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
-EXPOSE $PORT
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONFAULTHANDLER=1
 
-CMD ["sh", "-c", "uvicorn server:app --host 0.0.0.0 --port ${PORT:-8001}"]
+EXPOSE 8080
+
+CMD ["sh", "-c", "echo 'DOCKER_CMD_START' && python --version && python -c \"print('PYTHON_RUN_OK')\" && exec python -m uvicorn server:app --host 0.0.0.0 --port ${PORT:-8080}"]
