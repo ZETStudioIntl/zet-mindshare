@@ -1723,7 +1723,11 @@ const Editor = () => {
       if (editorDoc.title) setDocument(prev => ({ ...prev, title: editorDoc.title }));
       if (editorDoc.pages && editorDoc.pages.length > 0) {
         setDocument(prev => ({ ...prev, pages: editorDoc.pages }));
+        const firstPage = editorDoc.pages[0];
         setCurrentPage(0);
+        setCanvasElements(firstPage.elements || []);
+        setDrawPaths(firstPage.drawPaths || []);
+        history.reset(firstPage.elements || []);
       }
       if (editorDoc.watermark) setDocument(prev => ({ ...prev, watermark: editorDoc.watermark }));
       setShowExport(false);

@@ -219,12 +219,17 @@ export function convertToMSFormat(editorDoc, canvasElements, drawPaths, pageSize
 // --- CONVERTER: MS Format -> Editor Document ---
 export function convertFromMSFormat(msDoc) {
   const pages = (msDoc.pages || []).map((page, idx) => {
+    let yOffset = 50;
     const elements = (page.blocks || []).map((block) => {
+      const yPos = yOffset;
+      const fontSize = block.format?.fontSize || 12;
+      const lineHeight = block.format?.lineHeight || 1.5;
+      yOffset += Math.ceil(fontSize * lineHeight * 2) + 12;
       const el = {
         id: block.id,
         type: block.type === 'paragraph' || block.type === 'heading' ? 'text' : block.type === 'image' ? 'image' : block.type,
         x: 60,
-        y: 50 + (page.blocks.indexOf(block)) * 40,
+        y: yPos,
         content: (block.content || '').replace(/<[^>]*>/g, ''),
         htmlContent: block.content || '',
         fontSize: block.format?.fontSize || 12,
