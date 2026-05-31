@@ -5833,25 +5833,32 @@ async def keepalive_ping():
             pass
         await asyncio.sleep(60)
 
+async def _ensure_indexes():
+    try:
+        await db.doc_presence.create_index([("doc_id", 1), ("last_seen", 1)])
+        await db.documents.create_index([("user_id", 1), ("updated_at", -1)])
+        await db.documents.create_index([("user_id", 1), ("pinned", -1)])
+        await db.notes.create_index([("user_id", 1), ("updated_at", -1)])
+        await db.notebooks.create_index([("user_id", 1)])
+        await db.quests.create_index([("user_id", 1)])
+        await db.users.create_index([("user_id", 1)], unique=True)
+        await db.subscriptions.create_index([("user_id", 1)])
+        await db.inventory.create_index([("user_id", 1)])
+        await db.doc_presence.create_index([("doc_id", 1), ("session_id", 1)], unique=True)
+        await db.user_sessions.create_index([("session_token", 1)], unique=True)
+        await db.user_sessions.create_index([("expires_at", 1)], expireAfterSeconds=0)
+        await db.token_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
+        await db.chest_usage.create_index([("user_id", 1), ("month", 1)], unique=True)
+        logging.info("MongoDB indexes OK")
+    except Exception as e:
+        logging.warning(f"Index creation warning (non-fatal): {e}")
+
 @app.on_event("startup")
 async def start_background_tasks():
     asyncio.create_task(send_weekly_report())
     asyncio.create_task(expire_boosts_loop())
     asyncio.create_task(keepalive_ping())
-    await db.doc_presence.create_index([("doc_id", 1), ("last_seen", 1)])
-    await db.documents.create_index([("user_id", 1), ("updated_at", -1)])
-    await db.documents.create_index([("user_id", 1), ("pinned", -1)])
-    await db.notes.create_index([("user_id", 1), ("updated_at", -1)])
-    await db.notebooks.create_index([("user_id", 1)])
-    await db.quests.create_index([("user_id", 1)])
-    await db.users.create_index([("user_id", 1)], unique=True)
-    await db.subscriptions.create_index([("user_id", 1)])
-    await db.inventory.create_index([("user_id", 1)])
-    await db.doc_presence.create_index([("doc_id", 1), ("session_id", 1)], unique=True)
-    await db.user_sessions.create_index([("session_token", 1)], unique=True)
-    await db.user_sessions.create_index([("expires_at", 1)], expireAfterSeconds=0)
-    await db.token_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
-    await db.chest_usage.create_index([("user_id", 1), ("month", 1)], unique=True)
+    asyncio.create_task(_ensure_indexes())
 
     if _APSCHEDULER_AVAILABLE:
         scheduler = AsyncIOScheduler(timezone="UTC")
