@@ -5855,17 +5855,24 @@ async def _ensure_indexes():
 
 @app.on_event("startup")
 async def start_background_tasks():
-    asyncio.create_task(send_weekly_report())
-    asyncio.create_task(expire_boosts_loop())
-    asyncio.create_task(keepalive_ping())
-    asyncio.create_task(_ensure_indexes())
+    try:
+        asyncio.create_task(send_weekly_report())
+        asyncio.create_task(expire_boosts_loop())
+        asyncio.create_task(keepalive_ping())
+        asyncio.create_task(_ensure_indexes())
+        logging.info("Background tasks created successfully")
+    except Exception as e:
+        logging.error(f"Background task creation failed (non-fatal): {e}")
 
     if _APSCHEDULER_AVAILABLE:
-        scheduler = AsyncIOScheduler(timezone="UTC")
-        scheduler.add_job(_run_renewal_check, "cron", hour=8, minute=0)
-        scheduler.add_job(_check_season_end, "cron", hour=0, minute=5)
-        scheduler.start()
-        logging.info("APScheduler started — renewal check 08:00 UTC, season check 00:05 UTC")
+        try:
+            scheduler = AsyncIOScheduler(timezone="UTC")
+            scheduler.add_job(_run_renewal_check, "cron", hour=8, minute=0)
+            scheduler.add_job(_check_season_end, "cron", hour=0, minute=5)
+            scheduler.start()
+            logging.info("APScheduler started — renewal check 08:00 UTC, season check 00:05 UTC")
+        except Exception as e:
+            logging.error(f"APScheduler failed to start (non-fatal): {e}")
 
 app.include_router(api_router)
 
