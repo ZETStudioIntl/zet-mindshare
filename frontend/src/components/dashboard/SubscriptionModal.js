@@ -4,25 +4,39 @@ import { X, Star, Check, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-re
 const PLAN_SLIDES = {
   free: [
     {
-      title: 'Notlarınızı defterde toplayın',
-      desc: 'Bir deftere kadar organize edin, her şeyi tek yerde tutun ve zamanınızı tasarruf edin.',
-      visual: 'notebook',
+      title: 'Ücretsiz başla, her zaman kullan',
+      desc: 'Kredi kartı gerekmez. Hesap aç, hemen kullanmaya başla. Temel özellikler sonsuza kadar ücretsiz.',
+      visual: 'ai',
       bg: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
       accent: '#6b7280',
     },
     {
-      title: 'Zeta ile anında belge oluşturun',
-      desc: 'Günde 80 kredi ile AI destekli belgeler, görseller ve içerikler üretin.',
+      title: 'Notlarınızı defterde toplayın',
+      desc: 'Bir deftere kadar organize edin, her şeyi tek yerde tutun — belgeleriniz buluta otomatik kaydedilir.',
+      visual: 'notebook',
+      bg: 'linear-gradient(135deg, #1a2035 0%, #0f172a 100%)',
+      accent: '#6b7280',
+    },
+    {
+      title: 'Zeta ile anında içerik üretin',
+      desc: 'Günde 80 kredi ve 100K token ile AI destekli belgeler, görseller ve içerikler oluşturun.',
       visual: 'ai',
       bg: 'linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%)',
       accent: '#3b82f6',
     },
     {
-      title: 'Temel editör araçları',
-      desc: 'Kalem, metin, şekil, tablo ve daha fazlası — profesyonel belgeler için ihtiyacınız olan her şey.',
+      title: 'Güçlü editör araçları',
+      desc: 'Kalem, metin, şekil, tablo, emoji — profesyonel belgeler oluşturmak için ihtiyacınız olan her şey elinizin altında.',
       visual: 'tools',
       bg: 'linear-gradient(135deg, #1a1f3e 0%, #0f172a 100%)',
       accent: '#8b5cf6',
+    },
+    {
+      title: 'Judge ile akıllı sohbet',
+      desc: 'AI asistanınız Judge ile sorularınızı yanıtlayın, belgelerinizi analiz ettirin ve daha verimli çalışın.',
+      visual: 'judge',
+      bg: 'linear-gradient(135deg, #12172e 0%, #0f172a 100%)',
+      accent: '#6b7280',
     },
   ],
   plus: [
@@ -54,6 +68,13 @@ const PLAN_SLIDES = {
       bg: 'linear-gradient(135deg, #0f3460 0%, #0f172a 100%)',
       accent: '#3b82f6',
     },
+    {
+      title: 'Sınırsız ElevenLabs TTS',
+      desc: 'Metinlerinizi gerçekçi seslerle dinleyin. Çalışırken, dinlenirken — notlarınız her an kulağınızda.',
+      visual: 'support',
+      bg: 'linear-gradient(135deg, #0a2540 0%, #0f172a 100%)',
+      accent: '#06b6d4',
+    },
   ],
   pro: [
     {
@@ -84,6 +105,13 @@ const PLAN_SLIDES = {
       bg: 'linear-gradient(135deg, #4c1d95 0%, #0f172a 100%)',
       accent: '#c084fc',
     },
+    {
+      title: 'Fotoğraf Düzenleme AI',
+      desc: 'Görsellerinizi AI ile dönüştürün: stil transferi, arka plan değiştirme, renk optimizasyonu ve daha fazlası.',
+      visual: 'cinema',
+      bg: 'linear-gradient(135deg, #2d1b69 0%, #0f172a 100%)',
+      accent: '#7c3aed',
+    },
   ],
   creative_station: [
     {
@@ -113,6 +141,13 @@ const PLAN_SLIDES = {
       visual: 'support',
       bg: 'linear-gradient(135deg, #78350f 0%, #0f172a 100%)',
       accent: '#fbbf24',
+    },
+    {
+      title: 'Zeta Belge Düzenleme (AI)',
+      desc: 'Sadece söyleyin, Zeta yapıyor: yeni element ekle, şekil değiştir, tablo oluştur — konuşarak tasarla.',
+      visual: 'ai',
+      bg: 'linear-gradient(135deg, #5c2a06 0%, #0f172a 100%)',
+      accent: '#f59e0b',
     },
   ],
 };
