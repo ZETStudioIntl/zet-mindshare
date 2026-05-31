@@ -159,8 +159,12 @@ export const RightPanel = ({
     }
   };
 
+  const prevMsgCountRef = useRef(0);
   useEffect(() => {
-    setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    if (zetaMessages.length !== prevMsgCountRef.current) {
+      prevMsgCountRef.current = zetaMessages.length;
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+    }
   }, [zetaMessages]);
 
   // Auto-detect CEO from email
