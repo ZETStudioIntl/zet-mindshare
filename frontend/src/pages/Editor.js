@@ -33,6 +33,8 @@ import {
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, ArcElement, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
 import { Bar, Pie, Line } from 'react-chartjs-2';
 import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
+import { Document as DocxDocument, Packer as DocxPacker, Paragraph as DocxParagraph, TextRun as DocxTextRun, ImageRun as DocxImageRun, AlignmentType as DocxAlignmentType, UnderlineType as DocxUnderlineType } from 'docx';
+import JSZip from 'jszip';
 import ShareDialog from '../components/editor/ShareDialog';
 import CommentsPanel from '../components/editor/CommentsPanel';
 import EmojiPicker from '../components/editor/EmojiPicker';
@@ -1696,48 +1698,88 @@ const Editor = () => {
     if (!canvasContainerRef.current) return;
     setExporting(true);
     try {
-      const allPages = document?.pages || [{ elements: canvasElements }];
+      const updatedPages = [...(document?.pages || [])];
+      if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths };
+      const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
       const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
       if (!pageElements.length) return;
+
       const firstPSize = allPages[0]?.pageSize || pageSize;
       const pdf = new jsPDF({ orientation: firstPSize.width > firstPSize.height ? 'l' : 'p', unit: 'px', format: [firstPSize.width, firstPSize.height], hotfixes: ['px_scaling'] });
+
+      let isFirstPdfPage = true;
+
       for (let i = 0; i < pageElements.length; i++) {
         const pSize = allPages[i]?.pageSize || pageSize;
-        if (i > 0) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
         const el = pageElements[i];
-        // Capture scale: make captured image exactly pSize at 2x quality, regardless of current zoom
+
+        // Expand element to full scroll height so overflow content is captured
+        const saved = { overflow: el.style.overflow, height: el.style.height, maxHeight: el.style.maxHeight };
+        el.style.overflow = 'visible';
+        el.style.maxHeight = 'none';
+        const fullH = Math.max(el.offsetHeight, el.scrollHeight);
+        el.style.height = fullH + 'px';
+
         const captureScale = (pSize.width / el.offsetWidth) * 2;
-        // Temporarily clip overflow so rulers/handles outside page bounds don't bleed into capture
-        const prevOverflow = el.style.overflow;
-        el.style.overflow = 'hidden';
-        const capturedCanvas = await html2canvas(el, {
+        const captured = await html2canvas(el, {
           scale: captureScale,
           useCORS: true,
-          backgroundColor: pageBackground,
+          allowTaint: true,
+          backgroundColor: pageBackground || '#ffffff',
           width: el.offsetWidth,
-          height: el.offsetHeight,
+          height: fullH,
+          logging: false,
         });
-        el.style.overflow = prevOverflow;
-        const imgData = capturedCanvas.toDataURL('image/jpeg', 0.92);
-        pdf.addImage(imgData, 'JPEG', 0, 0, pSize.width, pSize.height);
-        // Invisible text layer for searchability
+
+        // Restore
+        el.style.overflow = saved.overflow;
+        el.style.height = saved.height;
+        el.style.maxHeight = saved.maxHeight;
+
+        // Content height in PDF space
+        const pdfContentH = (fullH / el.offsetWidth) * pSize.width;
+        const pdfPageH = pSize.height;
+
+        if (pdfContentH <= pdfPageH + 20) {
+          // Fits in one PDF page
+          if (!isFirstPdfPage) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
+          isFirstPdfPage = false;
+          pdf.addImage(captured.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pSize.width, Math.min(pdfContentH, pdfPageH));
+        } else {
+          // Split overflow content across multiple PDF pages
+          const pixPerPdfPage = (pdfPageH / pdfContentH) * captured.height;
+          let yPx = 0;
+          while (yPx < captured.height) {
+            if (!isFirstPdfPage) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
+            isFirstPdfPage = false;
+            const sliceH = Math.min(pixPerPdfPage, captured.height - yPx);
+            const tmp = window.document.createElement('canvas');
+            tmp.width = captured.width;
+            tmp.height = Math.ceil(sliceH);
+            tmp.getContext('2d').drawImage(captured, 0, -yPx);
+            pdf.addImage(tmp.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pSize.width, (sliceH / captured.height) * pdfContentH);
+            yPx += pixPerPdfPage;
+          }
+        }
+
+        // Invisible text layer for search/copy
         const pageEls = i === currentPage ? canvasElements : (allPages[i]?.elements || []);
         pdf.setTextColor(0, 0, 0);
         pdf.setGState(new pdf.GState({ opacity: 0 }));
         pageEls.forEach(textEl => {
           if (textEl.type === 'text' && textEl.content) {
-            const fs = (textEl.fontSize || 14);
+            const fs = textEl.fontSize || 14;
             pdf.setFontSize(fs);
-            const lines = (textEl.content || '').split('\n');
-            lines.forEach((line, li) => {
+            (textEl.content || '').split('\n').forEach((line, li) => {
               pdf.text(line, textEl.x, textEl.y + fs + li * fs * (textEl.lineHeight || 1.5));
             });
           }
         });
         pdf.setGState(new pdf.GState({ opacity: 1 }));
       }
+
       pdf.save(`${document?.title || 'document'}.pdf`);
-    } catch (err) { console.error('Export failed:', err); } finally {
+    } catch (err) { console.error('PDF export failed:', err); } finally {
       setExporting(false);
       setShowExport(false);
     }
@@ -1851,6 +1893,203 @@ const Editor = () => {
     const msDoc = convertToMSFormat(docWithPages, canvasElements, drawPaths, pageSize, pageBackground, userPlan);
     exportToMSFile(msDoc, document.title);
     setShowExport(false);
+  };
+
+  // Export to plain text
+  const exportToTxt = () => {
+    const updatedPages = [...(document?.pages || [])];
+    if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements };
+    const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
+    let text = '';
+    allPages.forEach((page, pi) => {
+      if (pi > 0) text += '\n\n' + '─'.repeat(40) + '\n\n';
+      const els = (page.elements || []).filter(el => el.type === 'text').sort((a, b) => a.y - b.y || a.x - b.x);
+      els.forEach(el => {
+        const raw = (el.content || '').replace(/<[^>]*>/g, '').trim();
+        if (raw) text += raw + '\n\n';
+      });
+    });
+    const blob = new Blob([text.trim()], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.href = url; a.download = `${document?.title || 'document'}.txt`; a.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  // Export to HTML
+  const exportToHtml = () => {
+    const updatedPages = [...(document?.pages || [])];
+    if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements };
+    const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
+    const pw = pageSize.width || 794;
+    const ph = pageSize.height || 1123;
+    let pagesHtml = '';
+    allPages.forEach((page) => {
+      const els = (page.elements || []).sort((a, b) => a.y - b.y || a.x - b.x);
+      let inner = '';
+      els.forEach(el => {
+        if (el.type === 'text') {
+          const content = el.htmlContent || (el.content || '').replace(/\n/g, '<br>');
+          const decorations = [el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ');
+          const s = [
+            'position:absolute', `left:${el.x}px`, `top:${el.y}px`,
+            el.width ? `width:${el.width}px` : '',
+            `font-size:${el.fontSize || 14}px`,
+            `font-family:${(el.fontFamily || el.font || 'Arial').replace(/"/g, "'")},sans-serif`,
+            `color:${el.color || '#000000'}`,
+            `line-height:${el.lineHeight || 1.5}`,
+            `text-align:${el.textAlign || 'left'}`,
+            el.bold ? 'font-weight:bold' : 'font-weight:normal',
+            el.italic ? 'font-style:italic' : '',
+            decorations ? `text-decoration:${decorations}` : '',
+            el.highlightColor ? `background-color:${el.highlightColor}` : '',
+          ].filter(Boolean).join(';');
+          inner += `<div style="${s}">${content}</div>`;
+        } else if (el.type === 'image' && el.src) {
+          inner += `<img src="${el.src}" style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.width}px;height:${el.height}px;" />`;
+        }
+      });
+      pagesHtml += `<div style="position:relative;width:${pw}px;min-height:${ph}px;background:${pageBackground || '#fff'};margin:0 auto 40px;box-shadow:0 2px 8px rgba(0,0,0,.15);">${inner}</div>`;
+    });
+    const title = (document?.title || 'document').replace(/</g, '&lt;');
+    const html = `<!DOCTYPE html>\n<html lang="tr">\n<head>\n<meta charset="UTF-8">\n<title>${title}</title>\n<style>*{box-sizing:border-box;margin:0;padding:0}body{background:#f0f0f0;padding:40px 0}</style>\n</head>\n<body>${pagesHtml}</body>\n</html>`;
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.href = url; a.download = `${document?.title || 'document'}.html`; a.click();
+    URL.revokeObjectURL(url);
+    setShowExport(false);
+  };
+
+  // Export to DOCX
+  const exportToDocx = async () => {
+    setExporting(true);
+    try {
+      const updatedPages = [...(document?.pages || [])];
+      if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements };
+      const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
+      const children = [];
+
+      allPages.forEach((page, pi) => {
+        if (pi > 0) children.push(new DocxParagraph({ pageBreakBefore: true, children: [] }));
+        const els = (page.elements || []).sort((a, b) => a.y - b.y || a.x - b.x);
+        els.forEach(el => {
+          if (el.type === 'text') {
+            const text = (el.content || '').replace(/<[^>]*>/g, '');
+            text.split('\n').forEach(line => {
+              children.push(new DocxParagraph({
+                alignment: el.textAlign === 'center' ? DocxAlignmentType.CENTER
+                  : el.textAlign === 'right' ? DocxAlignmentType.RIGHT
+                  : el.textAlign === 'justify' ? DocxAlignmentType.JUSTIFIED
+                  : DocxAlignmentType.LEFT,
+                spacing: { line: Math.round((el.lineHeight || 1.5) * 240) },
+                children: [new DocxTextRun({
+                  text: line || ' ',
+                  bold: !!el.bold,
+                  italics: !!el.italic,
+                  underline: el.underline ? { type: DocxUnderlineType.SINGLE } : undefined,
+                  strike: !!el.strikethrough,
+                  size: Math.round((el.fontSize || 14) * 0.75 * 2),
+                  font: el.fontFamily || el.font || 'Arial',
+                  color: (el.color || '#000000').replace('#', ''),
+                })],
+              }));
+            });
+          } else if (el.type === 'image' && el.src && el.src.startsWith('data:')) {
+            try {
+              const mimeMatch = el.src.match(/^data:([^;]+);base64,/);
+              if (!mimeMatch) return;
+              const imgType = mimeMatch[1] === 'image/jpeg' ? 'jpg' : 'png';
+              const base64 = el.src.split(',')[1];
+              const bin = atob(base64);
+              const bytes = new Uint8Array(bin.length);
+              for (let b = 0; b < bin.length; b++) bytes[b] = bin.charCodeAt(b);
+              children.push(new DocxParagraph({
+                children: [new DocxImageRun({
+                  data: bytes,
+                  transformation: {
+                    width: Math.round(el.width || 200),
+                    height: Math.round(el.height || 200),
+                  },
+                  type: imgType,
+                })],
+              }));
+            } catch {}
+          }
+        });
+      });
+
+      const docxDoc = new DocxDocument({ sections: [{ children }] });
+      const blob = await DocxPacker.toBlob(docxDoc);
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url; a.download = `${document?.title || 'document'}.docx`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) { console.error('DOCX export failed:', err); } finally {
+      setExporting(false);
+      setShowExport(false);
+    }
+  };
+
+  // Export to ODT (OpenDocument Text)
+  const exportToOdt = async () => {
+    setExporting(true);
+    try {
+      const updatedPages = [...(document?.pages || [])];
+      if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements };
+      const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
+
+      // Build automatic styles for each unique text style
+      const styleMap = new Map();
+      allPages.forEach(page => {
+        (page.elements || []).filter(el => el.type === 'text').forEach(el => {
+          const key = `${el.fontSize}|${el.fontFamily}|${el.color}|${el.textAlign}|${el.lineHeight}|${el.bold}|${el.italic}|${el.underline}`;
+          if (!styleMap.has(key)) styleMap.set(key, { id: `P${styleMap.size + 1}`, el });
+        });
+      });
+
+      let autoStyles = '';
+      styleMap.forEach(({ id, el }) => {
+        const align = el.textAlign === 'center' ? 'center' : el.textAlign === 'right' ? 'end' : el.textAlign === 'justify' ? 'justify' : 'start';
+        autoStyles += `<style:style style:name="${id}" style:family="paragraph"><style:paragraph-properties fo:text-align="${align}" fo:line-height="${Math.round((el.lineHeight || 1.5) * 100)}%"/><style:text-properties fo:font-size="${el.fontSize || 14}pt" fo:font-family="${(el.fontFamily || el.font || 'Arial').replace(/['"]/g, '')}" fo:color="${el.color || '#000000'}" ${el.bold ? 'fo:font-weight="bold"' : ''} ${el.italic ? 'fo:font-style="italic"' : ''} ${el.underline ? 'style:text-underline-style="solid" style:text-underline-width="auto" style:text-underline-color="font-color"' : ''}/></style:style>`;
+      });
+
+      let bodyContent = '';
+      allPages.forEach((page, pi) => {
+        if (pi > 0) bodyContent += '<text:p/>';
+        const els = (page.elements || []).sort((a, b) => a.y - b.y || a.x - b.x);
+        els.forEach(el => {
+          if (el.type === 'text') {
+            const key = `${el.fontSize}|${el.fontFamily}|${el.color}|${el.textAlign}|${el.lineHeight}|${el.bold}|${el.italic}|${el.underline}`;
+            const styleId = styleMap.get(key)?.id || 'P1';
+            const text = (el.content || '').replace(/<[^>]*>/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+            text.split('\n').forEach(line => {
+              bodyContent += `<text:p text:style-name="${styleId}">${line}</text:p>`;
+            });
+          }
+        });
+      });
+
+      const contentXml = `<?xml version="1.0" encoding="UTF-8"?><office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0"><office:automatic-styles>${autoStyles}</office:automatic-styles><office:body><office:text>${bodyContent}</office:text></office:body></office:document-content>`;
+      const stylesXml = `<?xml version="1.0" encoding="UTF-8"?><office:document-styles xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:style="urn:oasis:names:tc:opendocument:xmlns:style:1.0" xmlns:fo="urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0"><office:styles><style:default-style style:family="paragraph"><style:text-properties fo:font-family="Arial"/></style:default-style></office:styles></office:document-styles>`;
+      const manifestXml = `<?xml version="1.0" encoding="UTF-8"?><manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0"><manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.text"/><manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/><manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/></manifest:manifest>`;
+
+      const zip = new JSZip();
+      zip.file('mimetype', 'application/vnd.oasis.opendocument.text', { compression: 'STORE' });
+      zip.file('content.xml', contentXml);
+      zip.file('styles.xml', stylesXml);
+      zip.folder('META-INF').file('manifest.xml', manifestXml);
+
+      const blob = await zip.generateAsync({ type: 'blob', mimeType: 'application/vnd.oasis.opendocument.text' });
+      const url = URL.createObjectURL(blob);
+      const a = window.document.createElement('a');
+      a.href = url; a.download = `${document?.title || 'document'}.odt`; a.click();
+      URL.revokeObjectURL(url);
+    } catch (err) { console.error('ODT export failed:', err); } finally {
+      setExporting(false);
+      setShowExport(false);
+    }
   };
 
   // Import .ms file
@@ -2004,6 +2243,10 @@ const Editor = () => {
     else if (format === 'svg') exportToSVG();
     else if (format === 'json') exportToJSON();
     else if (format === 'ms') exportToMS();
+    else if (format === 'txt') exportToTxt();
+    else if (format === 'html') exportToHtml();
+    else if (format === 'docx') exportToDocx();
+    else if (format === 'odt') exportToOdt();
   };
 
   // === GRAPHIC CHART ===

@@ -3,10 +3,14 @@ import { Upload, Loader2 } from 'lucide-react';
 import { DraggablePanel } from './DraggablePanel';
 
 const FORMATS = [
-  { id: 'pdf',  label: 'PDF Document',       sub: 'Best for printing & sharing',      color: '#e74c3c', short: 'PDF' },
-  { id: 'png',  label: 'PNG Image',           sub: 'High quality, transparent background', color: '#3498db', short: 'PNG' },
-  { id: 'jpeg', label: 'JPEG Image',          sub: 'Smaller file size, web optimized', color: '#27ae60', short: 'JPG' },
-  { id: 'svg',  label: 'SVG Vector',          sub: 'Scalable, editable graphics',      color: '#9b59b6', short: 'SVG' },
+  { id: 'pdf',  label: 'PDF Document',       sub: 'Best for printing & sharing',           color: '#e74c3c', short: 'PDF' },
+  { id: 'docx', label: 'Word Document',      sub: 'Microsoft Word (.docx)',                color: '#2b7cd3', short: 'DOC' },
+  { id: 'odt',  label: 'OpenDocument',       sub: 'LibreOffice / OpenOffice (.odt)',       color: '#1e8c45', short: 'ODT' },
+  { id: 'html', label: 'Web Page',           sub: 'HTML with inline styles (.html)',       color: '#e67e22', short: 'HTML' },
+  { id: 'txt',  label: 'Plain Text',         sub: 'Simple text file (.txt)',               color: '#7f8c8d', short: 'TXT' },
+  { id: 'png',  label: 'PNG Image',          sub: 'High quality, transparent background',  color: '#3498db', short: 'PNG' },
+  { id: 'jpeg', label: 'JPEG Image',         sub: 'Smaller file size, web optimized',      color: '#27ae60', short: 'JPG' },
+  { id: 'svg',  label: 'SVG Vector',         sub: 'Scalable, editable graphics',           color: '#9b59b6', short: 'SVG' },
 ];
 
 const ExportPanel = ({ handleExport, exporting, exportQuality, setExportQuality, importFromMS, isMobile, onClose }) => (

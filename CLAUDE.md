@@ -58,7 +58,7 @@ backend/
 | Dosya | Bölge / Satır | Kilitlenme Sebebi |
 |-------|--------------|-------------------|
 | `frontend/src/App.js` | Satır 113 — `html { cursor: url('.../arrow.svg') 1 1, default !important; }` | `* !important` canvas inline stilini eziyordu; `html` ile düzeltildi — dokunma |
-| `frontend/src/components/editor/CanvasArea.js` | Highlighter + Redact overlay sistemi (mouseup listener + savedRange mekanizması, ~760-920. satır arası) | Çalışan sansür sistemi — Zeta sansürlü metni okuyamıyor, export'ta da siyah kutu görünüyor |
+| `frontend/src/components/editor/CanvasArea.js` | Highlighter + Redact overlay sistemi (mouseup listener + savedRange mekanizması, ~760-920. satır arası) | Çalışan sansür sistemi — Zeta sansürlü metni okuyamıyor, export'ta da siyah kutu görünüyor | 
 | `frontend/src/components/editor/CanvasArea.js` | `mirror` aracı — tüm mirror/flip mantığı | Kilitlendi, dokunma |
 | `frontend/src/components/editor/CanvasArea.js` | `hand` aracı — sürükleme/kaydırma mantığı | Kilitlendi, dokunma |
 | `frontend/src/components/editor/CanvasArea.js` | `select` / lasso / rect-select mantığı | Kilitlendi, dokunma |
@@ -115,7 +115,6 @@ backend/
 | `frontend/src/components/editor/TOCPanel.js` | Tüm dosya — içindekiler tablosu paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/FootnotePanel.js` | Tüm dosya — dipnot paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/ChatSettingsPanel.js` | Tüm dosya — chat ayarları paneli | Kilitlendi, dokunma |
-| `frontend/src/components/editor/ExportPanel.js` | Tüm dosya — dışa aktarma paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/SelfTestPanel.js` | Tüm dosya — self test paneli | Kilitlendi, dokunma |
 
 ### Asla yapma
