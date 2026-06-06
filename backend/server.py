@@ -4581,17 +4581,17 @@ Kullanılabilir shapeType değerleri:
   }}
 }}
 
-6. GÖRSEL (type: "image")
+6. GÖRSEL (type: "image") — SADECE kullanıcı açık bir URL verdiğinde kullan
 {{
   "id": "el_<timestamp>_<random4>",
   "type": "image",
   "x": <number>,
   "y": <number>,
-  "width": <number>,    // genelde 200-400
-  "height": <number>,   // genelde 150-300
-  "src": "https://placehold.co/<width>x<height>/eee/999?text=<URLencoded_label>"
+  "width": <number>,
+  "height": <number>,
+  "src": "<kullanıcının verdiği URL>"
 }}
-// Kullanıcı belirli bir görsel URL'si verdiyse onu kullan. Aksi hâlde placehold.co placeholder ekle.
+// ⚠️ placehold.co ASLA kullanma. URL verilmemişse generate_ai_image kullan (aşağıya bak).
 
 7. ÇİZİM (type: "draw_path") — basit düz çizgiler ve geometrik yollar
 {{
@@ -4615,7 +4615,8 @@ SİL:             {{"action": "delete",       "element_id": "<id>",             
 ÇİZİM EKLE:     {{"action": "add_path",     "path": {{...}},                   "target_page": <indeks>}}
 SAYFA SİL:       {{"action": "delete_page",                                     "target_page": <indeks>}}
 SAYFA TEMİZLE:   {{"action": "clear_page",                                      "target_page": <indeks>}}
-AI GÖRSEL:       {{"action": "generate_ai_image", "prompt": "<İngilizce görsel açıklaması>", "x": <n>, "y": <n>, "width": <200-500>, "height": <150-400>, "target_page": <indeks>}}
+AI GÖRSEL:       {{"action": "generate_ai_image", "prompt": "<İngilizce görsel açıklaması, 10-20 kelime>", "x": <n>, "y": <n>, "width": <200-500>, "height": <150-400>, "target_page": <indeks>}}
+// ← Kullanıcı "görsel ekle", "resim ekle", "AI görsel", "fotoğraf ekle" dediğinde HEP bunu kullan
 
 target_page belirtilmezse aktif sayfa ({req.page_index}) kullanılır.
 @N sayfa referansı: kullanıcı "@1", "@2" gibi yazarsa bu sayfa indeksi N-1 demektir (1-indexed).
@@ -4646,7 +4647,8 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 - "Yazıları sil" = sadece type:"text" elementlerini delete et; "Her şeyi sil" = clear_page kullan
 - "Sadece [X] sil" = ilgili type/içerik filtrele; "Tüm sayfayı sil" = delete_page (1 sayfa kalırsa yapma)
 - delete_page: sadece birden fazla sayfa varsa kullan; tek sayfa kaldığında clear_page kullan
-- generate_ai_image: prompt İngilizce olmalı, kısa ve açıklayıcı (örn: "a mountain landscape, photorealistic")
+- Görsel/resim/fotoğraf eklemek istendiğinde MUTLAKA generate_ai_image kullan, image type'ı sadece URL verildiğinde
+- generate_ai_image: prompt İngilizce, kısa ve açıklayıcı (örn: "a mountain landscape, photorealistic style")
 """
 
     full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"
