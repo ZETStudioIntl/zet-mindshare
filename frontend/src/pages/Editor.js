@@ -1708,16 +1708,16 @@ const Editor = () => {
       const firstSize = getPageSize(0);
       const fw = toMm(firstSize.width);
       const fh = toMm(firstSize.height);
-      const pdf = new jsPDF({ orientation: fw > fh ? 'l' : 'p', unit: 'mm', format: [fw, fh] });
+      const pdf = new jsPDF({ orientation: fw > fh ? 'l' : 'p', unit: 'mm', format: [fw, fh], compress: true });
 
       for (let i = 0; i < pageElements.length; i++) {
         const pSize = getPageSize(i);
         const pw = toMm(pSize.width);
         const ph = toMm(pSize.height);
         if (i > 0) pdf.addPage([pw, ph], pw > ph ? 'l' : 'p');
-        const canvas = await html2canvas(pageElements[i], { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false });
-        const imgData = canvas.toDataURL('image/jpeg', 0.92);
-        pdf.addImage(imgData, 'JPEG', 0, 0, pw, ph);
+        const canvas = await html2canvas(pageElements[i], { scale: 1.5, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false });
+        const imgData = canvas.toDataURL('image/jpeg', 0.90);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pw, ph, '', 'FAST');
       }
 
       pdf.save(`${document?.title || 'document'}.pdf`);
