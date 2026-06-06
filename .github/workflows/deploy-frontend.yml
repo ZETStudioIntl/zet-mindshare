@@ -9,15 +9,18 @@ on:
   workflow_dispatch:
 
 env:
-  PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
+  PROJECT_ID: inbound-mote-491904-v2
   SERVICE_NAME: zet-frontend
   REGION: europe-west1
-  IMAGE: gcr.io/${{ secrets.GCP_PROJECT_ID }}/zet-frontend
+  IMAGE: gcr.io/inbound-mote-491904-v2/zet-frontend
 
 jobs:
   deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
       - name: Checkout
@@ -26,7 +29,8 @@ jobs:
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
         with:
-          credentials_json: ${{ secrets.GCP_SA_KEY }}
+          workload_identity_provider: 'projects/91079905270/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+          service_account: 'github-deploy@inbound-mote-491904-v2.iam.gserviceaccount.com'
 
       - name: Set up Cloud SDK
         uses: google-github-actions/setup-gcloud@v2
