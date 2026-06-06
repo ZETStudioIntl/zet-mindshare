@@ -1693,109 +1693,121 @@ const Editor = () => {
     }
   };
 
-  // === EXPORT PDF (all pages) ===
+  // === EXPORT PDF (all pages) — jsPDF doğrudan çizim, html2canvas yok ===
   const exportToPDF = async () => {
-    if (!canvasContainerRef.current) return;
     setExporting(true);
     try {
-      // Fontların yüklenmesini bekle
-      try { await window.document.fonts.ready; } catch {}
-
       const updatedPages = [...(document?.pages || [])];
       if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths };
       const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
-      const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
-      if (!pageElements.length) return;
 
       const firstPSize = allPages[0]?.pageSize || pageSize;
       const pdf = new jsPDF({ orientation: firstPSize.width > firstPSize.height ? 'l' : 'p', unit: 'px', format: [firstPSize.width, firstPSize.height], hotfixes: ['px_scaling'] });
 
-      let isFirstPdfPage = true;
+      // Hex rengi [r,g,b] dizisine çevir
+      const hex2rgb = (hex) => {
+        const c = (hex || '#000000').replace('#', '').padEnd(6, '0');
+        return [parseInt(c.slice(0, 2), 16), parseInt(c.slice(2, 4), 16), parseInt(c.slice(4, 6), 16)];
+      };
 
-      for (let i = 0; i < pageElements.length; i++) {
-        const pSize = allPages[i]?.pageSize || pageSize;
-        const el = pageElements[i];
+      // Font ailesini jsPDF built-in'e map et (courier/times/helvetica)
+      const mapFont = (f) => {
+        const n = (f || '').toLowerCase();
+        if (n.includes('courier') || n.includes('mono')) return 'courier';
+        if (n.includes('times') || n.includes('georgia') || n.includes('palatino') || n === 'serif') return 'times';
+        return 'helvetica';
+      };
 
-        // Harici URL görselleri geçici olarak data URL'e çevir (canvas taint sorununu önler)
-        const imgEls = el.querySelectorAll('img');
-        const imgRestoreList = [];
-        await Promise.all([...imgEls].map(async (img) => {
-          if (!img.src || img.src.startsWith('data:') || img.src.startsWith('blob:')) return;
-          try {
-            const resp = await fetch(img.src, { mode: 'cors' });
-            const blob = await resp.blob();
-            const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
-            imgRestoreList.push({ img, original: img.src });
-            img.src = dataUrl;
-          } catch {}
-        }));
+      // Görseli data URL'e çevir (harici URL desteği)
+      const toDataUrl = async (src) => {
+        if (!src) return null;
+        if (src.startsWith('data:')) return src;
+        try {
+          const resp = await fetch(src, { mode: 'cors' });
+          const blob = await resp.blob();
+          return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+        } catch { return null; }
+      };
 
-        // Expand element to full scroll height so overflow content is captured
-        const saved = { overflow: el.style.overflow, height: el.style.height, maxHeight: el.style.maxHeight };
-        el.style.overflow = 'visible';
-        el.style.maxHeight = 'none';
-        const fullH = Math.max(el.offsetHeight, el.scrollHeight);
-        el.style.height = fullH + 'px';
+      for (let pi = 0; pi < allPages.length; pi++) {
+        const page = allPages[pi];
+        const pSize = page.pageSize || pageSize;
+        if (pi > 0) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
 
-        const captureScale = (pSize.width / el.offsetWidth) * 2;
-        const captured = await html2canvas(el, {
-          scale: captureScale,
-          useCORS: true,
-          backgroundColor: pageBackground || '#ffffff',
-          width: el.offsetWidth,
-          height: fullH,
-          logging: false,
-          imageTimeout: 30000,
-        });
+        // Sayfa arka planı
+        const bg = page.pageBackground || pageBackground || '#ffffff';
+        const [br, bg2, bb] = hex2rgb(bg);
+        pdf.setFillColor(br, bg2, bb);
+        pdf.rect(0, 0, pSize.width, pSize.height, 'F');
 
-        // Görselleri geri yükle
-        imgRestoreList.forEach(({ img, original }) => { img.src = original; });
+        const els = (pi === currentPage ? canvasElements : (page.elements || [])).sort((a, b) => a.y - b.y || a.x - b.x);
 
-        // Restore
-        el.style.overflow = saved.overflow;
-        el.style.height = saved.height;
-        el.style.maxHeight = saved.maxHeight;
+        for (const el of els) {
+          if (el.type === 'text') {
+            // Sansürlü alan — siyah kutu
+            if (el.isRedacted) {
+              pdf.setFillColor(0, 0, 0);
+              const lines = (el.content || '').split('\n').length;
+              pdf.rect(el.x, el.y, el.width || 200, (el.fontSize || 14) * (el.lineHeight || 1.5) * lines, 'F');
+              continue;
+            }
 
-        // Content height in PDF space
-        const pdfContentH = (fullH / el.offsetWidth) * pSize.width;
-        const pdfPageH = pSize.height;
+            const fontName = mapFont(el.fontFamily || el.font);
+            const fontStyle = el.bold && el.italic ? 'bolditalic' : el.bold ? 'bold' : el.italic ? 'italic' : 'normal';
+            pdf.setFont(fontName, fontStyle);
+            const fs = el.fontSize || 14;
+            pdf.setFontSize(fs);
+            const [tr, tg, tb] = hex2rgb(el.color || '#000000');
+            pdf.setTextColor(tr, tg, tb);
 
-        if (pdfContentH <= pdfPageH + 20) {
-          // Fits in one PDF page
-          if (!isFirstPdfPage) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
-          isFirstPdfPage = false;
-          pdf.addImage(captured.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pSize.width, Math.min(pdfContentH, pdfPageH));
-        } else {
-          // Split overflow content across multiple PDF pages
-          const pixPerPdfPage = (pdfPageH / pdfContentH) * captured.height;
-          let yPx = 0;
-          while (yPx < captured.height) {
-            if (!isFirstPdfPage) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
-            isFirstPdfPage = false;
-            const sliceH = Math.min(pixPerPdfPage, captured.height - yPx);
-            const tmp = window.document.createElement('canvas');
-            tmp.width = captured.width;
-            tmp.height = Math.ceil(sliceH);
-            tmp.getContext('2d').drawImage(captured, 0, -yPx);
-            pdf.addImage(tmp.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, pSize.width, (sliceH / captured.height) * pdfContentH);
-            yPx += pixPerPdfPage;
+            // Highlight arka planı
+            if (el.highlightColor) {
+              const [hr, hgc, hb] = hex2rgb(el.highlightColor.startsWith('#') ? el.highlightColor : '#ffff00');
+              pdf.setFillColor(hr, hgc, hb);
+              const rawText = (el.content || '').replace(/<[^>]*>/g, '');
+              const lineCount = rawText.split('\n').length;
+              pdf.rect(el.x, el.y, el.width || 200, fs * (el.lineHeight || 1.5) * lineCount, 'F');
+              // Rengi sıfırla
+              pdf.setTextColor(tr, tg, tb);
+            }
+
+            const text = (el.content || '').replace(/<[^>]*>/g, '');
+            const maxW = el.width || (pSize.width - el.x - 20);
+            const align = el.textAlign || 'left';
+            const lineH = fs * (el.lineHeight || 1.5);
+
+            let xPos = el.x;
+            if (align === 'center') xPos = el.x + maxW / 2;
+            else if (align === 'right') xPos = el.x + maxW;
+
+            let curY = el.y + fs;
+            for (const rawLine of text.split('\n')) {
+              if (!rawLine) { curY += lineH; continue; }
+              const wrapped = pdf.splitTextToSize(rawLine, maxW);
+              for (const line of wrapped) {
+                pdf.text(line, xPos, curY, { align: align === 'justify' ? 'justify' : align });
+                curY += lineH;
+              }
+            }
+
+          } else if (el.type === 'image' && el.src) {
+            const dataUrl = await toDataUrl(el.src);
+            if (dataUrl) {
+              const fmt = dataUrl.startsWith('data:image/png') ? 'PNG' : 'JPEG';
+              try { pdf.addImage(dataUrl, fmt, el.x, el.y, el.width || 100, el.height || 100); } catch {}
+            }
+
+          } else if (el.type === 'shape') {
+            const fill = (el.fill || el.color || '#888888').replace(/[^#\w]/g, '');
+            const [sr, sg, sb] = hex2rgb(fill.startsWith('#') ? fill : '#888888');
+            pdf.setFillColor(sr, sg, sb);
+            if (el.shapeType === 'circle') {
+              pdf.circle(el.x + (el.width || 50) / 2, el.y + (el.height || 50) / 2, Math.min(el.width || 50, el.height || 50) / 2, 'F');
+            } else {
+              pdf.rect(el.x, el.y, el.width || 50, el.height || 50, 'F');
+            }
           }
         }
-
-        // Invisible text layer for search/copy
-        const pageEls = i === currentPage ? canvasElements : (allPages[i]?.elements || []);
-        pdf.setTextColor(0, 0, 0);
-        pdf.setGState(new pdf.GState({ opacity: 0 }));
-        pageEls.forEach(textEl => {
-          if (textEl.type === 'text' && textEl.content) {
-            const fs = textEl.fontSize || 14;
-            pdf.setFontSize(fs);
-            (textEl.content || '').split('\n').forEach((line, li) => {
-              pdf.text(line, textEl.x, textEl.y + fs + li * fs * (textEl.lineHeight || 1.5));
-            });
-          }
-        });
-        pdf.setGState(new pdf.GState({ opacity: 1 }));
       }
 
       pdf.save(`${document?.title || 'document'}.pdf`);
