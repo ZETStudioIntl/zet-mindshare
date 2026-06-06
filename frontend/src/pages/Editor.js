@@ -1693,7 +1693,7 @@ const Editor = () => {
     }
   };
 
-  // === EXPORT PDF — html2canvas ile DOM screenshot, her sayfa ayrı jsPDF sayfası ===
+  // === EXPORT PDF — html2canvas DOM screenshot + jsPDF (mm birim, JPEG) ===
   const exportToPDF = async () => {
     if (!canvasContainerRef.current) return;
     setExporting(true);
@@ -1702,18 +1702,22 @@ const Editor = () => {
       if (!pageElements.length) return;
 
       const allPages = document?.pages || [{}];
+      const toMm = (px) => px * 0.264583;
       const getPageSize = (idx) => allPages[idx]?.pageSize || pageSize;
 
       const firstSize = getPageSize(0);
-      const orientation = firstSize.width > firstSize.height ? 'l' : 'p';
-      const pdf = new jsPDF({ orientation, unit: 'px', format: [firstSize.width, firstSize.height], hotfixes: ['px_scaling'] });
+      const fw = toMm(firstSize.width);
+      const fh = toMm(firstSize.height);
+      const pdf = new jsPDF({ orientation: fw > fh ? 'l' : 'p', unit: 'mm', format: [fw, fh] });
 
       for (let i = 0; i < pageElements.length; i++) {
         const pSize = getPageSize(i);
-        if (i > 0) pdf.addPage([pSize.width, pSize.height], pSize.width > pSize.height ? 'l' : 'p');
-        const canvas = await html2canvas(pageElements[i], { scale: 2, useCORS: true, allowTaint: false, backgroundColor: null, logging: false });
-        const imgData = canvas.toDataURL('image/png');
-        pdf.addImage(imgData, 'PNG', 0, 0, pSize.width, pSize.height);
+        const pw = toMm(pSize.width);
+        const ph = toMm(pSize.height);
+        if (i > 0) pdf.addPage([pw, ph], pw > ph ? 'l' : 'p');
+        const canvas = await html2canvas(pageElements[i], { scale: 2, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false });
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
+        pdf.addImage(imgData, 'JPEG', 0, 0, pw, ph);
       }
 
       pdf.save(`${document?.title || 'document'}.pdf`);
