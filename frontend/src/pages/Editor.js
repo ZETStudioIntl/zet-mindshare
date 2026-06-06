@@ -1698,6 +1698,9 @@ const Editor = () => {
     if (!canvasContainerRef.current) return;
     setExporting(true);
     try {
+      // Fontların yüklenmesini bekle
+      try { await window.document.fonts.ready; } catch {}
+
       const updatedPages = [...(document?.pages || [])];
       if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths };
       const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
@@ -1713,6 +1716,20 @@ const Editor = () => {
         const pSize = allPages[i]?.pageSize || pageSize;
         const el = pageElements[i];
 
+        // Harici URL görselleri geçici olarak data URL'e çevir (canvas taint sorununu önler)
+        const imgEls = el.querySelectorAll('img');
+        const imgRestoreList = [];
+        await Promise.all([...imgEls].map(async (img) => {
+          if (!img.src || img.src.startsWith('data:') || img.src.startsWith('blob:')) return;
+          try {
+            const resp = await fetch(img.src, { mode: 'cors' });
+            const blob = await resp.blob();
+            const dataUrl = await new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(blob); });
+            imgRestoreList.push({ img, original: img.src });
+            img.src = dataUrl;
+          } catch {}
+        }));
+
         // Expand element to full scroll height so overflow content is captured
         const saved = { overflow: el.style.overflow, height: el.style.height, maxHeight: el.style.maxHeight };
         el.style.overflow = 'visible';
@@ -1724,12 +1741,15 @@ const Editor = () => {
         const captured = await html2canvas(el, {
           scale: captureScale,
           useCORS: true,
-          allowTaint: true,
           backgroundColor: pageBackground || '#ffffff',
           width: el.offsetWidth,
           height: fullH,
           logging: false,
+          imageTimeout: 30000,
         });
+
+        // Görselleri geri yükle
+        imgRestoreList.forEach(({ img, original }) => { img.src = original; });
 
         // Restore
         el.style.overflow = saved.overflow;
