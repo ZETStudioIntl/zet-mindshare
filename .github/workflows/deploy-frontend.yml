@@ -58,6 +58,8 @@ jobs:
             --region $REGION \
             --platform managed \
             --allow-unauthenticated \
+            --port 80 \
+            --min-instances 0 \
             --quiet
 
       - name: Show service URL
