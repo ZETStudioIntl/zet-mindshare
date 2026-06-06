@@ -27,7 +27,7 @@ except ImportError:
     _APSCHEDULER_AVAILABLE = False
 from google import genai as google_genai
 from google.genai import types as genai_types
-import hafiz
+import hafizz
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.util import get_remote_address
@@ -837,9 +837,9 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         login_ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "").split(",")[0].strip()
         ua = request.headers.get("User-Agent", "")
         lang = request.headers.get("Accept-Language", "")
-        fp = hafiz.compute_device_fingerprint(ua, lang)
-        asyncio.create_task(hafiz.record_device_login(db, user_id, fp, login_ip))
-        asyncio.create_task(_hafiz_post_login(db, user_id, login_ip))
+        fp = hafizz.compute_device_fingerprint(ua, lang)
+        asyncio.create_task(hafizz.record_device_login(db, user_id, fp, login_ip))
+        asyncio.create_task(_hafizz_post_login(db, user_id, login_ip))
 
         return RedirectResponse(f"{frontend_url}/auth-callback#token={session_token}")
 
@@ -1869,7 +1869,7 @@ async def login_with_email(req: EmailAuthRequest, response: Response, request: R
     normalized_email = req.email.lower().strip()
     ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "").split(",")[0].strip()
 
-    if await hafiz.is_login_locked(db, normalized_email):
+    if await hafizz.is_login_locked(db, normalized_email):
         raise HTTPException(status_code=429, detail="Çok fazla başarısız deneme. 15 dakika bekleyin.")
 
     user = await db.users.find_one({"email": normalized_email})
@@ -1879,23 +1879,23 @@ async def login_with_email(req: EmailAuthRequest, response: Response, request: R
     if not user.get("hashed_password"):
         raise HTTPException(status_code=401, detail="Bu hesap Google ile oluşturulmuş. Lütfen Google ile giriş yapın.")
     if not verify_password(req.password, user["hashed_password"]):
-        fail_count = await hafiz.record_failed_login(db, normalized_email, "")
+        fail_count = await hafizz.record_failed_login(db, normalized_email, "")
         if fail_count >= 5:
-            asyncio.create_task(hafiz.notify_lockout(db, normalized_email))
+            asyncio.create_task(hafizz.notify_lockout(db, normalized_email))
         raise HTTPException(status_code=401, detail="Şifre yanlış. Lütfen tekrar deneyin.")
 
     # Mevcut user_id'yi kullan — asla yeni üretme
     user_id = user["user_id"]
     logging.info(f"Email login: user_id={user_id} email={normalized_email}")
 
-    await hafiz.clear_failed_logins(db, normalized_email)
+    await hafizz.clear_failed_logins(db, normalized_email)
 
     # Hafız: device fingerprint + ülke kontrolü (background)
     ua = request.headers.get("User-Agent", "")
     lang = request.headers.get("Accept-Language", "")
-    fp = hafiz.compute_device_fingerprint(ua, lang)
-    asyncio.create_task(hafiz.record_device_login(db, user_id, fp, ip))
-    asyncio.create_task(_hafiz_post_login(db, user_id, ip))
+    fp = hafizz.compute_device_fingerprint(ua, lang)
+    asyncio.create_task(hafizz.record_device_login(db, user_id, fp, ip))
+    asyncio.create_task(_hafizz_post_login(db, user_id, ip))
 
     session_token = f"sess_{secrets.token_hex(16)}"
     expires_at = datetime.now(timezone.utc) + timedelta(days=7)
@@ -5413,7 +5413,7 @@ async def complete_quest(quest_id: int, req: QuestCompleteRequest, user: User = 
     if quest_id in completed:
         return {"completed_quests": completed, "quest_xp": current_xp, "already_completed": True}
     if req.elapsed_seconds is not None:
-        asyncio.create_task(hafiz.check_task_timing(db, user.user_id, str(quest_id), req.elapsed_seconds))
+        asyncio.create_task(hafizz.check_task_timing(db, user.user_id, str(quest_id), req.elapsed_seconds))
     completed.append(quest_id)
     new_xp = current_xp + req.xp
 
@@ -5952,14 +5952,14 @@ async def keepalive_ping():
             pass
         await asyncio.sleep(60)
 
-async def _hafiz_post_login(db, user_id: str, ip: str):
+async def _hafizz_post_login(db, user_id: str, ip: str):
     """Login sonrası ülke kontrolü + şüpheli durum bildirimi (background)."""
     try:
-        country = await hafiz.get_ip_country(ip, db)
+        country = await hafizz.get_ip_country(ip, db)
         if country:
-            suspicious = await hafiz.check_multi_country_login(db, user_id, country)
+            suspicious = await hafizz.check_multi_country_login(db, user_id, country)
             if suspicious:
-                asyncio.create_task(hafiz.notify_suspicious(db, user_id, f"24 saatte birden fazla ülkeden giriş"))
+                asyncio.create_task(hafizz.notify_suspicious(db, user_id, f"24 saatte birden fazla ülkeden giriş"))
     except Exception as e:
         logging.warning(f"Hafız post-login hatası: {e}")
 
@@ -5991,7 +5991,7 @@ async def start_background_tasks():
         asyncio.create_task(expire_boosts_loop())
         asyncio.create_task(keepalive_ping())
         asyncio.create_task(_ensure_indexes())
-        asyncio.create_task(hafiz.setup_indexes(db))
+        asyncio.create_task(hafizz.setup_indexes(db))
         logging.info("Background tasks created successfully")
     except Exception as e:
         logging.error(f"Background task creation failed (non-fatal): {e}")
@@ -6009,7 +6009,7 @@ async def start_background_tasks():
 # ============ HAFIZ: CEO SECURITY DASHBOARD ============
 
 @api_router.get("/ceo/security/dashboard")
-async def hafiz_security_dashboard(user: User = Depends(get_current_user)):
+async def hafizz_security_dashboard(user: User = Depends(get_current_user)):
     if user.user_id != CEO_EMAIL and not (await db.users.find_one({"user_id": user.user_id, "email": CEO_EMAIL})):
         ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
         if not ceo_user or user.user_id != ceo_user.get("user_id"):
@@ -6052,27 +6052,27 @@ async def hafiz_security_dashboard(user: User = Depends(get_current_user)):
 
 
 @api_router.post("/ceo/security/ban/{target_user_id}")
-async def hafiz_ban_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), user: User = Depends(get_current_user)):
+async def hafizz_ban_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), user: User = Depends(get_current_user)):
     ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
     await db.users.update_one({"user_id": target_user_id}, {"$set": {"banned": True, "ban_reason": reason, "banned_at": datetime.now(timezone.utc).isoformat()}})
-    asyncio.create_task(hafiz.notify_ban(db, target_user_id, reason))
+    asyncio.create_task(hafizz.notify_ban(db, target_user_id, reason))
     return {"ok": True}
 
 
 @api_router.post("/ceo/security/warn/{target_user_id}")
-async def hafiz_warn_user(target_user_id: str, reason: str = Body("Şüpheli aktivite", embed=True), user: User = Depends(get_current_user)):
+async def hafizz_warn_user(target_user_id: str, reason: str = Body("Şüpheli aktivite", embed=True), user: User = Depends(get_current_user)):
     ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
-    asyncio.create_task(hafiz.notify_suspicious(db, target_user_id, reason))
-    await hafiz.add_anomaly_score(db, target_user_id, 10, f"ceo_warning:{reason[:50]}")
+    asyncio.create_task(hafizz.notify_suspicious(db, target_user_id, reason))
+    await hafizz.add_anomaly_score(db, target_user_id, 10, f"ceo_warning:{reason[:50]}")
     return {"ok": True}
 
 
 @api_router.post("/ceo/security/clear/{target_user_id}")
-async def hafiz_clear_user(target_user_id: str, user: User = Depends(get_current_user)):
+async def hafizz_clear_user(target_user_id: str, user: User = Depends(get_current_user)):
     ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
@@ -6094,9 +6094,9 @@ async def send_2fa_code(request: Request):
     user = await db.users.find_one({"user_id": user_id}, {"email": 1, "name": 1})
     if not user:
         raise HTTPException(404, "Kullanıcı bulunamadı")
-    code = hafiz.generate_2fa_code()
-    await hafiz.store_2fa_code(db, user_id, code)
-    await hafiz.send_security_email(
+    code = hafizz.generate_2fa_code()
+    await hafizz.store_2fa_code(db, user_id, code)
+    await hafizz.send_security_email(
         user["email"],
         "ZET Giriş Doğrulama Kodu",
         f"Giriş doğrulama kodunuz: <b style='font-size:24px;letter-spacing:4px'>{code}</b><br/><small>Bu kod 5 dakika geçerlidir.</small>"
@@ -6106,7 +6106,7 @@ async def send_2fa_code(request: Request):
 
 @api_router.post("/auth/2fa/verify")
 async def verify_2fa(req: TwoFAVerifyRequest):
-    valid = await hafiz.verify_2fa_code(db, req.user_id, req.code)
+    valid = await hafizz.verify_2fa_code(db, req.user_id, req.code)
     if not valid:
         raise HTTPException(400, "Geçersiz veya süresi dolmuş kod")
     return {"ok": True}
@@ -6131,10 +6131,10 @@ _HONEYPOT_PATHS = [
 @app.api_route("/api/admin/export", methods=["GET", "POST"])
 @app.api_route("/wp-admin", methods=["GET", "POST"])
 @app.api_route("/phpMyAdmin", methods=["GET", "POST"])
-async def hafiz_honeypot(request: Request):
+async def hafizz_honeypot(request: Request):
     ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "unknown").split(",")[0].strip()
     ua = request.headers.get("User-Agent", "")
-    asyncio.create_task(hafiz.record_honeypot_hit(db, ip, str(request.url.path), ua))
+    asyncio.create_task(hafizz.record_honeypot_hit(db, ip, str(request.url.path), ua))
     return JSONResponse(status_code=404, content={"detail": "Not found"})
 
 
@@ -6154,9 +6154,9 @@ _allowed_origins = list(filter(None, [
 ]))
 
 @app.middleware("http")
-async def hafiz_ip_ban_middleware(request, call_next):
+async def hafizz_ip_ban_middleware(request, call_next):
     ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "").split(",")[0].strip()
-    if ip and await hafiz.is_ip_banned(db, ip):
+    if ip and await hafizz.is_ip_banned(db, ip):
         return JSONResponse(status_code=403, content={"detail": "Erişim engellendi."})
     return await call_next(request)
 

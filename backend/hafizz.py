@@ -1,4 +1,4 @@
-"""Hafız — ZET Mindshare güvenlik katmanı (server-side only)."""
+"""Hafızz — ZET Mindshare güvenlik katmanı (server-side only)."""
 
 import hashlib
 import secrets
@@ -68,7 +68,7 @@ async def record_device_login(db, user_id: str, fingerprint: str, ip: str):
     if len(accounts) >= 3:
         for uid in accounts:
             await add_anomaly_score(db, uid, 20, f"shared_device:{fingerprint[:8]}")
-        logging.warning(f"Hafız: fingerprint {fingerprint[:8]} — {len(accounts)} hesapta")
+        logging.warning(f"Hafızz: fingerprint {fingerprint[:8]} — {len(accounts)} hesapta")
 
 
 # ═══════════════════════════════════════════════════
@@ -97,7 +97,7 @@ async def get_ip_country(ip: str, db) -> Optional[str]:
                 )
                 return country
     except Exception as e:
-        logging.warning(f"Hafız: IP geolocation hatası {ip}: {e}")
+        logging.warning(f"Hafızz: IP geolocation hatası {ip}: {e}")
     return None
 
 
@@ -215,11 +215,11 @@ async def send_security_email(to_email: str, subject: str, message: str):
                 <h2 style="color:#292f91;margin-bottom:12px">&#9888; ZET Güvenlik Bildirimi</h2>
                 <p style="color:#333;line-height:1.6">{message}</p>
                 <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
-                <small style="color:#999">Bu e-posta ZET Mindshare Hafız güvenlik sistemi tarafından otomatik gönderilmiştir.</small>
+                <small style="color:#999">Bu e-posta ZET Mindshare Hafızz güvenlik sistemi tarafından otomatik gönderilmiştir.</small>
             </div>"""
         })
     except Exception as e:
-        logging.warning(f"Hafız: güvenlik e-postası gönderilemedi {to_email}: {e}")
+        logging.warning(f"Hafızz: güvenlik e-postası gönderilemedi {to_email}: {e}")
 
 
 async def notify_lockout(db, identifier: str):
@@ -306,7 +306,7 @@ async def record_honeypot_hit(db, ip: str, path: str, user_agent: str = ""):
         }},
         upsert=True
     )
-    logging.warning(f"Hafız Honeypot: IP {ip} banlı — {path}")
+    logging.warning(f"Hafızz Honeypot: IP {ip} banlı — {path}")
 
 
 async def is_ip_banned(db, ip: str) -> bool:
@@ -344,6 +344,6 @@ async def setup_indexes(db):
         # Existing collections (task spec)
         await db.user_sessions.create_index([("user_id", 1), ("last_seen", 1)])
         await db.hafiz_anomaly.create_index([("user_id", 1)])
-        logging.info("Hafız: indexler oluşturuldu")
+        logging.info("Hafızz: indexler oluşturuldu")
     except Exception as e:
-        logging.warning(f"Hafız: index hatası (non-fatal): {e}")
+        logging.warning(f"Hafızz: index hatası (non-fatal): {e}")
