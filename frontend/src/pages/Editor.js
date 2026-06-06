@@ -1693,7 +1693,7 @@ const Editor = () => {
     }
   };
 
-  // === EXPORT PDF — tarayıcı print→PDF (Google Docs yaklaşımı, library yok) ===
+  // === EXPORT PDF — gizli iframe + window.print() (popup yok, library yok) ===
   const exportToPDF = () => {
     const allPages = document?.pages || [{ elements: canvasElements, drawPaths }];
     const defSize = pageSize;
@@ -1704,6 +1704,8 @@ const Editor = () => {
       const els = idx === currentPage ? canvasElements : (page.elements || []);
       const pSize = page.pageSize || defSize;
       const bg = page.pageBackground || defBg;
+      const wMm = (pSize.width * 0.264583).toFixed(2);
+      const hMm = (pSize.height * 0.264583).toFixed(2);
       let inner = '';
       for (const el of [...els].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))) {
         if (el.type === 'text' && !el.isRedacted) {
@@ -1712,7 +1714,7 @@ const Editor = () => {
             `left:${el.x}px`, `top:${el.y}px`,
             el.width ? `width:${el.width}px` : '',
             `font-size:${el.fontSize || 14}px`,
-            `font-family:${el.fontFamily || 'Arial, sans-serif'}`,
+            `font-family:${el.fontFamily || 'Arial,sans-serif'}`,
             `color:${el.color || '#000'}`,
             `font-weight:${el.bold ? 'bold' : 'normal'}`,
             `font-style:${el.italic ? 'italic' : 'normal'}`,
@@ -1728,22 +1730,32 @@ const Editor = () => {
           inner += `<img src="${el.src}" style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.width || 100}px;height:${el.height || 100}px;object-fit:contain" />`;
         }
       }
-      pagesHtml += `<div class="zp" style="width:${pSize.width}px;height:${pSize.height}px;position:relative;background:${bg};overflow:hidden">${inner}</div>`;
+      pagesHtml += `<div style="width:${pSize.width}px;height:${pSize.height}px;position:relative;background:${bg};overflow:hidden;page-break-after:always">${inner}</div>`;
     });
 
-    const pw = window.open('', '_blank', 'width=900,height=700');
-    if (!pw) { alert('Pop-up engellendi. Lütfen pop-up\'a izin ver ve tekrar dene.'); return; }
-    pw.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    const iframe = window.document.createElement('iframe');
+    iframe.style.cssText = 'position:fixed;top:-9999px;left:-9999px;width:1px;height:1px;border:none';
+    window.document.body.appendChild(iframe);
+
+    const firstSize = allPages[0]?.pageSize || defSize;
+    const pgW = (firstSize.width * 0.264583).toFixed(2);
+    const pgH = (firstSize.height * 0.264583).toFixed(2);
+
+    iframe.contentDocument.open();
+    iframe.contentDocument.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff}
-.zp{margin:0 auto;page-break-after:always}
-.zp:last-child{page-break-after:avoid}
-@media print{@page{margin:0;size:auto}body{margin:0}}
+@media print{@page{size:${pgW}mm ${pgH}mm;margin:0}body{margin:0}}
 </style></head><body>${pagesHtml}</body></html>`);
-    pw.document.close();
-    pw.focus();
-    setTimeout(() => { pw.print(); }, 600);
+    iframe.contentDocument.close();
+
+    setTimeout(() => {
+      iframe.contentWindow.focus();
+      iframe.contentWindow.print();
+      setTimeout(() => { window.document.body.removeChild(iframe); }, 2000);
+    }, 400);
+
     setShowExport(false);
   };
 
