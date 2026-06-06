@@ -1693,38 +1693,58 @@ const Editor = () => {
     }
   };
 
-  // === EXPORT PDF — html2canvas DOM screenshot + jsPDF (mm birim, JPEG) ===
-  const exportToPDF = async () => {
-    if (!canvasContainerRef.current) return;
-    setExporting(true);
-    try {
-      const pageElements = canvasContainerRef.current.querySelectorAll('[data-testid^="canvas-page-"]');
-      if (!pageElements.length) return;
+  // === EXPORT PDF — tarayıcı print→PDF (Google Docs yaklaşımı, library yok) ===
+  const exportToPDF = () => {
+    const allPages = document?.pages || [{ elements: canvasElements, drawPaths }];
+    const defSize = pageSize;
+    const defBg = pageBackground || '#ffffff';
 
-      const allPages = document?.pages || [{}];
-      const toMm = (px) => px * 0.264583;
-      const getPageSize = (idx) => allPages[idx]?.pageSize || pageSize;
-
-      const firstSize = getPageSize(0);
-      const fw = toMm(firstSize.width);
-      const fh = toMm(firstSize.height);
-      const pdf = new jsPDF({ orientation: fw > fh ? 'l' : 'p', unit: 'mm', format: [fw, fh], compress: true });
-
-      for (let i = 0; i < pageElements.length; i++) {
-        const pSize = getPageSize(i);
-        const pw = toMm(pSize.width);
-        const ph = toMm(pSize.height);
-        if (i > 0) pdf.addPage([pw, ph], pw > ph ? 'l' : 'p');
-        const canvas = await html2canvas(pageElements[i], { scale: 1.5, useCORS: true, allowTaint: false, backgroundColor: '#ffffff', logging: false });
-        const imgData = canvas.toDataURL('image/jpeg', 0.90);
-        pdf.addImage(imgData, 'JPEG', 0, 0, pw, ph, '', 'FAST');
+    let pagesHtml = '';
+    allPages.forEach((page, idx) => {
+      const els = idx === currentPage ? canvasElements : (page.elements || []);
+      const pSize = page.pageSize || defSize;
+      const bg = page.pageBackground || defBg;
+      let inner = '';
+      for (const el of [...els].sort((a, b) => (a.zIndex || 0) - (b.zIndex || 0))) {
+        if (el.type === 'text' && !el.isRedacted) {
+          const s = [
+            `position:absolute`,
+            `left:${el.x}px`, `top:${el.y}px`,
+            el.width ? `width:${el.width}px` : '',
+            `font-size:${el.fontSize || 14}px`,
+            `font-family:${el.fontFamily || 'Arial, sans-serif'}`,
+            `color:${el.color || '#000'}`,
+            `font-weight:${el.bold ? 'bold' : 'normal'}`,
+            `font-style:${el.italic ? 'italic' : 'normal'}`,
+            `text-decoration:${[el.underline && 'underline', el.strikethrough && 'line-through'].filter(Boolean).join(' ') || 'none'}`,
+            `line-height:${el.lineHeight || 1.5}`,
+            `text-align:${el.textAlign || 'left'}`,
+            `white-space:pre-wrap`, `word-break:break-word`,
+          ].filter(Boolean).join(';');
+          inner += `<div style="${s}">${el.htmlContent || (el.content || '').replace(/\n/g, '<br>')}</div>`;
+        } else if (el.type === 'text' && el.isRedacted) {
+          inner += `<div style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.width || 200}px;height:${(el.fontSize || 14) * (el.lineHeight || 1.5) * Math.max(1, (el.content || '').split('\n').length)}px;background:#000"></div>`;
+        } else if (el.type === 'image' && el.src) {
+          inner += `<img src="${el.src}" style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.width || 100}px;height:${el.height || 100}px;object-fit:contain" />`;
+        }
       }
+      pagesHtml += `<div class="zp" style="width:${pSize.width}px;height:${pSize.height}px;position:relative;background:${bg};overflow:hidden">${inner}</div>`;
+    });
 
-      pdf.save(`${document?.title || 'document'}.pdf`);
-    } catch (err) { console.error('PDF export failed:', err); } finally {
-      setExporting(false);
-      setShowExport(false);
-    }
+    const pw = window.open('', '_blank', 'width=900,height=700');
+    if (!pw) { alert('Pop-up engellendi. Lütfen pop-up\'a izin ver ve tekrar dene.'); return; }
+    pw.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#fff}
+.zp{margin:0 auto;page-break-after:always}
+.zp:last-child{page-break-after:avoid}
+@media print{@page{margin:0;size:auto}body{margin:0}}
+</style></head><body>${pagesHtml}</body></html>`);
+    pw.document.close();
+    pw.focus();
+    setTimeout(() => { pw.print(); }, 600);
+    setShowExport(false);
   };
 
   // Export to PNG/JPEG (all pages combined vertically)
