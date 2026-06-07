@@ -1157,17 +1157,6 @@ const Dashboard = () => {
           for (let i = 1; i <= numPages; i++) {
             try {
               const page = await pdf.getPage(i);
-              const viewport = page.getViewport({ scale: 1 });
-              const renderScale = Math.min(794 / viewport.width, 1123 / viewport.height);
-              const scaledViewport = page.getViewport({ scale: renderScale });
-              const renderCanvas = window.document.createElement('canvas');
-              renderCanvas.width = Math.round(scaledViewport.width);
-              renderCanvas.height = Math.round(scaledViewport.height);
-              const renderCtx = renderCanvas.getContext('2d');
-              await page.render({ canvasContext: renderCtx, viewport: scaledViewport }).promise;
-              const imgSrc = renderCanvas.toDataURL('image/jpeg', 0.88);
-
-              // Extract text for Zeta analysis (invisible to editor, used only for summarize)
               const textContent = await page.getTextContent();
               let pageText = '';
               let lastY = null;
@@ -1179,21 +1168,26 @@ const Dashboard = () => {
                 if (item.hasEOL) pageText += '\n';
                 lastY = y;
               }
+              pageText = pageText.trim();
 
               canvasPages.push({
                 page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`,
-                elements: [{
+                elements: pageText ? [{
                   id: `el_pdf_${t}_${i}`,
-                  type: 'image', x: 0, y: 0,
-                  width: renderCanvas.width,
-                  height: renderCanvas.height,
-                  src: imgSrc,
-                }],
+                  type: 'text', x: 40, y: 40,
+                  content: pageText,
+                  htmlContent: pageText.replace(/\n/g, '<br>'),
+                  fontSize: 14,
+                  fontFamily: 'Arial',
+                  color: '#000000',
+                  width: 714,
+                  lineHeight: 1.5,
+                  textAlign: 'left', bold: false, italic: false, underline: false,
+                }] : [],
                 drawPaths: [],
-                pageText: pageText.trim(),
               });
             } catch (pageErr) {
-              console.warn(`PDF page ${i} render failed:`, pageErr);
+              console.warn(`PDF page ${i} text extraction failed:`, pageErr);
               canvasPages.push({ page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`, elements: [], drawPaths: [] });
             }
           }
