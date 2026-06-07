@@ -284,12 +284,22 @@ const Editor = () => {
   const [isUnderline, setIsUnderline] = useState(false);
   const [isStrikethrough, setIsStrikethrough] = useState(false);
 
-  // Yazı tipi/boyut/renk/satır aralığı tercihleri hesaba senkronize edilir — belgeden çıkınca sıfırlanmaz
+  // Yazı tipi/boyut/renk/satır aralığı varsayılanları — sadece kullanıcı panelden
+  // bilinçli olarak değiştirdiğinde kaydedilir (eleman seçimiyle senkronizasyon hariç,
+  // yoksa rastgele bir elemana tıklamak varsayılanı o elemanın stiliyle ezerdi)
+  const textDefaultsRef = useRef({ fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight });
   useEffect(() => {
-    savePreference('zet_editor_text_defaults', JSON.stringify({
-      fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight,
-    }));
+    textDefaultsRef.current = { fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight };
   }, [currentFontSize, currentFont, currentColor, customColor, currentLineHeight]);
+
+  const persistTextDefaults = (overrides) => {
+    savePreference('zet_editor_text_defaults', JSON.stringify({ ...textDefaultsRef.current, ...overrides }));
+  };
+  const setCurrentFontPersisted = (val) => { setCurrentFont(val); persistTextDefaults({ font: val }); };
+  const setCurrentFontSizePersisted = (val) => { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); };
+  const setCurrentColorPersisted = (val) => { setCurrentColor(val); persistTextDefaults({ color: val }); };
+  const setCustomColorPersisted = (val) => { setCustomColor(val); persistTextDefaults({ customColor: val }); };
+  const setCurrentLineHeightPersisted = (val) => { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); };
 
   // Sunucudan geç gelen tercihler state'e işlenir
   useEffect(() => {
@@ -3416,7 +3426,7 @@ body{background:#fff}
 
   // === COLOR ===
   const applyColor = (color) => {
-    setCurrentColor(color);
+    setCurrentColorPersisted(color);
     const targets = selectedElements.length > 0 ? selectedElements : selectedElement ? [selectedElement] : [];
     if (!targets.length) return;
     const isMulti = selectedElements.length > 1;
@@ -3572,8 +3582,11 @@ body{background:#fff}
     setCalcCopied, setCalcExpr, setCalcResult, setCanvasElements,
     setChartColors, setChartData, setChartImage, setChartLabels, setChartTitle, setChartType,
     setColorTarget, setColumnCount, setColumnGap,
-    setCurrentBulletStyle, setCurrentColor, setCurrentFont, setCurrentFontSize, setCurrentLineHeight, setCurrentNumberStyle,
-    setCustomColor, setCustomHeight, setCustomWidth, setDocument, setDrawOpacity, setDrawSize,
+    setCurrentBulletStyle, setCurrentNumberStyle,
+    setCurrentColor: setCurrentColorPersisted, setCurrentFont: setCurrentFontPersisted,
+    setCurrentFontSize: setCurrentFontSizePersisted, setCurrentLineHeight: setCurrentLineHeightPersisted,
+    setCustomColor: setCustomColorPersisted,
+    setCustomHeight, setCustomWidth, setDocument, setDrawOpacity, setDrawSize,
     setEditingChartId, setEditingShortcut, setEraserDragMode, setEraserSize, setExportQuality,
     setFindScope, setFindText, setFirstLineIndent, setFontSearch,
     setFooterEven, setFooterOdd, setFooterText, setGradientAngle, setGradientEnd, setGradientStart, setGradientStops,
