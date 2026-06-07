@@ -1,4 +1,4 @@
-const CACHE_NAME = 'zet-mindshare-v3';
+const CACHE_NAME = 'zet-mindshare-v4';
 const STATIC_ASSETS = ['/zeta-icon.svg', '/logo.svg'];
 
 self.addEventListener('install', e => {
@@ -47,7 +47,8 @@ self.addEventListener('fetch', e => {
       if (cached) return cached;
       return fetch(e.request).then(res => {
         if (res.ok && e.request.method === 'GET') {
-          caches.open(CACHE_NAME).then(cache => cache.put(e.request, res.clone()));
+          const resClone = res.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(e.request, resClone));
         }
         return res;
       }).catch(() => new Response('Offline', { status: 503 }));
