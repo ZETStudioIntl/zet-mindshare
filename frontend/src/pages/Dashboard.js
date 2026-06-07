@@ -296,6 +296,20 @@ const Dashboard = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userSubscription, fastSelectTools.length]);
 
+  // Auth sonrası server'dan gelen tercihler (FastSelect, kısayollar) state'e işlenir
+  useEffect(() => {
+    const onPrefsLoaded = (e) => {
+      if (e.detail['zet_fast_select']) {
+        try { setFastSelectTools(JSON.parse(e.detail['zet_fast_select'])); } catch {}
+      }
+      if (e.detail['zet_shortcuts']) {
+        try { setShortcuts(JSON.parse(e.detail['zet_shortcuts'])); } catch {}
+      }
+    };
+    window.addEventListener('zet:preferences-loaded', onPrefsLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onPrefsLoaded);
+  }, []);
+
   // Subscription plans data - ordered from biggest to smallest
   const ZP_PLAN_COSTS = { plus: 10000, pro: 30000, creative_station: 50000 };
   const SUBSCRIPTION_PLANS = [
@@ -2725,7 +2739,7 @@ MATCHES:[1,3,5]`;
                             <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{t(tool.nameKey) || tool.nameKey}</span>
                           </div>
                           {editingShortcut === tool.id ? (
-                            <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { const ns = { ...shortcuts }; Object.keys(ns).forEach(k => { if (ns[k] === tool.id) delete ns[k]; }); ns[e.key.toUpperCase()] = tool.id; setShortcuts(ns); localStorage.setItem('zet_shortcuts', JSON.stringify(ns)); setEditingShortcut(null); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
+                            <input autoFocus className="zet-input w-12 text-center text-xs font-mono" maxLength={1} onKeyDown={e => { if (e.key.length === 1) { const ns = { ...shortcuts }; Object.keys(ns).forEach(k => { if (ns[k] === tool.id) delete ns[k]; }); ns[e.key.toUpperCase()] = tool.id; setShortcuts(ns); savePreference('zet_shortcuts', JSON.stringify(ns)); setEditingShortcut(null); } else if (e.key === 'Escape') setEditingShortcut(null); }} onBlur={() => setEditingShortcut(null)} placeholder="?" />
                           ) : (
                             <button onClick={() => setEditingShortcut(tool.id)} className="px-2 py-1 rounded text-xs font-mono" style={{ background: 'var(--zet-bg-card)', color: currentKey ? 'var(--zet-primary)' : 'var(--zet-text-muted)' }}>{currentKey || '—'}</button>
                           )}
@@ -2760,7 +2774,7 @@ MATCHES:[1,3,5]`;
                   </div>
                   <div className="grid grid-cols-6 gap-1">
                     {TOOLS.filter(tool => !fastSelectSearch || (t(tool.nameKey) || tool.nameKey).toLowerCase().includes(fastSelectSearch.toLowerCase()) || tool.id.toLowerCase().includes(fastSelectSearch.toLowerCase())).map(tool => (
-                      <button key={tool.id} onClick={() => { if (fastSelectTools.includes(tool.id)) { const nt = fastSelectTools.filter(t => t !== tool.id); setFastSelectTools(nt); localStorage.setItem('zet_fast_select', JSON.stringify(nt)); } else if (fastSelectTools.length < fastSelectLimit) { const nt = [...fastSelectTools, tool.id]; setFastSelectTools(nt); localStorage.setItem('zet_fast_select', JSON.stringify(nt)); } }} className={`p-2 rounded flex flex-col items-center transition-all ${fastSelectTools.includes(tool.id) ? 'ring-2 ring-blue-500' : 'hover:bg-white/10'}`} style={{ background: fastSelectTools.includes(tool.id) ? 'var(--zet-primary)' : 'var(--zet-bg)' }} title={t(tool.nameKey) || tool.nameKey}>
+                      <button key={tool.id} onClick={() => { if (fastSelectTools.includes(tool.id)) { const nt = fastSelectTools.filter(t => t !== tool.id); setFastSelectTools(nt); savePreference('zet_fast_select', JSON.stringify(nt)); } else if (fastSelectTools.length < fastSelectLimit) { const nt = [...fastSelectTools, tool.id]; setFastSelectTools(nt); savePreference('zet_fast_select', JSON.stringify(nt)); } }} className={`p-2 rounded flex flex-col items-center transition-all ${fastSelectTools.includes(tool.id) ? 'ring-2 ring-blue-500' : 'hover:bg-white/10'}`} style={{ background: fastSelectTools.includes(tool.id) ? 'var(--zet-primary)' : 'var(--zet-bg)' }} title={t(tool.nameKey) || tool.nameKey}>
                         <tool.icon className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
                       </button>
                     ))}
