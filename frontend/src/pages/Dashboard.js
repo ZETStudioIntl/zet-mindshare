@@ -1153,10 +1153,66 @@ const Dashboard = () => {
           const numPages = Math.min(pdf.numPages, pageLimit);
           const canvasPages = [];
           const t = Date.now();
+          const { OPS, Util, ImageKind } = pdfjsLib;
+          const MAX_IMG_DIM = 1600;
+
+          // Bir XObject resmini page.objs'tan PNG/JPEG data URL'e çevirir (boyutu sınırlar)
+          const decodeImageObj = async (page, objId) => {
+            const imgData = await new Promise((resolve) => {
+              let settled = false;
+              const timer = setTimeout(() => { if (!settled) { settled = true; resolve(null); } }, 2500);
+              try {
+                page.objs.get(objId, (data) => {
+                  if (!settled) { settled = true; clearTimeout(timer); resolve(data); }
+                });
+              } catch { if (!settled) { settled = true; clearTimeout(timer); resolve(null); } }
+            });
+            if (!imgData || !imgData.width || !imgData.height) return null;
+
+            const srcCanvas = window.document.createElement('canvas');
+            srcCanvas.width = imgData.width;
+            srcCanvas.height = imgData.height;
+            const sctx = srcCanvas.getContext('2d');
+            if (imgData.bitmap) {
+              sctx.drawImage(imgData.bitmap, 0, 0);
+            } else if (imgData.data) {
+              const out = sctx.createImageData(imgData.width, imgData.height);
+              const src = imgData.data;
+              if (imgData.kind === ImageKind.RGBA_32BPP || src.length === imgData.width * imgData.height * 4) {
+                out.data.set(src);
+              } else if (imgData.kind === ImageKind.RGB_24BPP || src.length === imgData.width * imgData.height * 3) {
+                for (let p = 0, q = 0; p < src.length; p += 3, q += 4) {
+                  out.data[q] = src[p]; out.data[q + 1] = src[p + 1]; out.data[q + 2] = src[p + 2]; out.data[q + 3] = 255;
+                }
+              } else {
+                return null;
+              }
+              sctx.putImageData(out, 0, 0);
+            } else {
+              return null;
+            }
+
+            let outW = imgData.width;
+            let outH = imgData.height;
+            if (outW > MAX_IMG_DIM || outH > MAX_IMG_DIM) {
+              const ratio = Math.min(MAX_IMG_DIM / outW, MAX_IMG_DIM / outH);
+              outW = Math.round(outW * ratio);
+              outH = Math.round(outH * ratio);
+            }
+            const outCanvas = window.document.createElement('canvas');
+            outCanvas.width = outW;
+            outCanvas.height = outH;
+            outCanvas.getContext('2d').drawImage(srcCanvas, 0, 0, outW, outH);
+            return outCanvas.toDataURL('image/jpeg', 0.85);
+          };
 
           for (let i = 1; i <= numPages; i++) {
             try {
               const page = await pdf.getPage(i);
+              const viewport = page.getViewport({ scale: 1 });
+              const renderScale = Math.min(794 / viewport.width, 1123 / viewport.height);
+              const pageHeightPts = viewport.height;
+
               const textContent = await page.getTextContent();
               let pageText = '';
               let lastY = null;
@@ -1170,24 +1226,73 @@ const Dashboard = () => {
               }
               pageText = pageText.trim();
 
+              // Sayfadaki gömülü resimleri (XObject) konumlarıyla birlikte tespit et
+              const opList = await page.getOperatorList();
+              let curMatrix = [1, 0, 0, 1, 0, 0];
+              const matrixStack = [];
+              const foundImages = [];
+              for (let k = 0; k < opList.fnArray.length; k++) {
+                const fn = opList.fnArray[k];
+                const args = opList.argsArray[k];
+                if (fn === OPS.save) {
+                  matrixStack.push(curMatrix);
+                } else if (fn === OPS.restore) {
+                  curMatrix = matrixStack.pop() || [1, 0, 0, 1, 0, 0];
+                } else if (fn === OPS.transform) {
+                  curMatrix = Util.transform(curMatrix, args);
+                } else if (fn === OPS.paintImageXObject && typeof args[0] === 'string') {
+                  foundImages.push({ objId: args[0], matrix: curMatrix });
+                }
+              }
+
+              const imageEls = [];
+              for (let imgIdx = 0; imgIdx < foundImages.length; imgIdx++) {
+                const { objId, matrix: m } = foundImages[imgIdx];
+                try {
+                  const dataUrl = await decodeImageObj(page, objId);
+                  if (!dataUrl) continue;
+                  const corners = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y]) => [
+                    m[0] * x + m[2] * y + m[4],
+                    m[1] * x + m[3] * y + m[5],
+                  ]);
+                  const xs = corners.map(c => c[0]);
+                  const ys = corners.map(c => c[1]);
+                  const minX = Math.min(...xs), maxX = Math.max(...xs);
+                  const minY = Math.min(...ys), maxY = Math.max(...ys);
+                  imageEls.push({
+                    id: `el_pdf_${t}_${i}_img${imgIdx}`,
+                    type: 'image',
+                    x: Math.round(minX * renderScale),
+                    y: Math.round((pageHeightPts - maxY) * renderScale),
+                    width: Math.max(1, Math.round((maxX - minX) * renderScale)),
+                    height: Math.max(1, Math.round((maxY - minY) * renderScale)),
+                    src: dataUrl,
+                  });
+                } catch (imgErr) {
+                  console.warn(`PDF page ${i} image ${imgIdx} extraction failed:`, imgErr);
+                }
+              }
+
+              const textEls = pageText ? [{
+                id: `el_pdf_${t}_${i}`,
+                type: 'text', x: 40, y: 40,
+                content: pageText,
+                htmlContent: pageText.replace(/\n/g, '<br>'),
+                fontSize: 14,
+                fontFamily: 'Arial',
+                color: '#000000',
+                width: 714,
+                lineHeight: 1.5,
+                textAlign: 'left', bold: false, italic: false, underline: false,
+              }] : [];
+
               canvasPages.push({
                 page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`,
-                elements: pageText ? [{
-                  id: `el_pdf_${t}_${i}`,
-                  type: 'text', x: 40, y: 40,
-                  content: pageText,
-                  htmlContent: pageText.replace(/\n/g, '<br>'),
-                  fontSize: 14,
-                  fontFamily: 'Arial',
-                  color: '#000000',
-                  width: 714,
-                  lineHeight: 1.5,
-                  textAlign: 'left', bold: false, italic: false, underline: false,
-                }] : [],
+                elements: [...imageEls, ...textEls],
                 drawPaths: [],
               });
             } catch (pageErr) {
-              console.warn(`PDF page ${i} text extraction failed:`, pageErr);
+              console.warn(`PDF page ${i} extraction failed:`, pageErr);
               canvasPages.push({ page_id: i === 1 ? 'page_1' : `page_pdf_${t}_${i}`, elements: [], drawPaths: [] });
             }
           }
