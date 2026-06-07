@@ -67,6 +67,7 @@ jobs:
           ENV_VARS="$ENV_VARS,LS_VARIANT_PRO_YEARLY=${{ secrets.LS_VARIANT_PRO_YEARLY }}"
           ENV_VARS="$ENV_VARS,LS_VARIANT_CS_MONTHLY=${{ secrets.LS_VARIANT_CS_MONTHLY }}"
           ENV_VARS="$ENV_VARS,LS_VARIANT_CS_YEARLY=${{ secrets.LS_VARIANT_CS_YEARLY }}"
+          ENV_VARS="$ENV_VARS,ZET_ID_JWT_SECRET=${{ secrets.ZET_ID_JWT_SECRET }}"
 
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE:${{ github.sha }} \

@@ -436,7 +436,15 @@ class EmailAuthRequest(BaseModel):
     name: Optional[str] = None
 
 class ZetIdLoginRequest(BaseModel):
-    zet_id_token: str
+    access_token: str
+    refresh_token: Optional[str] = None
+
+class ZetIdConnectTokenRequest(BaseModel):
+    id_token: str
+
+class ZetIdConnectEmailRequest(BaseModel):
+    email: str
+    password: str
 
 class ZetIdTokenRequest(BaseModel):
     grant_type: str
@@ -620,18 +628,76 @@ def verify_password(password: str, hashed: str) -> bool:
         import hashlib
         return hashlib.sha256(password.encode()).hexdigest() == hashed
 
-async def issue_zet_id_token(user_id: str) -> str:
-    """ZET ID — hesaba bağlı, 30 gün geçerli SSO token üretir ve MongoDB'ye kaydeder."""
-    token = f"zid_{secrets.token_hex(32)}"
-    await db.zet_id_tokens.insert_one({
-        "token": token,
+import jwt as pyjwt
+
+ZET_ID_JWT_SECRET = os.environ.get("ZET_ID_JWT_SECRET", "zet-id-dev-secret-change-in-production")
+ZET_ID_JWT_ALG = "HS256"
+ZET_ID_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+async def generate_unique_zet_id() -> str:
+    """Benzersiz, okunabilir ZET ID üretir: 'ZET-' + 8 alfanumerik karakter."""
+    while True:
+        code = "ZET-" + "".join(secrets.choice(ZET_ID_ALPHABET) for _ in range(8))
+        if not await db.users.find_one({"zet_id": code}, {"_id": 0, "zet_id": 1}):
+            return code
+
+async def ensure_zet_id(user_doc: dict) -> tuple:
+    """Kullanıcının ZET ID'si yoksa üretip kaydeder — mevcut kullanıcılar için katkılı (additive), eşzamanlılığa dayanıklı migrasyon.
+    Sadece eksik olan 'zet_id' alanını $set eder; başka hiçbir alana dokunmaz."""
+    existing = user_doc.get("zet_id")
+    if existing:
+        return existing, False
+    for _ in range(5):
+        new_id = await generate_unique_zet_id()
+        result = await db.users.update_one(
+            {"user_id": user_doc["user_id"], "zet_id": {"$exists": False}},
+            {"$set": {"zet_id": new_id}}
+        )
+        if result.modified_count == 1:
+            return new_id, True
+        # Eşzamanlı başka bir istek arada ZET ID atamış olabilir — mevcut değeri kullan
+        refreshed = await db.users.find_one({"user_id": user_doc["user_id"]}, {"_id": 0, "zet_id": 1})
+        if refreshed and refreshed.get("zet_id"):
+            return refreshed["zet_id"], False
+    raise HTTPException(status_code=500, detail="ZET ID oluşturulamadı")
+
+def compute_zet_id_device_hash(request: Request) -> str:
+    ua = request.headers.get("User-Agent", "")
+    lang = request.headers.get("Accept-Language", "")
+    return hafizz.compute_device_fingerprint(ua, lang)
+
+def create_zet_id_access_token(user_id: str, zet_id: str, device_hash: str, jti: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "zet_id": zet_id,
+        "device_hash": device_hash,
+        "jti": jti,
+        "iat": now,
+        "exp": now + timedelta(days=30),
+    }
+    return pyjwt.encode(payload, ZET_ID_JWT_SECRET, algorithm=ZET_ID_JWT_ALG)
+
+def decode_zet_id_access_token(token: str) -> dict:
+    return pyjwt.decode(token, ZET_ID_JWT_SECRET, algorithms=[ZET_ID_JWT_ALG])
+
+async def issue_zet_id_session(user_id: str, zet_id: str, device_hash: str) -> dict:
+    """Bu cihaz için ZET ID erişim (JWT, 30 gün) + yenileme (opak, 90 gün) token çifti üretir."""
+    jti = uuid.uuid4().hex
+    access_token = create_zet_id_access_token(user_id, zet_id, device_hash, jti)
+    refresh_token = f"zrt_{secrets.token_hex(32)}"
+    now = datetime.now(timezone.utc)
+    await db.zet_id_sessions.insert_one({
+        "jti": jti,
         "user_id": user_id,
-        "client_id": None,
-        "scope": "profile",
-        "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "zet_id": zet_id,
+        "device_hash": device_hash,
+        "refresh_token": refresh_token,
+        "created_at": now.isoformat(),
+        "expires_at": (now + timedelta(days=90)).isoformat(),
+        "revoked": False,
     })
-    return token
+    return {"access_token": access_token, "refresh_token": refresh_token, "expires_in": 30 * 24 * 60 * 60}
 
 async def get_current_user(request: Request) -> User:
     session_token = request.cookies.get("session_token")
@@ -1884,8 +1950,7 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
         path="/", max_age=7*24*60*60
     )
 
-    zet_id_token = await issue_zet_id_token(user_id)
-    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}, "zet_id_token": zet_id_token}
+    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}}
 
 @api_router.post("/auth/login")
 async def login_with_email(req: EmailAuthRequest, response: Response, request: Request):
@@ -1937,8 +2002,7 @@ async def login_with_email(req: EmailAuthRequest, response: Response, request: R
         path="/", max_age=7*24*60*60
     )
 
-    zet_id_token = await issue_zet_id_token(user_id)
-    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}, "zet_id_token": zet_id_token}
+    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}}
 
 # ============ APPLE AUTH ROUTES ============
 
@@ -2033,30 +2097,12 @@ async def apple_auth_callback(request: Request, response: Response):
 
 # ============ ZET ID (OAuth/SSO) ============
 
-@api_router.post("/zet-id/login")
-async def zet_id_login(req: ZetIdLoginRequest, response: Response):
-    """ZET ID token ile doğrudan oturum açma — 'ZET ID ile Giriş Yap' SSO akışı."""
-    record = await db.zet_id_tokens.find_one({"token": req.zet_id_token, "client_id": None}, {"_id": 0})
-    if not record:
-        raise HTTPException(status_code=401, detail="Geçersiz ZET ID token")
-
-    expires_at = record.get("expires_at")
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="ZET ID token süresi dolmuş")
-
-    user = await db.users.find_one({"user_id": record["user_id"]}, {"_id": 0})
-    if not user:
-        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
-
+async def _zet_id_create_session_cookie(response: Response, user_id: str):
     session_token = f"sess_{secrets.token_hex(16)}"
     session_expires = datetime.now(timezone.utc) + timedelta(days=7)
     await db.user_sessions.insert_one({
         "session_token": session_token,
-        "user_id": user["user_id"],
+        "user_id": user_id,
         "expires_at": session_expires.isoformat()
     })
     response.set_cookie(
@@ -2065,7 +2111,181 @@ async def zet_id_login(req: ZetIdLoginRequest, response: Response):
         samesite="none",
         path="/", max_age=7*24*60*60
     )
-    return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}, "session_token": session_token}
+    return session_token
+
+
+def _zet_id_user_brief(user_doc: dict) -> dict:
+    return {
+        "user_id": user_doc["user_id"],
+        "email": user_doc.get("email"),
+        "name": user_doc.get("name", ""),
+        "picture": user_doc.get("picture"),
+        "zet_id": user_doc.get("zet_id"),
+    }
+
+
+@api_router.post("/zet-id/create")
+async def zet_id_create(request: Request, response: Response, user: User = Depends(get_current_user)):
+    """Aktif oturuma ZET ID atar (yoksa üretir — mevcut kullanıcılar için otomatik migrasyon) ve bu cihaz için token çifti üretir."""
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    zet_id, is_new = await ensure_zet_id(user_doc)
+    device_hash = compute_zet_id_device_hash(request)
+    tokens = await issue_zet_id_session(user.user_id, zet_id, device_hash)
+    user_doc["zet_id"] = zet_id
+    return {"zet_id": zet_id, "is_new": is_new, "user": _zet_id_user_brief(user_doc), **tokens}
+
+
+@api_router.post("/zet-id/login")
+async def zet_id_login(req: ZetIdLoginRequest, request: Request, response: Response):
+    """Cihazda kayıtlı ZET ID hesabıyla tek dokunuşla giriş — Apple ID seçici deneyimi."""
+    device_hash = compute_zet_id_device_hash(request)
+
+    claims = None
+    try:
+        claims = decode_zet_id_access_token(req.access_token)
+    except pyjwt.ExpiredSignatureError:
+        claims = None
+    except Exception:
+        raise HTTPException(status_code=401, detail="Geçersiz ZET ID token")
+
+    session_record = None
+    if claims:
+        session_record = await db.zet_id_sessions.find_one({"jti": claims.get("jti")}, {"_id": 0})
+
+    if not session_record or session_record.get("revoked"):
+        if not req.refresh_token:
+            raise HTTPException(status_code=401, detail="ZET ID oturumunun süresi dolmuş — yeniden giriş gerekli")
+        session_record = await db.zet_id_sessions.find_one(
+            {"refresh_token": req.refresh_token, "revoked": {"$ne": True}}, {"_id": 0}
+        )
+        if not session_record:
+            raise HTTPException(status_code=401, detail="ZET ID oturumunun süresi dolmuş — yeniden giriş gerekli")
+        rt_exp = session_record.get("expires_at")
+        if isinstance(rt_exp, str):
+            rt_exp = datetime.fromisoformat(rt_exp)
+        if rt_exp.tzinfo is None:
+            rt_exp = rt_exp.replace(tzinfo=timezone.utc)
+        if rt_exp < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="ZET ID oturumunun süresi dolmuş — yeniden giriş gerekli")
+
+    if session_record["device_hash"] != device_hash:
+        # Şüpheli giriş — farklı cihaz: yeniden kimlik doğrulama gerekiyor
+        raise HTTPException(status_code=409, detail="suspicious_login")
+
+    user_doc = await db.users.find_one({"user_id": session_record["user_id"]}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+
+    # Token rotasyonu — eski oturum iptal, yenisi üretilir
+    await db.zet_id_sessions.update_one({"jti": session_record["jti"]}, {"$set": {"revoked": True}})
+    tokens = await issue_zet_id_session(user_doc["user_id"], session_record["zet_id"], device_hash)
+    session_token = await _zet_id_create_session_cookie(response, user_doc["user_id"])
+
+    user_doc["zet_id"] = session_record["zet_id"]
+    return {"user": _zet_id_user_brief(user_doc), "session_token": session_token, **tokens}
+
+
+@api_router.post("/zet-id/connect-google")
+async def zet_id_connect_google(req: ZetIdConnectTokenRequest, user: User = Depends(get_current_user)):
+    """Mevcut ZET ID hesabına bir Google hesabı bağlar."""
+    try:
+        claims = pyjwt.decode(req.id_token, options={"verify_signature": False})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz id_token")
+    email = (claims.get("email") or "").lower().strip()
+    if not email:
+        raise HTTPException(status_code=400, detail="Google hesabında e-posta bulunamadı")
+    other = await db.users.find_one({"email": email, "user_id": {"$ne": user.user_id}}, {"_id": 0, "user_id": 1})
+    if other:
+        raise HTTPException(status_code=400, detail="Bu Google hesabı başka bir ZET ID'ye bağlı")
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"connected_accounts.google": email}})
+    return {"connected": "google", "email": email}
+
+
+@api_router.post("/zet-id/connect-apple")
+async def zet_id_connect_apple(req: ZetIdConnectTokenRequest, user: User = Depends(get_current_user)):
+    """Mevcut ZET ID hesabına bir Apple hesabı bağlar."""
+    try:
+        claims = pyjwt.decode(req.id_token, options={"verify_signature": False})
+    except Exception:
+        raise HTTPException(status_code=400, detail="Geçersiz id_token")
+    apple_sub = claims.get("sub")
+    email = claims.get("email")
+    if not apple_sub:
+        raise HTTPException(status_code=400, detail="Apple kimliği bulunamadı")
+    other = await db.users.find_one({"apple_id": apple_sub, "user_id": {"$ne": user.user_id}}, {"_id": 0, "user_id": 1})
+    if other:
+        raise HTTPException(status_code=400, detail="Bu Apple hesabı başka bir ZET ID'ye bağlı")
+    update = {"apple_id": apple_sub, "connected_accounts.apple": email or apple_sub}
+    await db.users.update_one({"user_id": user.user_id}, {"$set": update})
+    return {"connected": "apple", "email": email}
+
+
+@api_router.post("/zet-id/connect-email")
+async def zet_id_connect_email(req: ZetIdConnectEmailRequest, user: User = Depends(get_current_user)):
+    """Mevcut ZET ID hesabına e-posta + şifre ile giriş yöntemi ekler."""
+    normalized = req.email.lower().strip()
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Şifre en az 6 karakter olmalı")
+    other = await db.users.find_one({"email": normalized, "user_id": {"$ne": user.user_id}}, {"_id": 0, "user_id": 1})
+    if other:
+        raise HTTPException(status_code=400, detail="Bu e-posta başka bir ZET ID'ye kayıtlı")
+    hashed = hash_password(req.password)
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"hashed_password": hashed, "email": normalized, "connected_accounts.email": True}}
+    )
+    return {"connected": "email", "email": normalized}
+
+
+@api_router.post("/zet-id/logout")
+async def zet_id_logout(request: Request):
+    """Bu cihaza ait ZET ID oturumunu (erişim token'ı) iptal eder."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token gerekli")
+    token = auth_header.split(" ")[1]
+    try:
+        claims = decode_zet_id_access_token(token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Geçersiz token")
+    await db.zet_id_sessions.update_one({"jti": claims.get("jti")}, {"$set": {"revoked": True}})
+    return {"success": True}
+
+
+@api_router.get("/zet-id/profile")
+async def zet_id_profile(user: User = Depends(get_current_user)):
+    """ZET ID, bağlı hesaplar ve cihaz oturumlarını döner."""
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+    sessions = await db.zet_id_sessions.find(
+        {"user_id": user.user_id, "revoked": {"$ne": True}}, {"_id": 0, "refresh_token": 0}
+    ).to_list(50)
+    return {
+        "zet_id": user_doc.get("zet_id"),
+        "email": user_doc.get("email"),
+        "name": user_doc.get("name"),
+        "picture": user_doc.get("picture"),
+        "connected_accounts": user_doc.get("connected_accounts", {}),
+        "devices": [
+            {"jti": s["jti"], "device_hash": s["device_hash"], "created_at": s["created_at"], "expires_at": s["expires_at"]}
+            for s in sessions
+        ],
+    }
+
+
+@api_router.delete("/zet-id/remove-device")
+async def zet_id_remove_device(jti: str = Query(...), user: User = Depends(get_current_user)):
+    """Belirtilen cihaz oturumunu iptal eder — 'Bu cihazdan kaldır'."""
+    result = await db.zet_id_sessions.update_one(
+        {"jti": jti, "user_id": user.user_id}, {"$set": {"revoked": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Cihaz bulunamadı")
+    return {"success": True}
 
 
 @api_router.get("/zet-id/authorize")
@@ -6184,6 +6404,10 @@ async def _ensure_indexes():
         await db.zet_id_auth_codes.create_index([("code", 1)], unique=True)
         await db.zet_id_auth_codes.create_index([("expires_at", 1)], expireAfterSeconds=0)
         await db.zet_id_clients.create_index([("client_id", 1)], unique=True)
+        await db.zet_id_sessions.create_index([("jti", 1)], unique=True)
+        await db.zet_id_sessions.create_index([("refresh_token", 1)], unique=True)
+        await db.zet_id_sessions.create_index([("user_id", 1)])
+        await db.users.create_index([("zet_id", 1)], unique=True, sparse=True)
         await db.token_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
         await db.chest_usage.create_index([("user_id", 1), ("month", 1)], unique=True)
         logging.info("MongoDB indexes OK")
