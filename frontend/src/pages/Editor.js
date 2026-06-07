@@ -1764,11 +1764,23 @@ body{background:#fff}
 </style></head><body>${pagesHtml}</body></html>`);
     iframe.contentDocument.close();
 
-    setTimeout(() => {
+    const waitForImages = () => {
+      const imgs = Array.from(iframe.contentDocument.images || []);
+      if (imgs.length === 0) return Promise.resolve();
+      return Promise.all(imgs.map((img) => {
+        if (img.complete) return Promise.resolve();
+        return new Promise((resolve) => {
+          img.addEventListener('load', resolve, { once: true });
+          img.addEventListener('error', resolve, { once: true });
+        });
+      }));
+    };
+
+    waitForImages().then(() => {
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
       setTimeout(() => { window.document.body.removeChild(iframe); }, 2000);
-    }, 400);
+    });
 
     setShowExport(false);
   };
