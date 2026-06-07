@@ -284,41 +284,6 @@ const Editor = () => {
   const [isUnderline, setIsUnderline] = useState(false);
   const [isStrikethrough, setIsStrikethrough] = useState(false);
 
-  // Yazı tipi/boyut/renk/satır aralığı varsayılanları — sadece kullanıcı panelden
-  // bilinçli olarak değiştirdiğinde kaydedilir (eleman seçimiyle senkronizasyon hariç,
-  // yoksa rastgele bir elemana tıklamak varsayılanı o elemanın stiliyle ezerdi)
-  const textDefaultsRef = useRef({ fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight });
-  useEffect(() => {
-    textDefaultsRef.current = { fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight };
-  }, [currentFontSize, currentFont, currentColor, customColor, currentLineHeight]);
-
-  const persistTextDefaults = (overrides) => {
-    savePreference('zet_editor_text_defaults', JSON.stringify({ ...textDefaultsRef.current, ...overrides }));
-  };
-  const setCurrentFontPersisted = (val) => { setCurrentFont(val); persistTextDefaults({ font: val }); };
-  const setCurrentFontSizePersisted = (val) => { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); };
-  const setCurrentColorPersisted = (val) => { setCurrentColor(val); persistTextDefaults({ color: val }); };
-  const setCustomColorPersisted = (val) => { setCustomColor(val); persistTextDefaults({ customColor: val }); };
-  const setCurrentLineHeightPersisted = (val) => { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); };
-
-  // Sunucudan geç gelen tercihler state'e işlenir
-  useEffect(() => {
-    const onPrefsLoaded = (e) => {
-      const saved = e.detail?.['zet_editor_text_defaults'];
-      if (!saved) return;
-      try {
-        const d = JSON.parse(saved);
-        if (d.fontSize) setCurrentFontSize(d.fontSize);
-        if (d.font) setCurrentFont(d.font);
-        if (d.color) setCurrentColor(d.color);
-        if (d.customColor) setCustomColor(d.customColor);
-        if (d.lineHeight) setCurrentLineHeight(d.lineHeight);
-      } catch {}
-    };
-    window.addEventListener('zet:preferences-loaded', onPrefsLoaded);
-    return () => window.removeEventListener('zet:preferences-loaded', onPrefsLoaded);
-  }, []);
-
   // Drawing state
   const [drawSize, setDrawSize] = useState(3);
   const [drawOpacity, setDrawOpacity] = useState(100);
@@ -395,6 +360,65 @@ const Editor = () => {
   const [firstLineIndent, setFirstLineIndent] = useState(0);
   const [paragraphSpaceBefore, setParagraphSpaceBefore] = useState(0);
   const [paragraphSpaceAfter, setParagraphSpaceAfter] = useState(0);
+
+  // Yazı tipi/boyut/renk/satır aralığı/paragraf varsayılanları — sadece kullanıcı
+  // panelden bilinçli olarak değiştirdiğinde kaydedilir (eleman seçimiyle senkronizasyon
+  // hariç, yoksa rastgele bir elemana tıklamak varsayılanı o elemanın stiliyle ezerdi)
+  const textDefaultsRef = useRef({
+    fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight,
+    textAlign: currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter,
+  });
+  useEffect(() => {
+    textDefaultsRef.current = {
+      fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight,
+      textAlign: currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter,
+    };
+  }, [currentFontSize, currentFont, currentColor, customColor, currentLineHeight, currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter]);
+
+  const persistTextDefaults = (overrides) => {
+    savePreference('zet_editor_text_defaults', JSON.stringify({ ...textDefaultsRef.current, ...overrides }));
+  };
+  const setCurrentFontPersisted = (val) => { setCurrentFont(val); persistTextDefaults({ font: val }); };
+  const setCurrentFontSizePersisted = (val) => { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); };
+  const setCurrentColorPersisted = (val) => { setCurrentColor(val); persistTextDefaults({ color: val }); };
+  const setCustomColorPersisted = (val) => { setCustomColor(val); persistTextDefaults({ customColor: val }); };
+  const setCurrentLineHeightPersisted = (val) => { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); };
+  const setFirstLineIndentPersisted = (val) => { setFirstLineIndent(val); persistTextDefaults({ firstLineIndent: val }); };
+  const setParagraphSpaceBeforePersisted = (val) => { setParagraphSpaceBefore(val); persistTextDefaults({ paragraphSpaceBefore: val }); };
+  const setParagraphSpaceAfterPersisted = (val) => { setParagraphSpaceAfter(val); persistTextDefaults({ paragraphSpaceAfter: val }); };
+
+  // Sunucudan geç gelen tercihler state'e işlenir
+  useEffect(() => {
+    const onPrefsLoaded = (e) => {
+      const saved = e.detail?.['zet_editor_text_defaults'];
+      if (!saved) return;
+      try {
+        const d = JSON.parse(saved);
+        if (d.fontSize) setCurrentFontSize(d.fontSize);
+        if (d.font) setCurrentFont(d.font);
+        if (d.color) setCurrentColor(d.color);
+        if (d.customColor) setCustomColor(d.customColor);
+        if (d.lineHeight) setCurrentLineHeight(d.lineHeight);
+        if (d.textAlign) setCurrentTextAlign(d.textAlign);
+        if (d.firstLineIndent) setFirstLineIndent(d.firstLineIndent);
+        if (d.paragraphSpaceBefore) setParagraphSpaceBefore(d.paragraphSpaceBefore);
+        if (d.paragraphSpaceAfter) setParagraphSpaceAfter(d.paragraphSpaceAfter);
+      } catch {}
+    };
+    window.addEventListener('zet:preferences-loaded', onPrefsLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onPrefsLoaded);
+  }, []);
+
+  // Kısayollar — sunucudan geç gelen tercihler senkronize edilir
+  useEffect(() => {
+    const onShortcutsLoaded = (e) => {
+      if (e.detail?.['zet_shortcuts']) {
+        try { setShortcuts(JSON.parse(e.detail['zet_shortcuts'])); } catch {}
+      }
+    };
+    window.addEventListener('zet:preferences-loaded', onShortcutsLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onShortcutsLoaded);
+  }, []);
   
   // Gradient colors for text (legacy — kept for chart generation)
   const [gradientStart, setGradientStart] = useState(null);
@@ -1735,6 +1759,7 @@ const Editor = () => {
   // === TEXT ALIGNMENT ===
   const applyTextAlign = (align) => {
     setCurrentTextAlign(align);
+    persistTextDefaults({ textAlign: align });
     const target = selectedElement || lastSelectedRef.current;
     if (target) {
       setCanvasElements(prev => {
@@ -3588,7 +3613,7 @@ body{background:#fff}
     setCustomColor: setCustomColorPersisted,
     setCustomHeight, setCustomWidth, setDocument, setDrawOpacity, setDrawSize,
     setEditingChartId, setEditingShortcut, setEraserDragMode, setEraserSize, setExportQuality,
-    setFindScope, setFindText, setFirstLineIndent, setFontSearch,
+    setFindScope, setFindText, setFirstLineIndent: setFirstLineIndentPersisted, setFontSearch,
     setFooterEven, setFooterOdd, setFooterText, setGradientAngle, setGradientEnd, setGradientStart, setGradientStops,
     setGridSize, setGridVisible, setHeaderEven, setHeaderFooterMode, setHeaderOdd, setHeaderText,
     setHexInput, setHighlighterColor,
@@ -3597,7 +3622,7 @@ body{background:#fff}
     setJudgeMood, setMagnifierBorderColor, setMagnifierGradientEnd, setMagnifierGradientStart,
     setMarginBottom, setMarginLeft, setMarginRight, setMarginTop, setMirrorAngle, setPageBackground,
     setPageNumberFormat, setPageNumberPosition, setPageNumberStart, setPageNumberStyle, setPageSize, setPageSizeScope,
-    setParagraphSpaceAfter, setParagraphSpaceBefore,
+    setParagraphSpaceAfter: setParagraphSpaceAfterPersisted, setParagraphSpaceBefore: setParagraphSpaceBeforePersisted,
     setPhotoEditDrawMode, setPhotoEditDrawings, setPhotoEditImage, setPhotoEditPrompt, setPhotoEditResult,
     setQrText, setReplaceText, setRulerVisible, setSelectedElement, setShortcutSearch,
     setShowBulletList, setShowCalculator, setShowChatSettings, setShowColor, setShowColumns, setShowCreateImage,
