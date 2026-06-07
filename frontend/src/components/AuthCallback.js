@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { loadPreferences } from '../lib/preferences';
 import axios from 'axios';
 import { A4LoadingScreen } from './LoadingScreens';
 
@@ -61,6 +62,7 @@ const AuthCallback = () => {
           const res = await axios.post(`${API}/auth/exchange`, { token });
           localStorage.setItem('session_token', token);
           setUser(res.data);
+          loadPreferences();
           navigate('/app-select', { replace: true });
         } catch (error) {
           console.error('Auth exchange error:', error);
