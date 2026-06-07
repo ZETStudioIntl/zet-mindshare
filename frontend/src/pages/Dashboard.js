@@ -153,6 +153,8 @@ const Dashboard = () => {
     const saved = localStorage.getItem('zet_fast_select');
     return saved ? JSON.parse(saved) : ['text', 'hand', 'draw', 'image'];
   });
+  // Gerçek abonelik planı sunucudan yüklenene kadar limit zorlaması ertelenir
+  const subscriptionLoadedRef = useRef(false);
   const [showSubscription, setShowSubscription] = useState(false);
   const [upgradePrompt, setUpgradePrompt] = useState(null); // { featureName, requiredPlan }
   const showUpgradePrompt = (featureName, requiredPlan) => setUpgradePrompt({ featureName, requiredPlan });
@@ -285,13 +287,16 @@ const Dashboard = () => {
   const FAST_SELECT_LIMITS = { free: 3, plus: 5, pro: 8, creative_station: 8 };
   const fastSelectLimit = FAST_SELECT_LIMITS[userSubscription] || 3;
 
-  // Enforce FastSelect limit when plan changes (downgrade)
+  // Enforce FastSelect limit when plan changes (downgrade) — gerçek abonelik
+  // sunucudan gelmeden (userSubscription hâlâ varsayılan 'free') tetiklenirse
+  // ücretli kullanıcının seçimleri yanlışlıkla 3'e düşürülüp kaydediliyordu
   useEffect(() => {
+    if (!subscriptionLoadedRef.current) return;
     const limit = FAST_SELECT_LIMITS[userSubscription] || 3;
     if (fastSelectTools.length > limit) {
       const trimmed = fastSelectTools.slice(0, limit);
       setFastSelectTools(trimmed);
-      localStorage.setItem('zet_fast_select', JSON.stringify(trimmed));
+      savePreference('zet_fast_select', JSON.stringify(trimmed));
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userSubscription, fastSelectTools.length]);
@@ -510,6 +515,7 @@ const Dashboard = () => {
     ]);
     if (subRes.status === 'fulfilled') setUserSubscription(subRes.value.data.plan || 'free');
     else setUserSubscription('free');
+    subscriptionLoadedRef.current = true;
     if (spRes.status === 'fulfilled') {
       setUserZP(spRes.value.data.quest_xp || 0);
       setActiveTimeSeconds(spRes.value.data.active_time_seconds || 0);
