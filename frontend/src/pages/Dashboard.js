@@ -1156,6 +1156,8 @@ const Dashboard = () => {
           const { OPS, Util, ImageKind } = pdfjsLib;
           const MAX_IMG_DIM = 1600;
 
+          const escapePdfHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
           // PDF font adını web-safe bir aileye eşler (Editor.js importPDF ile aynı mantık)
           const resolvePdfFont = (fontName) => {
             if (!fontName) return 'Arial';
@@ -1226,24 +1228,44 @@ const Dashboard = () => {
               const pageHeightPts = viewport.height;
 
               const textContent = await page.getTextContent();
-              let pageText = '';
-              let lastY = null;
+
+              // Metni satır satır işle — her satırın font ailesi, punto boyutu ve x konumu (girinti) korunur
+              const pdfLines = [];
+              let curLine = null;
               for (const item of textContent.items) {
                 if (!('str' in item)) continue;
+                const x = item.transform[4];
                 const y = item.transform[5];
-                if (lastY !== null && Math.abs(y - lastY) > 2) pageText += '\n';
-                pageText += item.str;
-                if (item.hasEOL) pageText += '\n';
-                lastY = y;
+                const sizePts = Math.hypot(item.transform[2], item.transform[3]) || 10;
+                const fontName = textContent.styles?.[item.fontName]?.fontFamily || item.fontName || null;
+                if (!curLine || Math.abs(y - curLine.y) > 2) {
+                  curLine = { text: '', x, y, sizePts, fontName };
+                  pdfLines.push(curLine);
+                }
+                curLine.text += item.str;
+                if (item.hasEOL && curLine.text && !curLine.text.endsWith(' ')) curLine.text += ' ';
               }
-              pageText = pageText.trim();
+              const nonEmptyLines = pdfLines.map(l => ({ ...l, text: l.text.trim() })).filter(l => l.text);
+              const pageText = nonEmptyLines.map(l => l.text).join('\n');
 
-              // Sayfanın baskın font ailesini ve punto boyutunu PDF metninden tespit et
-              const firstTextItem = textContent.items.find(it => 'str' in it && it.str.trim());
-              const pdfFontName = firstTextItem ? (textContent.styles?.[firstTextItem.fontName]?.fontFamily || firstTextItem.fontName || null) : null;
-              const pdfFont = resolvePdfFont(pdfFontName);
-              const pdfFontSizePts = firstTextItem ? Math.hypot(firstTextItem.transform[2], firstTextItem.transform[3]) : 0;
-              const pdfFontSize = pdfFontSizePts > 0 ? Math.max(8, Math.round(pdfFontSizePts * renderScale)) : 14;
+              // Baskın font/punto (eleman varsayılanı için ilk satırdan)
+              const pdfFont = resolvePdfFont(nonEmptyLines[0]?.fontName);
+              const pdfFontSize = nonEmptyLines.length ? Math.max(8, Math.round(nonEmptyLines[0].sizePts * renderScale)) : 14;
+
+              // Satır satır stilli HTML — font ailesi, punto, girinti (x farkı) ve paragraf boşluğu korunur
+              const baseX = nonEmptyLines.length ? Math.min(...nonEmptyLines.map(l => l.x)) : 0;
+              let prevLine = null;
+              let richHtml = '';
+              for (const line of nonEmptyLines) {
+                const sizePx = Math.max(8, Math.round(line.sizePts * renderScale));
+                const indentPx = Math.max(0, Math.round((line.x - baseX) * renderScale));
+                const fam = resolvePdfFont(line.fontName);
+                const gap = prevLine ? Math.abs(line.y - prevLine.y) : 0;
+                const isNewParagraph = prevLine && gap > line.sizePts * 1.6;
+                const marginTop = isNewParagraph ? Math.round(sizePx * 0.6) : 0;
+                richHtml += `<div style="font-family:'${fam}';font-size:${sizePx}px;margin:${marginTop}px 0 0 ${indentPx}px">${escapePdfHtml(line.text)}</div>`;
+                prevLine = line;
+              }
 
               // Sayfadaki gömülü resimleri (XObject) konumlarıyla birlikte tespit et
               const opList = await page.getOperatorList();
@@ -1296,7 +1318,7 @@ const Dashboard = () => {
                 id: `el_pdf_${t}_${i}`,
                 type: 'text', x: 40, y: 40,
                 content: pageText,
-                htmlContent: pageText.replace(/\n/g, '<br>'),
+                htmlContent: richHtml || pageText.replace(/\n/g, '<br>'),
                 fontSize: pdfFontSize,
                 fontFamily: pdfFont,
                 color: '#000000',

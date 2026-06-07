@@ -2147,6 +2147,8 @@ body{background:#fff}
       const ml = marginLeft || 40, mr = marginRight || 40, mt = marginTop || 40;
       const textWidth = pageSize.width - ml - mr;
 
+      const escapePdfHtml = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
       // Map PDF font name to a web-safe font family
       const resolvePdfFont = (fontName) => {
         if (!fontName) return currentFont;
@@ -2225,20 +2227,43 @@ body{background:#fff}
           const pageHeightPts = viewport.height;
 
           const content = await page.getTextContent();
-          let text = '';
-          let lastY = null;
+
+          // Metni satır satır işle — her satırın font ailesi, punto boyutu ve x konumu (girinti) korunur
+          const pdfLines = [];
+          let curLine = null;
           for (const item of content.items) {
             if (!('str' in item)) continue;
-            if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4) text += '\n';
-            text += item.str;
-            if (item.hasEOL) text += '\n';
-            lastY = item.transform[5];
+            const x = item.transform[4];
+            const y = item.transform[5];
+            const sizePts = Math.hypot(item.transform[2], item.transform[3]) || 10;
+            const fName = content.styles?.[item.fontName]?.fontFamily || item.fontName || null;
+            if (!curLine || Math.abs(y - curLine.y) > 2) {
+              curLine = { text: '', x, y, sizePts, fontName: fName };
+              pdfLines.push(curLine);
+            }
+            curLine.text += item.str;
+            if (item.hasEOL && curLine.text && !curLine.text.endsWith(' ')) curLine.text += ' ';
           }
-          text = text.trim();
+          const nonEmptyLines = pdfLines.map(l => ({ ...l, text: l.text.trim() })).filter(l => l.text);
+          const text = nonEmptyLines.map(l => l.text).join('\n');
 
-          const firstItem = content.items.find(it => 'str' in it && it.str.trim());
-          const fontName = firstItem ? (content.styles?.[firstItem.fontName]?.fontFamily || firstItem.fontName || null) : null;
-          const fontSizePts = firstItem ? Math.hypot(firstItem.transform[2], firstItem.transform[3]) : 0;
+          const fontName = nonEmptyLines[0]?.fontName || null;
+          const fontSizePts = nonEmptyLines.length ? nonEmptyLines[0].sizePts : 0;
+
+          // Satır satır stilli HTML — font ailesi, punto, girinti (x farkı) ve paragraf boşluğu korunur
+          const baseX = nonEmptyLines.length ? Math.min(...nonEmptyLines.map(l => l.x)) : 0;
+          let prevLine = null;
+          let richHtml = '';
+          for (const line of nonEmptyLines) {
+            const sizePx = Math.max(8, Math.round(line.sizePts * renderScale));
+            const indentPx = Math.max(0, Math.round((line.x - baseX) * renderScale));
+            const fam = resolvePdfFont(line.fontName);
+            const gap = prevLine ? Math.abs(line.y - prevLine.y) : 0;
+            const isNewParagraph = prevLine && gap > line.sizePts * 1.6;
+            const marginTop = isNewParagraph ? Math.round(sizePx * 0.6) : 0;
+            richHtml += `<div style="font-family:'${fam}';font-size:${sizePx}px;margin:${marginTop}px 0 0 ${indentPx}px">${escapePdfHtml(line.text)}</div>`;
+            prevLine = line;
+          }
 
           // Sayfadaki gömülü resimleri (XObject) konumlarıyla birlikte tespit et
           const opList = await page.getOperatorList();
@@ -2285,10 +2310,10 @@ body{background:#fff}
             }
           }
 
-          pdfPages.push({ page_num: i, text, font_name: fontName, font_size_pts: fontSizePts, render_scale: renderScale, images });
+          pdfPages.push({ page_num: i, text, html: richHtml, font_name: fontName, font_size_pts: fontSizePts, render_scale: renderScale, images });
         } catch (pageErr) {
           console.warn(`PDF page ${i} extraction failed:`, pageErr);
-          pdfPages.push({ page_num: i, text: '', font_name: null, font_size_pts: 0, render_scale: 1, images: [] });
+          pdfPages.push({ page_num: i, text: '', html: '', font_name: null, font_size_pts: 0, render_scale: 1, images: [] });
         }
       }
 
@@ -2308,7 +2333,7 @@ body{background:#fff}
             type: 'text',
             x: ml, y: mt,
             content: pg.text,
-            htmlContent: pg.text.replace(/\n/g, '<br>'),
+            htmlContent: pg.html || pg.text.replace(/\n/g, '<br>'),
             fontSize,
             fontFamily: resolvePdfFont(pg.font_name),
             color: currentColor,
