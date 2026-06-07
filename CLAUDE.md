@@ -97,7 +97,6 @@ backend/
 | `frontend/src/components/editor/EditorPanels.js` | Izgara (grid) paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Şablonlar (templates) paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Bul & Değiştir (findreplace) paneli | Kilitlendi, dokunma |
-| `frontend/src/components/editor/EditorPanels.js` | PDF içe aktar (importpdf) paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Grafik oluştur (graphic/chart) paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Paragraf stilleri (styles) paneli | Kilitlendi, dokunma |
 | `frontend/src/components/editor/EditorPanels.js` | Bağlantı (link) paneli | Kilitlendi, dokunma |

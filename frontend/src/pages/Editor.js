@@ -2140,36 +2140,12 @@ body{background:#fff}
       // Client-side PDF extraction via pdfjs-dist — no backend needed
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const rawPages = [];
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const content = await page.getTextContent();
-        let text = '';
-        let lastY = null;
-        for (const item of content.items) {
-          if (!('str' in item)) continue;
-          if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4) text += '\n';
-          text += item.str;
-          if (item.hasEOL) text += '\n';
-          lastY = item.transform[5];
-        }
-        const firstItem = content.items.find(it => 'str' in it && it.str.trim());
-        const fontName = firstItem ? (content.styles?.[firstItem.fontName]?.fontFamily || firstItem.fontName || null) : null;
-        rawPages.push({ page_num: i, text: text.trim(), font_name: fontName });
-      }
-      let pdfPages = rawPages;
-      if (pdfPages.length === 0 || pdfPages.every(p => !p.text)) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
-
-      const pageLimit = PDF_PAGE_LIMITS[userPlan] ?? 20;
-      if (pdfPages.length > pageLimit) {
-        const planLabel = userPlan === 'creative_station' ? 'Creative Station' : userPlan === 'pro' ? 'Pro' : userPlan === 'plus' ? 'Plus' : 'Free';
-        alert(`${pdfPages.length} sayfalık PDF, ${planLabel} planı için ${pageLimit} sayfa limitini aşıyor.\nİlk ${pageLimit} sayfa aktarılacak.`);
-        pdfPages = pdfPages.slice(0, pageLimit);
-      }
+      const { OPS, Util, ImageKind } = pdfjsLib;
+      const MAX_IMG_DIM = 1600;
+      const t = Date.now();
 
       const ml = marginLeft || 40, mr = marginRight || 40, mt = marginTop || 40;
       const textWidth = pageSize.width - ml - mr;
-      const t = Date.now();
 
       // Map PDF font name to a web-safe font family
       const resolvePdfFont = (fontName) => {
@@ -2183,32 +2159,175 @@ body{background:#fff}
         return currentFont;
       };
 
-      // Detect dominant font from first non-empty page
-      const firstWithFont = pdfPages.find(p => p.font_name);
-      const pdfFont = resolvePdfFont(firstWithFont?.font_name);
+      // Bir XObject resmini page.objs'tan PNG/JPEG data URL'e çevirir (boyutu sınırlar)
+      const decodeImageObj = async (page, objId) => {
+        const imgData = await new Promise((resolve) => {
+          let settled = false;
+          const timer = setTimeout(() => { if (!settled) { settled = true; resolve(null); } }, 2500);
+          try {
+            page.objs.get(objId, (data) => {
+              if (!settled) { settled = true; clearTimeout(timer); resolve(data); }
+            });
+          } catch { if (!settled) { settled = true; clearTimeout(timer); resolve(null); } }
+        });
+        if (!imgData || !imgData.width || !imgData.height) return null;
 
-      const makeTextEl = (pg, idx) => ({
-        id: `el_pdf_${t}_${idx}`,
-        type: 'text',
-        x: ml, y: mt,
-        content: pg.text || '',
-        htmlContent: (pg.text || '').replace(/\n/g, '<br>'),
-        fontSize: currentFontSize,
-        fontFamily: pdfFont,
-        color: currentColor,
-        width: textWidth,
-        lineHeight: 1.5,
-        textAlign: 'left', bold: false, italic: false, underline: false,
-      });
+        const srcCanvas = window.document.createElement('canvas');
+        srcCanvas.width = imgData.width;
+        srcCanvas.height = imgData.height;
+        const sctx = srcCanvas.getContext('2d');
+        if (imgData.bitmap) {
+          sctx.drawImage(imgData.bitmap, 0, 0);
+        } else if (imgData.data) {
+          const out = sctx.createImageData(imgData.width, imgData.height);
+          const src = imgData.data;
+          if (imgData.kind === ImageKind.RGBA_32BPP || src.length === imgData.width * imgData.height * 4) {
+            out.data.set(src);
+          } else if (imgData.kind === ImageKind.RGB_24BPP || src.length === imgData.width * imgData.height * 3) {
+            for (let p = 0, q = 0; p < src.length; p += 3, q += 4) {
+              out.data[q] = src[p]; out.data[q + 1] = src[p + 1]; out.data[q + 2] = src[p + 2]; out.data[q + 3] = 255;
+            }
+          } else {
+            return null;
+          }
+          sctx.putImageData(out, 0, 0);
+        } else {
+          return null;
+        }
+
+        let outW = imgData.width;
+        let outH = imgData.height;
+        if (outW > MAX_IMG_DIM || outH > MAX_IMG_DIM) {
+          const ratio = Math.min(MAX_IMG_DIM / outW, MAX_IMG_DIM / outH);
+          outW = Math.round(outW * ratio);
+          outH = Math.round(outH * ratio);
+        }
+        const outCanvas = window.document.createElement('canvas');
+        outCanvas.width = outW;
+        outCanvas.height = outH;
+        outCanvas.getContext('2d').drawImage(srcCanvas, 0, 0, outW, outH);
+        return outCanvas.toDataURL('image/jpeg', 0.85);
+      };
+
+      const pageLimit = PDF_PAGE_LIMITS[userPlan] ?? 20;
+      const numPages = Math.min(pdf.numPages, pageLimit);
+      if (pdf.numPages > pageLimit) {
+        const planLabel = userPlan === 'creative_station' ? 'Creative Station' : userPlan === 'pro' ? 'Pro' : userPlan === 'plus' ? 'Plus' : 'Free';
+        alert(`${pdf.numPages} sayfalık PDF, ${planLabel} planı için ${pageLimit} sayfa limitini aşıyor.\nİlk ${pageLimit} sayfa aktarılacak.`);
+      }
+
+      const pdfPages = [];
+      for (let i = 1; i <= numPages; i++) {
+        try {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({ scale: 1 });
+          const renderScale = Math.min(pageSize.width / viewport.width, pageSize.height / viewport.height);
+          const pageHeightPts = viewport.height;
+
+          const content = await page.getTextContent();
+          let text = '';
+          let lastY = null;
+          for (const item of content.items) {
+            if (!('str' in item)) continue;
+            if (lastY !== null && Math.abs(item.transform[5] - lastY) > 4) text += '\n';
+            text += item.str;
+            if (item.hasEOL) text += '\n';
+            lastY = item.transform[5];
+          }
+          text = text.trim();
+
+          const firstItem = content.items.find(it => 'str' in it && it.str.trim());
+          const fontName = firstItem ? (content.styles?.[firstItem.fontName]?.fontFamily || firstItem.fontName || null) : null;
+          const fontSizePts = firstItem ? Math.hypot(firstItem.transform[2], firstItem.transform[3]) : 0;
+
+          // Sayfadaki gömülü resimleri (XObject) konumlarıyla birlikte tespit et
+          const opList = await page.getOperatorList();
+          let curMatrix = [1, 0, 0, 1, 0, 0];
+          const matrixStack = [];
+          const foundImages = [];
+          for (let k = 0; k < opList.fnArray.length; k++) {
+            const fn = opList.fnArray[k];
+            const args = opList.argsArray[k];
+            if (fn === OPS.save) {
+              matrixStack.push(curMatrix);
+            } else if (fn === OPS.restore) {
+              curMatrix = matrixStack.pop() || [1, 0, 0, 1, 0, 0];
+            } else if (fn === OPS.transform) {
+              curMatrix = Util.transform(curMatrix, args);
+            } else if (fn === OPS.paintImageXObject && typeof args[0] === 'string') {
+              foundImages.push({ objId: args[0], matrix: curMatrix });
+            }
+          }
+
+          const images = [];
+          for (let imgIdx = 0; imgIdx < foundImages.length; imgIdx++) {
+            const { objId, matrix: m } = foundImages[imgIdx];
+            try {
+              const dataUrl = await decodeImageObj(page, objId);
+              if (!dataUrl) continue;
+              const corners = [[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y]) => [
+                m[0] * x + m[2] * y + m[4],
+                m[1] * x + m[3] * y + m[5],
+              ]);
+              const xs = corners.map(c => c[0]);
+              const ys = corners.map(c => c[1]);
+              const minX = Math.min(...xs), maxX = Math.max(...xs);
+              const minY = Math.min(...ys), maxY = Math.max(...ys);
+              images.push({
+                x: Math.round(minX * renderScale),
+                y: Math.round((pageHeightPts - maxY) * renderScale),
+                width: Math.max(1, Math.round((maxX - minX) * renderScale)),
+                height: Math.max(1, Math.round((maxY - minY) * renderScale)),
+                src: dataUrl,
+              });
+            } catch (imgErr) {
+              console.warn(`PDF page ${i} image ${imgIdx} extraction failed:`, imgErr);
+            }
+          }
+
+          pdfPages.push({ page_num: i, text, font_name: fontName, font_size_pts: fontSizePts, render_scale: renderScale, images });
+        } catch (pageErr) {
+          console.warn(`PDF page ${i} extraction failed:`, pageErr);
+          pdfPages.push({ page_num: i, text: '', font_name: null, font_size_pts: 0, render_scale: 1, images: [] });
+        }
+      }
+
+      if (pdfPages.length === 0 || pdfPages.every(p => !p.text && p.images.length === 0)) { alert('PDF içerik bulunamadı veya sadece görsel içeriyor.'); return; }
+
+      const makeElements = (pg, idx) => {
+        const els = pg.images.map((img, ii) => ({
+          id: `el_pdf_${t}_${idx}_img${ii}`,
+          type: 'image',
+          x: img.x, y: img.y, width: img.width, height: img.height,
+          src: img.src,
+        }));
+        if (pg.text) {
+          const fontSize = pg.font_size_pts > 0 ? Math.max(8, Math.round(pg.font_size_pts * pg.render_scale)) : currentFontSize;
+          els.push({
+            id: `el_pdf_${t}_${idx}`,
+            type: 'text',
+            x: ml, y: mt,
+            content: pg.text,
+            htmlContent: pg.text.replace(/\n/g, '<br>'),
+            fontSize,
+            fontFamily: resolvePdfFont(pg.font_name),
+            color: currentColor,
+            width: textWidth,
+            lineHeight: 1.5,
+            textAlign: 'left', bold: false, italic: false, underline: false,
+          });
+        }
+        return els;
+      };
 
       // First PDF page → appended to current canvas page
-      const firstEl = makeTextEl(pdfPages[0], 0);
-      const updatedCurrentElements = [...canvasElements, firstEl];
+      const firstEls = makeElements(pdfPages[0], 0);
+      const updatedCurrentElements = [...canvasElements, ...firstEls];
 
       // Remaining PDF pages → new canvas pages inserted after current page
       const newCanvasPages = pdfPages.slice(1).map((pg, i) => ({
         page_id: `page_pdf_${t}_${i + 1}`,
-        elements: [makeTextEl(pg, i + 1)],
+        elements: makeElements(pg, i + 1),
         drawPaths: [],
         pageSize,
       }));
