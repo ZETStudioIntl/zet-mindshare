@@ -1156,6 +1156,18 @@ const Dashboard = () => {
           const { OPS, Util, ImageKind } = pdfjsLib;
           const MAX_IMG_DIM = 1600;
 
+          // PDF font adını web-safe bir aileye eşler (Editor.js importPDF ile aynı mantık)
+          const resolvePdfFont = (fontName) => {
+            if (!fontName) return 'Arial';
+            const fn = fontName.toLowerCase();
+            if (fn.includes('courier')) return 'Courier New';
+            if (fn.includes('times')) return 'Times New Roman';
+            if (fn.includes('helvetica') || fn.includes('arial')) return 'Arial';
+            if (fn.includes('calibri')) return 'Calibri';
+            if (fn.includes('georgia')) return 'Georgia';
+            return 'Arial';
+          };
+
           // Bir XObject resmini page.objs'tan PNG/JPEG data URL'e çevirir (boyutu sınırlar)
           const decodeImageObj = async (page, objId) => {
             const imgData = await new Promise((resolve) => {
@@ -1226,6 +1238,13 @@ const Dashboard = () => {
               }
               pageText = pageText.trim();
 
+              // Sayfanın baskın font ailesini ve punto boyutunu PDF metninden tespit et
+              const firstTextItem = textContent.items.find(it => 'str' in it && it.str.trim());
+              const pdfFontName = firstTextItem ? (textContent.styles?.[firstTextItem.fontName]?.fontFamily || firstTextItem.fontName || null) : null;
+              const pdfFont = resolvePdfFont(pdfFontName);
+              const pdfFontSizePts = firstTextItem ? Math.hypot(firstTextItem.transform[2], firstTextItem.transform[3]) : 0;
+              const pdfFontSize = pdfFontSizePts > 0 ? Math.max(8, Math.round(pdfFontSizePts * renderScale)) : 14;
+
               // Sayfadaki gömülü resimleri (XObject) konumlarıyla birlikte tespit et
               const opList = await page.getOperatorList();
               let curMatrix = [1, 0, 0, 1, 0, 0];
@@ -1278,8 +1297,8 @@ const Dashboard = () => {
                 type: 'text', x: 40, y: 40,
                 content: pageText,
                 htmlContent: pageText.replace(/\n/g, '<br>'),
-                fontSize: 14,
-                fontFamily: 'Arial',
+                fontSize: pdfFontSize,
+                fontFamily: pdfFont,
                 color: '#000000',
                 width: 714,
                 lineHeight: 1.5,
