@@ -2052,9 +2052,9 @@ async def _save_document_version(doc_id: str, user_id: str):
             "pages": old["pages"],
             "saved_at": datetime.now(timezone.utc).isoformat()
         })
-        versions = await db.document_history.find({"doc_id": doc_id}, {"_id": 1}).sort("saved_at", -1).to_list(20)
-        if len(versions) > 5:
-            await db.document_history.delete_many({"_id": {"$in": [v["_id"] for v in versions[5:]]}})
+        versions = await db.document_history.find({"doc_id": doc_id}, {"_id": 1}).sort("saved_at", -1).to_list(55)
+        if len(versions) > 50:
+            await db.document_history.delete_many({"_id": {"$in": [v["_id"] for v in versions[50:]]}})
     except Exception:
         pass
 
@@ -2081,14 +2081,14 @@ async def get_document_history(doc_id: str, user: User = Depends(get_current_use
     versions = await db.document_history.find(
         {"doc_id": doc_id, "user_id": user.user_id},
         {"_id": 0, "pages": 0}
-    ).sort("saved_at", -1).to_list(5)
+    ).sort("saved_at", -1).to_list(50)
     return versions
 
 @api_router.post("/documents/{doc_id}/restore/{version_index}")
 async def restore_document_version(doc_id: str, version_index: int, user: User = Depends(get_current_user)):
     versions = await db.document_history.find(
         {"doc_id": doc_id, "user_id": user.user_id}
-    ).sort("saved_at", -1).to_list(5)
+    ).sort("saved_at", -1).to_list(50)
     if version_index >= len(versions):
         raise HTTPException(status_code=404, detail="Version not found")
     pages = versions[version_index]["pages"]
@@ -2119,6 +2119,16 @@ async def delete_document(doc_id: str, user: User = Depends(get_current_user)):
 
 @api_router.get("/trash")
 async def get_trash(user: User = Depends(get_current_user)):
+    # 30 günü geçen belgeleri kalıcı sil
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    expired = [d["doc_id"] for d in await db.documents.find(
+        {"user_id": user.user_id, "deleted": True, "deleted_at": {"$lt": cutoff}},
+        {"doc_id": 1}
+    ).to_list(500)]
+    if expired:
+        await db.documents.delete_many({"doc_id": {"$in": expired}})
+        await db.document_history.delete_many({"doc_id": {"$in": expired}})
+
     docs = await db.documents.find(
         {"user_id": user.user_id, "deleted": True},
         {"_id": 0, "pages": 0}

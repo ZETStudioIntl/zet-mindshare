@@ -9,6 +9,7 @@ import { ResizableDivider } from './ResizableDivider';
 import EditorPanels from './EditorPanels';
 import ShareDialog from './ShareDialog';
 import CommentsPanel from './CommentsPanel';
+import VersionHistoryPanel from './VersionHistoryPanel';
 import ZetaEditPanel from './ZetaEditPanel';
 import { startCheckout } from '../../lib/lemonSqueezy';
 import { TOOLS } from '../../lib/editorConstants';
@@ -19,7 +20,7 @@ import {
   Menu, Layers, Sparkles, Zap, Keyboard, Download,
   Share2, MessageSquare, Users,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Group, Ungroup, CircleCheck, Cloud, Crown, Lock, AlertTriangle, RotateCcw,
+  Group, Ungroup, CircleCheck, Cloud, Crown, Lock, AlertTriangle, RotateCcw, History,
 } from 'lucide-react';
 
 const EditorDesktopLayout = () => {
@@ -58,6 +59,7 @@ const EditorDesktopLayout = () => {
     setShowShareDialog, setShowUpgradeModal, setShowVoice, setTtsAudio, setUploadForShape,
     setToolboxOpen, setUpgradeReason, setZoom,
     showComments, showCreditModal, showImageUpload, showShareDialog, showUpgradeModal, showVoice,
+    showVersionHistory, setShowVersionHistory,
     skipVoice, snapToGrid, spellCheckEnabled, stopVoice,
     toolboxOpen, ungroupElements, uploadForShape, upgradeReason,
     useGradient, userPlan, userUsage, useMagnifierGradient,
@@ -139,6 +141,9 @@ const EditorDesktopLayout = () => {
             </button>
             <button data-testid="comments-btn" onClick={() => setShowComments(!showComments)} className={`tool-btn w-8 h-8 flex items-center justify-center ${showComments ? 'ring-1 ring-blue-500' : ''}`} title="Yorumlar">
               <MessageSquare className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+            </button>
+            <button data-testid="version-history-btn" onClick={() => setShowVersionHistory(!showVersionHistory)} className={`tool-btn w-8 h-8 flex items-center justify-center ${showVersionHistory ? 'ring-1 ring-blue-500' : ''}`} title="Sürüm Geçmişi">
+              <History className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
             </button>
             <button data-testid="collab-toggle" onClick={() => setCollabEnabled(!collabEnabled)} className={`tool-btn w-8 h-8 flex items-center justify-center ${collabEnabled ? 'ring-1 ring-green-500' : ''}`} title={collabEnabled ? 'Isbirligi Acik' : 'Isbirligi Kapat'}>
               <Users className="h-4 w-4" style={{ color: collabEnabled && collab.connected ? '#22c55e' : 'var(--zet-text)' }} />
@@ -494,6 +499,12 @@ const EditorDesktopLayout = () => {
         <div data-testid="comments-sidebar" className="fixed right-0 top-12 bottom-0 w-80 z-50 shadow-2xl" style={{ background: 'var(--zet-bg-card)', borderLeft: '1px solid var(--zet-border)' }}>
           <CommentsPanel docId={docId} onClose={() => setShowComments(false)} selectedElement={selectedElement} currentPage={currentPage} />
         </div>
+      )}
+
+      {/* Sürüm Geçmişi Paneli */}
+      {showVersionHistory && (
+        <VersionHistoryPanel docId={docId} isMobile={isMobile} onClose={() => setShowVersionHistory(false)}
+          onRestore={() => { setShowVersionHistory(false); window.location.reload(); }} />
       )}
 
       {/* Remote Cursors Overlay */}

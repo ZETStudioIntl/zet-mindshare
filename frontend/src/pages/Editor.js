@@ -329,6 +329,7 @@ const Editor = () => {
   const [showPunctuation, setShowPunctuation] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [showPhotoEdit, setShowPhotoEdit] = useState(false);
+  const [showVersionHistory, setShowVersionHistory] = useState(false);
   const [uploadForShape, setUploadForShape] = useState(null);
   const [changeImageTarget, setChangeImageTarget] = useState(null);
 
@@ -593,6 +594,8 @@ const Editor = () => {
     });
   }, [collab.connected, collab.onCollabMessage]);
   const autoSaveTimerRef = useRef(null);
+  const autoSave30Ref = useRef(null);
+  const saveDocumentRef = useRef(null);
   const latestSaveDataRef = useRef(null);
   const isMountedRef = useRef(true);
   const canvasContainerRef = useRef(null);
@@ -975,6 +978,17 @@ const Editor = () => {
       localStorage.removeItem(`zet_offline_doc_${docId}`);
     } catch { setSaveStatus('error'); } finally { if (!silent) setSaving(false); }
   }
+  saveDocumentRef.current = saveDocument;
+
+  // === 30 SANİYEDE BİR OTOMATİK KAYIT (OneDrive tarzı) ===
+  useEffect(() => {
+    if (!docId || isReadOnly) return;
+    if (autoSave30Ref.current) clearInterval(autoSave30Ref.current);
+    autoSave30Ref.current = setInterval(() => {
+      if (navigator.onLine) saveDocumentRef.current?.(true);
+    }, 30000);
+    return () => { if (autoSave30Ref.current) clearInterval(autoSave30Ref.current); };
+  }, [docId, isReadOnly]);
 
   // === PAGE CHANGE (saves current page first) ===
   const changePage = useCallback((newPage) => {
@@ -3440,6 +3454,7 @@ body{background:#fff}
     setChangeImageTarget, setIsPlaying, setShowCreditModal, setShowImageUpload, setShowShareDialog, setShowVoice,
     setTtsAudio, setUploadForShape, setZoom,
     showComments, setShowComments, showCreditModal, showImageUpload, showShareDialog, showUpgradeModal, showVoice,
+    showVersionHistory, setShowVersionHistory,
     skipVoice, stopVoice,
     toolboxOpen, setToolboxOpen, upgradeReason, uploadForShape,
     useGradient, userPlan, userUsage, voiceLoading, voiceProgress, zoom,

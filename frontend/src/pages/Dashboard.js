@@ -1443,6 +1443,13 @@ MATCHES:[1,3,5]`;
     return `${days}${t('daysAgo')}`;
   };
 
+  const trashDaysRemaining = (deletedAt) => {
+    const deleted = new Date(deletedAt);
+    const expiresAt = deleted.getTime() + 30 * 24 * 60 * 60 * 1000;
+    const remaining = Math.ceil((expiresAt - Date.now()) / (1000 * 60 * 60 * 24));
+    return Math.max(0, remaining);
+  };
+
   const filteredDocs = documents.filter(d => {
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
@@ -3641,7 +3648,9 @@ MATCHES:[1,3,5]`;
                   <div key={doc.doc_id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</p>
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{formatTime(doc.deleted_at)}</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>
+                        {formatTime(doc.deleted_at)} · <span style={{ color: '#f59e0b' }}>{trashDaysRemaining(doc.deleted_at)} gün kaldı</span>
+                      </p>
                     </div>
                     <div className="flex items-center gap-2 ml-3">
                       <button onClick={() => restoreDocument(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>Geri Al</button>

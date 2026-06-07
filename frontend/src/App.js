@@ -13,6 +13,7 @@ import QuestMap from "./pages/QuestMap";
 import SharedView from "./pages/SharedView";
 import Profile from "./pages/Profile";
 import ConfirmDelete from "./pages/ConfirmDelete";
+import RecycleBin from "./pages/RecycleBin";
 import ConfirmEmailChange from "./pages/ConfirmEmailChange";
 import AppSelector from "./pages/AppSelector";
 import JudgeDashboard from "./pages/JudgeDashboard";
@@ -91,6 +92,11 @@ const AppRouter = () => {
       <Route path="/judge" element={
         <ProtectedRoute>
           <JudgeDashboard />
+        </ProtectedRoute>
+      } />
+      <Route path="/trash" element={
+        <ProtectedRoute>
+          <RecycleBin />
         </ProtectedRoute>
       } />
       <Route path="/payment/success" element={<PaymentSuccess />} />
