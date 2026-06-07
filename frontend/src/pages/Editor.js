@@ -265,21 +265,49 @@ const Editor = () => {
   const [zetaEditSuggestions, setZetaEditSuggestions] = useState([]);
   const pendingOpsRef = useRef([]); // { action, elementId, originalState }
 
-  // Text/style state
-  const [currentFontSize, setCurrentFontSize] = useState(DEFAULT_FONT_SIZE);
-  const [currentFont, setCurrentFont] = useState(DEFAULT_FONT);
-  const [currentColor, setCurrentColor] = useState(DEFAULT_COLOR);
-  const [customColor, setCustomColor] = useState(DEFAULT_COLOR);
+  // Text/style state — son kullanılan ayarlar tercihlerden yüklenir, belgeden çıkınca sıfırlanmaz
+  const savedTextDefaults = (() => {
+    try { return JSON.parse(localStorage.getItem('zet_editor_text_defaults') || '{}'); } catch { return {}; }
+  })();
+  const [currentFontSize, setCurrentFontSize] = useState(savedTextDefaults.fontSize || DEFAULT_FONT_SIZE);
+  const [currentFont, setCurrentFont] = useState(savedTextDefaults.font || DEFAULT_FONT);
+  const [currentColor, setCurrentColor] = useState(savedTextDefaults.color || DEFAULT_COLOR);
+  const [customColor, setCustomColor] = useState(savedTextDefaults.customColor || DEFAULT_COLOR);
   const [fontSearch, setFontSearch] = useState('');
   const [googleFonts, setGoogleFonts] = useState([]);
   const [loadedFonts, setLoadedFonts] = useState({});
   const [customWidth, setCustomWidth] = useState(DEFAULT_PAGE_SIZE.width);
   const [customHeight, setCustomHeight] = useState(DEFAULT_PAGE_SIZE.height);
-  const [currentLineHeight, setCurrentLineHeight] = useState(1.5);
+  const [currentLineHeight, setCurrentLineHeight] = useState(savedTextDefaults.lineHeight || 1.5);
   const [isBold, setIsBold] = useState(false);
   const [isItalic, setIsItalic] = useState(false);
   const [isUnderline, setIsUnderline] = useState(false);
   const [isStrikethrough, setIsStrikethrough] = useState(false);
+
+  // Yazı tipi/boyut/renk/satır aralığı tercihleri hesaba senkronize edilir — belgeden çıkınca sıfırlanmaz
+  useEffect(() => {
+    savePreference('zet_editor_text_defaults', JSON.stringify({
+      fontSize: currentFontSize, font: currentFont, color: currentColor, customColor, lineHeight: currentLineHeight,
+    }));
+  }, [currentFontSize, currentFont, currentColor, customColor, currentLineHeight]);
+
+  // Sunucudan geç gelen tercihler state'e işlenir
+  useEffect(() => {
+    const onPrefsLoaded = (e) => {
+      const saved = e.detail?.['zet_editor_text_defaults'];
+      if (!saved) return;
+      try {
+        const d = JSON.parse(saved);
+        if (d.fontSize) setCurrentFontSize(d.fontSize);
+        if (d.font) setCurrentFont(d.font);
+        if (d.color) setCurrentColor(d.color);
+        if (d.customColor) setCustomColor(d.customColor);
+        if (d.lineHeight) setCurrentLineHeight(d.lineHeight);
+      } catch {}
+    };
+    window.addEventListener('zet:preferences-loaded', onPrefsLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onPrefsLoaded);
+  }, []);
 
   // Drawing state
   const [drawSize, setDrawSize] = useState(3);

@@ -13,6 +13,7 @@ const PREF_KEYS = [
   'zet_judge_mood',
   'zet-language',
   'zet_active_app',
+  'zet_editor_text_defaults',
 ];
 
 let _debounceTimer = null;
