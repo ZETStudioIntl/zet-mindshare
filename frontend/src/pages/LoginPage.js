@@ -3,6 +3,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
 import { FileText, Sparkles, Cloud, Layout, Mail, Lock, User, Check } from 'lucide-react';
 import axios from 'axios';
+import ZetIdButton from '../components/ZetIdButton';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -20,6 +21,7 @@ const LoginPage = () => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [loading, setLoading] = useState(false);
+  const [zetIdLoading, setZetIdLoading] = useState(false);
   const [error, setError] = useState('');
   const [termsAccepted, setTermsAccepted] = useState(false);
 
@@ -38,6 +40,7 @@ const LoginPage = () => {
         : { email, password, name };
       const res = await axios.post(`${API}${endpoint}`, payload, { withCredentials: true });
       if (res.data.user) {
+        if (res.data.zet_id_token) localStorage.setItem('zet_id_token', res.data.zet_id_token);
         setUser(res.data.user);
         window.location.href = '/app-select';
       }
@@ -58,6 +61,33 @@ const LoginPage = () => {
     } catch {
       setError('Apple ile giriş henuz yapilandirilmadi.');
     }
+  };
+
+  const handleZetIdLogin = async () => {
+    setError('');
+    const zetIdToken = localStorage.getItem('zet_id_token');
+    if (!zetIdToken) {
+      // Bu cihazda kayıtlı bir ZET hesabı yok — kayıt sayfasına yönlendir
+      setAuthMode('register');
+      setTermsAccepted(false);
+      return;
+    }
+    setZetIdLoading(true);
+    try {
+      const res = await axios.post(`${API}/zet-id/login`, { zet_id_token: zetIdToken }, { withCredentials: true });
+      if (res.data.user) {
+        if (res.data.session_token) localStorage.setItem('session_token', res.data.session_token);
+        setUser(res.data.user);
+        window.location.href = '/app-select';
+        return;
+      }
+    } catch {
+      // Token geçersiz/süresi dolmuş — kayıt sayfasına yönlendir
+      localStorage.removeItem('zet_id_token');
+      setAuthMode('register');
+      setTermsAccepted(false);
+    }
+    setZetIdLoading(false);
   };
 
   return (
@@ -86,7 +116,9 @@ const LoginPage = () => {
 
           {/* Social Login Buttons */}
           <div className="space-y-2.5 mb-4">
-            <button 
+            <ZetIdButton onClick={handleZetIdLogin} loading={zetIdLoading} />
+
+            <button
               onClick={login}
               className="zet-btn w-full flex items-center justify-center gap-2.5 py-3"
               data-testid="google-login-btn"

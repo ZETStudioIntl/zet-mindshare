@@ -435,6 +435,16 @@ class EmailAuthRequest(BaseModel):
     password: str
     name: Optional[str] = None
 
+class ZetIdLoginRequest(BaseModel):
+    zet_id_token: str
+
+class ZetIdTokenRequest(BaseModel):
+    grant_type: str
+    code: Optional[str] = None
+    client_id: str
+    client_secret: str
+    redirect_uri: Optional[str] = None
+
 # ============ COLLABORATION WEBSOCKET MANAGER ============
 
 class CollaborationManager:
@@ -609,6 +619,19 @@ def verify_password(password: str, hashed: str) -> bool:
         # Backward compat: old SHA-256 hashes
         import hashlib
         return hashlib.sha256(password.encode()).hexdigest() == hashed
+
+async def issue_zet_id_token(user_id: str) -> str:
+    """ZET ID — hesaba bağlı, 30 gün geçerli SSO token üretir ve MongoDB'ye kaydeder."""
+    token = f"zid_{secrets.token_hex(32)}"
+    await db.zet_id_tokens.insert_one({
+        "token": token,
+        "user_id": user_id,
+        "client_id": None,
+        "scope": "profile",
+        "expires_at": (datetime.now(timezone.utc) + timedelta(days=30)).isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return token
 
 async def get_current_user(request: Request) -> User:
     session_token = request.cookies.get("session_token")
@@ -1861,7 +1884,8 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
         path="/", max_age=7*24*60*60
     )
 
-    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}}
+    zet_id_token = await issue_zet_id_token(user_id)
+    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}, "zet_id_token": zet_id_token}
 
 @api_router.post("/auth/login")
 async def login_with_email(req: EmailAuthRequest, response: Response, request: Request):
@@ -1913,7 +1937,8 @@ async def login_with_email(req: EmailAuthRequest, response: Response, request: R
         path="/", max_age=7*24*60*60
     )
 
-    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}}
+    zet_id_token = await issue_zet_id_token(user_id)
+    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}, "zet_id_token": zet_id_token}
 
 # ============ APPLE AUTH ROUTES ============
 
@@ -2005,6 +2030,172 @@ async def apple_auth_callback(request: Request, response: Response):
         path="/", max_age=7*24*60*60
     )
     return {"user": {"user_id": user_id, "email": email, "name": user_name}}
+
+# ============ ZET ID (OAuth/SSO) ============
+
+@api_router.post("/zet-id/login")
+async def zet_id_login(req: ZetIdLoginRequest, response: Response):
+    """ZET ID token ile doğrudan oturum açma — 'ZET ID ile Giriş Yap' SSO akışı."""
+    record = await db.zet_id_tokens.find_one({"token": req.zet_id_token, "client_id": None}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=401, detail="Geçersiz ZET ID token")
+
+    expires_at = record.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="ZET ID token süresi dolmuş")
+
+    user = await db.users.find_one({"user_id": record["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+
+    session_token = f"sess_{secrets.token_hex(16)}"
+    session_expires = datetime.now(timezone.utc) + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user["user_id"],
+        "expires_at": session_expires.isoformat()
+    })
+    response.set_cookie(
+        key="session_token", value=session_token,
+        httponly=True, secure=True,
+        samesite="none",
+        path="/", max_age=7*24*60*60
+    )
+    return {"user": {"user_id": user["user_id"], "email": user["email"], "name": user.get("name", "")}, "session_token": session_token}
+
+
+@api_router.get("/zet-id/authorize")
+async def zet_id_authorize(request: Request, client_id: str = Query(...), redirect_uri: str = Query(...), response_type: str = Query("code"), state: str = Query(None), scope: str = Query("profile")):
+    """OAuth2 yetkilendirme uç noktası — üçüncü parti uygulamalar ZET ID ile giriş için buraya yönlendirir."""
+    from fastapi.responses import RedirectResponse
+    from urllib.parse import quote
+
+    client = await db.zet_id_clients.find_one({"client_id": client_id}, {"_id": 0})
+    if not client or redirect_uri not in client.get("redirect_uris", []):
+        raise HTTPException(status_code=400, detail="Geçersiz client_id veya redirect_uri")
+    if response_type != "code":
+        raise HTTPException(status_code=400, detail="Sadece 'code' response_type desteklenir")
+
+    user = None
+    session_token = request.cookies.get("session_token")
+    if not session_token:
+        auth_header = request.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            session_token = auth_header.split(" ")[1]
+    if session_token:
+        session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+        if session:
+            sess_exp = session.get("expires_at")
+            if isinstance(sess_exp, str):
+                sess_exp = datetime.fromisoformat(sess_exp)
+            if sess_exp.tzinfo is None:
+                sess_exp = sess_exp.replace(tzinfo=timezone.utc)
+            if sess_exp > datetime.now(timezone.utc):
+                user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+
+    frontend_url = os.environ.get("FRONTEND_URL", "https://zetmindshare.com")
+    if not user:
+        return_to = quote(str(request.url), safe="")
+        return RedirectResponse(f"{frontend_url}/login?return_to={return_to}")
+
+    code = f"zidc_{secrets.token_hex(24)}"
+    await db.zet_id_auth_codes.insert_one({
+        "code": code,
+        "client_id": client_id,
+        "user_id": user["user_id"],
+        "redirect_uri": redirect_uri,
+        "scope": scope,
+        "expires_at": (datetime.now(timezone.utc) + timedelta(minutes=5)).isoformat(),
+        "used": False
+    })
+    sep = "&" if "?" in redirect_uri else "?"
+    redirect_to = f"{redirect_uri}{sep}code={code}"
+    if state:
+        redirect_to += f"&state={quote(state, safe='')}"
+    return RedirectResponse(redirect_to)
+
+
+@api_router.post("/zet-id/token")
+async def zet_id_token_exchange(req: ZetIdTokenRequest):
+    """OAuth2 token uç noktası — yetkilendirme kodunu ZET ID erişim token'ına (30 gün) çevirir."""
+    if req.grant_type != "authorization_code":
+        raise HTTPException(status_code=400, detail="Sadece 'authorization_code' grant_type desteklenir")
+    if not req.code:
+        raise HTTPException(status_code=400, detail="code zorunlu")
+
+    client = await db.zet_id_clients.find_one({"client_id": req.client_id, "client_secret": req.client_secret}, {"_id": 0})
+    if not client:
+        raise HTTPException(status_code=401, detail="Geçersiz client kimliği")
+
+    auth_code = await db.zet_id_auth_codes.find_one({"code": req.code}, {"_id": 0})
+    if not auth_code or auth_code.get("used") or auth_code["client_id"] != req.client_id:
+        raise HTTPException(status_code=400, detail="Geçersiz veya kullanılmış kod")
+
+    code_exp = auth_code.get("expires_at")
+    if isinstance(code_exp, str):
+        code_exp = datetime.fromisoformat(code_exp)
+    if code_exp.tzinfo is None:
+        code_exp = code_exp.replace(tzinfo=timezone.utc)
+    if code_exp < datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Kodun süresi dolmuş")
+    if req.redirect_uri and auth_code["redirect_uri"] != req.redirect_uri:
+        raise HTTPException(status_code=400, detail="redirect_uri eşleşmiyor")
+
+    await db.zet_id_auth_codes.update_one({"code": req.code}, {"$set": {"used": True}})
+
+    token = f"zid_{secrets.token_hex(32)}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=30)
+    await db.zet_id_tokens.insert_one({
+        "token": token,
+        "user_id": auth_code["user_id"],
+        "client_id": req.client_id,
+        "scope": auth_code.get("scope", "profile"),
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    return {
+        "access_token": token,
+        "token_type": "Bearer",
+        "expires_in": 30 * 24 * 60 * 60,
+        "scope": auth_code.get("scope", "profile")
+    }
+
+
+@api_router.get("/zet-id/userinfo")
+async def zet_id_userinfo(request: Request):
+    """OAuth2 userinfo uç noktası — Bearer ZET ID token ile kullanıcı profilini döner."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Bearer token gerekli")
+    token = auth_header.split(" ")[1]
+
+    record = await db.zet_id_tokens.find_one({"token": token}, {"_id": 0})
+    if not record:
+        raise HTTPException(status_code=401, detail="Geçersiz token")
+
+    expires_at = record.get("expires_at")
+    if isinstance(expires_at, str):
+        expires_at = datetime.fromisoformat(expires_at)
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < datetime.now(timezone.utc):
+        raise HTTPException(status_code=401, detail="Token süresi dolmuş")
+
+    user = await db.users.find_one({"user_id": record["user_id"]}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+
+    return {
+        "sub": user["user_id"],
+        "email": user.get("email"),
+        "name": user.get("name"),
+        "picture": user.get("picture"),
+        "username": user.get("username"),
+    }
 
 # ============ DOCUMENTS ROUTES ============
 
@@ -5988,6 +6179,11 @@ async def _ensure_indexes():
         await db.doc_presence.create_index([("doc_id", 1), ("session_id", 1)], unique=True)
         await db.user_sessions.create_index([("session_token", 1)], unique=True)
         await db.user_sessions.create_index([("expires_at", 1)], expireAfterSeconds=0)
+        await db.zet_id_tokens.create_index([("token", 1)], unique=True)
+        await db.zet_id_tokens.create_index([("expires_at", 1)], expireAfterSeconds=0)
+        await db.zet_id_auth_codes.create_index([("code", 1)], unique=True)
+        await db.zet_id_auth_codes.create_index([("expires_at", 1)], expireAfterSeconds=0)
+        await db.zet_id_clients.create_index([("client_id", 1)], unique=True)
         await db.token_usage.create_index([("user_id", 1), ("date", 1)], unique=True)
         await db.chest_usage.create_index([("user_id", 1), ("month", 1)], unique=True)
         logging.info("MongoDB indexes OK")
