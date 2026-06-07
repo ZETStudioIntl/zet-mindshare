@@ -196,7 +196,7 @@ const Editor = () => {
   // Global cursor — sayfa unmount olunca classları temizle
   useEffect(() => {
     return () => {
-      const el = document.documentElement;
+      const el = window.document.documentElement;
       if (el) ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'].forEach(c => el.classList.remove(c));
     };
   }, []);
@@ -1422,7 +1422,7 @@ const Editor = () => {
     if (!actionTools.includes(toolId)) {
       setActiveTool(toolId);
     }
-    const _html = document.documentElement;
+    const _html = window.document.documentElement;
     if (_html) {
       ['tool-hand','tool-pen','tool-eraser','tool-text','tool-crosshair'].forEach(c => _html.classList.remove(c));
       if (toolId === 'hand') _html.classList.add('tool-hand');
