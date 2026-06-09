@@ -57,18 +57,24 @@ const LoginPage = () => {
   const [accounts, setAccounts] = useState(() => getZetIdAccounts());
   const [pickerLoadingId, setPickerLoadingId] = useState(null);
   const [welcomeZetId, setWelcomeZetId] = useState(null);
+  const [debugLog, setDebugLog] = useState([]);
+  const dbg = (msg) => setDebugLog(prev => [...prev.slice(-8), `${new Date().toLocaleTimeString()} ${msg}`]);
 
   const finishLogin = async (user) => {
+    dbg(`finishLogin user=${user?.email}`);
     setUser(user);
     try {
+      dbg('createZetIdForCurrentSession çağrılıyor...');
       const created = await createZetIdForCurrentSession();
+      dbg(`ZET ID ok is_new=${created.is_new} zet_id=${created.zet_id}`);
       if (created.is_new) {
         setWelcomeZetId(created.zet_id);
         return;
       }
-    } catch {
-      // ZET ID oluşturulamadı — giriş akışını engelleme
+    } catch (e) {
+      dbg(`ZET ID HATA: ${e?.response?.status} ${e?.message}`);
     }
+    dbg('app-select yönlendiriliyor...');
     window.location.href = '/app-select';
   };
 
@@ -80,17 +86,20 @@ const LoginPage = () => {
     }
     setLoading(true);
     setError('');
+    dbg(`e-posta ${authMode} başlatıldı`);
     try {
       const endpoint = authMode === 'login' ? '/auth/login' : '/auth/register';
       const payload = authMode === 'login'
         ? { email, password }
         : { email, password, name };
       const res = await axios.post(`${API}${endpoint}`, payload, { withCredentials: true });
+      dbg(`sunucu yanıtı user=${!!res.data.user} token=${!!res.data.session_token}`);
       if (res.data.user) {
         if (res.data.session_token) localStorage.setItem('session_token', res.data.session_token);
         await finishLogin(res.data.user);
       }
     } catch (err) {
+      dbg(`AUTH HATA: ${err?.response?.status} ${err?.response?.data?.detail}`);
       setError(err.response?.data?.detail || 'Kimlik doğrulama başarısız');
     }
     setLoading(false);
@@ -378,6 +387,11 @@ const LoginPage = () => {
             <div className="zet-card p-2"><Cloud className="h-4 w-4 mx-auto" style={{ color: 'var(--zet-primary-light)' }} /></div>
           </div>
 
+          {debugLog.length > 0 && (
+            <div style={{ background: '#111', color: '#0f0', fontSize: 10, padding: '6px 8px', borderRadius: 6, marginBottom: 8, textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 160, overflowY: 'auto' }}>
+              {debugLog.map((l, i) => <div key={i}>{l}</div>)}
+            </div>
+          )}
           {error && view === 'main' && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
           {error && view === 'add' && addMethod !== 'email' && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
 
