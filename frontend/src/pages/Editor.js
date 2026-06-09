@@ -663,7 +663,10 @@ const Editor = () => {
   const canvasContainerRef = useRef(null);
   const gradientBarRef = useRef(null);
   const activeToolRef = useRef('select');
+  const hiddenPasteRef = useRef(null);
+  const canvasElementsRef = useRef(canvasElements);
   useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
+  useEffect(() => { canvasElementsRef.current = canvasElements; }, [canvasElements]);
 
   // === Ctrl+Z / Ctrl+Y / Delete / Shortcuts ===
   useEffect(() => {
@@ -725,6 +728,81 @@ const Editor = () => {
     return () => window.removeEventListener('keydown', handleKeyDown);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shortcuts, selectedElement, selectedElements]);
+
+  // === Mobile/Desktop Paste (system clipboard → canvas element) ===
+  useEffect(() => {
+    const handlePaste = (e) => {
+      const tag = (e.target.tagName || '').toLowerCase();
+      // Skip native text inputs/contentEditables unless it's our hidden paste target
+      if (e.target !== hiddenPasteRef.current) {
+        if (tag === 'input' || tag === 'textarea') return;
+        if (e.target.contentEditable === 'true') return;
+      }
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      // Image takes priority
+      for (const item of Array.from(items)) {
+        if (item.type.startsWith('image/')) {
+          e.preventDefault();
+          const blob = item.getAsFile();
+          if (!blob) break;
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            const src = ev.target.result;
+            const img = new window.Image();
+            img.onload = () => {
+              const maxW = Math.min(300, pageSize.width - 40);
+              const ratio = maxW / img.width;
+              const newEl = { id: `el_${Date.now()}`, type: 'image', x: 20, y: 40, width: maxW, height: img.height * ratio, src };
+              const updated = [...canvasElementsRef.current, newEl];
+              setCanvasElements(updated);
+              handleSaveHistory(updated);
+            };
+            img.src = src;
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+
+      // Plain text fallback
+      const text = e.clipboardData.getData('text/plain');
+      if (text.trim()) {
+        e.preventDefault();
+        const newEl = {
+          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: 'text', x: 50, y: 50,
+          content: text,
+          fontSize: 14, fontFamily: 'Arial', color: '#000000',
+          width: Math.min(400, pageSize.width - 60),
+          lineHeight: 1.5, textAlign: 'left',
+          bold: false, italic: false, underline: false, strikethrough: false,
+          gradientStart: null, gradientEnd: null,
+        };
+        const updated = [...canvasElementsRef.current, newEl];
+        setCanvasElements(updated);
+        handleSaveHistory(updated);
+      }
+    };
+
+    // Mobile: focus hidden input on canvas touch so the long-press "Paste" option appears
+    const handleTouchStart = (e) => {
+      const tag = (e.target.tagName || '').toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || e.target.contentEditable === 'true') return;
+      if (hiddenPasteRef.current && document.activeElement !== hiddenPasteRef.current) {
+        hiddenPasteRef.current.focus({ preventScroll: true });
+      }
+    };
+
+    document.addEventListener('paste', handlePaste);
+    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+      document.removeEventListener('touchstart', handleTouchStart);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pageSize, setCanvasElements, handleSaveHistory]);
 
   // === DATA LOADING ===
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3683,9 +3761,21 @@ body{background:#fff}
     showLink, setShowLink, linkUrl, setLinkUrl, linkText, setLinkText, addLinkToCanvas,
   };
   // =============================
+  // Hidden textarea — mobile long-press "Paste" focus target (inputMode="none" → no virtual keyboard)
+  const hiddenPasteInput = (
+    <textarea
+      ref={hiddenPasteRef}
+      inputMode="none"
+      aria-hidden="true"
+      readOnly={false}
+      style={{ position: 'fixed', top: -999, left: -999, width: 1, height: 1, opacity: 0, border: 'none', resize: 'none', outline: 'none', padding: 0, margin: 0, overflow: 'hidden' }}
+    />
+  );
+
   if (isMobile) {
     return (
       <EditorStateContext.Provider value={providerValue}>
+      {hiddenPasteInput}
       <EditorMobileLayout />
       </EditorStateContext.Provider>
     );
@@ -3696,6 +3786,7 @@ body{background:#fff}
   // =============================
   return (
     <EditorStateContext.Provider value={providerValue}>
+    {hiddenPasteInput}
     <EditorDesktopLayout />
     </EditorStateContext.Provider>
   );
