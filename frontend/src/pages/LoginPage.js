@@ -387,27 +387,34 @@ const LoginPage = () => {
             <div className="zet-card p-2"><Cloud className="h-4 w-4 mx-auto" style={{ color: 'var(--zet-primary-light)' }} /></div>
           </div>
 
-          {debugLog.length > 0 && (
-            <div style={{ background: '#111', color: '#0f0', fontSize: 10, padding: '6px 8px', borderRadius: 6, marginBottom: 8, textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 160, overflowY: 'auto' }}>
-              {debugLog.map((l, i) => <div key={i}>{l}</div>)}
+          {error && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
+
+          {/* Geçici: eski giriş sistemi — ZET ID UI devre dışı */}
+          {addMethod !== 'email' ? (
+            <div className="space-y-3">
+              <button onClick={login} className="zet-btn w-full flex items-center justify-center gap-2.5 py-3" data-testid="google-login-btn">
+                <svg width="18" height="18" viewBox="0 0 18 18"><path fill="#4285F4" d="M17.64 9.2c0-.637-.057-1.251-.164-1.84H9v3.481h4.844a4.14 4.14 0 0 1-1.796 2.716v2.259h2.908c1.702-1.567 2.684-3.875 2.684-6.615z"/><path fill="#34A853" d="M9 18c2.43 0 4.467-.806 5.956-2.18l-2.908-2.259c-.806.54-1.837.86-3.048.86-2.344 0-4.328-1.584-5.036-3.711H.957v2.332A8.997 8.997 0 0 0 9 18z"/><path fill="#FBBC05" d="M3.964 10.71A5.41 5.41 0 0 1 3.682 9c0-.593.102-1.17.282-1.71V4.958H.957A8.997 8.997 0 0 0 0 9c0 1.452.348 2.827.957 4.042l3.007-2.332z"/><path fill="#EA4335" d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 0 0 .957 4.958L3.964 7.29C4.672 5.163 6.656 3.58 9 3.58z"/></svg>
+                Google ile Giriş Yap
+              </button>
+              <button
+                onClick={() => { setError(''); setAddMethod('email'); }}
+                className="zet-btn w-full flex items-center justify-center gap-2.5 py-3"
+                style={{ background: 'var(--zet-bg-card)' }}
+                data-testid="email-method-btn"
+              >
+                <Mail className="h-4 w-4" />
+                E-posta ile Giriş Yap
+              </button>
             </div>
-          )}
-          {error && view === 'main' && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
-          {error && view === 'add' && addMethod !== 'email' && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
+          ) : renderEmailForm()}
 
-          {view === 'main' && renderMain()}
-          {view === 'picker' && renderPicker()}
-          {view === 'add' && (addMethod === 'email' ? renderEmailForm() : renderAddMethods())}
-
-          {view === 'main' && (
-            <p className="mt-3 text-[10px] leading-relaxed" style={{ color: 'var(--zet-text-muted)' }}>
-              Giriş yaparak{' '}
-              <a href="https://zetstudiointernational.com/zet-kullanim-kosullari/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Kullanim Kosullari</a>
-              {' '}ve{' '}
-              <a href="https://zetstudiointernational.com/zet-gizlilik-sozlesmesi/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Gizlilik Politikasi</a>
-              'ni kabul etmis olursunuz.
-            </p>
-          )}
+          <p className="mt-3 text-[10px] leading-relaxed" style={{ color: 'var(--zet-text-muted)' }}>
+            Giriş yaparak{' '}
+            <a href="https://zetstudiointernational.com/zet-kullanim-kosullari/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Kullanim Kosullari</a>
+            {' '}ve{' '}
+            <a href="https://zetstudiointernational.com/zet-gizlilik-sozlesmesi/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Gizlilik Politikasi</a>
+            'ni kabul etmis olursunuz.
+          </p>
         </div>
       </main>
     </div>
