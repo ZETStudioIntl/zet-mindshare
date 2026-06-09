@@ -35,8 +35,12 @@ export const AuthProvider = ({ children }) => {
       setUser(response.data);
       loadPreferences();
     } catch (error) {
-      localStorage.removeItem('session_token');
-      setUser(null);
+      // Sadece kendi token'ımızı temizle — AuthCallback gibi paralel bir flow yeni token koymuş olabilir
+      const currentToken = localStorage.getItem('session_token');
+      if (currentToken === token) {
+        localStorage.removeItem('session_token');
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
