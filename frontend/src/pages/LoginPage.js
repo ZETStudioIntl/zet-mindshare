@@ -4,7 +4,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { FileText, Sparkles, Cloud, Layout, Mail, Lock, User, Check, ChevronRight, ArrowLeft, Plus } from 'lucide-react';
 import axios from 'axios';
 import ZetIdButton from '../components/ZetIdButton';
-import { getZetIdAccounts, createZetIdForCurrentSession, loginWithZetIdAccount } from '../lib/zetId';
+import { getZetIdAccounts, createZetIdForCurrentSession, loginWithZetIdAccount, removeZetIdAccount } from '../lib/zetId';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -111,12 +111,7 @@ const LoginPage = () => {
   const openZetIdPicker = () => {
     setError('');
     setAccounts(getZetIdAccounts());
-    if (getZetIdAccounts().length > 0) {
-      setView('picker');
-    } else {
-      setAddMethod(null);
-      setView('add');
-    }
+    setView('picker');
   };
 
   const openAddAccount = () => {
@@ -144,11 +139,19 @@ const LoginPage = () => {
     } catch (err) {
       const status = err.response?.status;
       if (status === 409) {
+        // Cihaz uyuşmazlığı — hesabı kaldırma, kullanıcıya yeniden giriş seçeneği sun
         setError('Bu hesap farklı bir cihazdan tanınıyor — güvenlik için yeniden giriş yapmalısınız.');
-      } else {
-        setError('Bu ZET ID hesabının oturumu sona ermiş — yeniden giriş yapmalısınız.');
+        setPickerLoadingId(null);
+        return;
       }
-      setAccounts(getZetIdAccounts());
+      // Geçersiz/süresi dolmuş token — hesabı listeden sil, döngüyü kır
+      removeZetIdAccount(account.zet_id);
+      const remaining = getZetIdAccounts();
+      setAccounts(remaining);
+      if (remaining.length === 0) {
+        setAddMethod(null);
+        setView('add');
+      }
     }
     setPickerLoadingId(null);
   };
@@ -179,19 +182,36 @@ const LoginPage = () => {
         <ArrowLeft className="h-3.5 w-3.5" /> Geri
       </button>
       <p className="text-sm font-medium mb-2" style={{ color: 'var(--zet-text)' }}>Bu cihazdaki ZET ID hesapları</p>
-      <div className="space-y-2 mb-3">
-        {accounts.map((acc) => (
-          <ZetIdAccountRow key={acc.zet_id} account={acc} loading={pickerLoadingId === acc.zet_id} onClick={() => handlePickAccount(acc)} />
-        ))}
-      </div>
-      <button
-        onClick={openAddAccount}
-        className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80"
-        style={{ background: 'transparent', color: '#292F91', border: '1.5px dashed #292F91' }}
-        data-testid="zet-id-picker-add"
-      >
-        <Plus className="h-4 w-4" /> Başka ZET ID ekle
-      </button>
+      {error && <p className="text-red-400 text-sm mb-2" data-testid="auth-error">{error}</p>}
+      {accounts.length === 0 ? (
+        <div className="text-center py-4">
+          <p className="text-sm mb-3" style={{ color: 'var(--zet-text-muted)' }}>Bu cihazda kayıtlı ZET ID hesabı yok.</p>
+          <button
+            onClick={openAddAccount}
+            className="zet-btn w-full flex items-center justify-center gap-2 py-2.5"
+            style={{ background: '#292F91', color: '#fff' }}
+            data-testid="zet-id-picker-add-empty"
+          >
+            <Plus className="h-4 w-4" /> ZET ID Ekle
+          </button>
+        </div>
+      ) : (
+        <>
+          <div className="space-y-2 mb-3">
+            {accounts.map((acc) => (
+              <ZetIdAccountRow key={acc.zet_id} account={acc} loading={pickerLoadingId === acc.zet_id} onClick={() => handlePickAccount(acc)} />
+            ))}
+          </div>
+          <button
+            onClick={openAddAccount}
+            className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-medium transition-all hover:opacity-80"
+            style={{ background: 'transparent', color: '#292F91', border: '1.5px dashed #292F91' }}
+            data-testid="zet-id-picker-add"
+          >
+            <Plus className="h-4 w-4" /> Başka ZET ID ekle
+          </button>
+        </>
+      )}
     </div>
   );
 
@@ -358,6 +378,7 @@ const LoginPage = () => {
           </div>
 
           {error && view === 'main' && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
+          {error && view === 'add' && addMethod !== 'email' && <p className="text-red-400 text-sm mb-3" data-testid="auth-error">{error}</p>}
 
           {view === 'main' && renderMain()}
           {view === 'picker' && renderPicker()}
