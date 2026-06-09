@@ -57,7 +57,6 @@ export const AuthProvider = ({ children }) => {
       console.error('Logout error:', error);
     }
     localStorage.removeItem('session_token');
-    localStorage.removeItem('zet_id_token');
     setUser(null);
   };
 

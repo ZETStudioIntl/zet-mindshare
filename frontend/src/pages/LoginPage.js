@@ -87,6 +87,7 @@ const LoginPage = () => {
         : { email, password, name };
       const res = await axios.post(`${API}${endpoint}`, payload, { withCredentials: true });
       if (res.data.user) {
+        if (res.data.session_token) localStorage.setItem('session_token', res.data.session_token);
         await finishLogin(res.data.user);
       }
     } catch (err) {

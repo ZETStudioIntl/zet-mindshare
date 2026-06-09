@@ -1950,7 +1950,7 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
         path="/", max_age=7*24*60*60
     )
 
-    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}}
+    return {"user": {"user_id": user_id, "email": req.email, "name": user_data["name"]}, "session_token": session_token}
 
 @api_router.post("/auth/login")
 async def login_with_email(req: EmailAuthRequest, response: Response, request: Request):
@@ -2002,7 +2002,7 @@ async def login_with_email(req: EmailAuthRequest, response: Response, request: R
         path="/", max_age=7*24*60*60
     )
 
-    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}}
+    return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}, "session_token": session_token}
 
 # ============ APPLE AUTH ROUTES ============
 
