@@ -6570,6 +6570,11 @@ async def hafizz_honeypot(request: Request):
 
 app.include_router(api_router)
 
+# ZET Media router
+from media_router import media_router, set_media_db
+set_media_db(db)
+app.include_router(media_router)
+
 frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 
 _allowed_origins = list(filter(None, [
