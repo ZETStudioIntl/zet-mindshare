@@ -14,6 +14,11 @@ const AuthCallback = () => {
   const { setUser } = useAuth();
   const hasProcessed = useRef(false);
   const [welcomeZetId, setWelcomeZetId] = useState(null);
+  const [dbgLog, setDbgLog] = useState([]);
+  const dbg = (msg) => {
+    console.log('[AuthCallback]', msg);
+    setDbgLog(prev => [...prev.slice(-10), `${new Date().toLocaleTimeString()} ${msg}`]);
+  };
 
   useEffect(() => {
     if (hasProcessed.current) return;
@@ -21,6 +26,7 @@ const AuthCallback = () => {
 
     const processAuth = async () => {
       const hash = location.hash;
+      dbg(`hash: ${hash.slice(0, 40)}...`);
 
       // Admin / CEO token akışı
       const ceoTokenMatch = hash.match(/ceo_token=([^&]+)/);
@@ -60,26 +66,35 @@ const AuthCallback = () => {
       const tokenMatch = hash.match(/token=([^&]+)/);
       if (tokenMatch) {
         const token = tokenMatch[1];
+        dbg(`token bulundu: ${token.slice(0, 12)}...`);
         try {
+          dbg('auth/exchange çağrılıyor...');
           const res = await axios.post(`${API}/auth/exchange`, { token });
+          dbg(`exchange OK user=${res.data?.email}`);
           localStorage.setItem('session_token', token);
           setUser(res.data);
           loadPreferences();
           try {
+            dbg('ZET ID oluşturuluyor...');
             const created = await createZetIdForCurrentSession();
+            dbg(`ZET ID ok is_new=${created.is_new} id=${created.zet_id}`);
             if (created.is_new) {
               setWelcomeZetId(created.zet_id);
               return;
             }
-          } catch {
-            // ZET ID oluşturulamadı — girişi engelleme, normal akışa devam et
+          } catch (ze) {
+            dbg(`ZET ID HATA: ${ze?.response?.status} ${ze?.message}`);
           }
+          dbg('app-select yönlendiriliyor...');
           navigate('/app-select', { replace: true });
         } catch (error) {
+          dbg(`exchange HATA: ${error?.response?.status} ${error?.message}`);
           console.error('Auth exchange error:', error);
-          navigate('/login', { replace: true });
+          // navigate yerine log'u göster — kullanıcı ne olduğunu görsün
+          setTimeout(() => navigate('/login', { replace: true }), 4000);
         }
       } else {
+        dbg('hash\'te token YOK — login\'e yönlendiriliyor');
         navigate('/login', { replace: true });
       }
     };
@@ -87,9 +102,15 @@ const AuthCallback = () => {
     processAuth();
   }, [location, setUser, navigate]);
 
+  const debugPanel = dbgLog.length > 0 ? (
+    <div style={{ position: 'fixed', bottom: 12, left: 12, right: 12, zIndex: 9999, background: '#111', color: '#0f0', fontSize: 10, padding: '6px 8px', borderRadius: 6, textAlign: 'left', whiteSpace: 'pre-wrap', wordBreak: 'break-all', maxHeight: 140, overflowY: 'auto' }}>
+      {dbgLog.map((l, i) => <div key={i}>{l}</div>)}
+    </div>
+  ) : null;
+
   if (welcomeZetId) {
     return (
-      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--zet-bg)' }}>
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'var(--zet-bg)', position: 'relative' }}>
         <div className="max-w-sm w-full text-center zet-card p-8 animate-fadeIn">
           <img src="/logo-cs.svg" alt="ZET ID" className="h-16 w-16 mx-auto mb-4 rounded-2xl p-2" style={{ background: '#292F91' }} />
           <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--zet-text)' }}>ZET ID'niz oluşturuldu</h2>
@@ -106,11 +127,17 @@ const AuthCallback = () => {
             Devam Et
           </button>
         </div>
+        {debugPanel}
       </div>
     );
   }
 
-  return <A4LoadingScreen playSound={false} />;
+  return (
+    <div style={{ position: 'relative' }}>
+      <A4LoadingScreen playSound={false} />
+      {debugPanel}
+    </div>
+  );
 };
 
 export default AuthCallback;
