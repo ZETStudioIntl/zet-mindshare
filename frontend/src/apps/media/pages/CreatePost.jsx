@@ -30,11 +30,31 @@ export default function CreatePostPage() {
   const isStory = type === 'story';
   const actualType = isStory ? 'photo' : type;
 
-  const handleFile = (e) => {
+  const MAX_TOTAL_SIZE = 9 * 1024 * 1024; // ~9MB toplam (DB doküman limiti)
+
+  const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const handleFile = async (e) => {
     const files = Array.from(e.target.files || []).slice(0, isStory ? 1 : 10);
-    const urls = files.map(f => URL.createObjectURL(f));
-    setMediaFiles(files);
-    setMediaUrls(urls);
+    if (files.length === 0) return;
+    const totalSize = files.reduce((sum, f) => sum + f.size, 0);
+    if (totalSize > MAX_TOTAL_SIZE) {
+      setError('Medya boyutu çok büyük (maks. 9MB)');
+      return;
+    }
+    setError('');
+    try {
+      const urls = await Promise.all(files.map(fileToDataUrl));
+      setMediaFiles(files);
+      setMediaUrls(urls);
+    } catch {
+      setError('Dosya okunamadı');
+    }
   };
 
   const removeMedia = (idx) => {
