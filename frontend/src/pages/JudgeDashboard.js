@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import UpgradePromptModal from '../components/dashboard/UpgradePromptModal';
 import { ScalesLoadingScreen, MiniDocLoader } from '../components/LoadingScreens';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +8,7 @@ import axios from 'axios';
 import jsPDF from 'jspdf';
 import {
   Search, Plus, Settings, LogOut, ArrowLeft, Send, X, Loader,
-  FileText, Globe, Heart, MessageCircle,
+  FileText, MessageCircle,
   User, Scale, ChevronLeft, Brain, CreditCard, Zap, Map, Award,
   Check, Sparkles, HardDrive, Download, ExternalLink
 } from 'lucide-react';
@@ -133,15 +133,6 @@ const JudgeDashboard = () => {
   const [sessionsLoading, setSessionsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Media feed
-  const [mediaPosts, setMediaPosts] = useState([]);
-  const [mediaLoading, setMediaLoading] = useState(false);
-  const [mediaFeedTab, setMediaFeedTab] = useState('feed');
-  const [mediaHasMore, setMediaHasMore] = useState(true);
-  const [showCreatePost, setShowCreatePost] = useState(false);
-  const [postContent, setPostContent] = useState('');
-  const [postSubmitting, setPostSubmitting] = useState(false);
-
   // Analysis chat
   const [showChat, setShowChat] = useState(false);
   const [activeSession, setActiveSession] = useState(null);
@@ -178,9 +169,6 @@ const JudgeDashboard = () => {
   const showToast = (msg, type = 'info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 3500); };
 
   useEffect(() => { fetchSessions(); fetchSubscription(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => {
-    if (activeTab === 'media') loadPosts(true, mediaFeedTab);
-  }, [activeTab, mediaFeedTab]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, chatLoading]);
 
   useEffect(() => {
@@ -235,21 +223,6 @@ const JudgeDashboard = () => {
     } catch (err) { showToast(err.response?.data?.detail || 'Abonelik hatası', 'error'); }
     finally { setSubscribing(false); }
   };
-
-  const loadPosts = useCallback(async (reset = false, tab = mediaFeedTab) => {
-    if (mediaLoading) return;
-    setMediaLoading(true);
-    try {
-      const cursor = reset ? null : (mediaPosts[mediaPosts.length - 1]?.post_id);
-      const endpoint = tab === 'explore' ? `${API}/posts` : `${API}/feed`;
-      const params = cursor ? { cursor } : {};
-      const res = await axios.get(endpoint, { params, withCredentials: true });
-      const newPosts = res.data.posts || [];
-      setMediaPosts(reset ? newPosts : prev => [...prev, ...newPosts]);
-      setMediaHasMore(newPosts.length >= 20);
-    } catch { if (reset) setMediaPosts([]); }
-    finally { setMediaLoading(false); }
-  }, [mediaLoading, mediaPosts, mediaFeedTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openNewAnalysis = () => {
     setActiveSession(null);
@@ -413,26 +386,6 @@ const JudgeDashboard = () => {
     URL.revokeObjectURL(url);
   };
 
-  const submitPost = async () => {
-    if (!postContent.trim() || postSubmitting) return;
-    setPostSubmitting(true);
-    try {
-      await axios.post(`${API}/posts`, { content: postContent, post_type: 'text' }, { withCredentials: true });
-      setPostContent('');
-      setShowCreatePost(false);
-      loadPosts(true);
-      showToast('Gönderi paylaşıldı', 'success');
-    } catch (err) { showToast(err.response?.data?.detail || 'Hata oluştu', 'error'); }
-    finally { setPostSubmitting(false); }
-  };
-
-  const likePost = async (postId) => {
-    try {
-      await axios.post(`${API}/posts/${postId}/like`, {}, { withCredentials: true });
-      setMediaPosts(prev => prev.map(p => p.post_id === postId ? { ...p, liked: !p.liked, likes_count: p.liked ? p.likes_count - 1 : p.likes_count + 1 } : p));
-    } catch { showToast('Beğeni gönderilemedi', 'error'); }
-  };
-
   const goToMindshare = () => { switchApp('mindshare'); navigate('/dashboard'); };
 
   const formatDate = (iso) => {
@@ -572,87 +525,6 @@ const JudgeDashboard = () => {
           </div>
         )}
 
-        {/* MEDIA TAB */}
-        {activeTab === 'media' && (
-          <div>
-            <div style={{ display: 'flex', gap: 4, marginBottom: 20, background: BG_CARD2, borderRadius: 10, padding: 4, border: `1px solid ${C_BORDER}` }}>
-              {['feed', 'explore'].map(t => (
-                <button key={t} onClick={() => setMediaFeedTab(t)}
-                  style={{ flex: 1, padding: '8px 12px', borderRadius: 7, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: mediaFeedTab === t ? 600 : 400, background: mediaFeedTab === t ? C : 'transparent', color: mediaFeedTab === t ? '#fff' : 'rgba(255,255,255,0.5)', transition: 'all 0.2s' }}>
-                  {t === 'feed' ? 'Takip Edilenler' : 'Keşfet'}
-                </button>
-              ))}
-            </div>
-
-            {!showCreatePost ? (
-              <button onClick={() => setShowCreatePost(true)}
-                style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 12, padding: '14px 18px', borderRadius: 14, background: BG_CARD2, border: `1px solid ${C_BORDER}`, cursor: 'pointer', marginBottom: 16, color: 'rgba(255,255,255,0.35)', fontSize: 13, fontFamily: 'inherit' }}>
-                {user?.picture ? <img src={user.picture} alt="" style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 32, height: 32, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={14} color={C_LIGHT} /></div>}
-                Bir şeyler paylaş...
-              </button>
-            ) : (
-              <div style={{ background: BG_CARD, border: `1px solid ${C_BORDER}`, borderRadius: 14, padding: 16, marginBottom: 16 }}>
-                <textarea
-                  autoFocus
-                  placeholder="Ne düşünüyorsun?"
-                  value={postContent}
-                  onChange={e => setPostContent(e.target.value)}
-                  style={{ width: '100%', background: 'transparent', border: 'none', color: '#fff', fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit', lineHeight: 1.6, minHeight: 80, boxSizing: 'border-box' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 10 }}>
-                  <button onClick={() => { setShowCreatePost(false); setPostContent(''); }}
-                    style={{ padding: '8px 16px', borderRadius: 9, background: 'transparent', border: '1px solid rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: 13 }}>
-                    Vazgeç
-                  </button>
-                  <button onClick={submitPost} disabled={!postContent.trim() || postSubmitting}
-                    style={{ padding: '8px 18px', borderRadius: 9, background: postContent.trim() ? C : 'rgba(200,0,90,0.3)', border: 'none', color: '#fff', cursor: postContent.trim() ? 'pointer' : 'default', fontSize: 13, fontWeight: 600, transition: 'background 0.2s' }}>
-                    {postSubmitting ? 'Paylaşılıyor...' : 'Paylaş'}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {mediaLoading && mediaPosts.length === 0 ? (
-              <ScalesLoadingScreen fullscreen={false} playSound={false} label="Yükleniyor" />
-            ) : mediaPosts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '60px 0', color: 'rgba(255,255,255,0.35)', fontSize: 14 }}>
-                {mediaFeedTab === 'feed' ? 'Takip ettiğin kimse yok henüz.' : 'Gönderi bulunamadı.'}
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                {mediaPosts.map(post => (
-                  <div key={post.post_id} style={{ background: BG_CARD2, border: `1px solid ${C_BORDER}`, borderRadius: 14, padding: '16px 18px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
-                      {post.user_picture ? <img src={post.user_picture} alt="" style={{ width: 36, height: 36, borderRadius: '50%', objectFit: 'cover' }} /> : <div style={{ width: 36, height: 36, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center' }}><User size={16} color={C_LIGHT} /></div>}
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 13 }}>{post.user_display_name || post.username || 'Kullanıcı'}</div>
-                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)' }}>{formatDate(post.created_at)}</div>
-                      </div>
-                    </div>
-                    <p style={{ fontSize: 14, lineHeight: 1.6, color: 'rgba(255,255,255,0.85)', margin: 0, whiteSpace: 'pre-wrap' }}>{post.content}</p>
-                    <div style={{ display: 'flex', gap: 16, marginTop: 12 }}>
-                      <button onClick={() => likePost(post.post_id)}
-                        style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: post.liked ? C_LIGHT : 'rgba(255,255,255,0.4)', fontSize: 13, padding: 0, transition: 'color 0.2s' }}>
-                        <Heart size={15} fill={post.liked ? C_LIGHT : 'none'} />
-                        {post.likes_count || 0}
-                      </button>
-                      <button style={{ display: 'flex', alignItems: 'center', gap: 5, background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.4)', fontSize: 13, padding: 0 }}>
-                        <MessageCircle size={15} />
-                        {post.comments_count || 0}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {mediaHasMore && (
-                  <button onClick={() => loadPosts(false)}
-                    style={{ padding: '10px', borderRadius: 10, background: 'transparent', border: `1px solid ${C_BORDER}`, color: 'rgba(255,255,255,0.4)', cursor: 'pointer', fontSize: 13, width: '100%' }}>
-                    Daha fazla yükle
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        )}
       </main>
 
       {/* Bottom Tab Bar */}
@@ -660,7 +532,6 @@ const JudgeDashboard = () => {
         <div style={{ maxWidth: 400, margin: '0 auto', display: 'flex', background: BG_CARD2, borderRadius: 12, padding: 4, border: `1px solid ${C_BORDER}` }}>
           {[
             { id: 'projects', label: 'Projeler', icon: FileText },
-            { id: 'media',    label: 'Media',    icon: Globe },
           ].map(({ id, label, icon: Icon }) => (
             <button key={id} onClick={() => setActiveTab(id)}
               style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '9px 12px', borderRadius: 9, border: 'none', cursor: 'pointer', fontSize: 13, fontWeight: activeTab === id ? 600 : 400, background: activeTab === id ? `linear-gradient(135deg, #4b0c37, ${C})` : 'transparent', color: activeTab === id ? '#fff' : 'rgba(255,255,255,0.45)', transition: 'all 0.2s' }}>
