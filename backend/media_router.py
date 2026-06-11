@@ -75,6 +75,7 @@ async def _get_or_create_profile(user_id: str) -> dict:
         "handle": handle or f"user_{user_id[:8]}",
         "display_name": user.get("name", "") if user else "",
         "bio": "",
+        "phone": "",
         "profile_photo": user.get("picture", "") if user else "",
         "banner_photo": "",
         "verification": None,
@@ -203,7 +204,7 @@ async def update_my_profile(request: Request, body: dict = Body(...)):
     user_id = await _get_user_id(request)
     db = get_db()
     await _get_or_create_profile(user_id)
-    allowed = {"display_name", "bio", "profile_photo", "banner_photo", "privacy", "settings", "handle"}
+    allowed = {"display_name", "bio", "phone", "profile_photo", "banner_photo", "privacy", "settings", "handle"}
     update = {k: v for k, v in body.items() if k in allowed}
 
     if "handle" in update:

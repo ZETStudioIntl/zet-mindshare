@@ -126,7 +126,7 @@ export default function ProfilePage() {
         <Avatar src={profile.profile_photo} displayName={profile.display_name || handle} size={76} verification={profile.verification} />
         <div style={{ display: 'flex', gap: 8 }}>
           {isOwn ? (
-            <button onClick={() => { setEditMode(true); setEditData({ display_name: profile.display_name, bio: profile.bio }); }}
+            <button onClick={() => { setEditMode(true); setEditData({ display_name: profile.display_name, bio: profile.bio, phone: profile.phone }); }}
               style={outlineBtn}>Profili Düzenle</button>
           ) : (
             <>
@@ -229,6 +229,11 @@ export default function ProfilePage() {
               <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Ad Soyad</label>
               <input value={editData.display_name || ''} onChange={e => setEditData(d => ({ ...d, display_name: e.target.value }))}
                 style={inputStyle} />
+            </div>
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Telefon Numarası</label>
+              <input value={editData.phone || ''} onChange={e => setEditData(d => ({ ...d, phone: e.target.value }))}
+                type="tel" placeholder="+90 5xx xxx xx xx" style={inputStyle} />
             </div>
             <div style={{ marginBottom: 16 }}>
               <label style={{ fontSize: 12, color: '#666', display: 'block', marginBottom: 4 }}>Biyografi</label>
