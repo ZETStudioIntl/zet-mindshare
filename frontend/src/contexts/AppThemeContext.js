@@ -23,6 +23,15 @@ const THEMES = {
     '--app-primary': '#c8005a',
     '--app-gradient': 'linear-gradient(135deg, #4b0c37 0%, #c8005a 100%)',
   },
+  media: {
+    '--zet-primary': '#3a0ca3',
+    '--zet-primary-light': '#7b3ff2',
+    '--zet-primary-dark': '#050505',
+    '--zet-glow': 'rgba(58, 12, 163, 0.5)',
+    '--zet-glow-light': 'rgba(123, 63, 242, 0.4)',
+    '--app-primary': '#3a0ca3',
+    '--app-gradient': 'linear-gradient(135deg, #050505 0%, #3a0ca3 100%)',
+  },
 };
 
 export const AppThemeProvider = ({ children }) => {

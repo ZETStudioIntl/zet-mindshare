@@ -11,6 +11,10 @@ const JudgeIcon = () => (
   <img src="/logo-judge.svg" alt="ZET Judge" style={{ width: 44, height: 44, objectFit: 'contain' }} />
 );
 
+const MediaIcon = () => (
+  <img src="/logo-media.svg" alt="ZET Media" style={{ width: 44, height: 44, objectFit: 'contain' }} />
+);
+
 const APPS = [
   {
     id: 'mindshare',
@@ -36,6 +40,18 @@ const APPS = [
     Icon: JudgeIcon,
     features: ['İş planı analizi', 'Risk & başarı skoru', 'Derin araştırma modu', 'Geçmiş analizler'],
   },
+  {
+    id: 'media',
+    name: 'ZET Media',
+    tagline: 'Paylaş. Bağlan. Keşfet.',
+    description: 'Bağımsız sosyal medya ve mesajlaşma uygulaması — gönderiler, keşfet akışı, mesajlar ve bildirimler.',
+    gradient: 'linear-gradient(135deg, #050505 0%, #1f0a52 40%, #3a0ca3 100%)',
+    borderGlow: 'rgba(58, 12, 163, 0.4)',
+    hoverBg: '#050505',
+    route: '/media',
+    Icon: MediaIcon,
+    features: ['Akış & Keşfet', 'Gönderi paylaşımı', 'Mesajlaşma (DM)', 'Bildirimler & profil'],
+  },
 ];
 
 const AppSelector = () => {
@@ -44,7 +60,7 @@ const AppSelector = () => {
   const [hovered, setHovered] = useState(null);
   const [selecting, setSelecting] = useState(null);
 
-  const bgColor = hovered === 'judge' ? '#12020c' : hovered === 'mindshare' ? '#080a1a' : '#0a0d1a';
+  const bgColor = hovered === 'judge' ? '#12020c' : hovered === 'mindshare' ? '#080a1a' : hovered === 'media' ? '#050505' : '#0a0d1a';
 
   const handleSelect = (app) => {
     setSelecting(app.id);
