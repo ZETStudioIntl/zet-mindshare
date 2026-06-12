@@ -72,7 +72,7 @@ export function MessageBubble({ msg, isOwn, showAvatar, onReply, onDelete, myUse
         {/* Bubble */}
         <div
           style={{
-            background: isOwn ? 'linear-gradient(135deg,#292F91,#3b4abf)' : isBot ? 'rgba(245,166,35,0.12)' : 'var(--media-surface2,#242424)',
+            background: isOwn ? 'linear-gradient(135deg,#3a0ca3,#7b3ff2)' : isBot ? 'rgba(245,166,35,0.12)' : 'var(--media-surface2,#242424)',
             color: 'var(--media-text,#e5e5e5)',
             borderRadius: isOwn ? '18px 18px 4px 18px' : '18px 18px 18px 4px',
             padding: '8px 12px',

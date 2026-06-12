@@ -100,7 +100,7 @@ export default function FeedPage() {
           <p style={{ fontSize: 13 }}>Birilerini takip ederek feed'ini doldur</p>
           <button
             onClick={() => navigate('/media/explore')}
-            style={{ marginTop: 16, background: '#292F91', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}
+            style={{ marginTop: 16, background: '#3a0ca3', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}
           >
             Kişileri Keşfet
           </button>

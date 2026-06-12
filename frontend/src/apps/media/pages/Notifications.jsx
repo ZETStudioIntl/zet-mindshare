@@ -79,7 +79,7 @@ export default function NotificationsPage() {
               <span style={{ fontSize: 14, color: '#888' }}> {NOTIF_TEXTS[n.type] || n.type}</span>
               <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{timeAgo(n.created_at)}</div>
             </div>
-            {!n.read && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#292F91', flexShrink: 0 }} />}
+            {!n.read && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#3a0ca3', flexShrink: 0 }} />}
           </button>
         ))
       )}

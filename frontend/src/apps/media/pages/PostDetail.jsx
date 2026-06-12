@@ -129,7 +129,7 @@ export default function PostDetailPage() {
             }}
           />
           <button onClick={handleComment} disabled={!commentText.trim()} style={{
-            background: commentText.trim() ? '#292F91' : '#2a2a2a',
+            background: commentText.trim() ? '#3a0ca3' : '#2a2a2a',
             color: '#fff', border: 'none', borderRadius: '50%', width: 36, height: 36,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: commentText.trim() ? 'pointer' : 'default',

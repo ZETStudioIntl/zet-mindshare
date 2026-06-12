@@ -10,7 +10,7 @@ export function Avatar({ src, displayName, size = 40, verification, online, clas
       ) : (
         <div style={{
           width: size, height: size, borderRadius: '50%',
-          background: 'linear-gradient(135deg,#292F91,#7b0035)',
+          background: 'linear-gradient(135deg,#3a0ca3,#7b3ff2)',
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           color: '#fff', fontWeight: 700, fontSize: size * 0.38,
         }}>

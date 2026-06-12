@@ -94,7 +94,7 @@ export default function ProfilePage() {
   if (!profile) return (
     <div style={{ textAlign: 'center', padding: '80px 20px', color: '#555', background: 'var(--media-bg,#0f0f0f)', minHeight: '100vh' }}>
       <p>Profil bulunamadı</p>
-      <button onClick={() => navigate('/media')} style={{ marginTop: 12, background: '#292F91', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 20px', cursor: 'pointer' }}>Ana Sayfa</button>
+      <button onClick={() => navigate('/media')} style={{ marginTop: 12, background: '#3a0ca3', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 20px', cursor: 'pointer' }}>Ana Sayfa</button>
     </div>
   );
 
@@ -119,7 +119,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Banner */}
-      <div style={{ height: 120, background: profile.banner_photo ? `url(${profile.banner_photo}) center/cover` : 'linear-gradient(135deg,#1a1a2e,#292F91)', position: 'relative' }} />
+      <div style={{ height: 120, background: profile.banner_photo ? `url(${profile.banner_photo}) center/cover` : 'linear-gradient(135deg,#050505,#3a0ca3)', position: 'relative' }} />
 
       {/* Profile photo + actions */}
       <div style={{ padding: '0 16px', marginTop: -40, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 12 }}>
@@ -133,8 +133,8 @@ export default function ProfilePage() {
               <button onClick={handleMessage} style={outlineBtn}>Mesaj</button>
               <button onClick={handleFollow} style={{
                 ...outlineBtn,
-                background: profile.is_following ? 'transparent' : '#292F91',
-                borderColor: profile.is_following ? '#444' : '#292F91',
+                background: profile.is_following ? 'transparent' : '#3a0ca3',
+                borderColor: profile.is_following ? '#444' : '#3a0ca3',
                 color: '#fff',
               }}>
                 {profile.is_following ? 'Takip Ediliyor' : 'Takip Et'}
@@ -242,7 +242,7 @@ export default function ProfilePage() {
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
               <button onClick={() => setEditMode(false)} style={{ flex: 1, ...outlineBtn }}>İptal</button>
-              <button onClick={handleSaveEdit} style={{ flex: 1, background: '#292F91', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 0', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>Kaydet</button>
+              <button onClick={handleSaveEdit} style={{ flex: 1, background: '#3a0ca3', color: '#fff', border: 'none', borderRadius: 12, padding: '10px 0', fontSize: 14, cursor: 'pointer', fontWeight: 600 }}>Kaydet</button>
             </div>
           </div>
         </div>

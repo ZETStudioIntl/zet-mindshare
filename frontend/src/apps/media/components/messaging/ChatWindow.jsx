@@ -213,7 +213,7 @@ export function ChatWindow({ conv, onBack }) {
           borderTop: '1px solid var(--media-border,#2a2a2a)',
           display: 'flex', alignItems: 'center', gap: 8,
         }}>
-          <div style={{ flex: 1, borderLeft: '2px solid #292F91', paddingLeft: 8 }}>
+          <div style={{ flex: 1, borderLeft: '2px solid #3a0ca3', paddingLeft: 8 }}>
             <div style={{ fontSize: 11, color: '#666' }}>Yanıtlıyor: {replyTo.sender_handle}</div>
             <div style={{ fontSize: 13, color: '#888', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{replyTo.content}</div>
           </div>
@@ -247,7 +247,7 @@ export function ChatWindow({ conv, onBack }) {
           onClick={handleSend}
           disabled={!input.trim() || sending}
           style={{
-            background: input.trim() ? 'linear-gradient(135deg,#292F91,#3b4abf)' : '#2a2a2a',
+            background: input.trim() ? 'linear-gradient(135deg,#3a0ca3,#7b3ff2)' : '#2a2a2a',
             border: 'none', borderRadius: '50%', width: 40, height: 40,
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: input.trim() ? 'pointer' : 'default',

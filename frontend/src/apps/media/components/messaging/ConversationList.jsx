@@ -72,9 +72,9 @@ export function ConversationList({ conversations, onSelect }) {
         <div style={{ display: 'flex', gap: 4, overflowX: 'auto', scrollbarWidth: 'none' }}>
           {[['all', 'Tümü'], ['dms', 'DM'], ['groups', 'Gruplar'], ['channels', 'Kanallar']].map(([key, label]) => (
             <button key={key} onClick={() => setTab(key)} style={{
-              background: tab === key ? '#292F91' : 'transparent',
+              background: tab === key ? '#3a0ca3' : 'transparent',
               color: tab === key ? '#fff' : '#666',
-              border: '1px solid ' + (tab === key ? '#292F91' : '#333'),
+              border: '1px solid ' + (tab === key ? '#3a0ca3' : '#333'),
               borderRadius: 20, padding: '4px 12px', fontSize: 13, cursor: 'pointer', whiteSpace: 'nowrap',
             }}>{label}</button>
           ))}
@@ -121,7 +121,7 @@ export function ConversationList({ conversations, onSelect }) {
         {filtered.length === 0 && (
           <div style={{ textAlign: 'center', padding: '60px 20px', color: '#555' }}>
             <p>Henüz mesaj yok</p>
-            <button onClick={() => setShowNewDM(true)} style={{ marginTop: 12, background: '#292F91', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}>
+            <button onClick={() => setShowNewDM(true)} style={{ marginTop: 12, background: '#3a0ca3', color: '#fff', border: 'none', borderRadius: 20, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}>
               Yeni Mesaj
             </button>
           </div>
@@ -159,7 +159,7 @@ export function ConversationList({ conversations, onSelect }) {
                   </span>
                   {unread > 0 && (
                     <span style={{
-                      background: '#292F91', color: '#fff', borderRadius: 99,
+                      background: '#3a0ca3', color: '#fff', borderRadius: 99,
                       fontSize: 11, fontWeight: 700, minWidth: 18, height: 18,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       paddingInline: 4, flexShrink: 0, marginLeft: 6,

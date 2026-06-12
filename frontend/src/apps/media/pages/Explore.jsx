@@ -60,7 +60,7 @@ export default function ExplorePage() {
             placeholder="Kişi, etiket veya içerik ara…"
             style={{ flex: 1, background: 'var(--media-surface2,#242424)', border: '1px solid #333', borderRadius: 20, padding: '9px 16px', color: '#fff', fontSize: 14, outline: 'none' }}
           />
-          <button type="submit" style={{ background: '#292F91', color: '#fff', border: 'none', borderRadius: 20, padding: '9px 16px', cursor: 'pointer', fontSize: 14 }}>Ara</button>
+          <button type="submit" style={{ background: '#3a0ca3', color: '#fff', border: 'none', borderRadius: 20, padding: '9px 16px', cursor: 'pointer', fontSize: 14 }}>Ara</button>
         </form>
       </div>
 
@@ -88,7 +88,7 @@ export default function ExplorePage() {
               <div style={{ padding: '8px 14px', fontSize: 13, color: '#666', fontWeight: 600 }}>Etiketler</div>
               {searchResults.hashtags.map(h => (
                 <button key={h.tag} onClick={() => navigate(`/media/hashtag/${h.tag}`)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer' }}>
-                  <span style={{ width: 42, height: 42, background: '#1a1a2e', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>#</span>
+                  <span style={{ width: 42, height: 42, background: '#1a0a33', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20 }}>#</span>
                   <div style={{ textAlign: 'left' }}>
                     <div style={{ fontSize: 14, color: '#fff' }}>#{h.tag}</div>
                     <div style={{ fontSize: 12, color: '#666' }}>{h.count} gönderi</div>
@@ -117,7 +117,7 @@ export default function ExplorePage() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {trending.map(t => (
                   <button key={t.tag} onClick={() => navigate(`/media/hashtag/${t.tag}`)} style={{
-                    background: '#1a1a2e', color: '#60a5fa', border: '1px solid #292F91',
+                    background: '#1a0a33', color: '#60a5fa', border: '1px solid #3a0ca3',
                     borderRadius: 20, padding: '4px 12px', fontSize: 13, cursor: 'pointer',
                   }}>#{t.tag}</button>
                 ))}

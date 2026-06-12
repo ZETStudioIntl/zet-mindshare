@@ -85,7 +85,7 @@ export function BottomNav() {
           {tab.highlight ? (
             <span style={{
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'linear-gradient(135deg,#292F91,#7b0035)',
+              background: 'linear-gradient(135deg,#3a0ca3,#7b3ff2)',
               borderRadius: 12, padding: 8, color: '#fff',
             }}>
               {tab.icon}

@@ -11,7 +11,7 @@ function Toggle({ checked, onChange }) {
   return (
     <button onClick={() => onChange(!checked)} style={{
       width: 44, height: 24, borderRadius: 12, padding: 2,
-      background: checked ? '#292F91' : '#333', border: 'none', cursor: 'pointer',
+      background: checked ? '#3a0ca3' : '#333', border: 'none', cursor: 'pointer',
       transition: 'background .15s', position: 'relative', flexShrink: 0,
     }}>
       <span style={{ display: 'block', width: 20, height: 20, borderRadius: '50%', background: '#fff', transform: checked ? 'translateX(20px)' : 'translateX(0)', transition: 'transform .15s' }} />
@@ -91,7 +91,7 @@ export default function SettingsPage() {
             display: 'flex', alignItems: 'center', gap: 10, width: '100%',
             padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
           }}>
-            <span style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid ' + (privacy === val ? '#292F91' : '#444'), background: privacy === val ? '#292F91' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid ' + (privacy === val ? '#3a0ca3' : '#444'), background: privacy === val ? '#3a0ca3' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {privacy === val && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
             </span>
             <span style={{ fontSize: 14, color: '#fff' }}>{label}</span>
@@ -113,7 +113,7 @@ export default function SettingsPage() {
             display: 'flex', alignItems: 'center', gap: 10, width: '100%',
             padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
           }}>
-            <span style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid ' + (settings.allow_dms === val ? '#292F91' : '#444'), background: settings.allow_dms === val ? '#292F91' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span style={{ width: 20, height: 20, borderRadius: '50%', border: '2px solid ' + (settings.allow_dms === val ? '#3a0ca3' : '#444'), background: settings.allow_dms === val ? '#3a0ca3' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               {settings.allow_dms === val && <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#fff' }} />}
             </span>
             <span style={{ fontSize: 14, color: '#fff' }}>{label}</span>

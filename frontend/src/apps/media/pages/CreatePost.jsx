@@ -104,7 +104,7 @@ export default function CreatePostPage() {
         </button>
         <span style={{ fontSize: 16, fontWeight: 700, color: '#fff' }}>Yeni Gönderi</span>
         <button onClick={handleSubmit} disabled={loading} style={{
-          background: '#292F91', color: '#fff', border: 'none', borderRadius: 20,
+          background: '#3a0ca3', color: '#fff', border: 'none', borderRadius: 20,
           padding: '7px 16px', cursor: loading ? 'default' : 'pointer', fontSize: 14, fontWeight: 600,
           opacity: loading ? 0.6 : 1,
         }}>
@@ -116,9 +116,9 @@ export default function CreatePostPage() {
       <div style={{ display: 'flex', gap: 8, padding: '12px 14px', borderBottom: '1px solid var(--media-border,#2a2a2a)', overflowX: 'auto', scrollbarWidth: 'none' }}>
         {POST_TYPES.map(pt => (
           <button key={pt.key} onClick={() => setType(pt.key)} style={{
-            background: type === pt.key ? '#292F91' : 'var(--media-surface,#1a1a1a)',
+            background: type === pt.key ? '#3a0ca3' : 'var(--media-surface,#1a1a1a)',
             color: type === pt.key ? '#fff' : '#888',
-            border: '1px solid ' + (type === pt.key ? '#292F91' : '#333'),
+            border: '1px solid ' + (type === pt.key ? '#3a0ca3' : '#333'),
             borderRadius: 20, padding: '6px 14px', cursor: 'pointer', fontSize: 13,
             whiteSpace: 'nowrap',
           }}>
@@ -214,7 +214,7 @@ function Toggle({ checked, onChange }) {
       onClick={() => onChange(!checked)}
       style={{
         width: 44, height: 24, borderRadius: 12, padding: 2,
-        background: checked ? '#292F91' : '#333',
+        background: checked ? '#3a0ca3' : '#333',
         border: 'none', cursor: 'pointer', transition: 'background .15s', position: 'relative',
       }}
     >
