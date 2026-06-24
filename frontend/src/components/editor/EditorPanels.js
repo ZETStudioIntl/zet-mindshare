@@ -26,6 +26,7 @@ import BulletListPanel from './BulletListPanel';
 import NumberedListPanel from './NumberedListPanel';
 import IndentPanel from './IndentPanel';
 import MarginsPanel from './MarginsPanel';
+import SceneNavigatorPanel from './SceneNavigatorPanel';
 import ColumnsPanel from './ColumnsPanel';
 import ShortcutsPanel from './ShortcutsPanel';
 import LayersPanel from './LayersPanel';
@@ -283,6 +284,7 @@ const EditorPanels = () => {
 
     {/* Margins Panel */}
     <MarginsPanel />
+    <SceneNavigatorPanel />
 
     {/* Columns Panel */}
     <ColumnsPanel />
