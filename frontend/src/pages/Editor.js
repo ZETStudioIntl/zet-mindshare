@@ -794,16 +794,16 @@ const Editor = () => {
     const handleTouchStart = (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
       if (tag === 'input' || tag === 'textarea' || e.target.contentEditable === 'true') return;
-      if (hiddenPasteRef.current && document.activeElement !== hiddenPasteRef.current) {
+      if (hiddenPasteRef.current && window.document.activeElement !== hiddenPasteRef.current) {
         hiddenPasteRef.current.focus({ preventScroll: true });
       }
     };
 
-    document.addEventListener('paste', handlePaste);
-    document.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.document.addEventListener('paste', handlePaste);
+    window.document.addEventListener('touchstart', handleTouchStart, { passive: true });
     return () => {
-      document.removeEventListener('paste', handlePaste);
-      document.removeEventListener('touchstart', handleTouchStart);
+      window.document.removeEventListener('paste', handlePaste);
+      window.document.removeEventListener('touchstart', handleTouchStart);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageSize, setCanvasElements, handleSaveHistory]);
