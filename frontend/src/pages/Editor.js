@@ -1934,6 +1934,10 @@ const Editor = () => {
     const pgW = (firstSize.width * 0.264583).toFixed(2);
     const pgH = (firstSize.height * 0.264583).toFixed(2);
 
+    if (!iframe.contentDocument) {
+      try { window.document.body.removeChild(iframe); } catch {}
+      return;
+    }
     iframe.contentDocument.open();
     const courierFontLink = screenplayMode
       ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Courier+Prime&display=swap" rel="stylesheet">`
@@ -1947,10 +1951,12 @@ body{background:#fff}
     iframe.contentDocument.close();
 
     const waitForImages = () => {
-      const imgs = Array.from(iframe.contentDocument.images || []);
+      const doc = iframe.contentDocument;
+      if (!doc) return Promise.resolve();
+      const imgs = Array.from(doc.images || []);
       if (imgs.length === 0) return Promise.resolve();
       return Promise.all(imgs.map((img) => {
-        if (img.complete) return Promise.resolve();
+        if (!img || img.complete) return Promise.resolve();
         return new Promise((resolve) => {
           img.addEventListener('load', resolve, { once: true });
           img.addEventListener('error', resolve, { once: true });
@@ -1959,9 +1965,10 @@ body{background:#fff}
     };
 
     waitForImages().then(() => {
+      if (!iframe.contentWindow) return;
       iframe.contentWindow.focus();
       iframe.contentWindow.print();
-      setTimeout(() => { window.document.body.removeChild(iframe); }, 2000);
+      setTimeout(() => { try { window.document.body.removeChild(iframe); } catch {} }, 2000);
     });
 
     setShowExport(false);
@@ -3843,9 +3850,12 @@ class EditorErrorBoundary extends React.Component {
     if (this.state.error) {
       return (
         <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#0f0f1a', color: '#ef4444', padding: 32 }}>
-          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Editor crashed</div>
+          <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>Editör çöktü</div>
           <pre style={{ background: '#1a1a2e', color: '#fca5a5', padding: 16, borderRadius: 8, fontSize: 12, maxWidth: 600, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{String(this.state.error)}</pre>
-          <button onClick={() => window.location.reload()} style={{ marginTop: 16, padding: '8px 24px', background: '#4ca8ad', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer' }}>Reload</button>
+          <div style={{ display: 'flex', gap: 12, marginTop: 16 }}>
+            <button onClick={() => window.location.reload()} style={{ padding: '8px 24px', background: '#4ca8ad', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer' }}>Yenile</button>
+            <button onClick={() => { try { navigator.clipboard.writeText(String(this.state.error)); } catch {} }} style={{ padding: '8px 24px', background: '#374151', color: '#fff', borderRadius: 8, border: 'none', cursor: 'pointer' }}>Hatayı Kopyala</button>
+          </div>
         </div>
       );
     }
