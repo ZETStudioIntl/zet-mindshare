@@ -1920,6 +1920,9 @@ const Editor = () => {
           inner += `<img src="${el.src}" style="position:absolute;left:${el.x}px;top:${el.y}px;width:${el.width || 100}px;height:${el.height || 100}px;object-fit:contain" />`;
         }
       }
+      if (screenplayMode && idx > 0) {
+        inner += `<div style="position:absolute;top:${marginTop || 95}px;right:${marginRight || 95}px;font-family:'Courier Prime',monospace;font-size:12pt;color:#000">${idx + 1}.</div>`;
+      }
       pagesHtml += `<div style="width:${pSize.width}px;height:${pSize.height}px;position:relative;background:${bg};overflow:hidden;page-break-after:always">${inner}</div>`;
     });
 
@@ -1932,7 +1935,10 @@ const Editor = () => {
     const pgH = (firstSize.height * 0.264583).toFixed(2);
 
     iframe.contentDocument.open();
-    iframe.contentDocument.write(`<!DOCTYPE html><html><head><meta charset="utf-8">
+    const courierFontLink = screenplayMode
+      ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Courier+Prime&display=swap" rel="stylesheet">`
+      : '';
+    iframe.contentDocument.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${courierFontLink}
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff}
