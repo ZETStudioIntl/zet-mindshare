@@ -30,7 +30,8 @@ const EditorMobileLayout = () => {
     handleInsertText, handleLinkClick, handleRedo, handleSaveHistory, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
     history, isBold, isItalic, isMobile, isPlaying, isReadOnly, isStrikethrough, isUnderline,
-    judgeMood, magnifierBorderColor, magnifierGradientEnd, magnifierGradientStart,
+    judgeMood, screenplayMode, handleScriptElementChange,
+    magnifierBorderColor, magnifierGradientEnd, magnifierGradientStart,
     magnifierPos, marginBottom, marginLeft, marginRight, marginTop,
     mirrorElementById, mobilePanel, pageBackground, pageSize, playVoiceFrom,
     refreshCredits, rulerVisible, saveDocument, saving,
@@ -107,7 +108,8 @@ const EditorMobileLayout = () => {
             columnCount={columnCount} columnGap={columnGap}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }}
             onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled}
-            snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart} />
+            snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart}
+            screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange} />
         </div>
 
         {/* Multi-select Alignment Toolbar */}

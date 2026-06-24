@@ -9,6 +9,7 @@ const MarginsPanel = () => {
     marginLeft, setMarginLeft, marginRight, setMarginRight,
     pageSize, setCanvasElements, handleSaveHistory,
     setDocument, currentPage, setCurrentFont, setCurrentFontSize,
+    screenplayMode, setScreenplayMode,
   } = useContext(EditorStateContext);
   if (!showMargins) return null;
   return (
@@ -43,7 +44,12 @@ const MarginsPanel = () => {
                 setMarginTop(t); setMarginBottom(b); setMarginLeft(l); setMarginRight(r);
                 const w = pageSize.width - l - r;
                 setCanvasElements(prev => prev.map(el => el.type === 'text' ? { ...el, x: l, width: w } : el));
-                if (label === 'Senaryo') { setCurrentFont('Courier New'); setCurrentFontSize(16); }
+                if (label === 'Senaryo') {
+                  setCurrentFont('Courier Prime'); setCurrentFontSize(16);
+                  setScreenplayMode(true);
+                } else {
+                  setScreenplayMode(false);
+                }
               }} className="zet-btn text-xs py-1.5">{label}</button>
             ))}
           </div>

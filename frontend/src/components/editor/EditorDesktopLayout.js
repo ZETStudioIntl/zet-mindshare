@@ -46,6 +46,7 @@ const EditorDesktopLayout = () => {
     history, importPDF, importFromMS, isOnline, isFreeOffline,
     isBold, isItalic, isMobile, isPlaying, isStrikethrough, isUnderline,
     judgeMood, leftWidth, setLeftWidth,
+    screenplayMode, handleScriptElementChange,
     magnifierBorderColor, magnifierGradientEnd, magnifierGradientStart,
     magnifierPos, marginBottom, marginLeft, marginRight, marginTop,
     mirrorElementById, mobilePanel, pageBackground, pageSize, pdfImporting, pdfInputRef,
@@ -222,6 +223,10 @@ const EditorDesktopLayout = () => {
             zoom={zoom} isOpen={toolboxOpen} onToggle={() => setToolboxOpen(!toolboxOpen)}
             lockedTools={getLockedTools()} onLockedClick={(toolId) => { setUpgradeReason(getToolLockReason(toolId)); setShowUpgradeModal(true); }}
             stats={{ pages: document?.pages?.length || 1, words: getWordCount(), images: getImageCount(), size: getEstimatedSize() }}
+            screenplayMode={screenplayMode}
+            selectedScriptElement={canvasElements.find(e => e.id === selectedElement)?.scriptElement || null}
+            selectedElementId={selectedElement}
+            onScriptElementChange={handleScriptElementChange}
              />
         </div>
 
@@ -262,7 +267,8 @@ const EditorDesktopLayout = () => {
             rulerVisible={rulerVisible} gridVisible={gridVisible} gridSize={gridSize}
             eraserDragMode={eraserDragMode} columnCount={columnCount} columnGap={columnGap}
             onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled}
-            snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart} />
+            snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart}
+            screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange} />
         </div>
 
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />

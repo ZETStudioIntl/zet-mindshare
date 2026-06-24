@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Search, PanelLeftClose, PanelLeftOpen, Lock } from 'lucide-react';
 import { useLanguage } from '../../contexts/LanguageContext';
+import { SCRIPT_ELEMENT_TYPES } from '../../lib/editorConstants';
 
 export const SHAPE_LIST = [
   // Temel
@@ -55,6 +56,10 @@ export const Toolbox = ({
   lockedTools = [],
   onLockedClick,
   stats = null,
+  screenplayMode = false,
+  selectedScriptElement = null,
+  selectedElementId = null,
+  onScriptElementChange,
 }) => {
   const { t } = useLanguage();
   const [toolSearch, setToolSearch] = useState('');
@@ -142,6 +147,23 @@ export const Toolbox = ({
           <div className="mt-2 pt-2 border-t text-center text-xs" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>
             Zoom: {Math.round(zoom * 100)}%
           </div>
+
+          {/* Screenplay element type selector */}
+          {screenplayMode && selectedScriptElement && (
+            <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
+              <div className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Senaryo Tipi</div>
+              <select
+                value={selectedScriptElement}
+                onChange={e => onScriptElementChange && selectedElementId && onScriptElementChange(selectedElementId, e.target.value)}
+                className="w-full text-xs rounded px-1 py-1"
+                style={{ background: 'var(--zet-bg-card)', color: 'var(--zet-text)', border: '1px solid var(--zet-border)' }}
+              >
+                {Object.entries(SCRIPT_ELEMENT_TYPES).map(([key, cfg]) => (
+                  <option key={key} value={key}>{cfg.label}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Delete button */}
           {hasSelection && (

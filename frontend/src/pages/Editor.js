@@ -7,7 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
-import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM } from '../lib/editorConstants';
+import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM, SCRIPT_ELEMENT_TYPES, SCREENPLAY_PX_PER_CM } from '../lib/editorConstants';
 import { savePreference } from '../lib/preferences';
 import { Toolbox, SHAPE_LIST, PUNCTUATION_LIST } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
@@ -542,6 +542,9 @@ const Editor = () => {
   const [marginBottom, setMarginBottom] = useState(40);
   const [marginLeft, setMarginLeft] = useState(40);
   const [marginRight, setMarginRight] = useState(40);
+
+  // Screenplay mode
+  const [screenplayMode, setScreenplayMode] = useState(false);
 
   // Chat AI Settings state
   const [zetaMood, setZetaMood] = useState(() => localStorage.getItem('zet_zeta_mood') || 'professional');
@@ -1217,6 +1220,36 @@ const Editor = () => {
       });
     }, 60);
   }, [currentPage, canvasElements, drawPaths, document, marginLeft, marginTop, marginRight, marginBottom, pageSize, currentFontSize, currentFont, currentColor, currentLineHeight, history, handleSaveHistory]); // eslint-disable-line
+
+  // Screenplay mode — load Courier Prime font on activation
+  useEffect(() => {
+    if (screenplayMode) loadGoogleFont('Courier Prime');
+  }, [screenplayMode]); // eslint-disable-line
+
+  // === SCREENPLAY HANDLERS ===
+  const handleScriptElementChange = useCallback((elId, newType) => {
+    const cfg = SCRIPT_ELEMENT_TYPES[newType];
+    if (!cfg) return;
+    const contentWidth = pageSize.width - marginLeft - marginRight;
+    const indentPx = cfg.indentCm * SCREENPLAY_PX_PER_CM;
+    const newX = marginLeft + indentPx;
+    const newWidth = cfg.widthCm ? cfg.widthCm * SCREENPLAY_PX_PER_CM : contentWidth - indentPx;
+    setCanvasElements(prev => {
+      const updated = prev.map(el => {
+        if (el.id !== elId) return el;
+        let content = el.content || '';
+        let htmlContent = el.htmlContent || '';
+        if (cfg.case === 'upper') {
+          content = content.toUpperCase();
+          htmlContent = htmlContent.replace(/>([^<]+)</g, (_, t) => `>${t.toUpperCase()}<`);
+        }
+        return { ...el, scriptElement: newType, x: newX, width: newWidth, textAlign: cfg.align, content, htmlContent };
+      });
+      handleSaveHistory(updated);
+      return updated;
+    });
+  }, [pageSize, marginLeft, marginRight, handleSaveHistory]); // eslint-disable-line
+
 
   const handleUpdateSettings = (updates) => {
     if (updates.zetaMood !== undefined) setZetaMood(updates.zetaMood);
@@ -3698,6 +3731,7 @@ body{background:#fff}
     setIndentBottom, setIndentLeft, setIndentRight, setIndentTop,
     setIsBold, setIsDrawingOnPhoto, setIsItalic, setIsStrikethrough, setIsUnderline,
     setJudgeMood, setMagnifierBorderColor, setMagnifierGradientEnd, setMagnifierGradientStart,
+    screenplayMode, setScreenplayMode, handleScriptElementChange,
     setMarginBottom, setMarginLeft, setMarginRight, setMarginTop, setMirrorAngle, setPageBackground,
     setPageNumberFormat, setPageNumberPosition, setPageNumberStart, setPageNumberStyle, setPageSize, setPageSizeScope,
     setParagraphSpaceAfter: setParagraphSpaceAfterPersisted, setParagraphSpaceBefore: setParagraphSpaceBeforePersisted,

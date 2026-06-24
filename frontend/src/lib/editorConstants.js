@@ -440,3 +440,32 @@ export const DEFAULT_FONT_SIZE = 16;
 export const DEFAULT_FONT = 'Arial';
 export const DEFAULT_COLOR = '#000000';
 export const DEFAULT_ZOOM = 0.75;
+
+// === SENARYO MODU ===
+export const SCREENPLAY_PX_PER_CM = 37.8;
+
+export const SCRIPT_ELEMENT_TYPES = {
+  sceneheading:  { label: 'Sahne Başlığı', case: 'upper', align: 'left',   indentCm: 0,   widthCm: null },
+  action:        { label: 'Aksiyon',       case: 'none',  align: 'left',   indentCm: 0,   widthCm: null },
+  character:     { label: 'Karakter',      case: 'upper', align: 'center', indentCm: 4,   widthCm: null },
+  parenthetical: { label: 'Parantez',      case: 'none',  align: 'center', indentCm: 3,   widthCm: null },
+  dialogue:      { label: 'Diyalog',       case: 'none',  align: 'left',   indentCm: 2.5, widthCm: 5    },
+  transition:    { label: 'Geçiş',         case: 'upper', align: 'right',  indentCm: 0,   widthCm: null },
+  shot:          { label: 'Çekim',         case: 'upper', align: 'left',   indentCm: 0,   widthCm: null },
+};
+
+// Tab tuşu döngüsü (action → character karşılaması dahil)
+export const SCRIPT_TAB_CYCLE = [
+  'sceneheading', 'action', 'character', 'parenthetical', 'dialogue', 'transition', 'shot',
+];
+
+// Enter ile otomatik geçiş zinciri
+export const SCRIPT_ENTER_NEXT = {
+  sceneheading:  'action',
+  action:        'action',
+  character:     'dialogue',
+  parenthetical: 'dialogue',
+  dialogue:      'action',
+  transition:    'action',
+  shot:          'action',
+};

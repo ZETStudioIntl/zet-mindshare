@@ -1,5 +1,6 @@
 import React, { useRef, useEffect, useCallback, useState, memo } from 'react';
 import { SHAPE_LIST } from './Toolbox';
+import { SCRIPT_ELEMENT_TYPES, SCRIPT_TAB_CYCLE, SCRIPT_ENTER_NEXT, SCREENPLAY_PX_PER_CM } from '../../lib/editorConstants';
 import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff, Edit2 } from 'lucide-react';
 
 const isPointInElement = (x, y, el) => {
@@ -299,7 +300,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false }) => {
+const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false, screenplayMode, onScriptElementChange, onScreenplayEnter }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const pendingContentRef = useRef(null);
@@ -489,6 +490,22 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
         onKeyDown={isEditing ? (e) => {
           e.stopPropagation();
           if (e.key === 'Escape') { ref.current?.blur(); return; }
+          if (screenplayMode && el.scriptElement) {
+            if (e.key === 'Tab') {
+              e.preventDefault();
+              const cycle = SCRIPT_TAB_CYCLE;
+              const idx = cycle.indexOf(el.scriptElement);
+              const nextType = cycle[(idx + (e.shiftKey ? -1 : 1) + cycle.length) % cycle.length];
+              if (onScriptElementChange) onScriptElementChange(el.id, nextType);
+              return;
+            }
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              ref.current?.blur();
+              setTimeout(() => { if (onScreenplayEnter) onScreenplayEnter(el.id); }, 20);
+              return;
+            }
+          }
           if (e.key === 'Tab') {
             e.preventDefault();
             const sel = window.getSelection();
@@ -526,6 +543,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
           backgroundColor: el.highlightColor ? el.highlightColor + '66' : undefined,
           '--lh': el.lineHeight || 1.5,
           ...gradientStyle,
+          ...(screenplayMode && el.scriptElement && SCRIPT_ELEMENT_TYPES[el.scriptElement]?.case === 'upper' ? { textTransform: 'uppercase' } : {}),
         }}
         dangerouslySetInnerHTML={!isEditing ? { __html: htmlContent } : undefined}
       />
@@ -656,6 +674,7 @@ export const CanvasArea = ({
   columnCount = 1, columnGap = 20,
   onSetTextWrap, onLinkClick, spellCheck = true,
   userPlan = 'free', onEditChart,
+  screenplayMode = false, onScriptElementChange,
 }) => {
   const toRoman = (n) => {
     const vals = [1000,900,500,400,100,90,50,40,10,9,5,4,1];
@@ -976,6 +995,11 @@ export const CanvasArea = ({
       } else if (activeTool === 'text') {
         // No element found + text tool → create new text element
         const ml = margins.left;
+        const scrDefaults = screenplayMode ? (() => {
+          const cfg = SCRIPT_ELEMENT_TYPES.action;
+          const indentPx = cfg.indentCm * SCREENPLAY_PX_PER_CM;
+          return { scriptElement: 'action', fontFamily: 'Courier Prime', fontSize: 16, lineHeight: 1, textAlign: cfg.align, x: ml + indentPx, width: pageSize.width - ml - margins.right - indentPx };
+        })() : {};
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
           x: ml, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
@@ -983,6 +1007,7 @@ export const CanvasArea = ({
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+          ...scrDefaults,
         };
         setCanvasElements(prev => [...prev, ne]); setEditingId(ne.id); setSelectedElement(ne.id);
       }
@@ -1037,6 +1062,51 @@ export const CanvasArea = ({
     // already started editing before this commit fires (e.g. clicking Y while editing X).
     setEditingId(prev => prev === id ? null : prev);
   }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage, margins.bottom]);
+
+  const handleScreenplayEnter = useCallback((elId) => {
+    const srcEl = canvasElements.find(e => e.id === elId);
+    if (!srcEl) return;
+    const currentType = srcEl.scriptElement || 'action';
+    const nextType = SCRIPT_ENTER_NEXT[currentType] || 'action';
+    const cfg = SCRIPT_ELEMENT_TYPES[nextType];
+    const indentPx = cfg.indentCm * SCREENPLAY_PX_PER_CM;
+    const newX = margins.left + indentPx;
+    const newWidth = cfg.widthCm ? cfg.widthCm * SCREENPLAY_PX_PER_CM : pageSize.width - margins.left - margins.right - indentPx;
+    const lineH = (srcEl.fontSize || 16) * (srcEl.lineHeight || 1);
+    const textLines = Math.max(1, ((srcEl.htmlContent || srcEl.content || '').split(/<br\s*\/?>/gi).length));
+    const newY = srcEl.y + lineH * textLines + 4;
+    const pageBottom = pageSize.height - margins.bottom - 20;
+    const newEl = {
+      id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'text', scriptElement: nextType,
+      x: newX, y: Math.min(newY, pageBottom), width: newWidth,
+      content: '', htmlContent: '',
+      fontFamily: 'Courier Prime', fontSize: srcEl.fontSize || 16, lineHeight: 1,
+      textAlign: cfg.align, color: srcEl.color || '#000000',
+      bold: false, italic: false, underline: false, strikethrough: false,
+    };
+    if (newY >= pageBottom && onAddPage) {
+      newEl.y = margins.top;
+      onAddPage();
+      setTimeout(() => {
+        setCanvasElements(prev => {
+          const updated = [...prev, newEl];
+          onSaveHistory(updated);
+          return updated;
+        });
+        setEditingId(newEl.id);
+        setSelectedElement(newEl.id);
+      }, 80);
+    } else {
+      setCanvasElements(prev => {
+        const updated = [...prev, newEl];
+        onSaveHistory(updated);
+        return updated;
+      });
+      setEditingId(newEl.id);
+      setSelectedElement(newEl.id);
+    }
+  }, [canvasElements, margins, pageSize, onAddPage, onSaveHistory, setCanvasElements, setSelectedElement]); // eslint-disable-line
 
   const [hoveredElementId, setHoveredElementId] = useState(null);
 
@@ -1115,6 +1185,11 @@ export const CanvasArea = ({
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
       const { x: colX, width: colWidth } = colSnap(x);
+      const scrDefaults2 = screenplayMode ? (() => {
+        const cfg = SCRIPT_ELEMENT_TYPES.action;
+        const indentPx = cfg.indentCm * SCREENPLAY_PX_PER_CM;
+        return { scriptElement: 'action', fontFamily: 'Courier Prime', fontSize: 16, lineHeight: 1, textAlign: cfg.align, x: margins.left + indentPx, width: pageSize.width - margins.left - margins.right - indentPx };
+      })() : {};
       const ne = {
         id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
         x: colX, y: Math.max(margins.top, y), content: '', fontSize: currentFontSize,
@@ -1122,6 +1197,7 @@ export const CanvasArea = ({
         lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
         bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+        ...scrDefaults2,
       };
       const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
     } else if (SHAPE_LIST.some(s => s.id === activeTool)) {
@@ -2162,7 +2238,7 @@ export const CanvasArea = ({
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
-                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom, elId, keepHtml) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom, keepHtml }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} />
+                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom, elId, keepHtml) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom, keepHtml }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} screenplayMode={screenplayMode} onScriptElementChange={onScriptElementChange} onScreenplayEnter={handleScreenplayEnter} />
                     {isSel && !isLocked && editingId !== el.id && (
                       <div data-testid={`text-resize-${el.id}`} className="absolute bottom-0 right-0 w-5 h-5 bg-blue-500 cursor-se-resize rounded-sm opacity-70 hover:opacity-100" onMouseDown={(e) => { e.stopPropagation(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} onTouchStart={(e) => { e.stopPropagation(); e.preventDefault(); setResizing({ id: el.id, startX: el.x, startY: el.y, isText: true, startWidth: el.width || (page.pageSize?.width || pageSize.width) - el.x - 20 }); }} />
                     )}
