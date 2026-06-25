@@ -669,8 +669,12 @@ const Editor = () => {
   const activeToolRef = useRef('select');
   const hiddenPasteRef = useRef(null);
   const canvasElementsRef = useRef(canvasElements);
+  const pasteFormatRef = useRef({});
   useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
   useEffect(() => { canvasElementsRef.current = canvasElements; }, [canvasElements]);
+  useEffect(() => {
+    pasteFormatRef.current = { fontFamily: currentFont, fontSize: currentFontSize, color: currentColor, lineHeight: currentLineHeight, textAlign: currentTextAlign, bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough };
+  }, [currentFont, currentFontSize, currentColor, currentLineHeight, currentTextAlign, isBold, isItalic, isUnderline, isStrikethrough]);
 
   // === Ctrl+Z / Ctrl+Y / Delete / Shortcuts ===
   useEffect(() => {
@@ -771,22 +775,40 @@ const Editor = () => {
       }
 
       // Plain text fallback
-      const text = e.clipboardData.getData('text/plain');
+      const text = e.clipboardData?.getData('text/plain') || '';
+      const fmt = pasteFormatRef.current;
+      const makeTextEl = (txt) => ({
+        id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        type: 'text', x: 50, y: 50,
+        content: txt,
+        fontSize: fmt.fontSize || 14,
+        fontFamily: fmt.fontFamily || 'Arial',
+        color: fmt.color || '#000000',
+        width: Math.min(400, pageSize.width - 60),
+        lineHeight: fmt.lineHeight || 1.5,
+        textAlign: fmt.textAlign || 'left',
+        bold: fmt.bold || false,
+        italic: fmt.italic || false,
+        underline: fmt.underline || false,
+        strikethrough: fmt.strikethrough || false,
+        gradientStart: null, gradientEnd: null,
+      });
       if (text.trim()) {
         e.preventDefault();
-        const newEl = {
-          id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          type: 'text', x: 50, y: 50,
-          content: text,
-          fontSize: 14, fontFamily: 'Arial', color: '#000000',
-          width: Math.min(400, pageSize.width - 60),
-          lineHeight: 1.5, textAlign: 'left',
-          bold: false, italic: false, underline: false, strikethrough: false,
-          gradientStart: null, gradientEnd: null,
-        };
-        const updated = [...canvasElementsRef.current, newEl];
+        const updated = [...canvasElementsRef.current, makeTextEl(text.trim())];
         setCanvasElements(updated);
         handleSaveHistory(updated);
+      } else if (e.target === hiddenPasteRef.current) {
+        // iOS fallback: text goes into textarea value after event fires
+        e.preventDefault();
+        setTimeout(() => {
+          const val = (hiddenPasteRef.current?.value || '').trim();
+          if (hiddenPasteRef.current) hiddenPasteRef.current.value = '';
+          if (!val) return;
+          const updated = [...canvasElementsRef.current, makeTextEl(val)];
+          setCanvasElements(updated);
+          handleSaveHistory(updated);
+        }, 0);
       }
     };
 
