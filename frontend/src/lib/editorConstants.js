@@ -20,13 +20,13 @@ const RazorIcon = ({ size = 16, color = 'currentColor', ...props }) => (
   </svg>
 );
 
-// 96 DPI screen pixels — matches Word/browser 100% zoom (1pt = 96/72 = 1.333px)
+// PDF points (1pt = 1/72 inch) — standard document sizes
 export const PAGE_SIZES = [
-  { name: 'A4', width: 794, height: 1123 },
-  { name: 'A5', width: 559, height: 794 },
-  { name: 'Letter', width: 816, height: 1056 },
-  { name: 'Legal', width: 816, height: 1344 },
-  { name: 'Square', width: 794, height: 794 },
+  { name: 'A4', width: 595, height: 842 },
+  { name: 'A5', width: 420, height: 595 },
+  { name: 'Letter', width: 612, height: 792 },
+  { name: 'Legal', width: 612, height: 1008 },
+  { name: 'Square', width: 595, height: 595 },
 ];
 
 export const FONTS = [
