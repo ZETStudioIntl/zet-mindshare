@@ -6628,6 +6628,12 @@ _allowed_origins = list(filter(None, [
     os.environ.get("FRONTEND_URL"),
 ]))
 
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    import traceback
+    logger.error("500 on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+
 @app.middleware("http")
 async def hafizz_ip_ban_middleware(request, call_next):
     ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "").split(",")[0].strip()
