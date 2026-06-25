@@ -146,19 +146,6 @@ const EditorDesktopLayout = () => {
             <button data-testid="version-history-btn" onClick={() => setShowVersionHistory(!showVersionHistory)} className={`tool-btn w-8 h-8 flex items-center justify-center ${showVersionHistory ? 'ring-1 ring-blue-500' : ''}`} title="Sürüm Geçmişi">
               <History className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
             </button>
-            <button data-testid="collab-toggle" onClick={() => setCollabEnabled(!collabEnabled)} className={`tool-btn w-8 h-8 flex items-center justify-center ${collabEnabled ? 'ring-1 ring-green-500' : ''}`} title={collabEnabled ? 'Isbirligi Acik' : 'Isbirligi Kapat'}>
-              <Users className="h-4 w-4" style={{ color: collabEnabled && collab.connected ? '#22c55e' : 'var(--zet-text)' }} />
-            </button>
-            {collab.onlineUsers.length > 1 && (
-              <div data-testid="online-users" className="flex items-center -space-x-1.5 ml-1">
-                {collab.onlineUsers.slice(0, 5).map(u => (
-                  <div key={u.user_id} className="w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-bold border-2" style={{ background: u.color, borderColor: 'var(--zet-bg-card)', color: '#fff' }} title={u.name}>
-                    {u.name.charAt(0).toUpperCase()}
-                  </div>
-                ))}
-                {collab.onlineUsers.length > 5 && <span className="text-[10px] ml-1" style={{ color: 'var(--zet-text-muted)' }}>+{collab.onlineUsers.length - 5}</span>}
-              </div>
-            )}
           </div>
           {/* Credit indicator - clickable */}
           <div data-testid="credit-indicator" onClick={() => { fetchCreditPackages(); setShowCreditModal(true); }} className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs cursor-pointer hover:scale-105 transition-transform" style={{ background: creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.15)' : 'rgba(239, 68, 68, 0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76, 168, 173, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
@@ -513,15 +500,6 @@ const EditorDesktopLayout = () => {
           onRestore={() => { setShowVersionHistory(false); window.location.reload(); }} />
       )}
 
-      {/* Remote Cursors Overlay */}
-      {collab.connected && Object.entries(collab.remoteCursors).map(([uid, cursor]) => cursor && (
-        <div key={uid} className="fixed pointer-events-none z-[100] transition-all duration-150" style={{ left: cursor.x, top: cursor.y }}>
-          <svg width="16" height="20" viewBox="0 0 16 20" fill={cursor.color}>
-            <path d="M0 0L16 12L8 12L12 20L8 18L4 12L0 12Z" />
-          </svg>
-          <span className="text-[9px] px-1 py-0.5 rounded ml-3 whitespace-nowrap" style={{ background: cursor.color, color: '#fff' }}>{cursor.name}</span>
-        </div>
-      ))}
     </div>
   );
 };

@@ -430,6 +430,12 @@ class CommentCreate(BaseModel):
 class CommentReply(BaseModel):
     content: str
 
+class JudgeFeedbackCreate(BaseModel):
+    session_id: Optional[str] = None
+    message_index: int = 0
+    feedback_type: str  # 'positive' or 'negative'
+    message_content: str = ''
+
 class EmailAuthRequest(BaseModel):
     email: str
     password: str
@@ -5959,6 +5965,40 @@ async def resolve_comment(comment_id: str, user: User = Depends(get_current_user
 async def delete_comment(comment_id: str, user: User = Depends(get_current_user)):
     await comments_collection.delete_one({"comment_id": comment_id, "user_id": user.user_id})
     return {"status": "deleted"}
+
+@api_router.get("/shared/{share_id}/comments")
+async def get_shared_comments(share_id: str):
+    share = await shares_collection.find_one({"share_id": share_id, "active": True}, {"_id": 0})
+    if not share:
+        raise HTTPException(404, "Share not found")
+    comments = await comments_collection.find(
+        {"doc_id": share["doc_id"], "resolved": False}, {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+    return comments
+
+@api_router.post("/judge/feedback")
+async def submit_judge_feedback(feedback: JudgeFeedbackCreate):
+    feedback_data = {
+        "feedback_id": f"fb_{uuid.uuid4().hex[:12]}",
+        "session_id": feedback.session_id,
+        "message_index": feedback.message_index,
+        "feedback_type": feedback.feedback_type,
+        "message_content": feedback.message_content[:500],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.judge_feedback.insert_one(feedback_data)
+    count = await db.judge_feedback.count_documents({})
+    if count % 100 == 0:
+        positive = await db.judge_feedback.count_documents({"feedback_type": "positive"})
+        negative = await db.judge_feedback.count_documents({"feedback_type": "negative"})
+        await send_email(
+            "support@zetstudiointl.com",
+            f"Judge Geri Bildirim Raporu — {count} Toplam",
+            f"<h2>Judge Geri Bildirim Özeti</h2><p>Toplam geri bildirim: <b>{count}</b></p>"
+            f"<p>👍 Pozitif: <b>{positive}</b></p><p>👎 Negatif: <b>{negative}</b></p>"
+            f"<p>Bu rapor her 100 geri bildirimde otomatik gönderilir.</p>",
+        )
+    return {"status": "ok"}
 
 # ============ WEBSOCKET COLLABORATION ============
 

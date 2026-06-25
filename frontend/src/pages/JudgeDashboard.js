@@ -10,7 +10,8 @@ import {
   Search, Plus, Settings, LogOut, ArrowLeft, Send, X, Loader,
   FileText, MessageCircle,
   User, Scale, ChevronLeft, Brain, CreditCard, Zap, Map, Award,
-  Check, Sparkles, HardDrive, Download, ExternalLink
+  Check, Sparkles, HardDrive, Download, ExternalLink,
+  Copy, ThumbsUp, ThumbsDown, RotateCcw,
 } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -144,6 +145,7 @@ const JudgeDashboard = () => {
   const [mode, setMode] = useState('basic');
   const chatEndRef = useRef(null);
   const fileInputRef = useRef(null);
+  const regenTextRef = useRef(null);
 
   const [sessionFiles, setSessionFiles] = useState([]);
   const [upgradePrompt, setUpgradePrompt] = useState(null);
@@ -272,11 +274,38 @@ const JudgeDashboard = () => {
     }
   };
 
+  const sendFeedback = async (msgIndex, type) => {
+    try {
+      await axios.post(`${API}/judge/feedback`, {
+        session_id: sessionId,
+        message_index: msgIndex,
+        feedback_type: type,
+        message_content: chatMessages[msgIndex]?.content?.slice(0, 500) || '',
+      }, { withCredentials: true });
+    } catch {}
+  };
+
+  const regenerate = () => {
+    if (chatLoading) return;
+    const msgs = chatMessages;
+    const lastAsstIdx = [...msgs].reverse().findIndex(m => m.role === 'assistant');
+    if (lastAsstIdx === -1) return;
+    const actualIdx = msgs.length - 1 - lastAsstIdx;
+    const prevUser = [...msgs.slice(0, actualIdx)].reverse().find(m => m.role === 'user');
+    if (!prevUser) return;
+    setChatMessages(msgs.slice(0, actualIdx));
+    regenTextRef.current = prevUser.content;
+    sendMessage();
+  };
+
   const sendMessage = async () => {
-    if (!chatInput.trim() || chatLoading) return;
-    const msg = chatInput.trim();
-    setChatInput('');
-    setChatMessages(prev => [...prev, { role: 'user', content: msg }]);
+    const regenOverride = regenTextRef.current;
+    regenTextRef.current = null;
+    const rawText = regenOverride ?? chatInput;
+    if (!rawText.trim() || chatLoading) return;
+    const msg = rawText.trim();
+    if (!regenOverride) setChatInput('');
+    if (!regenOverride) setChatMessages(prev => [...prev, { role: 'user', content: msg }]);
     setChatLoading(true);
 
     const sourcesText = sessionFiles
@@ -663,30 +692,55 @@ const JudgeDashboard = () => {
                   </h1>
                 </div>
                 <div style={{ flex: 1, overflowY: 'auto', padding: '16px 22px', display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {chatMessages.map((msg, i) => (
-                    <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                      {msg.role === 'assistant' && (
-                        <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
-                          <Scale size={13} color={C_LIGHT} />
-                        </div>
-                      )}
-                      <div style={{ maxWidth: '80%', padding: '11px 15px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 14, lineHeight: 1.65, color: '#fff', whiteSpace: 'pre-wrap' }}>
-                        {msg.content}
-                        {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                          <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
-                            <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
-                            {msg.sources.map((s, si) => (
-                              <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
-                                style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 3, textDecoration: 'none', cursor: 'pointer', flexWrap: 'nowrap' }}>
-                                <ExternalLink size={10} style={{ flexShrink: 0 }} />
-                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
-                              </a>
-                            ))}
+                  {chatMessages.map((msg, i) => {
+                    const isLastAsst = msg.role === 'assistant' && i === chatMessages.map(m => m.role).lastIndexOf('assistant');
+                    return (
+                      <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: 3 }}>
+                        <div style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
+                          {msg.role === 'assistant' && (
+                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                              <Scale size={13} color={C_LIGHT} />
+                            </div>
+                          )}
+                          <div style={{ maxWidth: '80%', padding: '11px 15px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 14, lineHeight: 1.65, color: '#fff', whiteSpace: 'pre-wrap' }}>
+                            {msg.content}
+                            {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
+                                {msg.sources.map((s, si) => (
+                                  <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
+                                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 3, textDecoration: 'none', cursor: 'pointer', flexWrap: 'nowrap' }}>
+                                    <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
                           </div>
-                        )}
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, paddingLeft: msg.role === 'assistant' ? 36 : 0 }}>
+                          <button onClick={() => navigator.clipboard.writeText(msg.content)} title="Kopyala" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                            <Copy size={11} />
+                          </button>
+                          {msg.role === 'assistant' && !chatLoading && (
+                            <>
+                              {isLastAsst && (
+                                <button onClick={regenerate} title="Yeniden oluştur" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                                  <RotateCcw size={11} />
+                                </button>
+                              )}
+                              <button onClick={() => sendFeedback(i, 'positive')} title="Beğen" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                                <ThumbsUp size={11} />
+                              </button>
+                              <button onClick={() => sendFeedback(i, 'negative')} title="Beğenme" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                                <ThumbsDown size={11} />
+                              </button>
+                            </>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {chatLoading && (
                     <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
                       <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
@@ -849,30 +903,55 @@ const JudgeDashboard = () => {
                 {mobileProjectTab === 'chat' && (
                   <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
                     <div style={{ flex: 1, overflowY: 'auto', padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                      {chatMessages.map((msg, i) => (
-                        <div key={i} style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start' }}>
-                          {msg.role === 'assistant' && (
-                            <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', marginRight: 8, flexShrink: 0, alignSelf: 'flex-end' }}>
-                              <Scale size={13} color={C_LIGHT} />
-                            </div>
-                          )}
-                          <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 13, lineHeight: 1.6, color: '#fff', whiteSpace: 'pre-wrap' }}>
-                            {msg.content}
-                            {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
-                              <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
-                                <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
-                                {msg.sources.map((s, si) => (
-                                  <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
-                                    style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 3, textDecoration: 'none', cursor: 'pointer', flexWrap: 'nowrap' }}>
-                                    <ExternalLink size={10} style={{ flexShrink: 0 }} />
-                                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
-                                  </a>
-                                ))}
+                      {chatMessages.map((msg, i) => {
+                        const isLastAsst = msg.role === 'assistant' && i === chatMessages.map(m => m.role).lastIndexOf('assistant');
+                        return (
+                          <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start', gap: 3 }}>
+                            <div style={{ display: 'flex', justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', alignItems: 'flex-end', gap: 8 }}>
+                              {msg.role === 'assistant' && (
+                                <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                  <Scale size={13} color={C_LIGHT} />
+                                </div>
+                              )}
+                              <div style={{ maxWidth: '82%', padding: '10px 14px', borderRadius: msg.role === 'user' ? '18px 18px 4px 18px' : '4px 18px 18px 18px', background: msg.role === 'user' ? `linear-gradient(135deg,#7b0035,${C})` : 'rgba(255,255,255,0.06)', fontSize: 13, lineHeight: 1.6, color: '#fff', whiteSpace: 'pre-wrap' }}>
+                                {msg.content}
+                                {msg.role === 'assistant' && msg.sources && msg.sources.length > 0 && (
+                                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: '1px solid rgba(255,255,255,0.12)' }}>
+                                    <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', marginBottom: 4, marginTop: 0 }}>Kaynaklar</p>
+                                    {msg.sources.map((s, si) => (
+                                      <a key={si} href={s.url} target="_blank" rel="noopener noreferrer"
+                                        style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#60a5fa', marginBottom: 3, textDecoration: 'none', cursor: 'pointer', flexWrap: 'nowrap' }}>
+                                        <ExternalLink size={10} style={{ flexShrink: 0 }} />
+                                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title || s.url}</span>
+                                      </a>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
-                            )}
+                            </div>
+                            <div style={{ display: 'flex', gap: 4, paddingLeft: msg.role === 'assistant' ? 36 : 0 }}>
+                              <button onClick={() => navigator.clipboard.writeText(msg.content)} title="Kopyala" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
+                                <Copy size={11} />
+                              </button>
+                              {msg.role === 'assistant' && !chatLoading && (
+                                <>
+                                  {isLastAsst && (
+                                    <button onClick={regenerate} title="Yeniden oluştur" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
+                                      <RotateCcw size={11} />
+                                    </button>
+                                  )}
+                                  <button onClick={() => sendFeedback(i, 'positive')} title="Beğen" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
+                                    <ThumbsUp size={11} />
+                                  </button>
+                                  <button onClick={() => sendFeedback(i, 'negative')} title="Beğenme" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
+                                    <ThumbsDown size={11} />
+                                  </button>
+                                </>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                       {chatLoading && (
                         <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8 }}>
                           <div style={{ width: 28, height: 28, borderRadius: '50%', background: C_DIM, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditorStateContext } from '../../contexts/EditorStateContext';
-import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 import SelfTestPanel from './SelfTestPanel';
@@ -62,6 +62,7 @@ export const RightPanel = ({
   const [consoleStage, setConsoleStage] = useState('main'); // 'main' | 'admin_login' | 'admin_pin'
   const consoleEndRef = useRef(null);
   const consoleInputRef = useRef(null);
+  const zetaRegenRef = useRef(null);
   const showPages = forceSection ? forceSection === 'pages' : true;
   const showZeta = forceSection ? forceSection === 'zeta' : true;
 
@@ -483,20 +484,48 @@ export const RightPanel = ({
     applyZetaDocEdit(prompt);
   };
 
+  const sendFeedbackZeta = async (msgIndex, type) => {
+    try {
+      await axios.post(`${API}/judge/feedback`, {
+        session_id: zetaSessionId,
+        message_index: msgIndex,
+        feedback_type: type,
+        message_content: zetaMessages[msgIndex]?.content?.slice(0, 500) || '',
+      }, { withCredentials: true });
+    } catch {}
+  };
+
+  const regenerateZeta = () => {
+    if (zetaLoading) return;
+    const msgs = zetaMessages;
+    const lastAsstIdx = [...msgs].reverse().findIndex(m => m.role === 'assistant' && !m.isTyping);
+    if (lastAsstIdx === -1) return;
+    const actualIdx = msgs.length - 1 - lastAsstIdx;
+    const prevUser = [...msgs.slice(0, actualIdx)].reverse().find(m => m.role === 'user');
+    if (!prevUser) return;
+    let content = prevUser.content;
+    if (content.startsWith('[📎 ')) content = content.replace(/^\[📎 [^\]]+\]\n/, '');
+    setZetaMessages(msgs.slice(0, actualIdx));
+    zetaRegenRef.current = content;
+    sendZetaMessage();
+  };
+
   const sendZetaMessage = async () => {
-    if (!zetaInput.trim() || zetaLoading) return;
-    // Intercept console command
-    if (zetaInput.trim().toLowerCase().replace(/\s+/g, '') === '/open/console/') {
+    const regenOverride = zetaRegenRef.current;
+    zetaRegenRef.current = null;
+    const inputToUse = regenOverride ?? zetaInput;
+    if (!inputToUse.trim() || zetaLoading) return;
+    if (!regenOverride && inputToUse.trim().toLowerCase().replace(/\s+/g, '') === '/open/console/') {
       setZetaInput('');
       setShowConsole(true);
       return;
     }
-    const rawMsg = zetaInput;
+    const rawMsg = regenOverride ?? zetaInput;
     const imageToSend = zetaImage;
     const msg = attachedDoc ? `Ekteki belge içeriği:\n"""\n${attachedDoc.content}\n"""\n\n${rawMsg}` : rawMsg;
     const displayMsg = attachedDoc ? `[📎 ${attachedDoc.name}]\n${rawMsg}` : rawMsg;
-    setZetaMessages(prev => [...prev, { role: 'user', content: displayMsg, image: imageToSend || null }]);
-    setZetaInput('');
+    if (!regenOverride) setZetaMessages(prev => [...prev, { role: 'user', content: displayMsg, image: imageToSend || null }]);
+    if (!regenOverride) setZetaInput('');
     setZetaImage(null);
     setAttachedDoc(null);
     setZetaLoading(true);
@@ -736,7 +765,7 @@ export const RightPanel = ({
                   ? msg.content.replace(/\[PATCH_START\][\s\S]*?\[PATCH_END\]/, '✅ Düzeltilmiş metin hazır.')
                   : msg.content;
                 return (
-                  <div key={i} className={`mb-2 ${msg.role === 'user' ? 'text-right' : ''}`}>
+                  <div key={i} className={`mb-3 ${msg.role === 'user' ? 'text-right' : ''}`}>
                     {msg.image && (
                       <div className="mb-1">
                         <img src={msg.image} alt="Uploaded" className="max-w-[120px] max-h-[80px] rounded inline-block" />
@@ -776,6 +805,32 @@ export const RightPanel = ({
                         </div>
                       )}
                     </div>
+                    {/* Aksiyon butonları */}
+                    {!msg.isTyping && (() => {
+                      const isLastAsst = msg.role === 'assistant' && i === zetaMessages.map(m => m.role).lastIndexOf('assistant');
+                      return (
+                        <div className="flex gap-1 mt-1" style={{ justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start', paddingLeft: msg.role === 'assistant' ? 24 : 0 }}>
+                          <button onClick={() => navigator.clipboard.writeText(displayContent)} className="p-1 rounded hover:bg-white/10" title="Kopyala">
+                            <Copy className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
+                          </button>
+                          {msg.role === 'assistant' && !zetaLoading && (
+                            <>
+                              {isLastAsst && (
+                                <button onClick={regenerateZeta} className="p-1 rounded hover:bg-white/10" title="Yeniden oluştur">
+                                  <RotateCcw className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
+                                </button>
+                              )}
+                              <button onClick={() => sendFeedbackZeta(i, 'positive')} className="p-1 rounded hover:bg-white/10" title="Beğen">
+                                <ThumbsUp className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
+                              </button>
+                              <button onClick={() => sendFeedbackZeta(i, 'negative')} className="p-1 rounded hover:bg-white/10" title="Beğenme">
+                                <ThumbsDown className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 );
               })}
