@@ -2362,14 +2362,14 @@ body{background:#fff}
 
       // Map PDF font name to a web-safe font family
       const resolvePdfFont = (fontName) => {
-        if (!fontName) return currentFont;
+        if (!fontName) return 'Arial';
         const fn = fontName.toLowerCase();
         if (fn.includes('courier')) return 'Courier New';
         if (fn.includes('times')) return 'Times New Roman';
         if (fn.includes('helvetica') || fn.includes('arial')) return 'Arial';
         if (fn.includes('calibri')) return 'Calibri';
         if (fn.includes('georgia')) return 'Georgia';
-        return currentFont;
+        return 'Arial';
       };
 
       // Bir XObject resmini page.objs'tan PNG/JPEG data URL'e çevirir (boyutu sınırlar)
@@ -2461,6 +2461,22 @@ body{background:#fff}
           const fontName = nonEmptyLines[0]?.fontName || null;
           const fontSizePts = nonEmptyLines.length ? nonEmptyLines[0].sizePts : 0;
 
+          // PDF satır aralığını hesapla: ardışık satırlar arasındaki y farkının font boyutuna oranı
+          let pdfLineHeight = 1.4;
+          if (nonEmptyLines.length >= 2) {
+            const gaps = [];
+            for (let li = 1; li < nonEmptyLines.length; li++) {
+              const dy = Math.abs(nonEmptyLines[li].y - nonEmptyLines[li - 1].y);
+              const sz = nonEmptyLines[li - 1].sizePts || 10;
+              if (dy > 0 && dy < sz * 4) gaps.push(dy / sz);
+            }
+            if (gaps.length) {
+              gaps.sort((a, b) => a - b);
+              const mid = Math.floor(gaps.length / 2);
+              pdfLineHeight = Math.max(1, Math.min(3, gaps[mid]));
+            }
+          }
+
           // Satır satır stilli HTML — font ailesi, punto, girinti (x farkı) ve paragraf boşluğu korunur
           const baseX = nonEmptyLines.length ? Math.min(...nonEmptyLines.map(l => l.x)) : 0;
           let prevLine = null;
@@ -2521,7 +2537,7 @@ body{background:#fff}
             }
           }
 
-          pdfPages.push({ page_num: i, text, html: richHtml, font_name: fontName, font_size_pts: fontSizePts, render_scale: renderScale, images });
+          pdfPages.push({ page_num: i, text, html: richHtml, font_name: fontName, font_size_pts: fontSizePts, line_height: pdfLineHeight, render_scale: renderScale, images });
         } catch (pageErr) {
           console.warn(`PDF page ${i} extraction failed:`, pageErr);
           pdfPages.push({ page_num: i, text: '', html: '', font_name: null, font_size_pts: 0, render_scale: 1, images: [] });
@@ -2538,7 +2554,7 @@ body{background:#fff}
           src: img.src,
         }));
         if (pg.text) {
-          const fontSize = pg.font_size_pts > 0 ? Math.max(8, Math.round(pg.font_size_pts * pg.render_scale)) : currentFontSize;
+          const fontSize = pg.font_size_pts > 0 ? Math.max(8, Math.round(pg.font_size_pts * pg.render_scale)) : 12;
           els.push({
             id: `el_pdf_${t}_${idx}`,
             type: 'text',
@@ -2547,9 +2563,9 @@ body{background:#fff}
             htmlContent: pg.html || pg.text.replace(/\n/g, '<br>'),
             fontSize,
             fontFamily: resolvePdfFont(pg.font_name),
-            color: currentColor,
+            color: '#000000',
             width: textWidth,
-            lineHeight: 1.5,
+            lineHeight: Math.round((pg.line_height || 1.4) * 10) / 10,
             textAlign: 'left', bold: false, italic: false, underline: false,
           });
         }
