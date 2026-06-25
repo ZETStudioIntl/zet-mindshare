@@ -252,7 +252,7 @@ const EditorMobileLayout = () => {
         )}
 
         {/* Voice bar + floating panels */}
-        {showVoice && (
+        {false && showVoice && (
           <div className="p-2 border-t flex-shrink-0" style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
             <div className="flex items-center gap-2 mb-2">
               <select

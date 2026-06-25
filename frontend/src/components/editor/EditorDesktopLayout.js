@@ -302,7 +302,7 @@ const EditorDesktopLayout = () => {
         </div>
       </div>
 
-      {showVoice && (
+      {false && showVoice && (
         <div data-testid="voice-bar" className="p-3 border-t flex-shrink-0" style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
           <div className="max-w-xl mx-auto space-y-2">
             <div className="flex items-center gap-2">

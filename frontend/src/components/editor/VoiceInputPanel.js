@@ -16,22 +16,7 @@ const VoiceInputPanel = () => {
   return (
     <DraggablePanel title="Ses Girişi" onClose={() => { setShowVoiceInput(false); stopListening(); stopElevenLabsSTT(); setVoiceTranscript(''); }} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
       <div className="w-72 space-y-3">
-        {/* ElevenLabs STT */}
-        <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
-          <p className="text-xs font-semibold mb-2 flex items-center gap-1" style={{ color: 'var(--zet-primary)' }}>
-            <Zap className="h-3 w-3" /> ElevenLabs Scribe
-          </p>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={isRecordingEL ? stopElevenLabsSTT : startElevenLabsSTT}
-              disabled={elSttLoading}
-              className={`flex-1 py-2 rounded text-xs font-medium flex items-center justify-center gap-1.5 transition-all ${isRecordingEL ? 'bg-red-500 text-white animate-pulse' : 'bg-blue-600 hover:bg-blue-700 text-white'} disabled:opacity-50`}
-            >
-              {elSttLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mic className="h-3.5 w-3.5" />}
-              {elSttLoading ? 'İşleniyor...' : isRecordingEL ? 'Durdur' : 'Kayıt Başlat'}
-            </button>
-          </div>
-        </div>
+        {/* ElevenLabs STT — gizli, altyapı korunuyor */}
 
         {/* Browser STT */}
         <div className="p-3 rounded-lg border" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>

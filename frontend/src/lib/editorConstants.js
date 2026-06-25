@@ -10,15 +10,16 @@ import {
   Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator, Link2
 } from 'lucide-react';
 
-const RazorIcon = ({ size = 16, color = 'currentColor', ...props }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
-    <rect x="2" y="9" width="20" height="6" rx="1.5" />
-    <line x1="12" y1="9" x2="12" y2="15" />
-    <line x1="2" y1="12" x2="22" y2="12" strokeDasharray="2 2" strokeWidth="0.8" />
-    <line x1="7" y1="9" x2="5" y2="15" strokeWidth="1.2" />
-    <line x1="17" y1="9" x2="19" y2="15" strokeWidth="1.2" />
-  </svg>
-);
+// RazorIcon — gizli, knife tool altyapısı korunuyor
+// const RazorIcon = ({ size = 16, color = 'currentColor', ...props }) => (
+//   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" {...props}>
+//     <rect x="2" y="9" width="20" height="6" rx="1.5" />
+//     <line x1="12" y1="9" x2="12" y2="15" />
+//     <line x1="2" y1="12" x2="22" y2="12" strokeDasharray="2 2" strokeWidth="0.8" />
+//     <line x1="7" y1="9" x2="5" y2="15" strokeWidth="1.2" />
+//     <line x1="17" y1="9" x2="19" y2="15" strokeWidth="1.2" />
+//   </svg>
+// );
 
 // PDF points (1pt = 1/72 inch) — standard document sizes
 export const PAGE_SIZES = [
@@ -350,7 +351,7 @@ export const TOOLS = [
   { id: 'copy', icon: Copy, nameKey: 'copy', shortcut: null },
   { id: 'mirror', icon: FlipHorizontal2, nameKey: 'mirror', shortcut: null },
   { id: 'cut', icon: Scissors, nameKey: 'crop', shortcut: 'X' },
-  { id: 'knife', icon: RazorIcon, nameKey: 'knife', shortcut: 'K' },
+  // { id: 'knife', icon: RazorIcon, nameKey: 'knife', shortcut: 'K' }, // gizli — altyapı korunuyor
   { id: 'redact', icon: ShieldOff, nameKey: 'redact', shortcut: null },
   { id: 'highlighter', icon: Highlighter, nameKey: 'highlighter', shortcut: null },
   { id: 'emoji', icon: SmilePlus, nameKey: 'emoji', shortcut: null },
@@ -370,7 +371,7 @@ export const TOOLS = [
   { id: 'pagecolor', icon: Contrast, nameKey: 'pageColor', shortcut: null },
   { id: 'addpage', icon: FilePlus, nameKey: 'addPage', shortcut: 'N' },
   { id: 'pagesize', icon: FileText, nameKey: 'pageSize', shortcut: null },
-  { id: 'voice', icon: Volume2, nameKey: 'voice', shortcut: 'V' },
+  // { id: 'voice', icon: Volume2, nameKey: 'voice', shortcut: 'V' }, // gizli — ElevenLabs TTS altyapısı korunuyor
   { id: 'voiceinput', icon: Mic, nameKey: 'voiceInput', shortcut: null },
   { id: 'shapes', icon: Shapes, nameKey: 'shapes', shortcut: null },
   { id: 'punctuation', icon: Pilcrow, nameKey: 'punctuation', shortcut: null },
