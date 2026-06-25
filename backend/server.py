@@ -715,21 +715,35 @@ async def get_current_user(request: Request) -> User:
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+    try:
+        session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+    except Exception as e:
+        logging.error(f"DB error in get_current_user (session lookup): {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     if not session:
         raise HTTPException(status_code=401, detail="Invalid session")
 
     expires_at = session.get("expires_at")
     if not expires_at:
         raise HTTPException(status_code=401, detail="Invalid session")
-    if isinstance(expires_at, str):
-        expires_at = datetime.fromisoformat(expires_at)
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < datetime.now(timezone.utc):
-        raise HTTPException(status_code=401, detail="Session expired")
+    try:
+        if isinstance(expires_at, str):
+            expires_at = datetime.fromisoformat(expires_at)
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if expires_at < datetime.now(timezone.utc):
+            raise HTTPException(status_code=401, detail="Session expired")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"expires_at parse error: {e!r} value={expires_at!r}")
+        raise HTTPException(status_code=401, detail="Invalid session")
 
-    raw = await db.users.find_one({"user_id": session["user_id"]})
+    try:
+        raw = await db.users.find_one({"user_id": session["user_id"]})
+    except Exception as e:
+        logging.error(f"DB error in get_current_user (user lookup): {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     if not raw:
         raise HTTPException(status_code=401, detail="User not found")
 
