@@ -2477,15 +2477,22 @@ async def _save_document_version(doc_id: str, user_id: str):
         old = await db.documents.find_one({"doc_id": doc_id, "user_id": user_id}, {"_id": 0, "pages": 1})
         if not old or not old.get("pages"):
             return
+        pages_stripped = []
+        for page in old["pages"]:
+            elements = [
+                {**el, "src": None} if el.get("type") == "image" else el
+                for el in page.get("elements", [])
+            ]
+            pages_stripped.append({**page, "elements": elements})
         await db.document_history.insert_one({
             "doc_id": doc_id,
             "user_id": user_id,
-            "pages": old["pages"],
+            "pages": pages_stripped,
             "saved_at": datetime.now(timezone.utc).isoformat()
         })
-        versions = await db.document_history.find({"doc_id": doc_id}, {"_id": 1}).sort("saved_at", -1).to_list(55)
-        if len(versions) > 50:
-            await db.document_history.delete_many({"_id": {"$in": [v["_id"] for v in versions[50:]]}})
+        versions = await db.document_history.find({"doc_id": doc_id}, {"_id": 1}).sort("saved_at", -1).to_list(6)
+        if len(versions) > 3:
+            await db.document_history.delete_many({"_id": {"$in": [v["_id"] for v in versions[3:]]}})
     except Exception:
         pass
 
