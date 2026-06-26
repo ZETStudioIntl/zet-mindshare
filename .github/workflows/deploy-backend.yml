@@ -68,6 +68,11 @@ jobs:
           ENV_VARS="$ENV_VARS,LS_VARIANT_CS_MONTHLY=${{ secrets.LS_VARIANT_CS_MONTHLY }}"
           ENV_VARS="$ENV_VARS,LS_VARIANT_CS_YEARLY=${{ secrets.LS_VARIANT_CS_YEARLY }}"
           ENV_VARS="$ENV_VARS,ZET_ID_JWT_SECRET=${{ secrets.ZET_ID_JWT_SECRET }}"
+          ENV_VARS="$ENV_VARS,R2_ACCOUNT_ID=${{ secrets.R2_ACCOUNT_ID }}"
+          ENV_VARS="$ENV_VARS,R2_ACCESS_KEY=${{ secrets.R2_ACCESS_KEY }}"
+          ENV_VARS="$ENV_VARS,R2_SECRET_KEY=${{ secrets.R2_SECRET_KEY }}"
+          ENV_VARS="$ENV_VARS,R2_BUCKET=${{ secrets.R2_BUCKET }}"
+          ENV_VARS="$ENV_VARS,R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}"
 
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE:${{ github.sha }} \

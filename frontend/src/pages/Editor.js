@@ -1116,13 +1116,42 @@ const Editor = () => {
     setBuyingCredits(false);
   };
 
+  async function uploadImagesToR2(pages) {
+    let anyUploaded = false;
+    const processed = await Promise.all(pages.map(async (page) => {
+      const elements = await Promise.all((page.elements || []).map(async (el) => {
+        if (el.type === 'image' && typeof el.src === 'string' && el.src.startsWith('data:')) {
+          try {
+            const res = await axios.post(`${API}/r2/upload`, { data: el.src }, { withCredentials: true });
+            anyUploaded = true;
+            return { ...el, src: res.data.url };
+          } catch {
+            return el;
+          }
+        }
+        return el;
+      }));
+      return { ...page, elements };
+    }));
+    return { pages: processed, anyUploaded };
+  }
+
   async function saveDocument(silent = false) {
     if (!document) return;
     if (!silent) setSaving(true);
     setSaveStatus('saving');
-    const updatedPages = [...(document.pages || [])];
+    let updatedPages = [...(document.pages || [])];
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
+    }
+    if (navigator.onLine) {
+      try {
+        const { pages: r2Pages, anyUploaded } = await uploadImagesToR2(updatedPages);
+        if (anyUploaded) {
+          updatedPages = r2Pages;
+          setCanvasElements(r2Pages[currentPage]?.elements || canvasElements);
+        }
+      } catch {}
     }
     const pagesToCache = userPlan !== 'free'
       ? updatedPages

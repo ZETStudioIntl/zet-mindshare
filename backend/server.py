@@ -53,6 +53,26 @@ db = client[os.environ['DB_NAME']]
 users_collection = db.users
 docs_collection = db.documents
 
+# ============ CLOUDFLARE R2 ============
+import boto3
+from botocore.config import Config as BotoConfig
+
+R2_ACCOUNT_ID = os.environ.get('R2_ACCOUNT_ID', '')
+R2_ACCESS_KEY = os.environ.get('R2_ACCESS_KEY', '')
+R2_SECRET_KEY = os.environ.get('R2_SECRET_KEY', '')
+R2_BUCKET = os.environ.get('R2_BUCKET', 'zet-studio-international')
+R2_PUBLIC_URL = os.environ.get('R2_PUBLIC_URL', 'https://pub-c3e7d4d3e4bd4819871a4bf4809a2a9b.r2.dev')
+
+def _get_r2():
+    return boto3.client(
+        's3',
+        endpoint_url=f'https://{R2_ACCOUNT_ID}.r2.cloudflarestorage.com',
+        aws_access_key_id=R2_ACCESS_KEY,
+        aws_secret_access_key=R2_SECRET_KEY,
+        config=BotoConfig(signature_version='s3v4'),
+        region_name='auto',
+    )
+
 app = FastAPI()
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
 ADMIN_EMAILS = {"info@zetstudiointl.com", "support@zetstudiointl.com", "ideas@zetstudiointl.com"}
@@ -2450,6 +2470,36 @@ async def get_documents(skip: int = 0, limit: int = 20, user: User = Depends(get
         {"_id": 0, "pages": 0}
     ).sort([("pinned", -1), ("updated_at", -1)]).skip(skip).limit(limit).to_list(limit)
     return docs
+
+class R2UploadRequest(BaseModel):
+    data: str  # data:image/...;base64,...
+
+@api_router.post("/r2/upload")
+async def upload_image_to_r2(body: R2UploadRequest, user: User = Depends(get_current_user)):
+    try:
+        if not body.data.startswith('data:'):
+            raise HTTPException(status_code=400, detail="Geçersiz görsel verisi")
+        header, b64data = body.data.split(',', 1)
+        content_type = header.split(';')[0].replace('data:', '')
+        ext_map = {'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp'}
+        ext = ext_map.get(content_type, 'png')
+        image_bytes = base64.b64decode(b64data)
+        key = f"canvas/{user.user_id}/{uuid.uuid4().hex}.{ext}"
+        r2 = _get_r2()
+        await asyncio.to_thread(
+            r2.put_object,
+            Bucket=R2_BUCKET,
+            Key=key,
+            Body=image_bytes,
+            ContentType=content_type,
+        )
+        url = f"{R2_PUBLIC_URL}/{key}"
+        return {"url": url}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"R2 upload error: {e}")
+        raise HTTPException(status_code=503, detail="Görsel yükleme başarısız")
 
 @api_router.post("/documents")
 async def create_document(doc: DocumentCreate, user: User = Depends(get_current_user)):
