@@ -733,8 +733,8 @@ const Editor = () => {
         handleToolSelect(shortcuts[key]);
       }
     };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    window.addEventListener('keydown', handleKeyDown, true);
+    return () => window.removeEventListener('keydown', handleKeyDown, true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shortcuts, selectedElement, selectedElements]);
 
