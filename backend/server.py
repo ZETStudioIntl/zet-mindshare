@@ -1399,10 +1399,14 @@ class PreferencesUpdate(BaseModel):
 
 @api_router.put("/users/preferences")
 async def update_preferences(body: PreferencesUpdate, user: User = Depends(get_current_user)):
-    await db.users.update_one(
-        {"user_id": user.user_id},
-        {"$set": {f"preferences.{k}": v for k, v in body.preferences.items()}}
-    )
+    try:
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$set": {f"preferences.{k}": v for k, v in body.preferences.items()}}
+        )
+    except Exception as e:
+        logging.error(f"update_preferences DB error: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
     return {"ok": True}
 
 @api_router.get("/users/me")
@@ -2504,15 +2508,20 @@ async def update_document(doc_id: str, update: DocumentUpdate, user: User = Depe
     if "pages" in update_data:
         asyncio.create_task(_save_document_version(doc_id, user.user_id))
 
-    result = await db.documents.update_one(
-        {"doc_id": doc_id, "user_id": user.user_id},
-        {"$set": update_data}
-    )
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Document not found")
-
-    doc = await db.documents.find_one({"doc_id": doc_id}, {"_id": 0})
-    return doc
+    try:
+        result = await db.documents.update_one(
+            {"doc_id": doc_id, "user_id": user.user_id},
+            {"$set": update_data}
+        )
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Document not found")
+        doc = await db.documents.find_one({"doc_id": doc_id}, {"_id": 0})
+        return doc
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.error(f"update_document DB error {doc_id}: {e}")
+        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
 
 @api_router.get("/documents/{doc_id}/history")
 async def get_document_history(doc_id: str, user: User = Depends(get_current_user)):
@@ -2618,19 +2627,22 @@ async def _get_active_sessions(doc_id: str):
 
 @api_router.post("/documents/{doc_id}/presence")
 async def register_presence(doc_id: str, body: PresenceRequest, user: User = Depends(get_current_user)):
-    now = datetime.now(timezone.utc).isoformat()
-    # Atomic upsert — race condition'ı önler: find+insert yerine tek operasyon
-    await db.doc_presence.find_one_and_update(
-        {"doc_id": doc_id, "session_id": body.session_id},
-        {
-            "$set": {"last_seen": now, "user_id": user.user_id},
-            "$setOnInsert": {"doc_id": doc_id, "session_id": body.session_id, "joined_at": now},
-        },
-        upsert=True,
-    )
-    sessions = await _get_active_sessions(doc_id)
-    is_primary = bool(sessions and sessions[0]["session_id"] == body.session_id)
-    return {"is_primary": is_primary, "active_count": len(sessions)}
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        await db.doc_presence.find_one_and_update(
+            {"doc_id": doc_id, "session_id": body.session_id},
+            {
+                "$set": {"last_seen": now, "user_id": user.user_id},
+                "$setOnInsert": {"doc_id": doc_id, "session_id": body.session_id, "joined_at": now},
+            },
+            upsert=True,
+        )
+        sessions = await _get_active_sessions(doc_id)
+        is_primary = bool(sessions and sessions[0]["session_id"] == body.session_id)
+        return {"is_primary": is_primary, "active_count": len(sessions)}
+    except Exception as e:
+        logging.error(f"register_presence DB error: {e}")
+        return {"is_primary": True, "active_count": 1}
 
 @api_router.delete("/documents/{doc_id}/presence/{session_id}")
 async def clear_presence(doc_id: str, session_id: str, user: User = Depends(get_current_user)):
