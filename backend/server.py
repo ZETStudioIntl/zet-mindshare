@@ -2526,7 +2526,15 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
 
+_version_throttle: dict = {}  # doc_id → last saved unix timestamp
+_VERSION_INTERVAL = 300  # 5 dakika
+
 async def _save_document_version(doc_id: str, user_id: str):
+    import time
+    now_ts = time.time()
+    if now_ts - _version_throttle.get(doc_id, 0) < _VERSION_INTERVAL:
+        return
+    _version_throttle[doc_id] = now_ts
     try:
         old = await db.documents.find_one({"doc_id": doc_id, "user_id": user_id}, {"_id": 0, "pages": 1})
         if not old or not old.get("pages"):
