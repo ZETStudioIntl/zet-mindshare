@@ -3792,7 +3792,7 @@ body{background:#fff}
     pageBackground, pageNumberFormat, pageNumberPosition, pageNumberStart, pageNumberStyle, pageNumbersEnabled,
     pageSize, pageSizeScope, paragraphSpaceAfter, paragraphSpaceBefore,
     photoEditCanvasRef, photoEditDrawMode, photoEditDrawings, photoEditImage, photoEditLoading, photoEditPrompt, photoEditResult,
-    planLimits, qrText, replaceInDocument, replaceText, rotateElement, rulerVisible, selectedElement,
+    planLimits, qrText, replaceInDocument, replaceText, rotateElement, rulerVisible, selectedElement, selectedElements,
     setActiveStopId, setActiveTool, setAiAspectRatio, setAiImagePro, setAiPreview, setAiPrompt, setAiReference, setAiTargetShape,
     setCalcCopied, setCalcExpr, setCalcResult, setCanvasElements,
     setChartColors, setChartData, setChartImage, setChartLabels, setChartTitle, setChartType,

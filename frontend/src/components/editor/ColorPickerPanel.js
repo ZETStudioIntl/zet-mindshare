@@ -26,7 +26,7 @@ const ColorPickerPanel = () => {
     isMobile, showColor, setShowColor,
     currentColor, setCurrentColor, hexInput, setHexInput, customColor, setCustomColor,
     highlighterColor, setHighlighterColor,
-    selectedElement, setCanvasElements, handleSaveHistory,
+    selectedElement, selectedElements, setCanvasElements, handleSaveHistory,
   } = useContext(EditorStateContext);
 
   const [savedGradients, setSavedGradients] = useState(() => {
@@ -53,8 +53,11 @@ const ColorPickerPanel = () => {
     setCurrentColor(color);
     setHexInput(color);
     setCustomColor(color);
+    const targets = selectedElements?.length > 0 ? selectedElements : selectedElement ? [selectedElement] : [];
+    if (!targets.length) return;
     setCanvasElements(prev => {
       const updated = prev.map(el => {
+        if (!targets.includes(el.id)) return el;
         if (el.svgContent) {
           const recolored = el.svgContent
             .replace(/fill="(?!none\b)[^"]*"/g, `fill="${color}"`)
