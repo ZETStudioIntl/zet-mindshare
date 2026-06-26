@@ -186,6 +186,12 @@ body {
   100% { opacity: 0; transform: translateY(-4px); }
 }
 
+@keyframes feedbackPop {
+  0% { transform: scale(0.7); opacity: 0; }
+  60% { transform: scale(1.15); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 .zeta-typing-logo {
   position: relative;
   display: inline-block;

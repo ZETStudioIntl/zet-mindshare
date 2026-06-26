@@ -141,6 +141,7 @@ const JudgeDashboard = () => {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const [sessionId, setSessionId] = useState(null);
+  const [messageFeedbacks, setMessageFeedbacks] = useState({});
   const [judgeScores, setJudgeScores] = useState(null);
   const [mode, setMode] = useState('basic');
   const chatEndRef = useRef(null);
@@ -275,6 +276,7 @@ const JudgeDashboard = () => {
   };
 
   const sendFeedback = async (msgIndex, type) => {
+    setMessageFeedbacks(prev => ({ ...prev, [msgIndex]: type }));
     try {
       await axios.post(`${API}/judge/feedback`, {
         session_id: sessionId,
@@ -729,12 +731,21 @@ const JudgeDashboard = () => {
                                   <RotateCcw size={11} />
                                 </button>
                               )}
-                              <button onClick={() => sendFeedback(i, 'positive')} title="Beğen" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
-                                <ThumbsUp size={11} />
-                              </button>
-                              <button onClick={() => sendFeedback(i, 'negative')} title="Beğenme" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
-                                <ThumbsDown size={11} />
-                              </button>
+                              {messageFeedbacks[i] ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, animation: 'feedbackPop 0.3s ease', color: messageFeedbacks[i] === 'positive' ? '#4ade80' : '#f87171' }}>
+                                  {messageFeedbacks[i] === 'positive' ? <ThumbsUp size={11} /> : <ThumbsDown size={11} />}
+                                  Teşekkürler
+                                </span>
+                              ) : (
+                                <>
+                                  <button onClick={() => sendFeedback(i, 'positive')} title="Beğen" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                                    <ThumbsUp size={11} />
+                                  </button>
+                                  <button onClick={() => sendFeedback(i, 'negative')} title="Beğenme" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', gap: 3, fontSize: 11 }}>
+                                    <ThumbsDown size={11} />
+                                  </button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
@@ -940,12 +951,21 @@ const JudgeDashboard = () => {
                                       <RotateCcw size={11} />
                                     </button>
                                   )}
-                                  <button onClick={() => sendFeedback(i, 'positive')} title="Beğen" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
-                                    <ThumbsUp size={11} />
-                                  </button>
-                                  <button onClick={() => sendFeedback(i, 'negative')} title="Beğenme" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
-                                    <ThumbsDown size={11} />
-                                  </button>
+                                  {messageFeedbacks[i] ? (
+                                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, animation: 'feedbackPop 0.3s ease', color: messageFeedbacks[i] === 'positive' ? '#4ade80' : '#f87171' }}>
+                                      {messageFeedbacks[i] === 'positive' ? <ThumbsUp size={11} /> : <ThumbsDown size={11} />}
+                                      Teşekkürler
+                                    </span>
+                                  ) : (
+                                    <>
+                                      <button onClick={() => sendFeedback(i, 'positive')} title="Beğen" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
+                                        <ThumbsUp size={11} />
+                                      </button>
+                                      <button onClick={() => sendFeedback(i, 'negative')} title="Beğenme" style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 5px', borderRadius: 5, color: 'rgba(255,255,255,0.3)', display: 'flex', alignItems: 'center', fontSize: 11 }}>
+                                        <ThumbsDown size={11} />
+                                      </button>
+                                    </>
+                                  )}
                                 </>
                               )}
                             </div>

@@ -71,6 +71,7 @@ export const RightPanel = ({
   const [zetaInput, setZetaInput] = useState('');
   const [zetaLoading, setZetaLoading] = useState(false);
   const [zetaSessionId, setZetaSessionId] = useState(null);
+  const [zetaFeedbacks, setZetaFeedbacks] = useState({});
   const [zetaImage, setZetaImage] = useState(null);
   const [speakingMsg, setSpeakingMsg] = useState(null);
   const [ttsLoading, setTtsLoading] = useState(false);
@@ -485,6 +486,7 @@ export const RightPanel = ({
   };
 
   const sendFeedbackZeta = async (msgIndex, type) => {
+    setZetaFeedbacks(prev => ({ ...prev, [msgIndex]: type }));
     try {
       await axios.post(`${API}/judge/feedback`, {
         session_id: zetaSessionId,
@@ -820,12 +822,21 @@ export const RightPanel = ({
                                   <RotateCcw className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
                                 </button>
                               )}
-                              <button onClick={() => sendFeedbackZeta(i, 'positive')} className="p-1 rounded hover:bg-white/10" title="Beğen">
-                                <ThumbsUp className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
-                              </button>
-                              <button onClick={() => sendFeedbackZeta(i, 'negative')} className="p-1 rounded hover:bg-white/10" title="Beğenme">
-                                <ThumbsDown className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
-                              </button>
+                              {zetaFeedbacks[i] ? (
+                                <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, animation: 'feedbackPop 0.3s ease', color: zetaFeedbacks[i] === 'positive' ? '#4ade80' : '#f87171' }}>
+                                  {zetaFeedbacks[i] === 'positive' ? <ThumbsUp className="h-3 w-3" /> : <ThumbsDown className="h-3 w-3" />}
+                                  Teşekkürler
+                                </span>
+                              ) : (
+                                <>
+                                  <button onClick={() => sendFeedbackZeta(i, 'positive')} className="p-1 rounded hover:bg-white/10" title="Beğen">
+                                    <ThumbsUp className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
+                                  </button>
+                                  <button onClick={() => sendFeedbackZeta(i, 'negative')} className="p-1 rounded hover:bg-white/10" title="Beğenme">
+                                    <ThumbsDown className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} />
+                                  </button>
+                                </>
+                              )}
                             </>
                           )}
                         </div>
