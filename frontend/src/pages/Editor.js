@@ -1340,11 +1340,22 @@ const Editor = () => {
       setZetaEditInput('');
       const newPendingLog = [];
 
-      // Handle delete_page / clear_page first (structural ops)
+      // Handle delete_page / clear_page / add_page / update_settings first (structural ops)
       for (const op of operations) {
         const tPage = op.target_page ?? currentPage;
         if (op.action === 'delete_page') {
           deletePage(tPage);
+        } else if (op.action === 'add_page') {
+          addPage();
+        } else if (op.action === 'update_settings') {
+          const s = op.settings || {};
+          if (s.marginLeft !== undefined) setMarginLeft(Number(s.marginLeft));
+          if (s.marginRight !== undefined) setMarginRight(Number(s.marginRight));
+          if (s.marginTop !== undefined) setMarginTop(Number(s.marginTop));
+          if (s.marginBottom !== undefined) setMarginBottom(Number(s.marginBottom));
+          if (s.pageBackground !== undefined) setPageBackground(s.pageBackground);
+          if (s.currentFont !== undefined) setCurrentFont(s.currentFont);
+          if (s.currentFontSize !== undefined) setCurrentFontSize(Number(s.currentFontSize));
         } else if (op.action === 'clear_page') {
           if (tPage === currentPage) {
             setCanvasElements([]);
@@ -1399,7 +1410,7 @@ const Editor = () => {
         setDrawPaths(prev => [...prev, ...pathOpsForCurrentPage.map(op => ({ ...op.path, id: `path_${Date.now()}_${Math.random().toString(36).slice(2,6)}` }))]);
       }
       // Handle operations targeting other pages
-      const skipActions = new Set(['add_path', 'delete_page', 'clear_page', 'generate_ai_image']);
+      const skipActions = new Set(['add_path', 'delete_page', 'clear_page', 'generate_ai_image', 'add_page', 'update_settings']);
       const otherPageOps = operations.filter(op => !skipActions.has(op.action) && op.target_page != null && op.target_page !== currentPage);
       if (otherPageOps.length > 0) {
         setDocument(prev => {

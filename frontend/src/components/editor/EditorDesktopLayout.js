@@ -98,7 +98,6 @@ const EditorDesktopLayout = () => {
         </div>
         <div className="flex items-center gap-1.5">
           <button data-testid="undo-btn" onClick={handleUndo} disabled={!history.canUndo} className={`tool-btn w-8 h-8 ${!history.canUndo ? 'opacity-30' : ''}`}><Undo className="h-4 w-4" /></button>
-          <span className="text-xs font-medium px-1" style={{ color: 'var(--zet-text-muted)' }}>{currentPage + 1}/{document.pages?.length || 1}</span>
           <button data-testid="redo-btn" onClick={handleRedo} disabled={!history.canRedo} className={`tool-btn w-8 h-8 ${!history.canRedo ? 'opacity-30' : ''}`}><Redo className="h-4 w-4" /></button>
           {selectedElements.length >= 2 && (
             <button data-testid="group-btn" onClick={groupElements} className="tool-btn w-8 h-8 ml-1" title="Grupla"><Group className="h-4 w-4" /></button>
@@ -109,6 +108,7 @@ const EditorDesktopLayout = () => {
         </div>
         <div className="flex items-center gap-1.5">
           <button data-testid="prev-page-btn" onClick={() => changePage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={`tool-btn w-8 h-8 ${currentPage === 0 ? 'opacity-30' : ''}`}><ArrowLeft className="h-4 w-4" /></button>
+          <span className="text-xs font-medium px-1" style={{ color: 'var(--zet-text-muted)', minWidth: 28, textAlign: 'center' }}>{currentPage + 1}/{document.pages?.length || 1}</span>
           <button data-testid="next-page-btn" onClick={() => changePage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} disabled={currentPage >= (document.pages?.length || 1) - 1} className={`tool-btn w-8 h-8 ${currentPage >= (document.pages?.length || 1) - 1 ? 'opacity-30' : ''}`}><ArrowRight className="h-4 w-4" /></button>
           
           {/* Fast Select in Header */}

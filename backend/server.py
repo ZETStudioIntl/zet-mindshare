@@ -5129,7 +5129,19 @@ Kullanılabilir shapeType değerleri:
 }}
 // ⚠️ placehold.co ASLA kullanma. URL verilmemişse generate_ai_image kullan (aşağıya bak).
 
-7. ÇİZİM (type: "draw_path") — basit düz çizgiler ve geometrik yollar
+7. QR KOD (type: "qr")
+{{
+  "id": "el_<timestamp>_<random4>",
+  "type": "qr",
+  "x": <number>,
+  "y": <number>,
+  "width": 150,
+  "height": 150,
+  "qrUrl": "<encode edilecek URL veya metin>",
+  "color": "#000000"
+}}
+
+8. ÇİZİM (type: "draw_path") — basit düz çizgiler ve geometrik yollar
 {{
   "action": "add_path",
   "path": {{
@@ -5149,10 +5161,21 @@ EKLE element:    {{"action": "add",          "element": {{...format...}},      "
 DEĞİŞTİR:        {{"action": "modify",       "element_id": "<id>",  "changes": {{...}}, "target_page": <indeks>}}
 SİL:             {{"action": "delete",       "element_id": "<id>",              "target_page": <indeks>}}
 ÇİZİM EKLE:     {{"action": "add_path",     "path": {{...}},                   "target_page": <indeks>}}
+SAYFA EKLE:      {{"action": "add_page"}}
 SAYFA SİL:       {{"action": "delete_page",                                     "target_page": <indeks>}}
 SAYFA TEMİZLE:   {{"action": "clear_page",                                      "target_page": <indeks>}}
 AI GÖRSEL:       {{"action": "generate_ai_image", "prompt": "<İngilizce görsel açıklaması, 10-20 kelime>", "x": <n>, "y": <n>, "width": <200-500>, "height": <150-400>, "target_page": <indeks>}}
 // ← Kullanıcı "görsel ekle", "resim ekle", "AI görsel", "fotoğraf ekle" dediğinde HEP bunu kullan
+AYAR DEĞİŞTİR:   {{"action": "update_settings", "settings": {{
+  "marginLeft": <piksel>,      // opsiyonel
+  "marginRight": <piksel>,     // opsiyonel
+  "marginTop": <piksel>,       // opsiyonel
+  "marginBottom": <piksel>,    // opsiyonel
+  "pageBackground": "<hex>",   // opsiyonel — sayfa arka plan rengi
+  "currentFont": "<font adı>", // opsiyonel — varsayılan yazı tipi
+  "currentFontSize": <punto>   // opsiyonel — varsayılan yazı boyutu
+}}}}
+// ← Kullanıcı marj, kenar boşluğu, arka plan rengi, font veya yazı tipi ayarı istediğinde kullan
 
 target_page belirtilmezse aktif sayfa ({req.page_index}) kullanılır.
 @N sayfa referansı: kullanıcı "@1", "@2" gibi yazarsa bu sayfa indeksi N-1 demektir (1-indexed).
