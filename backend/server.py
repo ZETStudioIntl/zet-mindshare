@@ -5822,14 +5822,18 @@ async def user_heartbeat(user: User = Depends(get_current_user)):
         except Exception:
             pass
 
-    await users_collection.update_one(
-        {"user_id": user.user_id},
-        {
-            "$inc": {"active_time_seconds": 30},
-            "$set": {"last_heartbeat": now_utc.isoformat()}
-        },
-        upsert=True
-    )
+    try:
+        await users_collection.update_one(
+            {"user_id": user.user_id},
+            {
+                "$inc": {"active_time_seconds": 30},
+                "$set": {"last_heartbeat": now_utc.isoformat()}
+            },
+            upsert=True
+        )
+    except Exception as e:
+        logging.error(f"heartbeat DB error: {e}")
+        return {"ok": False, "reason": "db_error"}
     return {"ok": True, "server_time_istanbul": now_istanbul.strftime("%H:%M:%S")}
 
 @api_router.post("/user/time-spent")
