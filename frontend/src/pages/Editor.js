@@ -2287,6 +2287,16 @@ body{background:#fff}
       const updatedPages = [...(document?.pages || [])];
       if (updatedPages[currentPage]) updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements };
       const allPages = updatedPages.length ? updatedPages : [{ elements: canvasElements }];
+
+      // px → twips (1 cm = 37.8 px, 1 cm = 567 twips)
+      const px2tw = (px) => Math.round((px || 0) / 37.8 * 567);
+      const pgW = px2tw(pageSize?.width || 794);
+      const pgH = px2tw(pageSize?.height || 1123);
+      const mtw = px2tw(marginTop || 75);
+      const mbw = px2tw(marginBottom || 75);
+      const mlw = px2tw(marginLeft || 75);
+      const mrw = px2tw(marginRight || 75);
+
       const children = [];
 
       allPages.forEach((page, pi) => {
@@ -2294,8 +2304,12 @@ body{background:#fff}
         const els = (page.elements || []).sort((a, b) => a.y - b.y || a.x - b.x);
         els.forEach(el => {
           if (el.type === 'text') {
-            const text = (el.content || '').replace(/<[^>]*>/g, '');
-            text.split('\n').forEach(line => {
+            // Use htmlContent (rich editor) when content is absent
+            const rawText = el.htmlContent
+              ? el.htmlContent.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '')
+              : (el.content || '');
+            if (!rawText.trim()) return;
+            rawText.split('\n').forEach(line => {
               children.push(new DocxParagraph({
                 alignment: el.textAlign === 'center' ? DocxAlignmentType.CENTER
                   : el.textAlign === 'right' ? DocxAlignmentType.RIGHT
@@ -2318,7 +2332,8 @@ body{background:#fff}
             try {
               const mimeMatch = el.src.match(/^data:([^;]+);base64,/);
               if (!mimeMatch) return;
-              const imgType = mimeMatch[1] === 'image/jpeg' ? 'jpg' : 'png';
+              const mime = mimeMatch[1];
+              const imgType = (mime.includes('jpeg') || mime.includes('jpg')) ? 'jpg' : 'png';
               const base64 = el.src.split(',')[1];
               const bin = atob(base64);
               const bytes = new Uint8Array(bin.length);
@@ -2338,7 +2353,17 @@ body{background:#fff}
         });
       });
 
-      const docxDoc = new DocxDocument({ sections: [{ children }] });
+      const docxDoc = new DocxDocument({
+        sections: [{
+          properties: {
+            page: {
+              size: { width: pgW, height: pgH },
+              margin: { top: mtw, bottom: mbw, left: mlw, right: mrw },
+            },
+          },
+          children,
+        }],
+      });
       const blob = await DocxPacker.toBlob(docxDoc);
       const url = URL.createObjectURL(blob);
       const a = window.document.createElement('a');
