@@ -11,6 +11,7 @@ import ShareDialog from './ShareDialog';
 import CommentsPanel from './CommentsPanel';
 import VersionHistoryPanel from './VersionHistoryPanel';
 import ZetaEditPanel from './ZetaEditPanel';
+import SpellCheckLayer, { SpellPopup } from './SpellCheckLayer';
 import { startCheckout } from '../../lib/lemonSqueezy';
 import { TOOLS } from '../../lib/editorConstants';
 import { MiniDocLoader } from '../LoadingScreens';
@@ -62,6 +63,7 @@ const EditorDesktopLayout = () => {
     showComments, showCreditModal, showImageUpload, showShareDialog, showUpgradeModal, showVoice,
     showVersionHistory, setShowVersionHistory,
     skipVoice, snapToGrid, spellCheckEnabled, stopVoice,
+    spellErrors, tanıList, spellPopup, setSpellPopup, addToTanı, applySpellCorrection, handleSpellWordClick,
     toolboxOpen, ungroupElements, uploadForShape, upgradeReason,
     useGradient, userPlan, userUsage, useMagnifierGradient,
     voiceLoading, voiceProgress, zoom, zoomLevel, zoomRadius,
@@ -256,6 +258,25 @@ const EditorDesktopLayout = () => {
             onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled}
             snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart}
             screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange} />
+          {spellCheckEnabled && (
+            <SpellCheckLayer
+              spellErrors={spellErrors}
+              canvasElements={canvasElements}
+              document={document}
+              currentPage={currentPage}
+              zoom={zoom}
+              tanıList={tanıList}
+              canvasContainerRef={canvasContainerRef}
+              onWordClick={handleSpellWordClick}
+            />
+          )}
+          <SpellPopup
+            popup={spellPopup}
+            tanıList={tanıList}
+            onApply={applySpellCorrection}
+            onTanı={addToTanı}
+            onClose={() => setSpellPopup(null)}
+          />
         </div>
 
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />

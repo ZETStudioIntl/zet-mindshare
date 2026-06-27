@@ -4999,6 +4999,40 @@ The user may ask questions about this document. Use this content to provide rele
 
     return {"response": clean_response, "session_id": session_id, "actions": actions, "sources": sources}
 
+
+class SpellCheckRequest(BaseModel):
+    text: str
+
+@api_router.post("/spell-check")
+async def spell_check_text(req: SpellCheckRequest, user: User = Depends(get_current_user)):
+    if not req.text or not req.text.strip():
+        return {"errors": []}
+    try:
+        async with httpx.AsyncClient(timeout=8) as client:
+            resp = await client.post(
+                "https://api.languagetool.org/v2/check",
+                data={"text": req.text, "language": "auto"},
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            data = resp.json()
+        errors = []
+        for match in data.get("matches", []):
+            issue_type = match.get("rule", {}).get("issueType", "")
+            if issue_type not in ("misspelling", "typographical"):
+                continue
+            word = req.text[match["offset"]: match["offset"] + match["length"]]
+            errors.append({
+                "offset": match["offset"],
+                "length": match["length"],
+                "word": word,
+                "suggestions": [r["value"] for r in match.get("replacements", [])[:3]],
+            })
+        return {"errors": errors}
+    except Exception as e:
+        logging.error(f"Spell check error: {e}")
+        return {"errors": []}
+
+
 @api_router.post("/zeta/document-edit")
 async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_current_user)):
     """Zeta belge düzenleme: kullanıcı isteğine göre canvas elementleri oluşturur/değiştirir."""

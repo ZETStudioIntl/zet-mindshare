@@ -605,6 +605,11 @@ const Editor = () => {
 
   // Spell check
   const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+  const [spellErrors, setSpellErrors] = useState({});
+  const [tanıList, setTanıList] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('zet_tani') || '{}'); } catch { return {}; }
+  });
+  const [spellPopup, setSpellPopup] = useState(null);
 
   // Copy/Paste state
 
@@ -628,6 +633,53 @@ const Editor = () => {
   const handleSaveHistory = useCallback((elements) => { history.push(elements); }, [history]);
   const handleUndo = () => { const prev = history.undo(); if (prev) setCanvasElements(prev); };
   const handleRedo = () => { const next = history.redo(); if (next) setCanvasElements(next); };
+
+  // Spell check handlers
+  const spellCheckTimerRef = useRef(null);
+
+  const checkSpelling = useCallback(async (elementId, text) => {
+    if (!text?.trim()) return;
+    try {
+      const res = await axios.post(`${API}/spell-check`, { text }, { withCredentials: true });
+      if (res.data.errors?.length > 0) {
+        setSpellErrors(prev => ({ ...prev, [elementId]: res.data.errors }));
+      } else {
+        setSpellErrors(prev => { const n = { ...prev }; delete n[elementId]; return n; });
+      }
+    } catch {}
+  }, []);
+
+  const addToTanı = useCallback((misspelling) => {
+    setTanıList(prev => {
+      const next = { ...prev, [misspelling]: true };
+      localStorage.setItem('zet_tani', JSON.stringify(next));
+      return next;
+    });
+    setSpellErrors(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(id => {
+        next[id] = (next[id] || []).filter(e => e.word !== misspelling);
+      });
+      return next;
+    });
+    setSpellPopup(null);
+  }, []);
+
+  const applySpellCorrection = useCallback((elementId, error, correction) => {
+    setCanvasElements(prev => prev.map(el => {
+      if (el.id !== elementId) return el;
+      const plain = el.content || el.htmlContent?.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') || '';
+      const newContent = plain.slice(0, error.offset) + correction + plain.slice(error.offset + error.length);
+      return { ...el, content: newContent, htmlContent: null };
+    }));
+    setSpellErrors(prev => ({ ...prev, [elementId]: (prev[elementId] || []).filter(e => e.offset !== error.offset) }));
+    setSpellPopup(null);
+  }, [setCanvasElements]);
+
+  const handleSpellWordClick = useCallback((event, elementId, error) => {
+    setSpellPopup({ x: event.clientX, y: event.clientY, elementId, error });
+  }, []);
+
   // === CUSTOM HOOKS ===
   const { signatureData, setSignatureData, signatureCanvasRef, isDrawingSignature, setIsDrawingSignature, signaturePoints, setSignaturePoints, showSignature, setShowSignature, clearSignature, handleSignatureMouseDown, handleSignatureMouseMove, handleSignatureMouseUp, addSignatureToCanvas, handleSignaturePhotoUpload, sigPhotoRaw, sigPhotoThreshold, handleSigPhotoThresholdChange } = useSignature({ canvasElements, setCanvasElements, handleSaveHistory, currentColor });
   const { moveLayerUp, moveLayerDown, toggleLayerVisibility, toggleLayerLock, copyElement, pasteElement, alignElements, mirrorElement, rotateElement, copyElementById, mirrorElementById } = useLayerOps({ canvasElements, setCanvasElements, history, handleSaveHistory, selectedElement, selectedElements, setSelectedElement, setSelectedElements, setShowMirror });
@@ -660,6 +712,20 @@ const Editor = () => {
       }
     });
   }, [collab.connected, collab.onCollabMessage]);
+  // Debounced spell check — fires 1.5s after canvas text changes
+  useEffect(() => {
+    if (!spellCheckEnabled) { setSpellErrors({}); return; }
+    const textEls = canvasElements.filter(el => el.type === 'text');
+    if (spellCheckTimerRef.current) clearTimeout(spellCheckTimerRef.current);
+    spellCheckTimerRef.current = setTimeout(() => {
+      textEls.forEach(el => {
+        const text = el.content || el.htmlContent?.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') || '';
+        if (text.trim()) checkSpelling(el.id, text);
+      });
+    }, 1500);
+    return () => { if (spellCheckTimerRef.current) clearTimeout(spellCheckTimerRef.current); };
+  }, [canvasElements, spellCheckEnabled, checkSpelling]);
+
   const autoSaveTimerRef = useRef(null);
   const autoSave30Ref = useRef(null);
   const saveDocumentRef = useRef(null);
@@ -3877,6 +3943,7 @@ body{background:#fff}
     showShortcuts, showSignature, showStyles, showTOC, showTable, showTemplates,
     showTextSize, showTranslate, showVoiceInput, showWatermark, showWordType, showZoom,
     signatureCanvasRef, signatureData, snapToGrid, spellCheckEnabled,
+    spellErrors, tanıList, spellPopup, setSpellPopup, addToTanı, applySpellCorrection, handleSpellWordClick,
     startElevenLabsSTT, startListening, stopElevenLabsSTT, stopListening,
     tableCols, tableRows, toggleLayerLock, toggleLayerVisibility, togglePageNumbers,
     translateElementId, translateLang, translateLoading, translateResult, translateText,
