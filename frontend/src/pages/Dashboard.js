@@ -3079,6 +3079,27 @@ MATCHES:[1,3,5]`;
                   return [
                     { icon: <Pin className="h-4 w-4" style={{ color: doc?.pinned ? '#f59e0b' : 'inherit' }} />, label: doc?.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { if (doc) pinDocument(doc); } },
                     { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) analyzeDocWithZeta(doc); } },
+                    ...(userSubscription === 'creative_station' || isCEO ? [{
+                      icon: <Scale className="h-4 w-4" style={{ color: '#c8005a' }} />,
+                      label: "Judge'a Gönder",
+                      color: '#c8005a',
+                      action: async () => {
+                        if (!doc) return;
+                        setOpenMenuDocId(null);
+                        try {
+                          const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
+                          const pages = res.data.pages || [];
+                          const text = pages.map(p => {
+                            const quillText = (p.content?.ops || []).map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
+                            if (quillText.trim()) return quillText;
+                            if (p.pageText) return p.pageText;
+                            return (p.elements || []).filter(el => el.type === 'text').map(el => el.content || '').join('\n');
+                          }).join('\n').trim();
+                          localStorage.setItem('judge_pending_doc', JSON.stringify({ title: doc.title, text: text.slice(0, 8000) }));
+                          navigate('/judge');
+                        } catch { showToast('Belge yüklenemedi', 'error'); }
+                      }
+                    }] : []),
                     { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? 'Prime Drive\'da' : 'Prime Drive\'a At', color: inDrive ? '#6366f1' : undefined, action: () => {
                       if (!inDrive && doc) {
                         const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);

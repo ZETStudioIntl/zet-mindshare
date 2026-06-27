@@ -174,6 +174,39 @@ const JudgeDashboard = () => {
   useEffect(() => { fetchSessions(); fetchSubscription(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, chatLoading]);
 
+  const autoDocRef = useRef(null);
+  useEffect(() => {
+    const raw = localStorage.getItem('judge_pending_doc');
+    if (!raw) return;
+    try {
+      autoDocRef.current = JSON.parse(raw);
+      localStorage.removeItem('judge_pending_doc');
+      openNewAnalysis();
+    } catch { localStorage.removeItem('judge_pending_doc'); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!showChat || !autoDocRef.current) return;
+    const { title, text } = autoDocRef.current;
+    autoDocRef.current = null;
+    const msg = `"${title}" başlıklı belgeyi kapsamlı şekilde analiz et. Güçlü ve zayıf yönleri, fırsatları ve riskleri belirt. BAŞARI PUANI ve RİSK PUANI ver.`;
+    (async () => {
+      setChatMessages(prev => [...prev, { role: 'user', content: msg }]);
+      setChatLoading(true);
+      try {
+        const res = await axios.post(`${API}/judge/chat`, {
+          message: msg, session_id: null, mode, document_content: text,
+        }, { withCredentials: true });
+        setSessionId(res.data.session_id);
+        setChatMessages(prev => [...prev, { role: 'assistant', content: res.data.response, sources: res.data.sources || [] }]);
+        if (res.data.risk_score != null) setJudgeScores({ risk: res.data.risk_score, success: res.data.success_score });
+        fetchSessions();
+      } catch {
+        setChatMessages(prev => [...prev, { role: 'assistant', content: 'Analiz başlatılamadı.' }]);
+      } finally { setChatLoading(false); }
+    })();
+  }, [showChat]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (showSettings && settingsTab === 'credits' && creditPackages.length === 0) {
       fetchCreditPackages();
