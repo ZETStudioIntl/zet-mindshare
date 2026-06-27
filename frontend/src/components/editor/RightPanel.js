@@ -82,6 +82,7 @@ export const RightPanel = ({
 
   // ZETA sub-mode: 'chat' | 'patch' | 'puzzle' | 'colors' | 'edit'
   const [zetaMode, setZetaMode] = useState('chat');
+  const [sharedMemory, setSharedMemory] = useState(() => localStorage.getItem('zet_shared_memory') === 'true');
   const [prevModel, setPrevModel] = useState(null);
   const [showModePanel, setShowModePanel] = useState(false);
 
@@ -550,6 +551,7 @@ export const RightPanel = ({
         model: zetaMode === 'puzzle' ? 'aziz' : zetaModel,
         mode: zetaMode,
         canvas_context: buildCanvasContext(),
+        shared_memory: sharedMemory,
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       const fullResp = res.data.response;
@@ -661,6 +663,16 @@ export const RightPanel = ({
                   <active.Icon className="h-3 w-3" />
                   {active.label}
                   <ChevronDown className="h-2.5 w-2.5 ml-0.5" style={{ color: 'var(--zet-text-muted)' }} />
+                </button>
+                <button
+                  onClick={() => { const v = !sharedMemory; setSharedMemory(v); localStorage.setItem('zet_shared_memory', v); }}
+                  title={sharedMemory ? 'Ortak Hafıza Açık — tüm belgelerden hatırlıyor' : 'Ortak Hafıza Kapalı — sadece bu belge'}
+                  className="p-1 hover:bg-white/10 rounded transition-colors"
+                  style={{ opacity: sharedMemory ? 1 : 0.45 }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={sharedMemory ? '#4ca8ad' : 'var(--zet-text-muted)'} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
+                  </svg>
                 </button>
                 {onShowChatSettings && (
                   <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-1 hover:bg-white/10 rounded" title="Chat Ayarları">

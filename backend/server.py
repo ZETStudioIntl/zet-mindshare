@@ -402,6 +402,7 @@ class ZetaChatRequest(BaseModel):
     is_ceo: Optional[bool] = False
     model: Optional[str] = "prime"  # spark | prime | aziz
     canvas_context: Optional[str] = None  # live editor state snapshot from frontend
+    shared_memory: Optional[bool] = False  # ortak hafıza: diğer oturumlardan bağlam
 
 class ParseSourceRequest(BaseModel):
     filename: str
@@ -3815,14 +3816,15 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     user_data = await db.users.find_one({"user_id": user.user_id})
     plan = get_plan_name(user_data)
     limits = PLAN_LIMITS.get(plan, PLAN_LIMITS['free'])
+    is_ceo = user.email == CEO_EMAIL or req.is_ceo
 
     # Aziz modeli sadece Plus+ (CEO her zaman geçer)
     judge_model_name = req.model or "prime"
-    if not req.is_ceo and judge_model_name == "aziz" and not limits.get('judge_aziz', False):
+    if not is_ceo and judge_model_name == "aziz" and not limits.get('judge_aziz', False):
         return {"response": "Judge Aziz modeli Plus ve üzeri planlarda kullanılabilir.", "session_id": None, "locked": True}
 
     # Check daily token limit (CEO bypasses)
-    if not req.is_ceo:
+    if not is_ceo:
         token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
         if not token_allowed:
             return {"response": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "session_id": None, "token_limit_exceeded": True}
@@ -3835,7 +3837,7 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
 
     # CEO mode block for Judge
     judge_ceo_section = ""
-    if req.is_ceo:
+    if is_ceo:
         judge_ceo_section = """╔══════════════════════════════════════════════════╗
 ║         👑 CEO MODU — ZORUNLU PROTOKOL           ║
 ╚══════════════════════════════════════════════════╝
@@ -3991,7 +3993,7 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
     ).sort("created_at", 1).to_list(50)
     contents = []
     # CEO mode: inject training exchange at start so model stays in character
-    if req.is_ceo:
+    if is_ceo:
         contents.append(genai_types.Content(role="user", parts=[genai_types.Part(text="[SİSTEM] CEO modu aktif edildi. Muhammed Bahaddin Yılmaz'a hitap moduna geç.")]))
         contents.append(genai_types.Content(role="model", parts=[genai_types.Part(text="Efendim, CEO PROTOKOLÜ AKTİF. Tüm analizlerimi sizin için hazırlıyorum. Direktifinizi bekliyorum, CEO Yılmaz. Başka bir emriniz var mı, efendim?")]))
     for h in history_docs:
@@ -4889,6 +4891,27 @@ Etiketler dışında kısa bir açıklama yapabilirsin.
 🧠 BELLEĞİNDE KAYITLI BİLGİLER (kullanıcı senden bunları hatırlamanı istedi):
 {memory_lines}
 Bu bilgileri konuşmaya uygun yerlerde kullan ve başvur.
+"""
+
+    # Ortak Hafıza: diğer belgelerden ve oturumlardan geçmiş konuşmalar
+    if req.shared_memory:
+        other_chats = await db.zeta_chats.find(
+            {"user_id": user.user_id, "session_id": {"$ne": session_id}},
+            {"_id": 0, "user_message": 1, "ai_response": 1, "doc_id": 1, "created_at": 1}
+        ).sort("created_at", -1).to_list(20)
+
+        if other_chats:
+            recent = list(reversed(other_chats[:12]))
+            shared_lines = []
+            for c in recent:
+                q = c["user_message"][:200].replace('\n', ' ')
+                a = c["ai_response"][:300].replace('\n', ' ')
+                shared_lines.append(f"K: {q}\nZ: {a}")
+            system_message += f"""
+
+🌐 ORTAK HAFIZA (kullanıcının diğer belgelerindeki geçmiş konuşmalar):
+{chr(10).join(shared_lines)}
+Bu bilgiler kullanıcının farklı belgelerinde seninle yaptığı konuşmalardan geliyor. İlgili bağlamı yanıtlarına entegre et — eski belgelerden hatırladığın bilgileri gerektiğinde kullan.
 """
 
     # Inject live canvas/editor context from frontend
