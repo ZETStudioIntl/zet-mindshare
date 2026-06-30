@@ -3,6 +3,29 @@ import { SHAPE_LIST } from './Toolbox';
 import { SCRIPT_ELEMENT_TYPES, SCRIPT_TAB_CYCLE, SCRIPT_ENTER_NEXT, SCREENPLAY_PX_PER_CM } from '../../lib/editorConstants';
 import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff, Edit2 } from 'lucide-react';
 
+// Senaryo sahne başlığı normalizer: "int ev gece" → "INT. EV - GECE"
+// Turkish-aware: 'i' → 'İ' before toUpperCase()
+function normalizeSceneHeading(text) {
+  const upper = text.trim().replace(/i/g, 'İ').toUpperCase();
+  const KW = /^([İI][ÇC]\.?\/D[Iİ][ŞS]\.?|[İI][ÇC]|D[Iİ][ŞS]|INT\.?\/EXT\.?|I\.?\/E\.?|INT|EXT|INTERIOR|EXTERIOR|INNEN|AUSSEN|INT[ÉE]RIEUR|EXT[ÉE]RIEUR|MEKAN|SAHNE|LOKASYON)(\s|$)/;
+  const m = upper.match(KW);
+  if (!m) return upper;
+  const kw = m[1];
+  const kwDot = kw.endsWith('.') ? kw : kw + '.';
+  const rest = upper.slice(kw.length).trimStart();
+  if (!rest) return kwDot;
+  const TIME = /\s(DAY|NIGHT|MORNING|EVENING|DUSK|DAWN|NOON|CONTINUOUS|LATER|GÜNDÜZ|GECE|SABAH|AKŞAM|ÖĞLE|ÖĞLEN|TAG|NACHT|MORGEN|ABEND|NUIT|JOUR|MATIN|SOIR|DÍA|NOCHE|GIORNO|NOTTE)$/;
+  const tm = rest.match(TIME);
+  if (tm && !rest.includes(' - ')) {
+    const loc = rest.slice(0, rest.length - tm[0].length).trim();
+    return `${kwDot} ${loc} - ${tm[1]}`;
+  }
+  return `${kwDot} ${rest}`;
+}
+
+// Sahne başlığı olabilecek anahtar kelimeler (çok dilli)
+const SCENE_KW_RE = /^([iıİI][çÇc]\.?\s*\/\s*d[iıİI][şŞs]\.?|[iıİI][çÇc]|d[iıİI][şŞs]|int\.?\/ext\.?|i\.?\/e\.?|int|ext|interior|exterior|innen|aussen|int[eé]rieur|ext[eé]rieur|mekan|sahne|lokasyon)\b/i;
+
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
     const lines = Math.max(1, (el.content || '').split('\n').length);
@@ -305,17 +328,19 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   const prevEditingRef = useRef(false);
   const pendingContentRef = useRef(null);
   const screenplayAutoDetectTimerRef = useRef(null);
+  const screenplayLastNormalizedRef = useRef(null);
+  const screenplayFormatBlockedRef = useRef(false);
   const [removeTarget, setRemoveTarget] = useState(null); // 'redact' | 'highlight' | null
 
   useEffect(() => () => { if (screenplayAutoDetectTimerRef.current) clearTimeout(screenplayAutoDetectTimerRef.current); }, []);
 
-  // Celtx tarzı: "action" elementinde "INT."/"EXT."/"I/E" ile başlayan satır otomatik Sahne Başlığı'na döner.
+  // Celtx tarzı: "action" elementinde sahne anahtar kelimesi algılanınca otomatik Sahne Başlığı'na döner (çok dilli).
   const handleScreenplayAutoDetect = useCallback(() => {
     if (!screenplayMode || el.scriptElement !== 'action' || !onScriptElementChange) return;
     if (screenplayAutoDetectTimerRef.current) clearTimeout(screenplayAutoDetectTimerRef.current);
     screenplayAutoDetectTimerRef.current = setTimeout(() => {
       const text = (ref.current?.textContent || '').trimStart();
-      if (/^(int|ext|i\/e)\b/i.test(text)) onScriptElementChange(el.id, 'sceneheading');
+      if (SCENE_KW_RE.test(text)) onScriptElementChange(el.id, 'sceneheading');
     }, 300);
   }, [screenplayMode, el.id, el.scriptElement, onScriptElementChange]);
 
@@ -490,6 +515,25 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
             setTimeout(() => { if (ref.current) ref.current.focus({ preventScroll: true }); }, 0);
             return;
           }
+          // Senaryo Modu: sahne başlığı normalizasyonu ('. ' ve ' - ' ekle/düzelt)
+          if (screenplayMode && el.scriptElement === 'sceneheading' && !screenplayFormatBlockedRef.current && ref.current && isEditing) {
+            const rawText = ref.current.innerText || '';
+            // Kullanıcı önceki otomatik formatı sildiyse bir daha ekleme
+            if (screenplayLastNormalizedRef.current !== null && rawText !== screenplayLastNormalizedRef.current) {
+              const hadDot = screenplayLastNormalizedRef.current.includes('.');
+              const hadDash = screenplayLastNormalizedRef.current.includes(' - ');
+              if ((hadDot && !rawText.includes('.')) || (hadDash && !rawText.includes(' - '))) {
+                screenplayFormatBlockedRef.current = true;
+              }
+            }
+            if (!screenplayFormatBlockedRef.current) {
+              const normalized = normalizeSceneHeading(rawText);
+              const normalizedHtml = normalized.replace(/\n/g, '<br>');
+              ref.current.innerHTML = normalizedHtml;
+              pendingContentRef.current = normalizedHtml;
+              screenplayLastNormalizedRef.current = normalized;
+            }
+          }
           // React may have already applied dangerouslySetInnerHTML (overwriting typed content) before this
           // blur fires (happens when another element's editingId was set, triggering a React commit that
           // changes contentEditable false→false triggers blur). Use pendingContentRef captured during
@@ -503,6 +547,18 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
         onKeyDown={isEditing ? (e) => {
           e.stopPropagation();
           if (e.key === 'Escape') { ref.current?.blur(); return; }
+          // Senaryo: kısa ALL-CAPS "action" satırı + Enter → karakter ismi olarak işaretle
+          if (screenplayMode && el.scriptElement === 'action' && e.key === 'Enter' && !e.shiftKey) {
+            const rawText = (ref.current?.textContent || '').trim();
+            const isAllCaps = rawText.length > 0 && rawText.split('').every(c => c === c.toUpperCase() || /[\s.'"\-()]/.test(c));
+            if (rawText.length > 0 && rawText.length < 40 && isAllCaps && !/[.,:;?!]$/.test(rawText) && !SCENE_KW_RE.test(rawText)) {
+              e.preventDefault();
+              if (onScriptElementChange) onScriptElementChange(el.id, 'character');
+              ref.current?.blur();
+              setTimeout(() => { if (onScreenplayEnter) onScreenplayEnter(el.id); }, 30);
+              return;
+            }
+          }
           if (screenplayMode && el.scriptElement) {
             if (e.key === 'Tab') {
               e.preventDefault();
@@ -1011,7 +1067,7 @@ export const CanvasArea = ({
         const scrDefaults = screenplayMode ? (() => {
           const cfg = SCRIPT_ELEMENT_TYPES.action;
           const indentPx = cfg.indentCm * SCREENPLAY_PX_PER_CM;
-          return { scriptElement: 'action', fontFamily: 'Courier Prime', fontSize: 16, lineHeight: 1, textAlign: cfg.align, x: ml + indentPx, width: pageSize.width - ml - margins.right - indentPx };
+          return { scriptElement: 'action', fontFamily: 'Courier New', fontSize: 16, lineHeight: 1, textAlign: cfg.align, x: ml + indentPx, width: pageSize.width - ml - margins.right - indentPx };
         })() : {};
         const ne = {
           id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
@@ -1094,7 +1150,7 @@ export const CanvasArea = ({
       type: 'text', scriptElement: nextType,
       x: newX, y: Math.min(newY, pageBottom), width: newWidth,
       content: '', htmlContent: '',
-      fontFamily: 'Courier Prime', fontSize: srcEl.fontSize || 16, lineHeight: 1,
+      fontFamily: 'Courier New', fontSize: srcEl.fontSize || 16, lineHeight: 1,
       textAlign: cfg.align, color: srcEl.color || '#000000',
       bold: false, italic: false, underline: false, strikethrough: false,
     };
@@ -1201,7 +1257,7 @@ export const CanvasArea = ({
       const scrDefaults2 = screenplayMode ? (() => {
         const cfg = SCRIPT_ELEMENT_TYPES.action;
         const indentPx = cfg.indentCm * SCREENPLAY_PX_PER_CM;
-        return { scriptElement: 'action', fontFamily: 'Courier Prime', fontSize: 16, lineHeight: 1, textAlign: cfg.align, x: margins.left + indentPx, width: pageSize.width - margins.left - margins.right - indentPx };
+        return { scriptElement: 'action', fontFamily: 'Courier New', fontSize: 16, lineHeight: 1, textAlign: cfg.align, x: margins.left + indentPx, width: pageSize.width - margins.left - margins.right - indentPx };
       })() : {};
       const ne = {
         id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`, type: 'text',
