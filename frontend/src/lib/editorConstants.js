@@ -411,29 +411,44 @@ export const CHART_TYPES = [
 ];
 
 export const TEMPLATES = [
-  { id: 'blank', name: 'Boş Belge', nameKey: 'templateBlank', icon: '📄', category: 'Temel' },
-  { id: 'cv', name: 'CV / Özgeçmiş', nameKey: 'templateCV', icon: '👤', category: 'Kariyer' },
-  { id: 'report', name: 'Rapor', nameKey: 'templateReport', icon: '📊', category: 'İş' },
-  { id: 'presentation', name: 'Sunum', nameKey: 'templatePresentation', icon: '📽️', category: 'İş' },
-  { id: 'letter', name: 'Mektup', nameKey: 'templateLetter', icon: '✉️', category: 'Kişisel' },
-  { id: 'invoice', name: 'Fatura', nameKey: 'templateInvoice', icon: '🧾', category: 'İş' },
-  { id: 'meeting', name: 'Toplantı Notları', nameKey: 'templateMeeting', icon: '📝', category: 'İş' },
-  { id: 'proposal', name: 'Teklif / Proposal', nameKey: 'templateProposal', icon: '💼', category: 'İş' },
-  { id: 'contract', name: 'Sözleşme', nameKey: 'templateContract', icon: '📜', category: 'Hukuki' },
-  { id: 'newsletter', name: 'Bülten', nameKey: 'templateNewsletter', icon: '📰', category: 'Pazarlama' },
-  { id: 'recipe', name: 'Tarif Kartı', nameKey: 'templateRecipe', icon: '🍳', category: 'Kişisel' },
-  { id: 'projectplan', name: 'Proje Planı', nameKey: 'templateProject', icon: '🎯', category: 'İş' },
-  { id: 'certificate', name: 'Sertifika', nameKey: 'templateCertificate', icon: '🏆', category: 'Eğitim' },
-  { id: 'checklist', name: 'Kontrol Listesi', nameKey: 'templateChecklist', icon: '✅', category: 'Kişisel' },
-  { id: 'brainstorm', name: 'Beyin Fırtınası', nameKey: 'templateBrainstorm', icon: '💡', category: 'Yaratıcı' },
-  { id: 'socialmedia', name: 'Sosyal Medya', nameKey: 'templateSocial', icon: '📱', category: 'Pazarlama' },
-  // Yeni Eklenen Şablonlar
-  { id: 'weeklyplan', name: 'Haftalık Plan', nameKey: 'templateWeekly', icon: '📅', category: 'Kişisel' },
-  { id: 'swot', name: 'SWOT Analizi', nameKey: 'templateSwot', icon: '🔍', category: 'İş' },
-  { id: 'blogpost', name: 'Blog Yazısı', nameKey: 'templateBlog', icon: '✍️', category: 'Yaratıcı' },
-  { id: 'eventflyer', name: 'Etkinlik Afişi', nameKey: 'templateEvent', icon: '🎉', category: 'Pazarlama' },
-  { id: 'academic', name: 'Akademik Makale', nameKey: 'templateAcademic', icon: '🎓', category: 'Eğitim' },
-  { id: 'creative-brief', name: 'Kreatif Brief', nameKey: 'templateCreativeBrief', icon: '🎨', category: 'Yaratıcı' },
+  // Temel
+  { id: 'blank',        name: 'Boş Belge',              nameKey: 'templateBlank',        icon: '◻', category: 'Temel' },
+  { id: 'memo',         name: 'Dahili Memo',             nameKey: 'templateMemo',         icon: '◈', category: 'Temel' },
+  // İş
+  { id: 'report',       name: 'Yönetici Raporu',         nameKey: 'templateReport',       icon: '▦', category: 'İş' },
+  { id: 'proposal',     name: 'Proje Teklifi',           nameKey: 'templateProposal',     icon: '◧', category: 'İş' },
+  { id: 'invoice',      name: 'Fatura',                  nameKey: 'templateInvoice',      icon: '▤', category: 'İş' },
+  { id: 'meeting',      name: 'Toplantı Tutanağı',       nameKey: 'templateMeeting',      icon: '◉', category: 'İş' },
+  { id: 'projectplan',  name: 'Proje Planı',             nameKey: 'templateProject',      icon: '◫', category: 'İş' },
+  { id: 'okr',          name: 'OKR Hedefleri',           nameKey: 'templateOkr',          icon: '◎', category: 'İş' },
+  { id: 'swot',         name: 'SWOT Analizi',            nameKey: 'templateSwot',         icon: '▩', category: 'İş' },
+  { id: 'businessplan', name: 'İş Planı Özeti',          nameKey: 'templateBusiness',     icon: '◐', category: 'İş' },
+  // Kariyer
+  { id: 'cv',           name: 'CV / Özgeçmiş',           nameKey: 'templateCV',           icon: '◑', category: 'Kariyer' },
+  { id: 'cover-letter', name: 'Motivasyon Mektubu',      nameKey: 'templateCoverLetter',  icon: '◒', category: 'Kariyer' },
+  // Hukuki
+  { id: 'contract',     name: 'Sözleşme',                nameKey: 'templateContract',     icon: '▣', category: 'Hukuki' },
+  { id: 'nda',          name: 'Gizlilik Sözleşmesi',     nameKey: 'templateNda',          icon: '▨', category: 'Hukuki' },
+  // Eğitim
+  { id: 'academic',     name: 'Akademik Makale',         nameKey: 'templateAcademic',     icon: '▥', category: 'Eğitim' },
+  { id: 'certificate',  name: 'Sertifika / Ödül',        nameKey: 'templateCertificate',  icon: '◆', category: 'Eğitim' },
+  { id: 'lessonplan',   name: 'Ders Planı',              nameKey: 'templateLesson',       icon: '◇', category: 'Eğitim' },
+  // Kişisel
+  { id: 'letter',       name: 'Resmi Mektup',            nameKey: 'templateLetter',       icon: '▷', category: 'Kişisel' },
+  { id: 'weeklyplan',   name: 'Haftalık Plan',           nameKey: 'templateWeekly',       icon: '▦', category: 'Kişisel' },
+  { id: 'checklist',    name: 'Kontrol Listesi',         nameKey: 'templateChecklist',    icon: '◻', category: 'Kişisel' },
+  { id: 'travelplan',   name: 'Seyahat Planı',           nameKey: 'templateTravel',       icon: '◈', category: 'Kişisel' },
+  // Pazarlama
+  { id: 'newsletter',   name: 'E-Bülten',                nameKey: 'templateNewsletter',   icon: '▤', category: 'Pazarlama' },
+  { id: 'socialmedia',  name: 'Sosyal Medya Planı',      nameKey: 'templateSocial',       icon: '◉', category: 'Pazarlama' },
+  { id: 'pressrelease', name: 'Basın Bülteni',           nameKey: 'templatePress',        icon: '▧', category: 'Pazarlama' },
+  { id: 'creative-brief', name: 'Kreatif Brief',         nameKey: 'templateCreativeBrief',icon: '◫', category: 'Pazarlama' },
+  // Yaratıcı
+  { id: 'presentation', name: 'Sunum Kapağı',            nameKey: 'templatePresentation', icon: '◎', category: 'Yaratıcı' },
+  { id: 'pitch',        name: 'Yatırımcı Sunumu',        nameKey: 'templatePitch',        icon: '◐', category: 'Yaratıcı' },
+  { id: 'brainstorm',   name: 'Beyin Fırtınası',         nameKey: 'templateBrainstorm',   icon: '◑', category: 'Yaratıcı' },
+  { id: 'blogpost',     name: 'Blog Yazısı',             nameKey: 'templateBlog',         icon: '◒', category: 'Yaratıcı' },
+  { id: 'storyboard',   name: 'Storyboard',              nameKey: 'templateStoryboard',   icon: '▣', category: 'Yaratıcı' },
 ];
 
 export const DEFAULT_PAGE_SIZE = PAGE_SIZES[0];

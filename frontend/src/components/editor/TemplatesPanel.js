@@ -4,6 +4,7 @@ import { TEMPLATES } from '../../lib/editorConstants';
 
 const CATEGORIES = ['Temel', 'İş', 'Kariyer', 'Hukuki', 'Eğitim', 'Kişisel', 'Pazarlama', 'Yaratıcı'];
 
+
 const TemplatesPanel = ({ applyTemplate, isMobile, onClose }) => (
   <DraggablePanel title="Templates" onClose={onClose} initialPosition={{ x: isMobile ? 20 : 280, y: 80 }}>
     <div className="w-72 space-y-1 max-h-[60vh] overflow-y-auto">
