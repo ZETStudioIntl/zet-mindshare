@@ -304,7 +304,20 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const pendingContentRef = useRef(null);
+  const screenplayAutoDetectTimerRef = useRef(null);
   const [removeTarget, setRemoveTarget] = useState(null); // 'redact' | 'highlight' | null
+
+  useEffect(() => () => { if (screenplayAutoDetectTimerRef.current) clearTimeout(screenplayAutoDetectTimerRef.current); }, []);
+
+  // Celtx tarzı: "action" elementinde "INT."/"EXT."/"I/E" ile başlayan satır otomatik Sahne Başlığı'na döner.
+  const handleScreenplayAutoDetect = useCallback(() => {
+    if (!screenplayMode || el.scriptElement !== 'action' || !onScriptElementChange) return;
+    if (screenplayAutoDetectTimerRef.current) clearTimeout(screenplayAutoDetectTimerRef.current);
+    screenplayAutoDetectTimerRef.current = setTimeout(() => {
+      const text = (ref.current?.textContent || '').trimStart();
+      if (/^(int|ext|i\/e)\b/i.test(text)) onScriptElementChange(el.id, 'sceneheading');
+    }, 300);
+  }, [screenplayMode, el.id, el.scriptElement, onScriptElementChange]);
 
   // Capture typed content DURING render, before React applies dangerouslySetInnerHTML and overwrites the DOM.
   // useEffect fires after the DOM mutation, so ref.current.innerHTML would already be stale there.
@@ -486,7 +499,7 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
             onCommit(el.id, content, true);
           }
         }}
-        onInput={checkOverflow}
+        onInput={(e) => { checkOverflow(e); handleScreenplayAutoDetect(); }}
         onKeyDown={isEditing ? (e) => {
           e.stopPropagation();
           if (e.key === 'Escape') { ref.current?.blur(); return; }
