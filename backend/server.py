@@ -6891,6 +6891,17 @@ async def quests_status(user: User = Depends(get_current_user)):
     return {"quests": result}
 
 
+@api_router.post("/admin/quests/reset-all")
+async def admin_reset_all_quests(user: User = Depends(get_current_user)):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="Yetkisiz")
+    result = await db.users.update_many(
+        {},
+        {"$set": {"completed_quests": [], "pending_quests": []}}
+    )
+    return {"reset_count": result.modified_count}
+
+
 app.include_router(api_router)
 
 # ZET Media router
