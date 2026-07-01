@@ -1278,7 +1278,7 @@ async def set_season_time(date_range: str, pin: str = Query("")):
             end_dt   = datetime.strptime(parts[0].strip(), "%d.%m.%Y")
     except ValueError:
         raise HTTPException(status_code=400, detail="Tarih formatı yanlış. Örnek: 12.09.2026-09.03.2027")
-    if end_dt <= start_dt:
+    if end_dt < start_dt:
         raise HTTPException(status_code=400, detail="Bitiş tarihi başlangıçtan önce olamaz")
     await db.seasons.update_one(
         {"status": "active"},
