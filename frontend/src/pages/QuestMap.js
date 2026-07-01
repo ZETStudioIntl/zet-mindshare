@@ -14,7 +14,6 @@ const SHAPE_COLORS = {
 };
 const DONE_C = { fill: '#052e16', stroke: '#4ade80', glow: 'rgba(74,222,128,0.6)' };
 const PENDING_C = { fill: '#2d1f00', stroke: '#fbbf24', glow: 'rgba(251,191,36,0.75)' };
-const LOCK_C = { fill: '#0f1118', stroke: '#1e2235', glow: 'none' };
 const BG = '#050810';
 const R = 20;
 
@@ -164,15 +163,20 @@ const QuestMap = () => {
     };
     setTimeout(initVp, 100);
 
-    axios.get(`${API}/quests/status`, { withCredentials: true })
-      .then(r => {
-        const qs = r.data.quests || [];
-        const pend = new Set(qs.filter(q => q.status === 'pending').map(q => q.id));
-        const coll = new Set(qs.filter(q => q.status === 'collected').map(q => q.id));
-        setPendingSet(pend);
-        setCollectedSet(coll);
-      })
-      .catch(() => {});
+    // auto-check first so any accumulated stat progress is captured
+    axios.post(`${API}/quests/auto-check`, {}, { withCredentials: true })
+      .catch(() => {})
+      .finally(() => {
+        axios.get(`${API}/quests/status`, { withCredentials: true })
+          .then(r => {
+            const qs = r.data.quests || [];
+            const pend = new Set(qs.filter(q => q.status === 'pending').map(q => q.id));
+            const coll = new Set(qs.filter(q => q.status === 'collected').map(q => q.id));
+            setPendingSet(pend);
+            setCollectedSet(coll);
+          })
+          .catch(() => {});
+      });
 
     axios.get(`${API}/users/me`, { withCredentials: true })
       .then(r => setZp(r.data.zp || 0))

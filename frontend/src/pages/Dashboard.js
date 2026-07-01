@@ -1227,6 +1227,9 @@ const Dashboard = () => {
       setNewDocTitle('');
       setNewDocType('new');
       setPdfFile(null);
+      axios.post(`${API}/quests/auto-check`, {}, { withCredentials: true }).then(r => {
+        if (r.data.newly_pending?.length > 0) window.dispatchEvent(new CustomEvent('quest-completed', { detail: r.data.newly_pending }));
+      }).catch(() => {});
       navigate(`/editor/${docId}`);
     } catch (error) {
       console.error('Error creating document:', error);
