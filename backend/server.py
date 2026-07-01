@@ -1186,6 +1186,13 @@ def _xp_to_rank(xp: int) -> str:
 
 async def distribute_season_rewards_and_reset():
     """Sezon ödüllerini dağıt, tüm kullanıcı rankını sıfırla."""
+    # Atomik: 'active' → 'ending' geçişi; iki eş zamanlı çağrı olursa sadece biri devam eder
+    claimed = await db.seasons.find_one_and_update(
+        {"status": "active"},
+        {"$set": {"status": "ending"}},
+    )
+    if not claimed:
+        return 0  # Başka bir çağrı zaten dağıtıyor ya da sezon yok
     users = await db.users.find({}, {"_id": 0, "user_id": 1, "mindshare_xp": 1}).to_list(length=200000)
     count = 0
     for u in users:
@@ -1198,7 +1205,7 @@ async def distribute_season_rewards_and_reset():
         )
         count += 1
     await db.seasons.update_one(
-        {"status": "active"},
+        {"status": "ending"},
         {"$set": {"status": "ended", "ended_at": datetime.now(timezone.utc).isoformat()}},
     )
     logging.info(f"Season ended — distributed rewards to {count} users, ranks reset.")
@@ -1214,6 +1221,11 @@ async def get_season():
         days_remaining = max(0, (end - datetime.utcnow()).days)
     except Exception:
         days_remaining = None
+    # Cloud Run APScheduler'ı kaçırırsa burada yakala
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    if season.get("end_date", "9999-99-99") <= today:
+        await distribute_season_rewards_and_reset()
+        return {"active": False}
     return {
         "active": True,
         "start_date": season.get("start_date"),

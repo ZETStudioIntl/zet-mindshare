@@ -2256,6 +2256,23 @@ MATCHES:[1,3,5]`;
                           Mevcut: {seasonData.active ? `${seasonData.start_date} → ${seasonData.end_date}` : 'Aktif sezon yok'}
                         </p>
                       )}
+                      {seasonData?.active && (
+                        <button
+                          onClick={async () => {
+                            const pin = prompt('CEO PIN:');
+                            if (!pin) return;
+                            try {
+                              const res = await axios.post(`${API}/season/distribute`, { pin }, { withCredentials: true });
+                              const updated = await axios.get(`${API}/season`, { withCredentials: true });
+                              setSeasonData(updated.data);
+                              showToast(`Sezon bitti — ${res.data.rewarded_users} kullanıcı ödüllendirildi`, 'success');
+                            } catch { showToast('Hata oluştu', 'error'); }
+                          }}
+                          style={{ width: '100%', background: 'rgba(239,68,68,0.12)', border: '1px solid rgba(239,68,68,0.35)', borderRadius: 7, color: '#ef4444', fontSize: 12, fontWeight: 600, padding: '7px', cursor: 'pointer', marginTop: 8 }}
+                        >
+                          Sezonu Şimdi Bitir
+                        </button>
+                      )}
                     </div>
                   )}
 
