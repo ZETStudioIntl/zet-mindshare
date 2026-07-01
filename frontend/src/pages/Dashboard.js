@@ -19,6 +19,7 @@ import MissionsModal from '../components/dashboard/MissionsModal';
 import SubscriptionModal from '../components/dashboard/SubscriptionModal';
 import UpgradePromptModal from '../components/dashboard/UpgradePromptModal';
 import DeleteConfirmModal from '../components/dashboard/DeleteConfirmModal';
+import SeasonEndModal from '../components/dashboard/SeasonEndModal';
 import ConfirmModal from '../components/dashboard/ConfirmModal';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
@@ -182,6 +183,7 @@ const Dashboard = () => {
   const [openingCaseId, setOpeningCaseId] = useState(null);
   const [seasonData, setSeasonData] = useState(null);
   const [seasonForm, setSeasonForm] = useState({ start: '', end: '', loading: false });
+  const [seasonResult, setSeasonResult] = useState(null);
   const [firedAlarms, setFiredAlarms] = useState([]);
   const [alarmTick, setAlarmTick] = useState(0);
   const [notebooks, setNotebooks] = useState([]);
@@ -405,9 +407,12 @@ const Dashboard = () => {
     checkDriveConnection();
     fetchSubscription();
     requestNotificationPermission();
-    // Sezon bilgisi çek
+    // Sezon bilgisi çek + gösterilmemiş sezon sonucu var mı kontrol et
     axios.get(`${API}/season`, { withCredentials: true })
       .then(res => setSeasonData(res.data)).catch(() => {});
+    axios.get(`${API}/season/my-result`, { withCredentials: true })
+      .then(res => { if (res.data.has_result) setSeasonResult(res.data); })
+      .catch(() => {});
     // Envanter yükle + günlük kasayı al
     axios.get(`${API}/inventory`, { withCredentials: true })
       .then(res => setInventory(res.data.cases || [])).catch(() => {});
@@ -3920,6 +3925,10 @@ MATCHES:[1,3,5]`;
       {showMissions && <MissionsModal onClose={() => setShowMissions(false)} />}
 
       <QuestNotification quest={questNotification} onClose={() => setQuestNotification(null)} />
+
+      {seasonResult && (
+        <SeasonEndModal result={seasonResult} onClose={() => setSeasonResult(null)} />
+      )}
     </div>
   );
 };

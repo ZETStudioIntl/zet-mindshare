@@ -1192,16 +1192,44 @@ async def distribute_season_rewards_and_reset():
         {"$set": {"status": "ending"}},
     )
     if not claimed:
-        return 0  # Başka bir çağrı zaten dağıtıyor ya da sezon yok
-    users = await db.users.find({}, {"_id": 0, "user_id": 1, "mindshare_xp": 1}).to_list(length=200000)
+        return 0
+    season_id    = claimed.get("season_id", "")
+    season_start = claimed.get("start_date", "")
+    season_end   = claimed.get("end_date", "")
+    try:
+        s_dt = datetime.strptime(season_start, "%Y-%m-%d")
+        e_dt = datetime.strptime(season_end,   "%Y-%m-%d")
+        duration_days = max(1, (e_dt - s_dt).days)
+    except Exception:
+        duration_days = 0
+
+    users = await db.users.find(
+        {}, {"_id": 0, "user_id": 1, "mindshare_xp": 1, "active_time_seconds": 1}
+    ).to_list(length=200000)
     count = 0
     for u in users:
-        rank = _xp_to_rank(u.get("mindshare_xp") or 0)
+        rank   = _xp_to_rank(u.get("mindshare_xp") or 0)
         reward = _SEASON_RANK_REWARDS[rank]
+        active_secs = u.get("active_time_seconds", 0) or 0
+        # Sezon sonuç kaydı — popup için
+        await db.season_results.insert_one({
+            "user_id":             u["user_id"],
+            "season_id":           season_id,
+            "final_rank":          rank,
+            "credits_earned":      reward["credits"],
+            "duration_days":       duration_days,
+            "active_time_seconds": active_secs,
+            "season_start":        season_start,
+            "season_end":          season_end,
+            "shown":               False,
+            "created_at":          datetime.now(timezone.utc).isoformat(),
+        })
         await db.users.update_one(
             {"user_id": u["user_id"]},
-            {"$inc": {"bonus_credits": reward["credits"], "mindshare_xp": reward["xp"]},
-             "$set": {"mindshare_rank": "iron"}},
+            {
+                "$inc": {"bonus_credits": reward["credits"]},
+                "$set": {"mindshare_xp": 0, "mindshare_rank": "iron", "active_time_seconds": 0},
+            },
         )
         count += 1
     await db.seasons.update_one(
@@ -1266,6 +1294,27 @@ async def set_season_time(date_range: str, pin: str = Query("")):
     await db.seasons.insert_one(new_season)
     new_season.pop("_id", None)
     return {"success": True, "season": new_season}
+
+@api_router.get("/season/my-result")
+async def get_my_season_result(user: User = Depends(get_current_user)):
+    """Kullanıcının gösterilmemiş son sezon sonucunu döner."""
+    result = await db.season_results.find_one(
+        {"user_id": user.user_id, "shown": False},
+        {"_id": 0},
+        sort=[("created_at", -1)],
+    )
+    if not result:
+        return {"has_result": False}
+    return {"has_result": True, **result}
+
+@api_router.post("/season/my-result/dismiss")
+async def dismiss_season_result(user: User = Depends(get_current_user)):
+    """Sezon sonuç popup'ını gösterildi olarak işaretle."""
+    await db.season_results.update_many(
+        {"user_id": user.user_id, "shown": False},
+        {"$set": {"shown": True}},
+    )
+    return {"ok": True}
 
 @api_router.post("/season/distribute")
 async def manual_distribute_season(pin: str = Body(..., embed=True)):
