@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { A4LoadingScreen, MiniDocLoader } from '../components/LoadingScreens';
+import QuestNotification from '../components/QuestNotification';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -70,6 +71,21 @@ const Dashboard = () => {
   const { switchApp } = useAppTheme();
   useEffect(() => { switchApp('mindshare'); }, []); // always enforce mindshare theme in dashboard
   const navigate = useNavigate();
+
+  // Quest pending check + listener
+  useEffect(() => {
+    axios.get(`${API}/quests/status`, { withCredentials: true })
+      .then(r => { setHasPendingQuests((r.data.quests || []).some(q => q.status === 'pending')); })
+      .catch(() => {});
+    const handler = (e) => {
+      if (e.detail?.length > 0) {
+        setQuestNotification(e.detail[0]);
+        setHasPendingQuests(true);
+      }
+    };
+    window.addEventListener('quest-completed', handler);
+    return () => window.removeEventListener('quest-completed', handler);
+  }, []);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   useEffect(() => {
     const up = () => setIsOnline(true);
@@ -86,6 +102,8 @@ const Dashboard = () => {
   const [noteReminder, setNoteReminder] = useState('');
   const [showSettings, setShowSettings] = useState(false);
   const [settingsTab, setSettingsTab] = useState('general');
+  const [hasPendingQuests, setHasPendingQuests] = useState(false);
+  const [questNotification, setQuestNotification] = useState(null);
   const [sfxEnabled, setSfxEnabled] = useState(() => localStorage.getItem('zet_sfx_enabled') !== 'false');
   const [sfxVolume, setSfxVolume] = useState(() => parseFloat(localStorage.getItem('zet_sfx_volume') || '0.35'));
   const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
@@ -1731,7 +1749,7 @@ MATCHES:[1,3,5]`;
                 { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
                 { id: 'primedrive',   icon: <HardDrive className="h-4 w-4" />,  label: 'Prime Drive',      color: '#6366f1' },
                 { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
-                { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('questMap'),      color: '#4ca8ad' },
+                { id: 'quests',       icon: <span className="relative inline-flex"><Map className="h-4 w-4" />{hasPendingQuests && <span style={{ position:'absolute', top:-3, right:-3, width:7, height:7, borderRadius:'50%', background:'#ef4444', border:'1.5px solid var(--zet-bg-card)' }} />}</span>, label: t('questMap'), color: '#4ca8ad' },
                 { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: t('subscription'),  color: 'var(--zet-primary-light)' },
                 { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
                 { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: 'Envanter',         color: '#60a5fa' },
@@ -3880,6 +3898,8 @@ MATCHES:[1,3,5]`;
 
       {/* Missions Modal */}
       {showMissions && <MissionsModal onClose={() => setShowMissions(false)} />}
+
+      <QuestNotification quest={questNotification} onClose={() => setQuestNotification(null)} />
     </div>
   );
 };

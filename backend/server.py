@@ -2517,6 +2517,7 @@ async def create_document(doc: DocumentCreate, user: User = Depends(get_current_
         "updated_at": now.isoformat()
     }
     await db.documents.insert_one(doc_dict)
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"docs_created": 1}})
     # Return without _id
     return {k: v for k, v in doc_dict.items() if k != "_id"}
 
@@ -4986,6 +4987,7 @@ The user may ask questions about this document. Use this content to provide rele
         {"$inc": {"zeta_chat_count": 1}},
         upsert=True
     )
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"ai_chats": 1}})
 
     # Save chat history (save clean response without action tags)
     await db.zeta_chats.insert_one({
@@ -5415,6 +5417,7 @@ async def zeta_generate_image(req: ZetaImageRequest, user: User = Depends(get_cu
         )
         raise HTTPException(status_code=500, detail="Görsel oluşturulamadı, kredi iade edildi. Tekrar deneyin.")
 
+    await db.users.update_one({"user_id": user.user_id}, {"$inc": {"ai_images": 1}})
     return {"text": text_out, "images": images, "credits_remaining": credit_result['credits_remaining'], "cost": credit_result['cost']}
 
 # AI Photo Edit endpoint
@@ -6782,6 +6785,110 @@ async def hafizz_honeypot(request: Request):
     ua = request.headers.get("User-Agent", "")
     asyncio.create_task(hafizz.record_honeypot_hit(db, ip, str(request.url.path), ua))
     return JSONResponse(status_code=404, content={"detail": "Not found"})
+
+
+# ─── Quest System ────────────────────────────────────────────────────────────
+
+QUEST_DEFINITIONS = [
+    {
+        "id": "q1",
+        "name": "Belge Oluştur",
+        "desc": "İlk belgenizi oluşturun.",
+        "zp": 220,
+        "stat": "docs_created",
+        "threshold": 1,
+        "requires": [],
+    },
+    {
+        "id": "q2",
+        "name": "Zeta ile Konuş",
+        "desc": "Zeta AI ile bir konuşma başlatın.",
+        "zp": 220,
+        "stat": "ai_chats",
+        "threshold": 1,
+        "requires": ["q1"],
+    },
+    {
+        "id": "q3",
+        "name": "AI ile Görsel Üret",
+        "desc": "Zeta Colors ile bir görsel oluşturun.",
+        "zp": 220,
+        "stat": "ai_images",
+        "threshold": 1,
+        "requires": ["q1", "q2"],
+    },
+]
+
+@api_router.post("/quests/auto-check")
+async def quests_auto_check(user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    if not user_data:
+        return {"newly_pending": []}
+
+    completed = set(user_data.get("completed_quests", []))
+    pending = set(user_data.get("pending_quests", []))
+
+    newly_pending = []
+    for q in QUEST_DEFINITIONS:
+        qid = q["id"]
+        if qid in completed or qid in pending:
+            continue
+        # Check dependency chain
+        if not all(r in completed for r in q["requires"]):
+            continue
+        # Check stat threshold
+        stat_val = user_data.get(q["stat"], 0) or 0
+        if stat_val >= q["threshold"]:
+            pending.add(qid)
+            newly_pending.append(qid)
+
+    if newly_pending:
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$addToSet": {"pending_quests": {"$each": newly_pending}}}
+        )
+
+    newly_pending_defs = [q for q in QUEST_DEFINITIONS if q["id"] in newly_pending]
+    return {"newly_pending": newly_pending_defs}
+
+
+@api_router.post("/quests/{quest_id}/collect")
+async def quest_collect(quest_id: str, user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    if not user_data:
+        raise HTTPException(status_code=404, detail="Kullanıcı bulunamadı")
+
+    pending = user_data.get("pending_quests", [])
+    if quest_id not in pending:
+        raise HTTPException(status_code=400, detail="Bu görev toplanmaya hazır değil")
+
+    quest_def = next((q for q in QUEST_DEFINITIONS if q["id"] == quest_id), None)
+    if not quest_def:
+        raise HTTPException(status_code=404, detail="Görev bulunamadı")
+
+    zp_reward = quest_def["zp"]
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {
+            "$pull": {"pending_quests": quest_id},
+            "$addToSet": {"completed_quests": quest_id},
+            "$inc": {"zp": zp_reward},
+        }
+    )
+
+    updated = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "zp": 1, "pending_quests": 1, "completed_quests": 1})
+    return {"success": True, "zp_earned": zp_reward, "zp_total": updated.get("zp", 0)}
+
+
+@api_router.get("/quests/status")
+async def quests_status(user: User = Depends(get_current_user)):
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    completed = set(user_data.get("completed_quests", []) if user_data else [])
+    pending = set(user_data.get("pending_quests", []) if user_data else [])
+    result = []
+    for q in QUEST_DEFINITIONS:
+        result.append({**q, "status": "collected" if q["id"] in completed else ("pending" if q["id"] in pending else "locked")})
+    return {"quests": result}
 
 
 app.include_router(api_router)

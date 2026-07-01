@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { A4LoadingScreen } from '../components/LoadingScreens';
+import QuestNotification from '../components/QuestNotification';
 import * as pdfjsLib from 'pdfjs-dist';
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.js';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -482,6 +483,7 @@ const Editor = () => {
   useEffect(() => { if (!isOnline && userPlan === 'free') setRightOpen(false); }, [isOnline, userPlan]);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [upgradeReason, setUpgradeReason] = useState('');
+  const [questNotification, setQuestNotification] = useState(null);
   const [showCreditModal, setShowCreditModal] = useState(false);
   const [creditPackages, setCreditPackages] = useState([]);
   const [buyingCredits, setBuyingCredits] = useState(false);
@@ -4177,6 +4179,13 @@ body{background:#fff}
     reader.readAsDataURL(file);
   };
 
+  // Quest completion listener
+  useEffect(() => {
+    const handler = (e) => { if (e.detail?.length > 0) setQuestNotification(e.detail[0]); };
+    window.addEventListener('quest-completed', handler);
+    return () => window.removeEventListener('quest-completed', handler);
+  }, []);
+
   // === AI IMAGE ===
   const generateAIImage = async () => {
     if (!aiPrompt.trim()) return;
@@ -4197,13 +4206,15 @@ body{background:#fff}
         pro: aiImagePro,
         aspect_ratio: aiAspectRatio
       }, { withCredentials: true });
-      if (res.data.images?.length > 0) { 
-        setAiMimeType(res.data.images[0].mime_type || 'image/png'); 
+      if (res.data.images?.length > 0) {
+        setAiMimeType(res.data.images[0].mime_type || 'image/png');
         setAiPreview(res.data.images[0].data);
-        // Update credits
         if (res.data.credits_remaining !== undefined) {
           setCreditsRemaining(res.data.credits_remaining);
         }
+        axios.post(`${API}/quests/auto-check`, {}, { withCredentials: true }).then(r => {
+          if (r.data.newly_pending?.length > 0) window.dispatchEvent(new CustomEvent('quest-completed', { detail: r.data.newly_pending }));
+        }).catch(() => {});
       }
     } catch (err) {
       const detail = err.response?.data?.detail || 'Görsel oluşturulamadı, tekrar deneyin.';
@@ -4598,6 +4609,7 @@ body{background:#fff}
       <EditorStateContext.Provider value={providerValue}>
       {hiddenPasteInput}
       <EditorMobileLayout />
+      <QuestNotification quest={questNotification} onClose={() => setQuestNotification(null)} />
       </EditorStateContext.Provider>
     );
   }
@@ -4609,6 +4621,7 @@ body{background:#fff}
     <EditorStateContext.Provider value={providerValue}>
     {hiddenPasteInput}
     <EditorDesktopLayout />
+    <QuestNotification quest={questNotification} onClose={() => setQuestNotification(null)} />
     {exportCountdown && (
       <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', borderRadius: 16, padding: '32px 36px', width: 320, textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>

@@ -558,6 +558,9 @@ export const RightPanel = ({
       setZetaMessages(prev => [...prev, { role: 'assistant', content: '', fullContent: fullResp, isTyping: true }]);
       const actions = res.data.actions;
       startZetaTyping(fullResp, () => { if (actions?.length) executeActions(actions); });
+      axios.post(`${API}/quests/auto-check`, {}, { withCredentials: true }).then(r => {
+        if (r.data.newly_pending?.length > 0) window.dispatchEvent(new CustomEvent('quest-completed', { detail: r.data.newly_pending }));
+      }).catch(() => {});
     } catch {
       setZetaMessages(prev => [...prev, { role: 'assistant', content: 'Hata olustu!' }]);
     }

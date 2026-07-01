@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Search, ZoomIn, ZoomOut, Maximize2, X, Star, Trophy } from 'lucide-react';
-import { generateQuestMap, ZP_VALUES } from '../lib/questMapData';
+import { generateQuestMap } from '../lib/questMapData';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -13,6 +13,7 @@ const SHAPE_COLORS = {
   star: { fill: '#422006', stroke: '#fbbf24', glow: 'rgba(251,191,36,0.6)' },
 };
 const DONE_C = { fill: '#052e16', stroke: '#4ade80', glow: 'rgba(74,222,128,0.6)' };
+const PENDING_C = { fill: '#2d1f00', stroke: '#fbbf24', glow: 'rgba(251,191,36,0.75)' };
 const LOCK_C = { fill: '#0f1118', stroke: '#1e2235', glow: 'none' };
 const BG = '#050810';
 const R = 20;
@@ -23,19 +24,16 @@ function drawBorder(ctx, md) {
   const w = x2 - x1, h = y2 - y1;
   const STEP = 55;
 
-  // Outer border line
   ctx.strokeStyle = 'rgba(56,189,248,0.22)';
   ctx.lineWidth = 1.5;
   ctx.setLineDash([]);
   ctx.strokeRect(x1, y1, w, h);
 
-  // Inner border line
   const PAD = 16;
   ctx.strokeStyle = 'rgba(56,189,248,0.10)';
   ctx.lineWidth = 0.8;
   ctx.strokeRect(x1 + PAD, y1 + PAD, w - PAD * 2, h - PAD * 2);
 
-  // Decorative shapes along the border
   const drawBorderShape = (bx, by, idx) => {
     const shapes = ['circle', 'square', 'diamond', 'circle', 'square'];
     const s = shapes[idx % shapes.length];
@@ -59,7 +57,6 @@ function drawBorder(ctx, md) {
     ctx.stroke();
   };
 
-  // Draw along all four sides
   let idx = 0;
   for (let bx = x1 + STEP; bx < x2 - STEP / 2; bx += STEP) {
     drawBorderShape(bx, y1, idx++);
@@ -70,7 +67,6 @@ function drawBorder(ctx, md) {
     drawBorderShape(x2, by, idx++);
   }
 
-  // Stars at corners
   const drawCornerStar = (cx, cy) => {
     const r = 10, ir = 4;
     ctx.fillStyle = 'rgba(251,191,36,0.7)';
@@ -120,13 +116,6 @@ function drawNode(ctx, shape, x, y, r, c, hover) {
   ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
 }
 
-function drawLock(ctx, x, y) {
-  ctx.strokeStyle = '#2a2e42'; ctx.fillStyle = '#2a2e42'; ctx.lineWidth = 1.2;
-  ctx.beginPath(); ctx.arc(x, y - 3, 4, Math.PI, 0); ctx.stroke();
-  ctx.fillRect(x - 5, y - 0.5, 10, 7);
-  ctx.fillStyle = '#0f1118'; ctx.beginPath(); ctx.arc(x, y + 2, 1.5, 0, Math.PI * 2); ctx.fill();
-}
-
 function drawCheck(ctx, x, y) {
   ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
   ctx.beginPath(); ctx.moveTo(x - 5, y); ctx.lineTo(x - 1, y + 4); ctx.lineTo(x + 6, y - 4); ctx.stroke();
@@ -137,89 +126,64 @@ const QuestMap = () => {
   const canvasRef = useRef(null);
   const navigate = useNavigate();
   const animRef = useRef(0);
+  const zpBadgeRef = useRef(null);
 
   const [mapData, setMapData] = useState(null);
-  const [completed, setCompleted] = useState(new Set());
-  const [sp, setSp] = useState(0);
-  const [vp, setVp] = useState({ x: 0, y: 0, z: 0.35 });
-  const [rankUpModal, setRankUpModal] = useState(null);
+  const [pendingSet, setPendingSet] = useState(new Set());
+  const [collectedSet, setCollectedSet] = useState(new Set());
+  const [zp, setZp] = useState(0);
+  const [vp, setVp] = useState({ x: 0, y: 0, z: 0.55 });
   const [drag, setDrag] = useState(false);
   const [dragO, setDragO] = useState({ x: 0, y: 0 });
   const [selected, setSelected] = useState(null);
   const [search, setSearch] = useState('');
   const [hovered, setHovered] = useState(null);
+  const [zpFly, setZpFly] = useState(null); // { x, y, zp, key }
+  const [collecting, setCollecting] = useState(false);
 
   const vpR = useRef(vp); vpR.current = vp;
   const mdR = useRef(mapData); mdR.current = mapData;
-  const compR = useRef(completed); compR.current = completed;
+  const pendR = useRef(pendingSet); pendR.current = pendingSet;
+  const collR = useRef(collectedSet); collR.current = collectedSet;
   const hovR = useRef(hovered); hovR.current = hovered;
   const selR = useRef(selected); selR.current = selected;
   const searchR = useRef(search); searchR.current = search;
-  const adjRef = useRef(new Map());
-  const visR = useRef(new Set([0]));
 
   useEffect(() => {
     const d = generateQuestMap();
     setMapData(d);
 
-    const adj = new Map();
-    d.connections.forEach(c => {
-      if (!adj.has(c.from)) adj.set(c.from, []);
-      if (!adj.has(c.to)) adj.set(c.to, []);
-      adj.get(c.from).push(c.to);
-      adj.get(c.to).push(c.from);
-    });
-    adjRef.current = adj;
-
-    // Init viewport after canvas has real size
-    const initVp = (mapData) => {
+    const initVp = () => {
       const cvs2 = canvasRef.current;
       const cw = (cvs2 && cvs2.offsetWidth > 0) ? cvs2.offsetWidth : window.innerWidth;
       const ch = (cvs2 && cvs2.offsetHeight > 0) ? cvs2.offsetHeight : window.innerHeight - 120;
-      const z = Math.max(0.15, Math.min(0.85, (ch - 80) / mapData.totalHeight));
-      const x = -(mapData.mapMinX ?? 0) * z + 80;
-      const y = ch / 2 - mapData.centerY * z;
+      const z = Math.max(0.3, Math.min(1.2, (cw - 160) / (d.mapMaxX - d.mapMinX)));
+      const x = cw / 2 - d.centerX * z;
+      const y = ch / 2 - d.centerY * z;
       setVp({ z, x, y });
     };
-    setTimeout(() => initVp(d), 100);
+    setTimeout(initVp, 100);
 
-    axios.get(`${API}/quests/progress`, { withCredentials: true })
-      .then(r => { setCompleted(new Set(r.data.completed_quests || [])); setSp(r.data.quest_xp || 0); })
+    axios.get(`${API}/quests/status`, { withCredentials: true })
+      .then(r => {
+        const qs = r.data.quests || [];
+        const pend = new Set(qs.filter(q => q.status === 'pending').map(q => q.id));
+        const coll = new Set(qs.filter(q => q.status === 'collected').map(q => q.id));
+        setPendingSet(pend);
+        setCollectedSet(coll);
+      })
+      .catch(() => {});
+
+    axios.get(`${API}/users/me`, { withCredentials: true })
+      .then(r => setZp(r.data.zp || 0))
       .catch(() => {});
   }, []);
 
-  // Compute visible set: BFS up to FOG_RADIUS hops from every completed quest (or quest 0)
-  const FOG_RADIUS = 10;
-  useEffect(() => {
-    const adj = adjRef.current;
-    const vis = new Set();
-    const queue = [];
-    const seeds = completed.size > 0 ? [...completed] : [0];
-    seeds.forEach(id => { vis.add(id); queue.push({ id, depth: 0 }); });
-    // Also always seed quest 0
-    if (!vis.has(0)) { vis.add(0); queue.push({ id: 0, depth: 0 }); }
-    let head = 0;
-    while (head < queue.length) {
-      const { id, depth } = queue[head++];
-      if (depth >= FOG_RADIUS) continue;
-      const neighbors = adj.get(id) || [];
-      for (const nb of neighbors) {
-        if (!vis.has(nb)) {
-          vis.add(nb);
-          queue.push({ id: nb, depth: depth + 1 });
-        }
-      }
-    }
-    visR.current = vis;
-  }, [completed]);
-
   const isUnlocked = useCallback((qid) => {
-    if (qid === 0) return true;
-    if (completed.has(qid)) return true;
-    const neighbors = adjRef.current.get(qid);
-    if (!neighbors) return false;
-    return neighbors.some(n => completed.has(n));
-  }, [completed]);
+    const q = mdR.current?.quests.find(q => q.id === qid);
+    if (!q) return false;
+    return q.requires.every(r => collR.current.has(r));
+  }, []);
 
   const findAt = useCallback((sx, sy) => {
     const md = mdR.current; if (!md) return null;
@@ -240,17 +204,14 @@ const QuestMap = () => {
     if (cvs.width !== w * dpr || cvs.height !== h * dpr) { cvs.width = w * dpr; cvs.height = h * dpr; }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    const v = vpR.current, md = mdR.current, comp = compR.current;
+    const v = vpR.current, md = mdR.current;
+    const pend = pendR.current, coll = collR.current;
     const hov = hovR.current, sel = selR.current;
     const sq = searchR.current.toLowerCase().trim();
+    const tick = animRef.current;
 
-    const vl = -v.x / v.z - 120, vr = (-v.x + w) / v.z + 120;
-    const vt = -v.y / v.z - 120, vb = (-v.y + h) / v.z + 120;
-
-    // Background
     ctx.fillStyle = BG; ctx.fillRect(0, 0, w, h);
 
-    // Subtle radial gradient from center
     const scx = md.centerX * v.z + v.x;
     const scy = md.centerY * v.z + v.y;
     const grad = ctx.createRadialGradient(scx, scy, 0, scx, scy, Math.max(w, h));
@@ -261,66 +222,39 @@ const QuestMap = () => {
 
     ctx.save(); ctx.translate(v.x, v.y); ctx.scale(v.z, v.z);
 
-    // Decorative border
     drawBorder(ctx, md);
 
-    // Draw connections - orthogonal L-shaped paths
+    // Connections
     md.connections.forEach(cn => {
       const f = md.quests[cn.from], tt = md.quests[cn.to];
       if (!f || !tt) return;
-      if (Math.max(f.x, tt.x) < vl || Math.min(f.x, tt.x) > vr) return;
-      if (Math.max(f.y, tt.y) < vt || Math.min(f.y, tt.y) > vb) return;
-
-      const bothDone = comp.has(cn.from) && comp.has(cn.to);
-      const anyDone = comp.has(cn.from) || comp.has(cn.to);
-      const dx = Math.abs(tt.x - f.x), dy = Math.abs(tt.y - f.y);
-      const isLong = dx > 300 || dy > 300;
+      const bothDone = coll.has(f.id) && coll.has(tt.id);
+      const anyDone = coll.has(f.id) || coll.has(tt.id);
 
       if (bothDone) {
-        ctx.strokeStyle = 'rgba(74,222,128,0.6)';
-        ctx.lineWidth = 2;
-        ctx.globalAlpha = 0.85;
+        ctx.strokeStyle = 'rgba(74,222,128,0.6)'; ctx.lineWidth = 2; ctx.globalAlpha = 0.85;
       } else if (anyDone) {
-        ctx.strokeStyle = 'rgba(56,189,248,0.45)';
-        ctx.lineWidth = 1.5;
-        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = 'rgba(56,189,248,0.45)'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.6;
       } else {
-        ctx.strokeStyle = isLong ? 'rgba(80,60,160,0.18)' : 'rgba(56,80,180,0.32)';
-        ctx.lineWidth = isLong ? 0.6 : 1;
-        ctx.globalAlpha = 0.6;
+        ctx.strokeStyle = 'rgba(56,80,180,0.32)'; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
       }
-
-      // Orthogonal L-shaped path: horizontal first then vertical
       ctx.beginPath();
       ctx.moveTo(f.x, f.y);
       if (Math.abs(f.y - tt.y) < 4) {
-        // Same row: draw straight horizontal
-        ctx.lineTo(tt.x, tt.y);
-      } else if (Math.abs(f.x - tt.x) < 4) {
-        // Same column: draw straight vertical
         ctx.lineTo(tt.x, tt.y);
       } else {
-        // L-shape: go horizontal to tt.x, then vertical to tt.y
-        ctx.lineTo(tt.x, f.y);
-        ctx.lineTo(tt.x, tt.y);
+        ctx.lineTo(tt.x, f.y); ctx.lineTo(tt.x, tt.y);
       }
-      ctx.stroke();
-      ctx.globalAlpha = 1;
+      ctx.stroke(); ctx.globalAlpha = 1;
     });
 
-    // Search set
     const searchSet = new Set();
     if (sq) md.quests.forEach(q => { if (q.name.toLowerCase().includes(sq) || q.desc.toLowerCase().includes(sq)) searchSet.add(q.id); });
 
-    const vis = visR.current;
-
-    // Nodes — 3 states: foggy (not in vis) | locked (in vis, not unlocked) | visible
     md.quests.forEach(q => {
-      if (q.x < vl || q.x > vr || q.y < vt || q.y > vb) return;
-      const isDone = comp.has(q.id);
-      const unlocked = isDone || isUnlocked(q.id);
-      const inVis = vis.size === 0 || vis.has(q.id);
-      const isFoggy = !inVis;
+      const isCollected = coll.has(q.id);
+      const isPending = pend.has(q.id);
+      const unlocked = isCollected || isPending || isUnlocked(q.id);
       const isHov = hov === q.id;
       const isSel = sel && sel.id === q.id;
       const isMatch = searchSet.size > 0 && searchSet.has(q.id);
@@ -328,79 +262,60 @@ const QuestMap = () => {
 
       if (searchSet.size > 0 && !isMatch) ctx.globalAlpha = 0.06;
 
-      if (isFoggy) {
-        // --- FOGGY: draw shape dimly, then fog overlay ---
-        const dimC = {
-          fill: 'rgba(10,14,28,0.7)',
-          stroke: 'rgba(40,50,80,0.5)',
-          glow: 'none',
-        };
-        ctx.globalAlpha = 0.35;
-        drawNode(ctx, q.shape, q.x, q.y, nr, dimC, false);
-        ctx.globalAlpha = 1;
-
-        // Fog radial overlay — denser in center
-        const fogR = nr + 18;
-        const fog = ctx.createRadialGradient(q.x, q.y, 0, q.x, q.y, fogR);
-        fog.addColorStop(0,   'rgba(5,8,20,0.82)');
-        fog.addColorStop(0.5, 'rgba(10,14,30,0.65)');
-        fog.addColorStop(1,   'rgba(5,8,20,0)');
-        ctx.fillStyle = fog;
-        ctx.beginPath(); ctx.arc(q.x, q.y, fogR, 0, Math.PI * 2); ctx.fill();
-
-        // Faint "?" hint
-        ctx.globalAlpha = 0.18;
-        ctx.fillStyle = '#94a3b8';
-        ctx.font = `bold ${Math.round(nr * 0.85)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('?', q.x, q.y);
-        ctx.textBaseline = 'alphabetic';
-        ctx.globalAlpha = 1;
-
-      } else if (!unlocked) {
-        // --- LOCKED: shape visible but greyed, "?" overlay ---
+      if (!unlocked) {
         const lockedC = { fill: '#0d1120', stroke: '#2a3050', glow: 'none' };
         drawNode(ctx, q.shape, q.x, q.y, nr, lockedC, false);
         ctx.fillStyle = '#4a5580';
         ctx.font = `bold ${Math.round(nr * 0.9)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('?', q.x, q.y);
-        ctx.textBaseline = 'alphabetic';
-
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('?', q.x, q.y); ctx.textBaseline = 'alphabetic';
         if (isHov || isSel) {
-          // tooltip-like hint above node
           const tip = 'Bu görev henüz açılmadı';
           ctx.font = '9px "DM Sans",sans-serif';
           const tw = ctx.measureText(tip).width + 12;
-          ctx.fillStyle = 'rgba(10,14,30,0.92)';
-          ctx.strokeStyle = 'rgba(74,85,128,0.6)';
-          ctx.lineWidth = 0.8;
+          ctx.fillStyle = 'rgba(10,14,30,0.92)'; ctx.strokeStyle = 'rgba(74,85,128,0.6)'; ctx.lineWidth = 0.8;
           const tx = q.x - tw / 2, ty = q.y - nr - 24;
           ctx.beginPath(); ctx.roundRect(tx, ty, tw, 16, 4); ctx.fill(); ctx.stroke();
-          ctx.fillStyle = '#94a3b8';
-          ctx.textAlign = 'center';
-          ctx.fillText(tip, q.x, ty + 11);
+          ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center'; ctx.fillText(tip, q.x, ty + 11);
         }
-
-      } else {
-        // --- VISIBLE & UNLOCKED ---
-        const c = isDone ? DONE_C : SHAPE_COLORS[q.shape] || SHAPE_COLORS.circle;
-        drawNode(ctx, q.shape, q.x, q.y, nr, c, isHov || isSel);
-
-        if (isDone) drawCheck(ctx, q.x, q.y - 2);
-        else {
-          ctx.fillStyle = c.stroke; ctx.font = 'bold 8px "DM Sans",sans-serif';
-          ctx.textAlign = 'center'; ctx.fillText(`${q.zp}`, q.x, q.y + 3);
-        }
-
+      } else if (isPending) {
+        // Pending: amber/gold glow, pulsing
+        const pulse = 0.7 + 0.3 * Math.sin(tick * 0.06);
+        const pc = { ...PENDING_C, glow: `rgba(251,191,36,${0.4 + 0.35 * pulse})` };
+        ctx.shadowColor = pc.glow; ctx.shadowBlur = (isHov || isSel) ? 30 : 14 + 8 * pulse;
+        drawNode(ctx, q.shape, q.x, q.y, nr, pc, isHov || isSel);
+        // Star icon inside
+        ctx.fillStyle = '#fbbf24';
+        ctx.font = `bold ${Math.round(nr * 0.75)}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('★', q.x, q.y + 1); ctx.textBaseline = 'alphabetic';
         if (v.z > 0.3) {
           ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
-          ctx.fillStyle = isDone ? '#86efac' : '#94a3b8';
+          ctx.fillStyle = '#fbbf24';
           ctx.fillText(q.name, q.x, q.y + R + 13);
         }
-
+        if (isHov || isSel) {
+          ctx.strokeStyle = 'rgba(251,191,36,0.3)'; ctx.lineWidth = 1;
+          ctx.beginPath(); ctx.arc(q.x, q.y, nr + 8, 0, Math.PI * 2); ctx.stroke();
+        }
+      } else if (isCollected) {
+        drawNode(ctx, q.shape, q.x, q.y, nr, DONE_C, isHov || isSel);
+        drawCheck(ctx, q.x, q.y - 2);
+        if (v.z > 0.3) {
+          ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
+          ctx.fillStyle = '#86efac';
+          ctx.fillText(q.name, q.x, q.y + R + 13);
+        }
+      } else {
+        const c = SHAPE_COLORS[q.shape] || SHAPE_COLORS.circle;
+        drawNode(ctx, q.shape, q.x, q.y, nr, c, isHov || isSel);
+        ctx.fillStyle = c.stroke; ctx.font = 'bold 8px "DM Sans",sans-serif';
+        ctx.textAlign = 'center'; ctx.fillText(`${q.zp}`, q.x, q.y + 3);
+        if (v.z > 0.3) {
+          ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
+          ctx.fillStyle = '#94a3b8';
+          ctx.fillText(q.name, q.x, q.y + R + 13);
+        }
         if (isHov || isSel) {
           ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.arc(q.x, q.y, nr + 8, 0, Math.PI * 2); ctx.stroke();
@@ -415,7 +330,6 @@ const QuestMap = () => {
     });
 
     ctx.restore();
-
     animRef.current++;
   }, [isUnlocked]);
 
@@ -468,7 +382,6 @@ const QuestMap = () => {
     return () => c.removeEventListener('wheel', onWheel);
   }, [onWheel]);
 
-  // Touch events
   const touchR2 = useRef({ dist: 0 });
   const onTS = useCallback((e) => {
     if (e.touches.length === 1) { setDrag(true); setDragO({ x: e.touches[0].clientX - vpR.current.x, y: e.touches[0].clientY - vpR.current.y }); }
@@ -497,14 +410,14 @@ const QuestMap = () => {
     const cvs = canvasRef.current;
     const cw = cvs ? cvs.clientWidth : 960;
     const ch = cvs ? cvs.clientHeight : 600;
-    setVp({ z: 0.35, x: cw / 2 - mapData.centerX * 0.35, y: ch / 2 - mapData.centerY * 0.35 });
+    const z = Math.max(0.3, Math.min(1.2, (cw - 160) / (mapData.mapMaxX - mapData.mapMinX)));
+    setVp({ z, x: cw / 2 - mapData.centerX * z, y: ch / 2 - mapData.centerY * z });
   };
 
-  // Completion sound effect using Web Audio API
-  const playCompleteSound = useCallback(() => {
+  const playCollectSound = useCallback(() => {
     try {
       const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+      const notes = [523.25, 659.25, 783.99, 1046.50];
       notes.forEach((freq, i) => {
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
@@ -513,42 +426,54 @@ const QuestMap = () => {
         gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.1);
         gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + i * 0.1 + 0.03);
         gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.5);
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + i * 0.1);
-        osc.stop(ctx.currentTime + i * 0.1 + 0.5);
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.start(ctx.currentTime + i * 0.1); osc.stop(ctx.currentTime + i * 0.1 + 0.5);
       });
-      // Shimmer
       const shimmer = ctx.createOscillator();
       const sGain = ctx.createGain();
-      shimmer.type = 'triangle';
-      shimmer.frequency.value = 1568;
+      shimmer.type = 'triangle'; shimmer.frequency.value = 1568;
       sGain.gain.setValueAtTime(0, ctx.currentTime + 0.35);
       sGain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.4);
       sGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
-      shimmer.connect(sGain);
-      sGain.connect(ctx.destination);
-      shimmer.start(ctx.currentTime + 0.35);
-      shimmer.stop(ctx.currentTime + 0.9);
-    } catch (e) { /* audio not available */ }
+      shimmer.connect(sGain); sGain.connect(ctx.destination);
+      shimmer.start(ctx.currentTime + 0.35); shimmer.stop(ctx.currentTime + 0.9);
+    } catch (_) {}
   }, []);
 
-  const doComplete = async (q) => {
-    if (completed.has(q.id) || !isUnlocked(q.id)) return;
+  const doCollect = useCallback(async (q) => {
+    if (!pendingSet.has(q.id) || collecting) return;
+    setCollecting(true);
     try {
-      const r = await axios.post(`${API}/quests/${q.id}/complete`, { xp: q.zp }, { withCredentials: true });
-      setCompleted(new Set(r.data.completed_quests)); setSp(r.data.quest_xp);
-      playCompleteSound();
-      if (r.data.rank_up) {
-        setRankUpModal({ newRank: r.data.new_rank, oldRank: r.data.old_rank });
+      const r = await axios.post(`${API}/quests/${q.id}/collect`, {}, { withCredentials: true });
+      setZp(r.data.zp_total || 0);
+      setPendingSet(prev => { const n = new Set(prev); n.delete(q.id); return n; });
+      setCollectedSet(prev => new Set([...prev, q.id]));
+      playCollectSound();
+
+      // ZP flying animation — from panel bottom-center to ZP badge
+      const panel = document.querySelector('[data-quest-panel]');
+      const badge = zpBadgeRef.current;
+      if (panel && badge) {
+        const pRect = panel.getBoundingClientRect();
+        const bRect = badge.getBoundingClientRect();
+        setZpFly({
+          key: Date.now(),
+          fromX: pRect.left + pRect.width / 2,
+          fromY: pRect.top,
+          toX: bRect.left + bRect.width / 2,
+          toY: bRect.top + bRect.height / 2,
+          zp: r.data.zp_earned,
+        });
+        setTimeout(() => setZpFly(null), 1100);
       }
-    } catch (e) { console.error(e); }
-  };
+      setSelected(null);
+    } catch (_) {}
+    setCollecting(false);
+  }, [pendingSet, collecting, playCollectSound]);
 
   const total = mapData ? mapData.quests.length : 0;
-  const done = completed.size;
+  const done = collectedSet.size;
   const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-  const diffLabel = { circle: 'Kolay', square: 'Orta', triangle: 'Zor', star: 'Efsanevi' };
 
   return (
     <>
@@ -565,9 +490,9 @@ const QuestMap = () => {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
+          <div ref={zpBadgeRef} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
             <Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} />
-            <span className="text-xs font-bold" style={{ color: '#fbbf24' }} data-testid="quest-sp-badge">{sp} ZP</span>
+            <span className="text-xs font-bold" style={{ color: '#fbbf24' }} data-testid="quest-sp-badge">{zp} ZP</span>
           </div>
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)' }}>
             <Trophy className="h-3.5 w-3.5" style={{ color: '#4ade80' }} />
@@ -590,14 +515,11 @@ const QuestMap = () => {
           <button onClick={zoomIn} className="p-1 rounded hover:bg-white/5" data-testid="quest-zoom-in"><ZoomIn className="h-4 w-4" style={{ color: '#64748b' }} /></button>
           <button onClick={resetView} className="p-1 rounded hover:bg-white/5" data-testid="quest-reset-view"><Maximize2 className="h-4 w-4" style={{ color: '#64748b' }} /></button>
         </div>
-        <div className="hidden lg:flex items-center gap-2 ml-2 pl-2 border-l" style={{ borderColor: 'rgba(255,255,255,0.06)' }}>
-          {[['circle','#38bdf8','20 ZP'],['square','#818cf8','45 ZP'],['triangle','#c084fc','100 ZP'],['star','#fbbf24','200 ZP']].map(([s,c,l]) => (
-            <div key={s} className="flex items-center gap-1">
-              <div className="w-2.5 h-2.5" style={{ background: c, borderRadius: s === 'circle' ? '50%' : '2px', clipPath: s === 'triangle' ? 'polygon(50% 0%, 0% 100%, 100% 100%)' : s === 'star' ? 'polygon(50% 0%,61% 35%,98% 35%,68% 57%,79% 91%,50% 70%,21% 91%,32% 57%,2% 35%,39% 35%)' : 'none' }} />
-              <span className="text-[10px]" style={{ color: '#475569' }}>{l}</span>
-            </div>
-          ))}
-          <div className="flex items-center gap-1"><div className="w-2.5 h-2.5 rounded-full" style={{ background: '#4ade80' }} /><span className="text-[10px]" style={{ color: '#475569' }}>Bitti</span></div>
+        <div className="hidden lg:flex items-center gap-3 ml-2 pl-2 border-l text-[10px]" style={{ borderColor: 'rgba(255,255,255,0.06)', color: '#475569' }}>
+          <span style={{ color: '#38bdf8' }}>● Aktif</span>
+          <span style={{ color: '#fbbf24' }}>★ Topla</span>
+          <span style={{ color: '#4ade80' }}>✓ Tamamlandı</span>
+          <span style={{ color: '#2a3050' }}>? Kilitli</span>
         </div>
       </div>
 
@@ -611,28 +533,43 @@ const QuestMap = () => {
 
         {/* Quest Detail Panel */}
         {selected && (
-          <div className="absolute bottom-3 left-3 sm:left-1/2 sm:-translate-x-1/2 rounded-xl shadow-2xl p-4 max-w-xs w-[calc(100%-1.5rem)] sm:w-auto sm:min-w-[280px]" style={{ background: 'rgba(10,14,30,0.97)', border: '1px solid rgba(40,50,120,0.4)', backdropFilter: 'blur(20px)', zIndex: 25 }} data-testid="quest-detail-panel">
+          <div data-quest-panel className="absolute bottom-3 left-3 sm:left-1/2 sm:-translate-x-1/2 rounded-xl shadow-2xl p-4 max-w-xs w-[calc(100%-1.5rem)] sm:w-auto sm:min-w-[280px]" style={{ background: 'rgba(10,14,30,0.97)', border: `1px solid ${pendingSet.has(selected.id) ? 'rgba(251,191,36,0.4)' : 'rgba(40,50,120,0.4)'}`, backdropFilter: 'blur(20px)', zIndex: 25 }} data-testid="quest-detail-panel">
             <div className="flex items-start justify-between mb-2">
               <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: completed.has(selected.id) ? 'rgba(74,222,128,0.12)' : (SHAPE_COLORS[selected.shape]?.fill || '#121545') }}>
-                  <span className="text-sm font-bold" style={{ color: completed.has(selected.id) ? '#4ade80' : (SHAPE_COLORS[selected.shape]?.stroke || '#38bdf8') }}>
-                    {completed.has(selected.id) ? '\u2713' : selected.shape === 'star' ? '\u2605' : selected.shape === 'triangle' ? '\u25B2' : selected.shape === 'square' ? '\u25A0' : '\u25CF'}
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: collectedSet.has(selected.id) ? 'rgba(74,222,128,0.12)' : pendingSet.has(selected.id) ? 'rgba(251,191,36,0.12)' : 'rgba(56,189,248,0.08)' }}>
+                  <span className="text-sm font-bold" style={{ color: collectedSet.has(selected.id) ? '#4ade80' : pendingSet.has(selected.id) ? '#fbbf24' : '#38bdf8' }}>
+                    {collectedSet.has(selected.id) ? '✓' : pendingSet.has(selected.id) ? '★' : '●'}
                   </span>
                 </div>
                 <div>
                   <h3 className="text-sm font-bold" style={{ color: '#e2e8f0' }}>{selected.name}</h3>
-                  <span className="text-[10px]" style={{ color: '#64748b' }}>{diffLabel[selected.shape]}</span>
+                  <span className="text-[10px]" style={{ color: '#64748b' }}>
+                    {collectedSet.has(selected.id) ? 'Tamamlandı' : pendingSet.has(selected.id) ? 'Toplanmayı Bekliyor' : isUnlocked(selected.id) ? 'Aktif' : 'Kilitli'}
+                  </span>
                 </div>
               </div>
               <button onClick={() => setSelected(null)} className="p-1 rounded hover:bg-white/10"><X className="h-4 w-4" style={{ color: '#64748b' }} /></button>
             </div>
             <p className="text-xs mb-3" style={{ color: '#94a3b8' }}>{selected.desc}</p>
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1"><Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} /><span className="text-xs font-bold" style={{ color: '#fbbf24' }}>+{selected.zp} ZP</span></div>
-              {completed.has(selected.id) ? (
+              <div className="flex items-center gap-1">
+                <Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} />
+                <span className="text-xs font-bold" style={{ color: '#fbbf24' }}>+{selected.zp} ZP</span>
+              </div>
+              {collectedSet.has(selected.id) ? (
                 <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>Tamamlandı</span>
+              ) : pendingSet.has(selected.id) ? (
+                <button
+                  onClick={() => doCollect(selected)}
+                  disabled={collecting}
+                  className="text-xs px-4 py-1.5 rounded-full font-bold hover:opacity-90 transition-opacity"
+                  style={{ background: 'linear-gradient(135deg, #92400e, #fbbf24)', color: '#0a0f2e', opacity: collecting ? 0.6 : 1 }}
+                  data-testid="quest-collect-btn"
+                >
+                  {collecting ? '...' : 'Topla'}
+                </button>
               ) : isUnlocked(selected.id) ? (
-                <button onClick={() => doComplete(selected)} className="text-xs px-3 py-1.5 rounded-full font-medium hover:opacity-80 transition-opacity" style={{ background: 'linear-gradient(135deg, #1e3a8a, #38bdf8)', color: 'white' }} data-testid="quest-complete-btn">Tamamla</button>
+                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(56,189,248,0.08)', color: '#38bdf8' }}>Devam Ediyor</span>
               ) : (
                 <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.03)', color: '#2a2e42' }}>Kilitli</span>
               )}
@@ -642,19 +579,35 @@ const QuestMap = () => {
       </div>
     </div>
 
-    {/* Rank Up Modal */}
-    {rankUpModal && (
-      <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setRankUpModal(null)}>
-        <div className="rounded-2xl p-8 text-center max-w-sm w-full mx-4 animate-fadeIn" style={{ background: 'linear-gradient(135deg, #0a0f2e, #1a1f4e)', border: '1px solid rgba(251,191,36,0.4)' }} onClick={e => e.stopPropagation()}>
-          <div className="text-5xl mb-4">🏆</div>
-          <h2 className="text-2xl font-bold mb-2" style={{ color: '#fbbf24' }}>Rütbe Yükseldi!</h2>
-          <p className="text-sm mb-1" style={{ color: '#94a3b8' }}>{rankUpModal.oldRank} → </p>
-          <p className="text-3xl font-black mb-6" style={{ color: '#fbbf24' }}>{rankUpModal.newRank}</p>
-          <p className="text-xs mb-6" style={{ color: '#64748b' }}>Tebrikler! Yeni rütbenle ZET Mindshare'de bir adım öne geçtin.</p>
-          <button onClick={() => setRankUpModal(null)} className="px-6 py-2 rounded-full font-medium text-sm" style={{ background: 'linear-gradient(135deg, #b45309, #fbbf24)', color: '#0a0f2e' }}>Harika!</button>
-        </div>
+    {/* ZP Flying Animation */}
+    {zpFly && (
+      <div
+        key={zpFly.key}
+        style={{
+          position: 'fixed',
+          left: zpFly.fromX,
+          top: zpFly.fromY,
+          transform: 'translate(-50%, -50%)',
+          zIndex: 9999,
+          pointerEvents: 'none',
+          animation: 'zp-fly 1s cubic-bezier(0.4,0,0.2,1) forwards',
+          '--tx': `${zpFly.toX - zpFly.fromX}px`,
+          '--ty': `${zpFly.toY - zpFly.fromY}px`,
+        }}
+      >
+        <span style={{ fontSize: 13, fontWeight: 800, color: '#fbbf24', textShadow: '0 0 8px rgba(251,191,36,0.8)', whiteSpace: 'nowrap' }}>
+          +{zpFly.zp} ZP
+        </span>
       </div>
     )}
+
+    <style>{`
+      @keyframes zp-fly {
+        0%   { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+        60%  { opacity: 1; }
+        100% { opacity: 0; transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.6); }
+      }
+    `}</style>
     </>
   );
 };
