@@ -156,9 +156,10 @@ const QuestMap = () => {
       const cvs2 = canvasRef.current;
       const cw = (cvs2 && cvs2.offsetWidth > 0) ? cvs2.offsetWidth : window.innerWidth;
       const ch = (cvs2 && cvs2.offsetHeight > 0) ? cvs2.offsetHeight : window.innerHeight - 120;
-      const z = Math.max(0.3, Math.min(1.2, (cw - 160) / (d.mapMaxX - d.mapMinX)));
-      const x = cw / 2 - d.centerX * z;
-      const y = ch / 2 - d.centerY * z;
+      // Başlangıç: alt-orta görünsün, tüm harita yaklaşık sığsın
+      const z = Math.max(0.12, Math.min(0.6, (cw - 100) / (d.mapMaxX - d.mapMinX)));
+      const x = cw / 2 - d.startX * z;
+      const y = ch - 120 - d.startY * z;
       setVp({ z, x, y });
     };
     setTimeout(initVp, 100);
@@ -186,7 +187,8 @@ const QuestMap = () => {
   const isUnlocked = useCallback((qid) => {
     const q = mdR.current?.quests.find(q => q.id === qid);
     if (!q) return false;
-    return q.requires.every(r => collR.current.has(r));
+    // pending VEYA collected — toplanmasa bile bir sonraki kilit açılır
+    return q.requires.every(r => collR.current.has(r) || pendR.current.has(r));
   }, []);
 
   const findAt = useCallback((sx, sy) => {
@@ -414,8 +416,8 @@ const QuestMap = () => {
     const cvs = canvasRef.current;
     const cw = cvs ? cvs.clientWidth : 960;
     const ch = cvs ? cvs.clientHeight : 600;
-    const z = Math.max(0.3, Math.min(1.2, (cw - 160) / (mapData.mapMaxX - mapData.mapMinX)));
-    setVp({ z, x: cw / 2 - mapData.centerX * z, y: ch / 2 - mapData.centerY * z });
+    const z = Math.max(0.12, Math.min(0.6, (cw - 100) / (mapData.mapMaxX - mapData.mapMinX)));
+    setVp({ z, x: cw / 2 - mapData.startX * z, y: ch - 120 - mapData.startY * z });
   };
 
   const playCollectSound = useCallback(() => {
@@ -443,6 +445,8 @@ const QuestMap = () => {
       shimmer.start(ctx.currentTime + 0.35); shimmer.stop(ctx.currentTime + 0.9);
     } catch (_) {}
   }, []);
+
+  const doCollectRef = useRef(null);
 
   const doCollect = useCallback(async (q) => {
     if (!pendingSet.has(q.id) || collecting) return;
@@ -474,6 +478,21 @@ const QuestMap = () => {
     } catch (_) {}
     setCollecting(false);
   }, [pendingSet, collecting, playCollectSound]);
+
+  doCollectRef.current = doCollect;
+
+  // Space tuşu ile toplama
+  useEffect(() => {
+    const handler = (e) => {
+      if (e.code === 'Space') {
+        e.preventDefault();
+        const sel = selR.current;
+        if (sel && pendR.current.has(sel.id)) doCollectRef.current?.(sel);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const total = mapData ? mapData.quests.length : 0;
   const done = collectedSet.size;

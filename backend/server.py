@@ -6827,14 +6827,16 @@ async def quests_auto_check(user: User = Depends(get_current_user)):
 
     completed = set(user_data.get("completed_quests", []))
     pending = set(user_data.get("pending_quests", []))
+    # Pending dahil — görev toplanmasa da bir sonraki kilit açılır
+    unlocked = completed | pending
 
     newly_pending = []
     for q in QUEST_DEFINITIONS:
         qid = q["id"]
         if qid in completed or qid in pending:
             continue
-        # Check dependency chain
-        if not all(r in completed for r in q["requires"]):
+        # Check dependency chain (pending OR collected sayılır)
+        if not all(r in unlocked for r in q["requires"]):
             continue
         # Check stat threshold
         stat_val = user_data.get(q["stat"], 0) or 0
