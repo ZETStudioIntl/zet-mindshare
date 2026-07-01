@@ -157,7 +157,7 @@ const QuestMap = () => {
       const cw = (cvs2 && cvs2.offsetWidth > 0) ? cvs2.offsetWidth : window.innerWidth;
       const ch = (cvs2 && cvs2.offsetHeight > 0) ? cvs2.offsetHeight : window.innerHeight - 120;
       // Başlangıç: alt-orta görünsün, tüm harita yaklaşık sığsın
-      const z = Math.max(0.12, Math.min(0.6, (cw - 100) / (d.mapMaxX - d.mapMinX)));
+      const z = Math.max(0.18, Math.min(0.55, (cw - 100) / (d.mapMaxX - d.mapMinX)));
       const x = cw / 2 - d.startX * z;
       const y = ch - 120 - d.startY * z;
       setVp({ z, x, y });
@@ -357,10 +357,12 @@ const QuestMap = () => {
     } else {
       const rect = cvs.getBoundingClientRect();
       const q = findAt(e.clientX - rect.left, e.clientY - rect.top);
-      setHovered(q ? q.id : null);
+      const newId = q ? q.id : null;
+      if (newId && newId !== hovR.current) playHoverSound();
+      setHovered(newId);
       cvs.style.cursor = q ? 'pointer' : 'grab';
     }
-  }, [drag, dragO, findAt]);
+  }, [drag, dragO, findAt, playHoverSound]);
   const onUp = useCallback((e) => {
     if (drag) {
       setDrag(false);
@@ -377,7 +379,7 @@ const QuestMap = () => {
     const mx = e.clientX - rect.left, my = e.clientY - rect.top;
     const f = e.deltaY < 0 ? 1.12 : 0.88;
     setVp(v => {
-      const nz = Math.max(0.08, Math.min(3, v.z * f));
+      const nz = Math.max(0.18, Math.min(2.5, v.z * f));
       const s = nz / v.z;
       return { z: nz, x: mx - (mx - v.x) * s, y: my - (my - v.y) * s };
     });
@@ -409,16 +411,31 @@ const QuestMap = () => {
   }, [drag, dragO]);
   const onTE = useCallback(() => { setDrag(false); touchR2.current.dist = 0; }, []);
 
-  const zoomIn = () => setVp(v => ({ ...v, z: Math.min(3, v.z * 1.3) }));
-  const zoomOut = () => setVp(v => ({ ...v, z: Math.max(0.08, v.z * 0.7) }));
+  const zoomIn = () => setVp(v => ({ ...v, z: Math.min(2.5, v.z * 1.3) }));
+  const zoomOut = () => setVp(v => ({ ...v, z: Math.max(0.18, v.z * 0.7) }));
   const resetView = () => {
     if (!mapData) return;
     const cvs = canvasRef.current;
     const cw = cvs ? cvs.clientWidth : 960;
     const ch = cvs ? cvs.clientHeight : 600;
-    const z = Math.max(0.12, Math.min(0.6, (cw - 100) / (mapData.mapMaxX - mapData.mapMinX)));
+    const z = Math.max(0.18, Math.min(0.55, (cw - 100) / (mapData.mapMaxX - mapData.mapMinX)));
     setVp({ z, x: cw / 2 - mapData.startX * z, y: ch - 120 - mapData.startY * z });
   };
+
+  const playHoverSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(900, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.07);
+      gain.gain.setValueAtTime(0.07, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.11);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.11);
+    } catch (_) {}
+  }, []);
 
   const playCollectSound = useCallback(() => {
     try {
