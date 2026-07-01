@@ -346,6 +346,21 @@ const QuestMap = () => {
     return () => cancelAnimationFrame(af);
   }, [render]);
 
+  const playHoverSound = useCallback(() => {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(900, ctx.currentTime);
+      osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.07);
+      gain.gain.setValueAtTime(0.07, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.11);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.11);
+    } catch (_) {}
+  }, []);
+
   // Mouse events
   const onDown = useCallback((e) => {
     if (e.button === 0) { setDrag(true); setDragO({ x: e.clientX - vpR.current.x, y: e.clientY - vpR.current.y }); }
@@ -421,21 +436,6 @@ const QuestMap = () => {
     const z = Math.max(0.18, Math.min(0.55, (cw - 100) / (mapData.mapMaxX - mapData.mapMinX)));
     setVp({ z, x: cw / 2 - mapData.startX * z, y: ch - 120 - mapData.startY * z });
   };
-
-  const playHoverSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(900, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.07);
-      gain.gain.setValueAtTime(0.07, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.11);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.11);
-    } catch (_) {}
-  }, []);
 
   const playCollectSound = useCallback(() => {
     try {
