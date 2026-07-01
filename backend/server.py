@@ -1184,6 +1184,23 @@ def _xp_to_rank(xp: int) -> str:
             return name
     return "iron"
 
+# Saat bazlı rank — sezon dağıtımında kullanılır
+_SEASON_RANK_HOURS = [
+    (200, "endless"),
+    (90,  "emerald"),
+    (60,  "diamond"),
+    (25,  "gold"),
+    (10,  "silver"),
+    (0,   "iron"),
+]
+
+def _hours_to_rank(seconds: int) -> str:
+    hours = (seconds or 0) / 3600
+    for threshold, name in _SEASON_RANK_HOURS:
+        if hours >= threshold:
+            return name
+    return "iron"
+
 async def distribute_season_rewards_and_reset():
     """Sezon ödüllerini dağıt, tüm kullanıcı rankını sıfırla."""
     # Atomik: 'active' → 'ending' geçişi; iki eş zamanlı çağrı olursa sadece biri devam eder
@@ -1208,9 +1225,9 @@ async def distribute_season_rewards_and_reset():
     ).to_list(length=200000)
     count = 0
     for u in users:
-        rank   = _xp_to_rank(u.get("mindshare_xp") or 0)
-        reward = _SEASON_RANK_REWARDS[rank]
         active_secs = u.get("active_time_seconds", 0) or 0
+        rank   = _hours_to_rank(active_secs)
+        reward = _SEASON_RANK_REWARDS[rank]
         # Sezon sonuç kaydı — popup için
         await db.season_results.insert_one({
             "user_id":             u["user_id"],

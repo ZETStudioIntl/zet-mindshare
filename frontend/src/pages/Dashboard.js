@@ -254,22 +254,24 @@ const Dashboard = () => {
 
   // Rank system
   const RANKS = [
-    { name: 'Demir',   xp: 0,     color: '#9ca3af', level: 1, next: 100   },
-    { name: 'Gümüş',  xp: 100,   color: '#cdd2d6', level: 2, next: 500   },
-    { name: 'Altın',  xp: 500,   color: '#ecca66', level: 3, next: 1500  },
-    { name: 'Elmas',  xp: 1500,  color: '#250b62', level: 4, next: 5000  },
-    { name: 'Zümrüt', xp: 5000,  color: '#065a10', level: 5, next: 15000 },
-    { name: 'Endless', xp: 15000, color: '#ef4444', level: 6, next: null  },
+    { name: 'Demir',   xp: 0,   color: '#9ca3af', level: 1, next: 10  },
+    { name: 'Gümüş',  xp: 10,  color: '#cdd2d6', level: 2, next: 25  },
+    { name: 'Altın',  xp: 25,  color: '#ecca66', level: 3, next: 60  },
+    { name: 'Elmas',  xp: 60,  color: '#250b62', level: 4, next: 90  },
+    { name: 'Zümrüt', xp: 90,  color: '#065a10', level: 5, next: 200 },
+    { name: 'Endless', xp: 200, color: '#ef4444', level: 6, next: null },
   ];
-  const getCurrentRank = (xp) => {
+  const getCurrentRank = (hours) => {
     let rank = RANKS[0];
-    for (const r of RANKS) { if (xp >= r.xp) rank = r; }
+    for (const r of RANKS) { if (hours >= r.xp) rank = r; }
     return rank;
   };
-  const currentRank = getCurrentRank(userZP);
-  const nextRank = RANKS.find(r => r.xp > userZP) || null;
+  // Rank tamamen saat bazlı — quest veya ZP gerektirmez
+  const rankActiveHours = (activeTimeSeconds + sessionSeconds) / 3600;
+  const currentRank = getCurrentRank(rankActiveHours);
+  const nextRank = RANKS.find(r => r.xp > rankActiveHours) || null;
   const rankProgress = nextRank
-    ? Math.min(100, Math.round(((userZP - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
+    ? Math.min(100, Math.round(((rankActiveHours - currentRank.xp) / (nextRank.xp - currentRank.xp)) * 100))
     : 100;
 
   const RANK_LOGOS = { 'Demir': ironRankImg, 'Gümüş': silverRankImg, 'Altın': goldRankImg, 'Elmas': diamondRankImg, 'Zümrüt': emeraldRankImg, 'Endless': endlessRankImg };
@@ -2161,11 +2163,11 @@ MATCHES:[1,3,5]`;
 
               {settingsTab === 'ranks' && (() => {
                 const RANK_REQUIREMENTS = {
-                  'Gümüş':  { hours: 10,  quests: 70 },
-                  'Altın':  { hours: 25,  quests: 130 },
-                  'Elmas':  { hours: 60,  quests: 200 },
-                  'Zümrüt': { hours: 90,  quests: 300 },
-                  'Endless':{ hours: 200, quests: 500 },
+                  'Gümüş':  { hours: 10  },
+                  'Altın':  { hours: 25  },
+                  'Elmas':  { hours: 60  },
+                  'Zümrüt': { hours: 90  },
+                  'Endless':{ hours: 200 },
                 };
                 const RANK_REWARDS = {
                   'Demir':   { credits: 30,   sp: 50   },
@@ -2315,24 +2317,13 @@ MATCHES:[1,3,5]`;
                             <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
                           </div>
                           {req ? (
-                            <div className="mt-2 space-y-1.5">
-                              <div>
-                                <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                  <span>{formatActiveTime(totalActiveSeconds)} / {req.hours} sa</span>
-                                  <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
-                                </div>
-                                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (activeHours / req.hours) * 100)}%`, background: activeHours >= req.hours ? r.color : 'rgba(255,255,255,0.3)' }} />
-                                </div>
+                            <div className="mt-2">
+                              <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
+                                <span>{formatActiveTime(totalActiveSeconds)} / {req.hours} sa</span>
+                                <span>{Math.min(100, Math.round((activeHours / req.hours) * 100))}%</span>
                               </div>
-                              <div>
-                                <div className="flex justify-between text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-                                  <span>{completedQuestCount} / {req.quests} {t('questMap')}</span>
-                                  <span>{Math.min(100, Math.round((completedQuestCount / req.quests) * 100))}%</span>
-                                </div>
-                                <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
-                                  <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (completedQuestCount / req.quests) * 100)}%`, background: completedQuestCount >= req.quests ? r.color : 'rgba(255,255,255,0.3)' }} />
-                                </div>
+                              <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.08)' }}>
+                                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, (activeHours / req.hours) * 100)}%`, background: activeHours >= req.hours ? r.color : 'rgba(255,255,255,0.3)' }} />
                               </div>
                             </div>
                           ) : (
@@ -2378,7 +2369,7 @@ MATCHES:[1,3,5]`;
                     <div className="w-full h-2 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.1)' }}>
                       <div className="h-full rounded-full transition-all" style={{ width: `${rankProgress}%`, background: currentRank.color }} />
                     </div>
-                    <p className="text-xs mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>{userZP.toLocaleString()} / {nextRank ? nextRank.xp.toLocaleString() : '∞'} XP</p>
+                    <p className="text-xs mt-2 text-center" style={{ color: 'var(--zet-text-muted)' }}>{formatActiveTime(totalActiveSeconds)} / {nextRank ? `${nextRank.xp} sa` : '∞'}</p>
                   </div>
                 </div>
                 );
