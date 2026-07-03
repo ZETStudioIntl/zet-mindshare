@@ -2544,11 +2544,15 @@ async def zet_id_userinfo(request: Request):
 
 @api_router.get("/documents", response_model=List[dict])
 async def get_documents(skip: int = 0, limit: int = 20, user: User = Depends(get_current_user)):
-    docs = await db.documents.find(
-        {"user_id": user.user_id, "deleted": {"$ne": True}},
-        {"_id": 0, "pages": 0}
-    ).sort([("pinned", -1), ("updated_at", -1)]).skip(skip).limit(limit).to_list(limit)
-    return docs
+    try:
+        docs = await db.documents.find(
+            {"user_id": user.user_id, "deleted": {"$ne": True}},
+            {"_id": 0, "pages": 0}
+        ).sort([("pinned", -1), ("updated_at", -1)]).skip(skip).limit(limit).to_list(limit)
+        return docs
+    except Exception as e:
+        logging.error(f"get_documents error: {e}")
+        raise HTTPException(status_code=500, detail="Belgeler yüklenemedi")
 
 class R2UploadRequest(BaseModel):
     data: str  # data:image/...;base64,...
