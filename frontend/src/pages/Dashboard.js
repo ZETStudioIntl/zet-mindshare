@@ -3015,7 +3015,7 @@ MATCHES:[1,3,5]`;
 
         {/* Documents/Notes Grid */}
         {activeTab === 'documents' ? (
-          <div style={{ overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain' }}>
+          <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', paddingBottom: 80 }}>
           <div className="flex justify-end mb-3">
             <button onClick={() => { setShowTrash(true); fetchTrash(); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
               <Trash2 className="h-3.5 w-3.5" /> Çöp Kutusu
@@ -3300,7 +3300,7 @@ MATCHES:[1,3,5]`;
               )}
             </div>
 
-            <div className="overflow-y-auto space-y-3 pb-20" style={{ maxHeight: 'calc(100vh - 420px)' }}>
+            <div className="flex-1 min-h-0 overflow-y-auto space-y-3" style={{ paddingBottom: 80 }}>
               {/* Defterler */}
               {notebooks.filter(nb => !searchQuery || nb.name.toLowerCase().includes(searchQuery.toLowerCase())).map(nb => {
                 const hasPassword = !!(nb.password_hash || nb.has_password);
@@ -3412,7 +3412,7 @@ MATCHES:[1,3,5]`;
       </main>
 
       {/* Bottom Tabs */}
-      <div className="fixed bottom-0 left-0 right-0 p-4" style={{ background: 'var(--zet-bg)' }}>
+      <div className="fixed bottom-0 left-0 right-0 p-4" style={{ background: 'var(--zet-bg)', zIndex: 20 }}>
         <div className="max-w-md mx-auto zet-card p-1 flex">
           <button 
             onClick={() => setActiveTab('documents')}
