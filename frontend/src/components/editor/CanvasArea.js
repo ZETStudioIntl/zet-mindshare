@@ -28,7 +28,9 @@ const SCENE_KW_RE = /^([iıİI][çÇc]\.?\s*\/\s*d[iıİI][şŞs]\.?|[iıİI][ç
 
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
-    const lines = Math.max(1, (el.content || '').split('\n').length);
+    const contentLines = Math.max(1, (el.content || '').split('\n').length);
+    const htmlLines = el.htmlContent ? (el.htmlContent.match(/<br\s*\/?>/gi) || []).length + 1 : 1;
+    const lines = Math.max(contentLines, htmlLines);
     const h = (el.fontSize || 16) * lines * (el.lineHeight || 1.5);
     return x >= el.x && x <= el.x + (el.width || 400) && y >= el.y && y <= el.y + h;
   }
