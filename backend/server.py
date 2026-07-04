@@ -13,6 +13,7 @@ import uuid
 import random
 import secrets
 from datetime import datetime, timezone, timedelta, date
+import re
 import base64
 import asyncio
 import hmac
@@ -5368,11 +5369,21 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
             contents=[{"role": "user", "parts": [{"text": full_prompt}]}],
             config=genai_types.GenerateContentConfig(
                 temperature=0.4,
-                max_output_tokens=4096,
+                max_output_tokens=16384,
                 response_mime_type="application/json",
             )
         )
         raw = (response.text or "").strip()
+        # Strip markdown code fences if model added them
+        if raw.startswith("```"):
+            raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
+            raw = re.sub(r'\s*```\s*$', '', raw)
+            raw = raw.strip()
+        # Extract first JSON object if there's extra text around it
+        if not raw.startswith('{'):
+            m = re.search(r'\{[\s\S]*\}', raw)
+            if m:
+                raw = m.group(0)
         result = json.loads(raw)
         await add_token_usage(user.user_id, getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0)
         return {
@@ -5382,7 +5393,7 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
         }
     except json.JSONDecodeError:
         logging.error(f"zeta_document_edit JSON parse error, raw[:300]: {raw[:300] if 'raw' in dir() else 'N/A'}")
-        return {"explanation": "JSON ayrıştırma hatası.", "operations": [], "suggestions": []}
+        return {"explanation": "JSON ayrıştırma hatası. Lütfen isteği daha kısa tutarak tekrar deneyin.", "operations": [], "suggestions": []}
     except Exception as e:
         logging.error(f"zeta_document_edit error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
