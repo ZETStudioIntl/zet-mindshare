@@ -87,18 +87,22 @@ export default function SpellCheckLayer({
 }) {
   const [underlines, setUnderlines] = useState([]);
   const rafRef = useRef(null);
+  const layerRef = useRef(null);
 
   const compute = useCallback(() => {
-    if (!canvasContainerRef?.current) return;
+    if (!canvasContainerRef?.current || !layerRef.current) return;
     const container = canvasContainerRef.current;
+    const layerRect = layerRef.current.getBoundingClientRect();
     const result = [];
 
     const allPages = doc?.pages || [];
     allPages.forEach((page, pageIdx) => {
       const pageEl = container.querySelector(`[data-testid="canvas-page-${pageIdx}"]`);
       if (!pageEl) return;
-      const pageLeft = pageEl.offsetLeft;
-      const pageTop = pageEl.offsetTop;
+      const pageRect = pageEl.getBoundingClientRect();
+      // Positions relative to the SpellCheckLayer's own top-left corner
+      const pageLeft = pageRect.left - layerRect.left;
+      const pageTop = pageRect.top - layerRect.top;
       const els = pageIdx === currentPage ? canvasElements : (page.elements || []);
 
       els.forEach(el => {
@@ -117,16 +121,26 @@ export default function SpellCheckLayer({
     setUnderlines(result);
   }, [spellErrors, canvasElements, doc, currentPage, zoom, tanıList, canvasContainerRef]);
 
+  // Scroll listener — recompute positions when canvas is scrolled
+  useEffect(() => {
+    const container = canvasContainerRef?.current;
+    if (!container) return;
+    const onScroll = () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(compute);
+    };
+    container.addEventListener('scroll', onScroll, { passive: true });
+    return () => container.removeEventListener('scroll', onScroll);
+  }, [canvasContainerRef, compute]);
+
   useEffect(() => {
     if (rafRef.current) cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(compute);
     return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
   }, [compute]);
 
-  if (!underlines.length) return null;
-
   return (
-    <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 30 }}>
+    <div ref={layerRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 30 }}>
       {underlines.map((u, i) => (
         <div
           key={`sp-${u.elementId}-${u.error.offset}-${i}`}
@@ -153,7 +167,6 @@ export default function SpellCheckLayer({
 export function SpellPopup({ popup, tanıList, onApply, onTanı, onClose }) {
   if (!popup) return null;
 
-  // Tanı'd words similar to the misspelled word → surface as additional suggestions
   const tanıHints = Object.keys(tanıList)
     .filter(w => w !== popup.error.word && levenshtein(w, popup.error.word) <= 2)
     .map(w => w)

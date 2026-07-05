@@ -5,10 +5,13 @@ import { EditorStateContext } from '../../contexts/EditorStateContext';
 import { CanvasArea } from './CanvasArea';
 import { RightPanel } from './RightPanel';
 import EditorPanels from './EditorPanels';
+import ShareDialog from './ShareDialog';
+import VersionHistoryPanel from './VersionHistoryPanel';
 import { TOOLS } from '../../lib/editorConstants';
 import {
   Home, Undo, Redo, Zap, Save, Menu, Layers, Download, Sparkles,
   X, Loader2, Pause, Play, SkipBack, SkipForward, Upload, Lock,
+  Share2, History,
 } from 'lucide-react';
 
 const EditorMobileLayout = () => {
@@ -46,6 +49,8 @@ const EditorMobileLayout = () => {
     docId, exportToPDF,
     zetaCustomPrompt, zetaEmoji, zetaMood,
     pdfInputRef, importPDF, importFromMS,
+    showShareDialog, setShowShareDialog,
+    showVersionHistory, setShowVersionHistory,
   } = useContext(EditorStateContext);
   return (
       <div data-testid="editor-page" className="flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)', height: '100dvh', maxHeight: '100dvh' }}>
@@ -60,6 +65,9 @@ const EditorMobileLayout = () => {
           <div className="flex items-center gap-1 flex-shrink-0">
             <button onClick={handleUndo} disabled={!history.canUndo} className={`tool-btn w-7 h-7 ${!history.canUndo ? 'opacity-30' : ''}`}><Undo className="h-3.5 w-3.5" /></button>
             <button onClick={handleRedo} disabled={!history.canRedo} className={`tool-btn w-7 h-7 ${!history.canRedo ? 'opacity-30' : ''}`}><Redo className="h-3.5 w-3.5" /></button>
+            <button onClick={() => setShowExport(true)} className="tool-btn w-7 h-7" title="Dışa Aktar"><Download className="h-3.5 w-3.5" /></button>
+            <button onClick={() => setShowShareDialog(true)} className="tool-btn w-7 h-7" title="Paylaş"><Share2 className="h-3.5 w-3.5" /></button>
+            <button onClick={() => setShowVersionHistory(v => !v)} className={`tool-btn w-7 h-7 ${showVersionHistory ? 'ring-1 ring-blue-500' : ''}`} title="Sürüm Geçmişi"><History className="h-3.5 w-3.5" /></button>
             {/* Credits badge */}
             <div onClick={() => { fetchCreditPackages(); setShowCreditModal(true); }} className="flex items-center gap-0.5 px-1.5 py-0.5 rounded text-xs cursor-pointer flex-shrink-0" style={{ background: creditsRemaining > 0 ? 'rgba(76,168,173,0.15)' : 'rgba(239,68,68,0.15)', border: `1px solid ${creditsRemaining > 0 ? 'rgba(76,168,173,0.3)' : 'rgba(239,68,68,0.3)'}` }}>
               <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
@@ -298,6 +306,11 @@ const EditorMobileLayout = () => {
               <label className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer py-3"><Upload className="h-4 w-4" /><span>Choose File</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>
             </div>
           </div>
+        )}
+        {showShareDialog && <ShareDialog docId={docId} onClose={() => setShowShareDialog(false)} />}
+        {showVersionHistory && (
+          <VersionHistoryPanel docId={docId} isMobile={true} onClose={() => setShowVersionHistory(false)}
+            onRestore={() => { setShowVersionHistory(false); window.location.reload(); }} />
         )}
       </div>
   );
