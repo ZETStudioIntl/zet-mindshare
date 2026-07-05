@@ -1382,7 +1382,7 @@ const Editor = () => {
     // Note already saved by RightPanel; this can trigger a UI refresh if needed
   };
 
-  const applyZetaDocEdit = async (request) => {
+  const applyZetaDocEdit = async (request, imageData = null) => {
     setZetaEditLoading(true);
     setZetaEditExplanation('');
     try {
@@ -1401,6 +1401,8 @@ const Editor = () => {
         doc_id: docId,
         is_ceo: isCEO,
         all_pages: allPagesPayload,
+        attached_image_b64: imageData?.base64 || null,
+        attached_image_mime: imageData?.mimeType || null,
       }, { withCredentials: true });
       const { operations = [], explanation = '', suggestions = [] } = res.data;
       setZetaEditExplanation(explanation);

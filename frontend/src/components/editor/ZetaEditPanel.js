@@ -15,7 +15,9 @@ const ZetaEditPanel = () => {
 
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const imageInputRef = useRef(null);
   const [attachedDoc, setAttachedDoc] = useState(null);
+  const [attachedImage, setAttachedImage] = useState(null); // { name, base64, mimeType, previewUrl }
 
   if (!zetaEditMode) return null;
 
@@ -24,7 +26,8 @@ const ZetaEditPanel = () => {
     const prompt = attachedDoc
       ? `Ekteki belge içeriği:\n"""\n${attachedDoc.content}\n"""\n\n${zetaEditInput.trim()}`
       : zetaEditInput.trim();
-    applyZetaDocEdit(prompt);
+    applyZetaDocEdit(prompt, attachedImage);
+    setAttachedImage(null);
   };
 
   const handleKey = (e) => {
@@ -37,6 +40,20 @@ const ZetaEditPanel = () => {
     const reader = new FileReader();
     reader.onload = (ev) => setAttachedDoc({ name: file.name, content: ev.target.result });
     reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const previewUrl = URL.createObjectURL(file);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target.result; // data:image/jpeg;base64,...
+      const base64 = dataUrl.split(',')[1];
+      setAttachedImage({ name: file.name, base64, mimeType: file.type, previewUrl });
+    };
+    reader.readAsDataURL(file);
     e.target.value = '';
   };
 
@@ -129,6 +146,27 @@ const ZetaEditPanel = () => {
         </div>
       )}
 
+      {/* Attached image preview */}
+      {attachedImage && (
+        <div style={{
+          margin: '0 12px 8px', padding: '6px 10px',
+          background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.25)',
+          borderRadius: 8, display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0,
+        }}>
+          <img src={attachedImage.previewUrl} alt="" style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }} />
+          <span style={{ color: '#4ca8ad', fontSize: 11, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {attachedImage.name}
+          </span>
+          <button
+            onClick={() => { URL.revokeObjectURL(attachedImage.previewUrl); setAttachedImage(null); }}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.35)', padding: 0, display: 'flex' }}>
+            <svg width="10" height="10" viewBox="0 0 14 14" fill="none">
+              <path d="M1 1l12 12M13 1L1 13" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+      )}
+
       {/* Input area */}
       <div style={{ padding: '0 12px 12px', display: 'flex', gap: 8, alignItems: 'flex-end', flexShrink: 0 }}>
         <input
@@ -138,6 +176,27 @@ const ZetaEditPanel = () => {
           onChange={handleFileChange}
           style={{ display: 'none' }}
         />
+        <input
+          ref={imageInputRef}
+          type="file"
+          accept="image/*"
+          onChange={handleImageChange}
+          style={{ display: 'none' }}
+        />
+        <button
+          onClick={() => imageInputRef.current?.click()}
+          title="Fotoğraf ekle"
+          style={{
+            width: 36, height: 36, borderRadius: 10, border: '1px solid rgba(255,255,255,0.12)',
+            cursor: 'pointer', background: attachedImage ? 'rgba(76,168,173,0.2)' : 'rgba(255,255,255,0.06)',
+            color: attachedImage ? '#4ca8ad' : 'rgba(255,255,255,0.4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+          }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/>
+            <polyline points="21 15 16 10 5 21"/>
+          </svg>
+        </button>
         <button
           onClick={() => fileInputRef.current?.click()}
           title="Belge ekle"

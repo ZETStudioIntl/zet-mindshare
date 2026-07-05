@@ -433,6 +433,8 @@ class ZetaDocEditRequest(BaseModel):
     doc_id: Optional[str] = None
     is_ceo: bool = False
     all_pages: Optional[List[Dict[str, Any]]] = None  # [{page_index, elements}]
+    attached_image_b64: Optional[str] = None   # base64 encoded image
+    attached_image_mime: Optional[str] = None  # e.g. "image/jpeg"
 
 class TranslateRequest(BaseModel):
     text: str
@@ -5399,12 +5401,17 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 """
 
     full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"
+    if req.attached_image_b64:
+        full_prompt += "\n\n[Kullanıcı bir fotoğraf/görsel ekledi — yukarıdaki görseli analiz ederek isteği yerine getir.]"
 
     try:
         client_g = google_genai.Client(api_key=api_key)
+        parts = [{"text": full_prompt}]
+        if req.attached_image_b64 and req.attached_image_mime:
+            parts.append({"inline_data": {"mime_type": req.attached_image_mime, "data": req.attached_image_b64}})
         response = client_g.models.generate_content(
             model="gemini-2.5-flash",
-            contents=[{"role": "user", "parts": [{"text": full_prompt}]}],
+            contents=[{"role": "user", "parts": parts}],
             config=genai_types.GenerateContentConfig(
                 temperature=0.4,
                 max_output_tokens=16384,
