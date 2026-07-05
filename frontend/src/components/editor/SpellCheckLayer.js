@@ -153,7 +153,7 @@ export default function SpellCheckLayer({
             pointerEvents: 'auto',
             cursor: 'pointer',
           }}
-          onClick={e => { e.stopPropagation(); onWordClick(e, u.elementId, u.error); }}
+          onClick={e => { onWordClick(e, u.elementId, u.error); }}
         >
           <svg width={u.width} height={6} style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}>
             <path d={makeWavy(u.width)} stroke="#ef4444" strokeWidth={1.5} fill="none" />

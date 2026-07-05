@@ -62,7 +62,7 @@ const EditorDesktopLayout = () => {
     setToolboxOpen, setUpgradeReason, setZoom,
     showComments, showCreditModal, showImageUpload, showShareDialog, showUpgradeModal, showVoice,
     showVersionHistory, setShowVersionHistory,
-    skipVoice, snapToGrid, spellCheckEnabled, stopVoice,
+    skipVoice, snapToGrid, spellCheckEnabled, setSpellCheckEnabled, stopVoice,
     spellErrors, tanıList, spellPopup, setSpellPopup, addToTanı, applySpellCorrection, handleSpellWordClick,
     toolboxOpen, ungroupElements, uploadForShape, upgradeReason,
     useGradient, userPlan, userUsage, useMagnifierGradient,
@@ -147,6 +147,23 @@ const EditorDesktopLayout = () => {
             </button>
             <button data-testid="version-history-btn" onClick={() => setShowVersionHistory(!showVersionHistory)} className={`tool-btn w-8 h-8 flex items-center justify-center ${showVersionHistory ? 'ring-1 ring-blue-500' : ''}`} title="Sürüm Geçmişi">
               <History className="h-4 w-4" style={{ color: 'var(--zet-text)' }} />
+            </button>
+            {/* Spell check toggle */}
+            <button
+              data-testid="spell-check-btn"
+              onClick={() => setSpellCheckEnabled(v => !v)}
+              className={`tool-btn w-8 h-8 flex items-center justify-center relative ${spellCheckEnabled ? 'ring-1 ring-red-400' : ''}`}
+              title={spellCheckEnabled ? 'Yazım Denetimi Kapat' : 'Yazım Denetimi Aç'}
+            >
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: spellCheckEnabled ? '#ef4444' : 'var(--zet-text)' }}>
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4 12.5-12.5z"/>
+                <path d="M3 21l2-2" stroke={spellCheckEnabled ? '#ef4444' : 'var(--zet-text)'} strokeDasharray="2 2"/>
+              </svg>
+              {spellCheckEnabled && Object.values(spellErrors).flat().length > 0 && (
+                <span style={{ position: 'absolute', top: 2, right: 2, background: '#ef4444', color: '#fff', borderRadius: 99, fontSize: 8, fontWeight: 700, minWidth: 13, height: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '0 2px', lineHeight: 1 }}>
+                  {Object.values(spellErrors).flat().length}
+                </span>
+              )}
             </button>
           </div>
           {/* Credit indicator - clickable */}

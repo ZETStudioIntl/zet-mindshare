@@ -606,7 +606,7 @@ const Editor = () => {
   const [showStyles, setShowStyles] = useState(false);
 
   // Spell check
-  const [spellCheckEnabled, setSpellCheckEnabled] = useState(true);
+  const [spellCheckEnabled, setSpellCheckEnabled] = useState(false);
   const [spellErrors, setSpellErrors] = useState({});
   const [tanıList, setTanıList] = useState(() => {
     try { return JSON.parse(localStorage.getItem('zet_tani') || '{}'); } catch { return {}; }
