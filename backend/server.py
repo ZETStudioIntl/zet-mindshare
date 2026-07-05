@@ -5155,10 +5155,17 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             '  "bracket-sq" ([ ]), "brace-curly" ({ })'
         )
 
-    existing_summary = json.dumps([
-        {k: v for k, v in el.items() if k not in ("src", "svgContent", "htmlContent")}
-        for el in req.page_elements
-    ], ensure_ascii=False)
+    def _el_summary(el):
+        d = {k: v for k, v in el.items() if k not in ("src", "svgContent", "htmlContent")}
+        if el.get('type') == 'text' and 'height' not in d:
+            content_lines = max(1, len((el.get('content') or '').split('\n')))
+            html_content = el.get('htmlContent') or ''
+            html_lines = len(re.findall(r'<br\s*/?>', html_content, re.IGNORECASE)) + 1 if html_content else 1
+            lines = max(content_lines, html_lines)
+            d['height'] = round((el.get('fontSize') or 16) * lines * (el.get('lineHeight') or 1.5))
+        return d
+
+    existing_summary = json.dumps([_el_summary(el) for el in req.page_elements], ensure_ascii=False)
 
     all_pages_summary = ""
     if req.all_pages:
@@ -5167,7 +5174,7 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             els = pg.get("elements", [])
             if pi == req.page_index:
                 continue
-            pg_summary = json.dumps([{k: v for k, v in el.items() if k not in ("src","svgContent","htmlContent")} for el in els], ensure_ascii=False)
+            pg_summary = json.dumps([_el_summary(el) for el in els], ensure_ascii=False)
             all_pages_summary += f"\n  Sayfa {pi}: {pg_summary if pg_summary != '[]' else '(boş)'}"
 
     system_prompt = f"""Sen ZETA, ZET Mindshare belge editörünün AI asistanısın.
