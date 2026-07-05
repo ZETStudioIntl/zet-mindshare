@@ -347,6 +347,7 @@ class DocumentUpdate(BaseModel):
     content: Optional[dict] = None
     pages: Optional[List[dict]] = None
     pinned: Optional[bool] = None
+    settings: Optional[dict] = None  # per-document editor settings (margins, font, bg...)
 
 class QuickNote(BaseModel):
     note_id: str = Field(default_factory=lambda: f"note_{uuid.uuid4().hex[:12]}")

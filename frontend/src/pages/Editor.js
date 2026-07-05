@@ -1116,10 +1116,26 @@ const Editor = () => {
     };
   }, []); // eslint-disable-line
 
+  const applyDocSettings = (s) => {
+    if (!s) return;
+    if (s.marginLeft !== undefined) setMarginLeft(Number(s.marginLeft));
+    if (s.marginRight !== undefined) setMarginRight(Number(s.marginRight));
+    if (s.marginTop !== undefined) setMarginTop(Number(s.marginTop));
+    if (s.marginBottom !== undefined) setMarginBottom(Number(s.marginBottom));
+    if (s.pageBackground !== undefined) setPageBackground(s.pageBackground);
+    if (s.currentFont !== undefined) setCurrentFont(s.currentFont);
+    if (s.currentFontSize !== undefined) setCurrentFontSize(Number(s.currentFontSize));
+  };
+
   const fetchDocument = async () => {
+    const localSettings = (() => {
+      try { return JSON.parse(localStorage.getItem(`zet_doc_settings_${docId}`) || 'null'); } catch { return null; }
+    })();
     try {
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
       if (!isMountedRef.current) return;
+      // Önce server settings'i uygula, yoksa localStorage'dakini kullan
+      applyDocSettings(res.data.settings || localSettings);
       // Local backup varsa timestamp karşılaştır — hangisi daha yeniyse onu kullan
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
       if (offlineDoc) {
@@ -1145,6 +1161,7 @@ const Editor = () => {
       setDocument(res.data);
     } catch {
       if (!isMountedRef.current) return;
+      applyDocSettings(localSettings);
       // Try loading from offline cache
       const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
       if (offlineDoc) {
@@ -1235,8 +1252,12 @@ const Editor = () => {
       if (!silent) setSaving(false);
       return;
     }
+    const docSettings = { marginLeft, marginRight, marginTop, marginBottom, pageBackground, currentFont, currentFontSize };
     try {
-      await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages }, { withCredentials: true });
+      localStorage.setItem(`zet_doc_settings_${docId}`, JSON.stringify(docSettings));
+    } catch {}
+    try {
+      await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages, settings: docSettings }, { withCredentials: true });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
       localStorage.removeItem(`zet_offline_doc_${docId}`);
