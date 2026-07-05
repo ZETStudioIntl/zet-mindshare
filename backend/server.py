@@ -5112,6 +5112,37 @@ async def spell_check_text(req: SpellCheckRequest, user: User = Depends(get_curr
                 "word": word,
                 "suggestions": [r["value"] for r in match.get("replacements", [])[:3]],
             })
+
+        # LanguageTool Turkish support is limited — use Gemini for words with no suggestions
+        missing = [e for e in errors if not e["suggestions"]]
+        if missing:
+            try:
+                words_json = json.dumps([e["word"] for e in missing], ensure_ascii=False)
+                g_client = google_genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
+                g_resp = g_client.models.generate_content(
+                    model="gemini-2.5-flash",
+                    contents=[{"role": "user", "parts": [{"text": (
+                        f"Aşağıdaki Türkçe kelimelerin doğru yazılışını öner. "
+                        f"Her kelime için en fazla 3 öneri ver. "
+                        f"Sadece JSON döndür: {{\"suggestions\": {{\"yanlış_kelime\": [\"öneri1\", \"öneri2\"]}}}}\n"
+                        f"Kelimeler: {words_json}"
+                    )}]}],
+                    config=genai_types.GenerateContentConfig(
+                        temperature=0.1, max_output_tokens=512,
+                        response_mime_type="application/json",
+                    )
+                )
+                raw_g = (g_resp.text or "").strip()
+                if raw_g.startswith("```"):
+                    raw_g = re.sub(r'^```(?:json)?\s*', '', raw_g, flags=re.IGNORECASE)
+                    raw_g = re.sub(r'\s*```\s*$', '', raw_g).strip()
+                g_data = json.loads(raw_g)
+                g_suggestions = g_data.get("suggestions", {})
+                for e in missing:
+                    e["suggestions"] = g_suggestions.get(e["word"], [])[:3]
+            except Exception as ge:
+                logging.warning(f"Gemini spell fallback failed: {ge}")
+
         return {"errors": errors}
     except Exception as e:
         logging.error(f"Spell check error: {e}")
