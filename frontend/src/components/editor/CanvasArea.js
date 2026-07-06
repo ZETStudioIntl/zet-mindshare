@@ -1242,7 +1242,7 @@ export const CanvasArea = ({
       return;
     }
     
-    if (justSelectedRef.current) { justSelectedRef.current = false; return; }
+    if (justSelectedRef.current) { justSelectedRef.current = false; if (activeTool !== 'text') return; }
     const { x, y } = getCoords(e, e.currentTarget);
     if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
     processCanvasClick(x, y, e);
@@ -1255,6 +1255,7 @@ export const CanvasArea = ({
     if (activeTool === 'text') {
       const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
+      onSaveHistory(canvasElements); // snapshot before creation — enables Ctrl+Z to remove the element
       const { x: colX, width: colWidth } = colSnap(x);
       const scrDefaults2 = screenplayMode ? (() => {
         const cfg = SCRIPT_ELEMENT_TYPES.action;
