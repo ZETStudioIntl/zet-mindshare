@@ -35,6 +35,7 @@ function measureWordPositions(el, plainText, errors, zoom, pageLeft, pageTop) {
     `font-weight:${el.bold ? 'bold' : 'normal'}`,
     `font-style:${el.italic ? 'italic' : 'normal'}`,
     `line-height:${el.lineHeight || 1.5}`,
+    `text-align:${el.textAlign || 'left'}`,
     `white-space:pre-wrap`,
     `word-break:break-word`,
     `visibility:hidden`,
@@ -109,7 +110,8 @@ export default function SpellCheckLayer({
         if (el.type !== 'text') return;
         const rawErrors = spellErrors[el.id];
         if (!rawErrors?.length) return;
-        const activeErrors = rawErrors.filter(e => !tanıList[e.word]);
+        const isAllCaps = w => w.length > 0 && /^[A-ZÇĞİÖŞÜ0-9\s.,\-()':!?/\\]+$/.test(w) && /[A-ZÇĞİÖŞÜ]/.test(w);
+        const activeErrors = rawErrors.filter(e => !tanıList[e.word] && !isAllCaps(e.word));
         if (!activeErrors.length) return;
 
         const plainText = el.content || el.htmlContent?.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '') || '';
@@ -153,6 +155,7 @@ export default function SpellCheckLayer({
             pointerEvents: 'auto',
             cursor: 'pointer',
           }}
+          onMouseDown={e => e.stopPropagation()}
           onClick={e => { onWordClick(e, u.elementId, u.error); }}
         >
           <svg width={u.width} height={6} style={{ position: 'absolute', top: 0, left: 0, overflow: 'visible' }}>

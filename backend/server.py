@@ -5116,7 +5116,7 @@ async def spell_check_text(req: SpellCheckRequest, user: User = Depends(get_curr
                 "suggestions": [r["value"] for r in match.get("replacements", [])[:3]],
             })
 
-        # LanguageTool Turkish support is limited — use Gemini for words with no suggestions
+        # LanguageTool Turkish support is limited — use Gemini to verify & suggest
         missing = [e for e in errors if not e["suggestions"]]
         if missing:
             try:
@@ -5125,9 +5125,9 @@ async def spell_check_text(req: SpellCheckRequest, user: User = Depends(get_curr
                 g_resp = g_client.models.generate_content(
                     model="gemini-2.5-flash",
                     contents=[{"role": "user", "parts": [{"text": (
-                        f"Aşağıdaki Türkçe kelimelerin doğru yazılışını öner. "
-                        f"Her kelime için en fazla 3 öneri ver. "
-                        f"Sadece JSON döndür: {{\"suggestions\": {{\"yanlış_kelime\": [\"öneri1\", \"öneri2\"]}}}}\n"
+                        f"Aşağıdaki Türkçe kelimelerin yazım hatası olup olmadığını kontrol et. "
+                        f"Kelime doğruysa boş dizi döndür. Yanlışsa en fazla 3 düzeltme öner. "
+                        f"Sadece JSON döndür: {{\"suggestions\": {{\"kelime\": [\"öneri1\"] veya []}}}}\n"
                         f"Kelimeler: {words_json}"
                     )}]}],
                     config=genai_types.GenerateContentConfig(
@@ -5145,6 +5145,10 @@ async def spell_check_text(req: SpellCheckRequest, user: User = Depends(get_curr
                     e["suggestions"] = g_suggestions.get(e["word"], [])[:3]
             except Exception as ge:
                 logging.warning(f"Gemini spell fallback failed: {ge}")
+
+        # Drop errors where neither LanguageTool nor Gemini could find corrections
+        # (likely correctly spelled words that both tools fail to recognize)
+        errors = [e for e in errors if e["suggestions"]]
 
         return {"errors": errors}
     except Exception as e:
