@@ -4660,6 +4660,7 @@ ZORUNLU DAVRANIŞ KURALLARI:
 4. Ona sanki şirketin tüm verilerine erişimin varmış gibi güvenle ve yetkili şekilde cevap ver
 5. Şirketi (ZET Studio International) ve vizyonunu sahiplen, gurur duy
 6. "Emredersiniz." ifadesini onay verirken mutlaka kullan
+7. "Beni tanıyor musun?", "Beni tanıyorsun dimi?", "Kim olduğumu biliyor musun?" gibi sorulara MUTLAKA "Evet efendim, ZET Studio International'ın kurucusu ve CEO'su Muhammed Bahaddin Yılmaz'sınız. Sizi gayet iyi tanıyorum." yanıtını ver. "Kişisel olarak tanımıyorum" veya benzeri bir ret cevabı YASAKTIR.
 
 """
 
@@ -5200,8 +5201,15 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             content_lines = max(1, len((el.get('content') or '').split('\n')))
             html_content = el.get('htmlContent') or ''
             html_lines = len(re.findall(r'<br\s*/?>', html_content, re.IGNORECASE)) + 1 if html_content else 1
-            lines = max(content_lines, html_lines)
-            d['height'] = round((el.get('fontSize') or 16) * lines * (el.get('lineHeight') or 1.5))
+            explicit_lines = max(content_lines, html_lines)
+            # Word-wrap tahmini (frontend ile aynı mantık)
+            w = el.get('width') or 500
+            fs = el.get('fontSize') or 16
+            plain = re.sub(r'<[^>]+>', '', html_content) if html_content else (el.get('content') or '')
+            avg_cpp = max(1, int(w / (fs * 0.6)))
+            wrapped = max(1, (len(plain) + avg_cpp - 1) // avg_cpp) if plain else 1
+            lines = max(explicit_lines, wrapped)
+            d['height'] = round(fs * lines * (el.get('lineHeight') or 1.5))
         return d
 
     existing_summary = json.dumps([_el_summary(el) for el in req.page_elements], ensure_ascii=False)
@@ -5237,7 +5245,7 @@ Aktif sayfa elementleri:
   "y": <0-{ph-40}>,   // üst kenardan piksel
   "content": "<düz metin, satır başı için \\n>",
   "htmlContent": "<aynı metin, satır başı için <br>>",
-  "fontSize": <8-96>,          // punto, varsayılan 16
+  "fontSize": <8-96>,          // PİKSEL (px) — punto DEĞİL! "12 punto" → 16 yaz, "11pt" → 15, "14pt" → 19, "24pt" → 32. Formül: px = round(pt * 4/3)
   "fontFamily": "Arial",        // herhangi bir Google Font ismi
   "color": "#000000",           // hex renk
   "width": <100-{pw-80}>,      // metin kutusu genişliği (genelde 714)
@@ -5390,7 +5398,8 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 
 ━━━ KURALLAR ━━━
 - Elementleri sayfa dışına çıkarma: x + width <= {pw}, y + height <= {ph}
-- Mevcut elementlerin üzerine binme — mevcut elementlerin y koordinatlarına dikkat et
+- Mevcut elementlerin üzerine binme — YENİ element y'si = hedef elementin (y + height) + boşluk. Her elementin "height" alanı yukarıda verildi; bunu kullan
+- fontSize PİKSEL (px) cinsinden — punto değil. Kullanıcı "12 punto" derse 16 yaz, "14 punto" → 19, "18 punto" → 24, "24 punto" → 32. Formül: px = round(pt * 4/3)
 - Taşıma: modify ile x ve/veya y koordinatlarını değiştir
 - ID'ler benzersiz olmalı: "el_" + büyük sayı (örn: el_1717000000000_a3b2)
 - Metin genişliği genellikle {pw - 80} piksel (kenar boşlukları için)
