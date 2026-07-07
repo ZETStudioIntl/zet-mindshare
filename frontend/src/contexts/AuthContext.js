@@ -33,13 +33,24 @@ export const AuthProvider = ({ children }) => {
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
+      localStorage.setItem('zet_cached_user', JSON.stringify(response.data));
       loadPreferences();
     } catch (error) {
-      // Sadece kendi token'ımızı temizle — AuthCallback gibi paralel bir flow yeni token koymuş olabilir
       const currentToken = localStorage.getItem('session_token');
       if (currentToken === token) {
-        localStorage.removeItem('session_token');
-        setUser(null);
+        const status = error.response?.status;
+        if (status === 401 || status === 403) {
+          // Gerçekten geçersiz token — temizle
+          localStorage.removeItem('session_token');
+          localStorage.removeItem('zet_cached_user');
+          setUser(null);
+        } else {
+          // Network hatası veya sunucu hatası — token geçerli olabilir, cached user'ı kullan
+          const cached = localStorage.getItem('zet_cached_user');
+          if (cached) {
+            try { setUser(JSON.parse(cached)); } catch {}
+          }
+        }
       }
     } finally {
       setLoading(false);
