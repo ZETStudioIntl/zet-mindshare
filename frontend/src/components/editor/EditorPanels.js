@@ -302,20 +302,35 @@ const EditorPanels = () => {
     <ShortcutsPanel />
 
     {/* Table Panel */}
-    {showTable && <DraggablePanel title="Table" onClose={() => setShowTable(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
-      <div className="w-52 space-y-3">
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Rows: {tableRows}</label><input type="range" min="1" max="10" value={tableRows} onChange={e => setTableRows(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Columns: {tableCols}</label><input type="range" min="1" max="10" value={tableCols} onChange={e => setTableCols(Number(e.target.value))} className="w-full accent-blue-500" /></div>
-        <div className="p-2 rounded flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
-          <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${Math.min(tableCols, 5)}, 1fr)` }}>
-            {Array.from({ length: Math.min(tableRows, 5) * Math.min(tableCols, 5) }).map((_, i) => (
-              <div key={i} className="w-4 h-3 border" style={{ borderColor: 'var(--zet-text-muted)', background: 'var(--zet-bg-card)' }} />
-            ))}
+    {showTable && (() => {
+      const contentW = (pageSize?.width || 794) - (marginLeft || 40) - (marginRight || 40);
+      const contentH = (pageSize?.height || 1123) - (marginTop || 40) - (marginBottom || 40);
+      // Normal: portrait — landscape: boyutları çevir
+      const portraitMaxCols = Math.max(1, Math.floor(contentW / 40));
+      const portraitMaxRows = Math.max(1, Math.floor(contentH / 25));
+      const landscapeMaxCols = Math.max(1, Math.floor(contentH / 40));
+      const landscapeMaxRows = Math.max(1, Math.floor(contentW / 25));
+      const maxCols = Math.min(40, Math.max(portraitMaxCols, landscapeMaxCols));
+      const maxRows = Math.min(40, Math.max(portraitMaxRows, landscapeMaxRows));
+      const previewCols = Math.min(tableCols, 8);
+      const previewRows = Math.min(tableRows, 8);
+      return (
+        <DraggablePanel title="Table" onClose={() => setShowTable(false)} initialPosition={{ x: isMobile ? 20 : 280, y: 100 }}>
+          <div className="w-56 space-y-3">
+            <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Rows: {tableRows} / {maxRows}</label><input type="range" min="1" max={maxRows} value={tableRows} onChange={e => setTableRows(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+            <div><label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Columns: {tableCols} / {maxCols}</label><input type="range" min="1" max={maxCols} value={tableCols} onChange={e => setTableCols(Number(e.target.value))} className="w-full accent-blue-500" /></div>
+            <div className="p-2 rounded flex items-center justify-center" style={{ background: 'var(--zet-bg)' }}>
+              <div className="grid gap-0.5" style={{ gridTemplateColumns: `repeat(${previewCols}, 1fr)` }}>
+                {Array.from({ length: previewRows * previewCols }).map((_, i) => (
+                  <div key={i} style={{ width: Math.max(6, Math.floor(180 / previewCols)), height: Math.max(4, Math.floor(80 / previewRows)), border: '1px solid var(--zet-text-muted)', background: 'var(--zet-bg-card)' }} />
+                ))}
+              </div>
+            </div>
+            <button onClick={createTable} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Table className="h-4 w-4" /> Create Table</button>
           </div>
-        </div>
-        <button onClick={createTable} className="zet-btn w-full flex items-center justify-center gap-2 py-2"><Table className="h-4 w-4" /> Create Table</button>
-      </div>
-    </DraggablePanel>}
+        </DraggablePanel>
+      );
+    })()}
 
     {/* Layers Panel - with drag-to-reorder */}
     <LayersPanel />
