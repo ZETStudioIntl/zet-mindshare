@@ -936,7 +936,7 @@ export const RightPanel = ({
                   ))}
                 </div>
               )}
-              <div className="flex gap-1">
+              <div className="flex gap-1 items-end">
                 {/* Gear/settings button — shows active mode colour */}
                 {(() => {
                   const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'puzzle' ? '#f59e0b' : zetaMode === 'colors' ? '#ec4899' : zetaMode === 'edit' ? '#4ca8ad' : 'var(--zet-primary)';
