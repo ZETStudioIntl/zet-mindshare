@@ -2629,7 +2629,8 @@ async def _save_document_version(doc_id: str, user_id: str):
             return
         pages_stripped = [
             {**page, "elements": [
-                {**el, "src": None} if el.get("type") == "image" else el
+                # Strip only base64 data: URLs (large) — keep R2/external URLs intact
+                {**el, "src": None} if el.get("type") == "image" and isinstance(el.get("src"), str) and el["src"].startswith("data:") else el
                 for el in page.get("elements", [])
             ]}
             for page in old["pages"]
