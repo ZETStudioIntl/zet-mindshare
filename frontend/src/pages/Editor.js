@@ -1658,11 +1658,22 @@ const Editor = () => {
 
   const handleInsertText = (content) => {
     if (!content) return;
+    // Sayfadaki en alttaki elementin altına yerleştir
+    let bottomY = marginTop || 40;
+    for (const existing of canvasElements) {
+      const fs = existing.fontSize || 16;
+      const lh = existing.lineHeight || 1.5;
+      const lines = Math.max(1, (existing.content || '').split('\n').length);
+      const h = existing.height || fs * lines * lh;
+      const elBottom = (existing.y || 0) + h;
+      if (elBottom > bottomY) bottomY = elBottom;
+    }
+    const newY = bottomY + 16;
     const el = {
       id: `el_${Date.now()}_zeta`,
       type: 'text',
       x: marginLeft || 40,
-      y: marginTop || 40,
+      y: newY,
       content: content.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
       fontSize: currentFontSize || DEFAULT_FONT_SIZE,
       fontFamily: currentFont || DEFAULT_FONT,
