@@ -951,7 +951,7 @@ export const RightPanel = ({
                   style={{ color: attachedDoc ? '#4ca8ad' : undefined, background: attachedDoc ? 'rgba(76,168,173,0.15)' : undefined }}>
                   <Paperclip className="h-3 w-3" />
                 </button>
-                <input
+                <textarea
                   data-testid="zeta-input"
                   placeholder={
                     zetaMode === 'patch'  ? 'Örn: "5-6. sayfalardaki yazım hatalarını bul"' :
@@ -960,9 +960,15 @@ export const RightPanel = ({
                     t('askZeta')
                   }
                   value={zetaInput}
-                  onChange={e => setZetaInput(e.target.value)}
-                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { if (zetaMode === 'edit') sendEditMessage(); else sendZetaMessage(); } }}
+                  onChange={e => {
+                    setZetaInput(e.target.value);
+                    e.target.style.height = 'auto';
+                    e.target.style.height = Math.min(e.target.scrollHeight, 120) + 'px';
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); if (zetaMode === 'edit') sendEditMessage(); else sendZetaMessage(); } }}
+                  rows={1}
                   className="zet-input flex-1 text-xs py-1.5"
+                  style={{ resize: 'none', overflow: 'hidden', lineHeight: '1.4' }}
                 />
                 <button data-testid="zeta-send-btn" onClick={zetaMode === 'edit' ? sendEditMessage : sendZetaMessage}
                   disabled={zetaMode === 'edit' ? zetaEditLoading : zetaLoading}

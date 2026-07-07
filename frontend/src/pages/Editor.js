@@ -1658,23 +1658,34 @@ const Editor = () => {
 
   const handleInsertText = (content) => {
     if (!content) return;
-    // Sayfadaki en alttaki elementin altına yerleştir
-    let bottomY = marginTop || 40;
-    for (const existing of canvasElements) {
+    const cleanContent = content.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+    const mt = marginTop || 40;
+    const ph = pageSize?.height || 1123;
+    // Sayfanın tepesinde (y < marginTop + 30) aynı içerikli gizli duplikat elementleri temizle
+    const withoutDuplicates = canvasElements.filter(el => {
+      if (el.type !== 'text') return true;
+      const elContent = (el.content || '').trim();
+      const isAtTop = (el.y || 0) < mt + 30;
+      const isSameContent = elContent === cleanContent || elContent.includes(cleanContent);
+      return !(isAtTop && isSameContent);
+    });
+    // Görünür elementlerin en altını bul (sayfa sınırı içindeki)
+    let bottomY = mt;
+    for (const existing of withoutDuplicates) {
       const fs = existing.fontSize || 16;
       const lh = existing.lineHeight || 1.5;
       const lines = Math.max(1, (existing.content || '').split('\n').length);
       const h = existing.height || fs * lines * lh;
       const elBottom = (existing.y || 0) + h;
-      if (elBottom > bottomY) bottomY = elBottom;
+      if (elBottom > bottomY && elBottom <= ph) bottomY = elBottom;
     }
-    const newY = bottomY + 16;
+    const newY = Math.min(bottomY + 16, ph - 60);
     const el = {
       id: `el_${Date.now()}_zeta`,
       type: 'text',
       x: marginLeft || 40,
       y: newY,
-      content: content.replace(/\*\*(.*?)\*\*/g, '$1').trim(),
+      content: cleanContent,
       fontSize: currentFontSize || DEFAULT_FONT_SIZE,
       fontFamily: currentFont || DEFAULT_FONT,
       color: currentColor || DEFAULT_COLOR,
@@ -1682,7 +1693,7 @@ const Editor = () => {
       lineHeight: 1.6,
       textAlign: 'left',
     };
-    const updated = [...canvasElements, el];
+    const updated = [...withoutDuplicates, el];
     setCanvasElements(updated);
     handleSaveHistory(updated);
   };
