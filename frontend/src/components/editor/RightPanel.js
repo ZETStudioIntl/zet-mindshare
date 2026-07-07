@@ -614,13 +614,21 @@ export const RightPanel = ({
                         behavior: 'smooth'
                       });
                     }}
-                    className={`aspect-[3/4] rounded border-2 cursor-pointer overflow-hidden transition-colors ${currentPage === idx ? 'border-blue-500' : 'border-transparent hover:border-white/20'}`}
-                    style={{ background: 'white' }}
+                    className={`rounded border-2 cursor-pointer overflow-hidden transition-colors ${currentPage === idx ? 'border-blue-500' : 'border-transparent hover:border-white/20'}`}
+                    style={{ background: page.pageBackground || 'white', aspectRatio: '794/1123', position: 'relative' }}
                   >
-                    <div className="w-full h-full relative" style={{ transform: 'scale(0.15)', transformOrigin: 'top left' }}>
-                      {(page.elements || []).slice(0, 5).map(el => (
-                        <div key={el.id} className="absolute" style={{ left: el.x, top: el.y, fontSize: el.fontSize || 12, color: el.color || '#000' }}>
-                          {el.type === 'text' && (el.content || '').slice(0, 20)}
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: 794, height: 1123, transform: 'scale(0.09)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                      {(idx === currentPage ? canvasElements : (page.elements || [])).slice(0, 8).map(el => (
+                        <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.width, fontSize: el.fontSize || 12, color: el.color || '#000', lineHeight: el.lineHeight || 1.4, overflow: 'hidden' }}>
+                          {el.type === 'text' && (
+                            <div style={{ maxHeight: el.height || 200 }} dangerouslySetInnerHTML={{ __html: el.htmlContent || el.content || '' }} />
+                          )}
+                          {el.type === 'image' && el.src && (
+                            <img src={el.src} style={{ width: el.width, height: el.height, objectFit: 'cover', display: 'block' }} alt="" />
+                          )}
+                          {el.type === 'shape' && (
+                            <div style={{ width: el.width, height: el.height, background: el.fill || el.color || '#ccc', borderRadius: el.shape === 'circle' ? '50%' : 0 }} />
+                          )}
                         </div>
                       ))}
                     </div>
