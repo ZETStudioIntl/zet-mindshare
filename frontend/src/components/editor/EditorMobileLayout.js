@@ -46,7 +46,7 @@ const EditorMobileLayout = () => {
     showImageUpload, showVoice, skipVoice, snapToGrid, spellCheckEnabled, stopVoice,
     uploadForShape, useGradient, userPlan, userUsage, useMagnifierGradient,
     voiceLoading, voiceProgress, zoom, zoomLevel, zoomRadius,
-    docId, exportToPDF,
+    docId, exportToPDF, handleExport,
     zetaCustomPrompt, zetaEmoji, zetaMood,
     pdfInputRef, importPDF, importFromMS,
     showShareDialog, setShowShareDialog,
@@ -241,7 +241,7 @@ const EditorMobileLayout = () => {
               <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
                 pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
                 docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-                forceSection={mobilePanel} onExport={exportToPDF} exporting={exporting} 
+                forceSection={mobilePanel} onExport={() => handleExport('pdf')} exporting={exporting} 
                 documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan} 
                 onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
                 onShowChatSettings={() => setShowChatSettings(true)}

@@ -67,7 +67,7 @@ const EditorDesktopLayout = () => {
     toolboxOpen, ungroupElements, uploadForShape, upgradeReason,
     useGradient, userPlan, userUsage, useMagnifierGradient,
     voiceLoading, voiceProgress, zoom, zoomLevel, zoomRadius,
-    docId, exportToPDF,
+    docId, exportToPDF, handleExport,
     zetaCustomPrompt, zetaEmoji, zetaMood,
     zetaEditMode, setZetaEditMode, zetaPendingCount,
   } = useContext(EditorStateContext);
@@ -303,7 +303,7 @@ const EditorDesktopLayout = () => {
           <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
             pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
             docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-            onExport={exportToPDF} exporting={exporting} documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan}
+            onExport={() => handleExport('pdf')} exporting={exporting} documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan}
             onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
             onShowChatSettings={() => setShowChatSettings(true)}
             zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt}

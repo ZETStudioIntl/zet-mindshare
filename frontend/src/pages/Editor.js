@@ -4633,6 +4633,29 @@ body{background:#fff}
       {hiddenPasteInput}
       <EditorMobileLayout />
       <QuestNotification quest={questNotification} onClose={() => setQuestNotification(null)} />
+      {exportCountdown && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', borderRadius: 16, padding: '32px 36px', width: 300, textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(76,168,173,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <path d="M11 3v10m0 0l-3.5-3.5M11 13l3.5-3.5M4 16v1.5A1.5 1.5 0 005.5 19h11a1.5 1.5 0 001.5-1.5V16" stroke="var(--zet-primary)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--zet-text)', marginBottom: 10 }}>Dışa aktarma hazırlanıyor</div>
+            <div style={{ fontSize: 36, fontWeight: 700, color: 'var(--zet-primary)', lineHeight: 1, marginBottom: 2 }}>{exportCountdown.remaining}</div>
+            <div style={{ fontSize: 11, color: 'var(--zet-text-muted)', marginBottom: 20 }}>saniye kaldı</div>
+            <div style={{ height: 6, borderRadius: 99, background: 'var(--zet-border)', overflow: 'hidden', marginBottom: 18 }}>
+              <div style={{ height: '100%', borderRadius: 99, background: 'var(--zet-primary)', width: `${((exportCountdown.totalDelay - exportCountdown.remaining) / exportCountdown.totalDelay) * 100}%`, transition: 'width 0.95s linear' }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--zet-text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+              {userPlan === 'free' ? 'Free plan · Pro\'ya geçerek anında export yapabilirsiniz' : 'Plus plan · Pro\'ya geçerek anında export yapabilirsiniz'}
+            </div>
+            <button onClick={() => setExportCountdown(null)} style={{ fontSize: 12, color: 'var(--zet-text-muted)', background: 'none', border: '1px solid var(--zet-border)', borderRadius: 8, padding: '6px 20px', cursor: 'pointer' }}>
+              İptal
+            </button>
+          </div>
+        </div>
+      )}
       </EditorStateContext.Provider>
     );
   }

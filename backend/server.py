@@ -1601,7 +1601,7 @@ class PostCreate(BaseModel):
     doc_id: Optional[str] = None      # document reference
     doc_title: Optional[str] = None
 
-class CommentCreate(BaseModel):
+class PostCommentCreate(BaseModel):
     content: str
 
 @api_router.post("/posts")
@@ -1730,7 +1730,7 @@ async def delete_post(post_id: str, user: User = Depends(get_current_user)):
     return {"deleted": True}
 
 @api_router.post("/posts/{post_id}/comments")
-async def add_comment(post_id: str, body: CommentCreate, user: User = Depends(get_current_user)):
+async def add_comment(post_id: str, body: PostCommentCreate, user: User = Depends(get_current_user)):
     """Yorum ekle."""
     check_rate_limit(user.user_id, "comment", limit=30, window=60)
     if len(body.content) > 500:
