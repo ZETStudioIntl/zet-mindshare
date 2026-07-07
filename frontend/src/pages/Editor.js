@@ -1125,6 +1125,19 @@ const Editor = () => {
     if (s.pageBackground !== undefined) setPageBackground(s.pageBackground);
     if (s.currentFont !== undefined) setCurrentFont(s.currentFont);
     if (s.currentFontSize !== undefined) setCurrentFontSize(Number(s.currentFontSize));
+    if (s.currentColor !== undefined) setCurrentColor(s.currentColor);
+    if (s.currentLineHeight !== undefined) setCurrentLineHeight(Number(s.currentLineHeight));
+    if (s.currentTextAlign !== undefined) setCurrentTextAlign(s.currentTextAlign);
+    if (s.firstLineIndent !== undefined) setFirstLineIndent(Number(s.firstLineIndent));
+    if (s.paragraphSpaceBefore !== undefined) setParagraphSpaceBefore(Number(s.paragraphSpaceBefore));
+    if (s.paragraphSpaceAfter !== undefined) setParagraphSpaceAfter(Number(s.paragraphSpaceAfter));
+    if (s.indentLeft !== undefined) setIndentLeft(Number(s.indentLeft));
+    if (s.indentRight !== undefined) setIndentRight(Number(s.indentRight));
+    if (s.indentTop !== undefined) setIndentTop(Number(s.indentTop));
+    if (s.indentBottom !== undefined) setIndentBottom(Number(s.indentBottom));
+    if (s.pageSize !== undefined) setPageSize(s.pageSize);
+    if (s.screenplayMode !== undefined) setScreenplayMode(Boolean(s.screenplayMode));
+    if (s.rulerVisible !== undefined) setRulerVisible(Boolean(s.rulerVisible));
   };
 
   const fetchDocument = async () => {
@@ -1252,7 +1265,14 @@ const Editor = () => {
       if (!silent) setSaving(false);
       return;
     }
-    const docSettings = { marginLeft, marginRight, marginTop, marginBottom, pageBackground, currentFont, currentFontSize };
+    const docSettings = {
+      marginLeft, marginRight, marginTop, marginBottom,
+      pageBackground, currentFont, currentFontSize, currentColor,
+      currentLineHeight, currentTextAlign, firstLineIndent,
+      paragraphSpaceBefore, paragraphSpaceAfter,
+      indentLeft, indentRight, indentTop, indentBottom,
+      pageSize, screenplayMode, rulerVisible,
+    };
     try {
       localStorage.setItem(`zet_doc_settings_${docId}`, JSON.stringify(docSettings));
     } catch {}
