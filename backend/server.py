@@ -436,6 +436,7 @@ class ZetaDocEditRequest(BaseModel):
     all_pages: Optional[List[Dict[str, Any]]] = None  # [{page_index, elements}]
     attached_image_b64: Optional[str] = None   # base64 encoded image
     attached_image_mime: Optional[str] = None  # e.g. "image/jpeg"
+    doc_settings: Optional[Dict[str, Any]] = None  # current editor settings
 
 class TranslateRequest(BaseModel):
     text: str
@@ -5210,6 +5211,8 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             wrapped = max(1, (len(plain) + avg_cpp - 1) // avg_cpp) if plain else 1
             lines = max(explicit_lines, wrapped)
             d['height'] = round(fs * lines * (el.get('lineHeight') or 1.5))
+        if 'height' in d:
+            d['bottom_y'] = (el.get('y') or 0) + d['height']
         return d
 
     existing_summary = json.dumps([_el_summary(el) for el in req.page_elements], ensure_ascii=False)
@@ -5231,7 +5234,8 @@ Görevin: Kullanıcının isteğine göre belge sayfalarına JSON operasyonları
 Sayfa boyutu: {pw}×{ph} piksel (koordinat başlangıcı sol-üst köşe)
 Toplam sayfa sayısı: {len(req.all_pages) if req.all_pages else 1}
 Aktif sayfa indeksi: {req.page_index}
-Aktif sayfa elementleri:
+{f"Mevcut belge ayarları: {json.dumps(req.doc_settings, ensure_ascii=False)}" if req.doc_settings else ""}
+Aktif sayfa elementleri (height ve bottom_y alanlarını yeni element yerleştirmek için kullan):
 {existing_summary if existing_summary != "[]" else "(sayfa boş)"}
 {f"Diğer sayfalar:{all_pages_summary}" if all_pages_summary else ""}
 
@@ -5371,15 +5375,21 @@ SAYFA TEMİZLE:   {{"action": "clear_page",                                     
 AI GÖRSEL:       {{"action": "generate_ai_image", "prompt": "<İngilizce görsel açıklaması, 10-20 kelime>", "x": <n>, "y": <n>, "width": <200-500>, "height": <150-400>, "target_page": <indeks>}}
 // ← Kullanıcı "görsel ekle", "resim ekle", "AI görsel", "fotoğraf ekle" dediğinde HEP bunu kullan
 AYAR DEĞİŞTİR:   {{"action": "update_settings", "settings": {{
-  "marginLeft": <piksel>,      // opsiyonel
-  "marginRight": <piksel>,     // opsiyonel
-  "marginTop": <piksel>,       // opsiyonel
-  "marginBottom": <piksel>,    // opsiyonel
-  "pageBackground": "<hex>",   // opsiyonel — sayfa arka plan rengi
-  "currentFont": "<font adı>", // opsiyonel — varsayılan yazı tipi
-  "currentFontSize": <punto>   // opsiyonel — varsayılan yazı boyutu
+  "marginLeft": <piksel>,         // opsiyonel
+  "marginRight": <piksel>,        // opsiyonel
+  "marginTop": <piksel>,          // opsiyonel
+  "marginBottom": <piksel>,       // opsiyonel
+  "pageBackground": "<hex>",      // opsiyonel — sayfa arka plan rengi
+  "currentFont": "<font adı>",    // opsiyonel — varsayılan yazı tipi
+  "currentFontSize": <piksel>,    // opsiyonel — varsayılan yazı boyutu (px)
+  "currentColor": "<hex>",        // opsiyonel — varsayılan metin rengi
+  "currentLineHeight": <sayı>,    // opsiyonel — satır aralığı (1.0/1.15/1.5/2.0)
+  "currentTextAlign": "<hizalama>", // opsiyonel — "left"|"center"|"right"|"justify"
+  "pageSize": {{"width": <piksel>, "height": <piksel>}},  // opsiyonel — A4:794×1123, A3:1123×1587, A5:559×794, Letter:816×1056
+  "gridVisible": <bool>,          // opsiyonel — ızgara göster/gizle
+  "rulerVisible": <bool>          // opsiyonel — cetvel göster/gizle
 }}}}
-// ← Kullanıcı marj, kenar boşluğu, arka plan rengi, font veya yazı tipi ayarı istediğinde kullan
+// ← Kullanıcı marj, sayfa boyutu, arka plan rengi, font, ızgara/cetvel ayarı istediğinde kullan
 
 target_page belirtilmezse aktif sayfa ({req.page_index}) kullanılır.
 @N sayfa referansı: kullanıcı "@1", "@2" gibi yazarsa bu sayfa indeksi N-1 demektir (1-indexed).
@@ -5413,6 +5423,37 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 - delete_page: sadece birden fazla sayfa varsa kullan; tek sayfa kaldığında clear_page kullan
 - Görsel/resim/fotoğraf eklemek istendiğinde MUTLAKA generate_ai_image kullan, image type'ı sadece URL verildiğinde
 - generate_ai_image: prompt İngilizce, kısa ve açıklayıcı (örn: "a mountain landscape, photorealistic style")
+
+━━━ ÖNEMLİ ÖRNEKLER ━━━
+
+Emoji/sembol ekle (metin içine):
+→ modify: htmlContent içine unicode emoji koy: "content": "Merhaba 🎉", "htmlContent": "Merhaba 🎉"
+→ veya yeni element: "content": "✅ Tamamlandı", "htmlContent": "✅ Tamamlandı"
+
+Mevcut metni kalın/italik yap (modify ile):
+→ {{"action": "modify", "element_id": "<id>", "changes": {{"bold": true, "italic": false}}, "target_page": 0}}
+→ Renk değiştir: {{"changes": {{"color": "#e63946"}}}}
+→ Font değiştir: {{"changes": {{"fontFamily": "Roboto", "fontSize": 20}}}}
+→ Hizalama değiştir: {{"changes": {{"textAlign": "center"}}}}
+
+Madde imli liste ekle:
+→ htmlContent'te <ul><li> kullanma — her madde için ayrı text elementi ekle:
+  İlk madde: "content": "• Birinci madde", "htmlContent": "• Birinci madde", y: <Y>
+  İkinci madde: y: <Y + satır yüksekliği>
+  (• unicode bullet karakteri; birbirine bitişik yerleştir)
+
+Numaralı liste:
+→ Benzer şekilde: "1. Birinci madde", "2. İkinci madde", her biri ayrı element
+
+Mevcut metnin içeriğini değiştir:
+→ {{"action": "modify", "element_id": "<id>", "changes": {{"content": "Yeni metin", "htmlContent": "Yeni metin"}}, "target_page": 0}}
+
+Sayfa boyutunu değiştir:
+→ {{"action": "update_settings", "settings": {{"pageSize": {{"width": 794, "height": 1123}}}}}}  // A4
+→ {{"action": "update_settings", "settings": {{"pageSize": {{"width": 816, "height": 1056}}}}}}  // Letter
+
+Cetvel/ızgara aç-kapat:
+→ {{"action": "update_settings", "settings": {{"rulerVisible": true, "gridVisible": false}}}}
 """
 
     full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"

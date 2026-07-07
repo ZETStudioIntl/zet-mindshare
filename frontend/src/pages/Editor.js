@@ -1444,6 +1444,12 @@ const Editor = () => {
         all_pages: allPagesPayload,
         attached_image_b64: imageData?.base64 || null,
         attached_image_mime: imageData?.mimeType || null,
+        doc_settings: {
+          marginLeft, marginRight, marginTop, marginBottom,
+          pageBackground, currentFont, currentFontSize, currentColor,
+          currentLineHeight, currentTextAlign, pageSize,
+          rulerVisible, gridVisible,
+        },
       }, { withCredentials: true });
       const { operations = [], explanation = '', suggestions = [] } = res.data;
       setZetaEditExplanation(explanation);
@@ -1467,6 +1473,12 @@ const Editor = () => {
           if (s.pageBackground !== undefined) setPageBackground(s.pageBackground);
           if (s.currentFont !== undefined) setCurrentFont(s.currentFont);
           if (s.currentFontSize !== undefined) setCurrentFontSize(Number(s.currentFontSize));
+          if (s.currentColor !== undefined) setCurrentColor(s.currentColor);
+          if (s.currentLineHeight !== undefined) setCurrentLineHeight(Number(s.currentLineHeight));
+          if (s.currentTextAlign !== undefined) setCurrentTextAlign(s.currentTextAlign);
+          if (s.pageSize !== undefined) setPageSize(s.pageSize);
+          if (s.gridVisible !== undefined) setGridVisible(Boolean(s.gridVisible));
+          if (s.rulerVisible !== undefined) setRulerVisible(Boolean(s.rulerVisible));
         } else if (op.action === 'clear_page') {
           if (tPage === currentPage) {
             setCanvasElements([]);
