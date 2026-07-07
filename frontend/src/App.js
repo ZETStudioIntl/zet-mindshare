@@ -110,8 +110,8 @@ const AppRouter = () => {
           <MediaApp />
         </ProtectedRoute>
       } />
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to="/app-select" replace />} />
+      <Route path="*" element={<Navigate to="/app-select" replace />} />
     </Routes>
   );
 };
