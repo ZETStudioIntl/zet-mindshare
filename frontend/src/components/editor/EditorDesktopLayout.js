@@ -274,7 +274,8 @@ const EditorDesktopLayout = () => {
             eraserDragMode={eraserDragMode} columnCount={columnCount} columnGap={columnGap}
             onSetTextWrap={handleSetTextWrap} onLinkClick={handleLinkClick} spellCheck={spellCheckEnabled}
             snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart}
-            screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange} />
+            screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange}
+            pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
           {spellCheckEnabled && (
             <SpellCheckLayer
               spellErrors={spellErrors}

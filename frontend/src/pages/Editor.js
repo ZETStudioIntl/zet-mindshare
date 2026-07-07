@@ -1680,44 +1680,49 @@ const Editor = () => {
     const cleanContent = content.replace(/\*\*(.*?)\*\*/g, '$1').trim();
     const mt = marginTop || 40;
     const ph = pageSize?.height || 1123;
-    // Sayfanın tepesinde (y < marginTop + 30) aynı içerikli gizli duplikat elementleri temizle
-    const withoutDuplicates = canvasElements.filter(el => {
-      if (el.type !== 'text') return true;
-      const elContent = (el.content || '').trim();
-      const isAtTop = (el.y || 0) < mt + 30;
-      const isSameContent = elContent === cleanContent || elContent.includes(cleanContent);
-      return !(isAtTop && isSameContent);
+    const ml = marginLeft || 40;
+    const mr = marginRight || 40;
+    const pw = pageSize?.width || 794;
+    const fs = currentFontSize || DEFAULT_FONT_SIZE;
+    const ff = currentFont || DEFAULT_FONT;
+    const fc = currentColor || DEFAULT_COLOR;
+    setCanvasElements(prev => {
+      const withoutDuplicates = prev.filter(el => {
+        if (el.type !== 'text') return true;
+        const elContent = (el.content || '').trim();
+        const isAtTop = (el.y || 0) < mt + 30;
+        const isSameContent = elContent === cleanContent || elContent.includes(cleanContent);
+        return !(isAtTop && isSameContent);
+      });
+      let bottomY = mt;
+      for (const existing of withoutDuplicates) {
+        const elY = existing.y || 0;
+        if (elY >= ph) continue;
+        const efs = existing.fontSize || 16;
+        const elh = existing.lineHeight || 1.5;
+        const lines = Math.max(1, (existing.content || '').split('\n').length);
+        const h = Math.min(existing.height || efs * lines * elh, ph - elY);
+        const elBottom = elY + h;
+        if (elBottom > bottomY) bottomY = elBottom;
+      }
+      const newY = Math.min(bottomY + 16, ph - 60);
+      const el = {
+        id: `el_${Date.now()}_zeta`,
+        type: 'text',
+        x: ml,
+        y: newY,
+        content: cleanContent,
+        fontSize: fs,
+        fontFamily: ff,
+        color: fc,
+        width: pw - ml - mr,
+        lineHeight: 1.6,
+        textAlign: 'left',
+      };
+      const updated = [...withoutDuplicates, el];
+      handleSaveHistory(updated);
+      return updated;
     });
-    // Sayfada yer alan elementlerin en altını bul
-    let bottomY = mt;
-    for (const existing of withoutDuplicates) {
-      const elY = existing.y || 0;
-      if (elY >= ph) continue; // sayfa dışında başlıyor, atla
-      const fs = existing.fontSize || 16;
-      const lh = existing.lineHeight || 1.5;
-      const lines = Math.max(1, (existing.content || '').split('\n').length);
-      // height alanı varsa kullan, ama sayfa yüksekliğiyle sınırla (yanlış büyük değerlere karşı)
-      const h = Math.min(existing.height || fs * lines * lh, ph - elY);
-      const elBottom = elY + h;
-      if (elBottom > bottomY) bottomY = elBottom;
-    }
-    const newY = Math.min(bottomY + 16, ph - 60);
-    const el = {
-      id: `el_${Date.now()}_zeta`,
-      type: 'text',
-      x: marginLeft || 40,
-      y: newY,
-      content: cleanContent,
-      fontSize: currentFontSize || DEFAULT_FONT_SIZE,
-      fontFamily: currentFont || DEFAULT_FONT,
-      color: currentColor || DEFAULT_COLOR,
-      width: (pageSize?.width || 794) - (marginLeft || 40) - (marginRight || 40),
-      lineHeight: 1.6,
-      textAlign: 'left',
-    };
-    const updated = [...withoutDuplicates, el];
-    setCanvasElements(updated);
-    handleSaveHistory(updated);
   };
 
   const handleAutoWriteContent = (pages, pageCount) => {
