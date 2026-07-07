@@ -1,4 +1,4 @@
-import React, { useContext, useRef, useState } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { EditorStateContext } from '../../contexts/EditorStateContext';
 
 const ZetaEditPanel = () => {
@@ -18,6 +18,15 @@ const ZetaEditPanel = () => {
   const imageInputRef = useRef(null);
   const [attachedDoc, setAttachedDoc] = useState(null);
   const [attachedImage, setAttachedImage] = useState(null); // { name, base64, mimeType, previewUrl }
+
+  useEffect(() => {
+    if (!zetaEditMode) return;
+    if (document.activeElement?.contentEditable === 'true') {
+      document.activeElement.blur();
+    }
+    const t = setTimeout(() => textareaRef.current?.focus(), 80);
+    return () => clearTimeout(t);
+  }, [zetaEditMode]);
 
   if (!zetaEditMode) return null;
 

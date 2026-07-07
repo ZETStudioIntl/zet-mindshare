@@ -28,11 +28,18 @@ const SCENE_KW_RE = /^([iıİI][çÇc]\.?\s*\/\s*d[iıİI][şŞs]\.?|[iıİI][ç
 
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
+    const w = el.width || 400;
+    const fs = el.fontSize || 16;
+    const lh = el.lineHeight || 1.5;
     const contentLines = Math.max(1, (el.content || '').split('\n').length);
     const htmlLines = el.htmlContent ? (el.htmlContent.match(/<br\s*\/?>/gi) || []).length + 1 : 1;
-    const lines = Math.max(contentLines, htmlLines);
-    const h = (el.fontSize || 16) * lines * (el.lineHeight || 1.5);
-    return x >= el.x && x <= el.x + (el.width || 400) && y >= el.y && y <= el.y + h;
+    const explicitLines = Math.max(contentLines, htmlLines);
+    const plainText = el.htmlContent?.replace(/<[^>]*>/g, '') || el.content || '';
+    const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.6)));
+    const wrappedLines = Math.ceil((plainText.length || 1) / avgCharsPerLine);
+    const lines = Math.max(explicitLines, wrappedLines);
+    const h = fs * lines * lh;
+    return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + h;
   }
   return x >= el.x && x <= el.x + (el.width || 80) && y >= el.y && y <= el.y + (el.height || 80);
 };
