@@ -1078,14 +1078,32 @@ const Editor = () => {
 
   // Ref'i her zaman güncel tut — unmount ve visibilitychange kayıtları için
   useEffect(() => {
-    latestSaveDataRef.current = { canvasElements, drawPaths, currentPage, pageSize, document };
-  }, [canvasElements, drawPaths, currentPage, pageSize, document]);
+    latestSaveDataRef.current = {
+      canvasElements, drawPaths, currentPage, pageSize, document,
+      settings: {
+        marginLeft, marginRight, marginTop, marginBottom,
+        pageBackground, currentFont, currentFontSize, currentColor,
+        currentLineHeight, currentTextAlign, firstLineIndent,
+        paragraphSpaceBefore, paragraphSpaceAfter,
+        indentLeft, indentRight, indentTop, indentBottom,
+        pageSize, screenplayMode, rulerVisible,
+      },
+    };
+  }, [canvasElements, drawPaths, currentPage, pageSize, document, marginLeft, marginRight, marginTop, marginBottom, pageBackground, currentFont, currentFontSize, currentColor, currentLineHeight, currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter, indentLeft, indentRight, indentTop, indentBottom, screenplayMode, rulerVisible]); // eslint-disable-line
+
+  // Ayarlar değişince hemen localStorage'a yaz (canvas değişmese bile)
+  useEffect(() => {
+    if (!docId) return;
+    const s = { marginLeft, marginRight, marginTop, marginBottom, pageBackground, currentFont, currentFontSize, currentColor, currentLineHeight, currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter, indentLeft, indentRight, indentTop, indentBottom, pageSize, screenplayMode, rulerVisible };
+    try { localStorage.setItem(`zet_doc_settings_${docId}`, JSON.stringify(s)); } catch {}
+  }, [marginLeft, marginRight, marginTop, marginBottom, pageBackground, currentFont, currentFontSize, currentColor, currentLineHeight, currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter, indentLeft, indentRight, indentTop, indentBottom, pageSize, screenplayMode, rulerVisible, docId]); // eslint-disable-line
 
   // Sayfa kapanırken veya arka plana geçerken kaydet (mobil dahil)
   useEffect(() => {
     const flushSave = () => {
       const d = latestSaveDataRef.current;
       if (!d || !docId) return;
+      const settings = d.settings || {};
       // 1) localStorage'a senkron yaz — sekme kapansa bile tamamlanır
       try {
         const pages = d.document?.pages ? [...d.document.pages] : [];
@@ -1095,6 +1113,7 @@ const Editor = () => {
         localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
           title: d.document?.title || '', subtitle: d.document?.subtitle || null, pages, savedAt: Date.now(),
         }));
+        localStorage.setItem(`zet_doc_settings_${docId}`, JSON.stringify(settings));
       } catch {}
       // 2) Ağ varsa sunucuya da gönder (fire-and-forget, tamamlanmasa sorun değil — localStorage backup var)
       if (!navigator.onLine || !d.document) return;
@@ -1104,7 +1123,7 @@ const Editor = () => {
       }
       axios.put(`${API}/documents/${docId}`, {
         title: d.document.title, subtitle: d.document.subtitle || null,
-        content: d.document.content, pages: pages2,
+        content: d.document.content, pages: pages2, settings,
       }, { withCredentials: true }).catch(() => {});
     };
     const onVis = () => { if (window.document.visibilityState === 'hidden') flushSave(); };
@@ -1669,15 +1688,18 @@ const Editor = () => {
       const isSameContent = elContent === cleanContent || elContent.includes(cleanContent);
       return !(isAtTop && isSameContent);
     });
-    // Görünür elementlerin en altını bul (sayfa sınırı içindeki)
+    // Sayfada yer alan elementlerin en altını bul
     let bottomY = mt;
     for (const existing of withoutDuplicates) {
+      const elY = existing.y || 0;
+      if (elY >= ph) continue; // sayfa dışında başlıyor, atla
       const fs = existing.fontSize || 16;
       const lh = existing.lineHeight || 1.5;
       const lines = Math.max(1, (existing.content || '').split('\n').length);
-      const h = existing.height || fs * lines * lh;
-      const elBottom = (existing.y || 0) + h;
-      if (elBottom > bottomY && elBottom <= ph) bottomY = elBottom;
+      // height alanı varsa kullan, ama sayfa yüksekliğiyle sınırla (yanlış büyük değerlere karşı)
+      const h = Math.min(existing.height || fs * lines * lh, ph - elY);
+      const elBottom = elY + h;
+      if (elBottom > bottomY) bottomY = elBottom;
     }
     const newY = Math.min(bottomY + 16, ph - 60);
     const el = {
