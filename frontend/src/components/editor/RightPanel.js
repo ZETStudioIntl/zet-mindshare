@@ -536,10 +536,28 @@ export const RightPanel = ({
     const buildCanvasContext = () => {
       if (!canvasElements) return null;
       const pages = doc?.pages?.length || 1;
-      const types = canvasElements.reduce((acc, el) => { acc[el.type] = (acc[el.type] || 0) + 1; return acc; }, {});
-      const typeStr = Object.entries(types).map(([t, n]) => `${n} ${t}`).join(', ') || 'boş';
-      const sel = canvasElements.find(el => el.type === 'text' && el.htmlContent) || canvasElements[0];
-      return `Toplam sayfa: ${pages} | Mevcut sayfa elementleri: ${typeStr} | Aktif araç: ${activeTool || 'select'}${sel ? ` | Seçili/ilk element tipi: ${sel.type}` : ''}`;
+      const elSummaries = canvasElements.map(el => {
+        const base = { id: el.id, type: el.type, x: el.x, y: el.y };
+        if (el.type === 'text') {
+          const rawText = (el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '')).slice(0, 100);
+          base.content = rawText;
+          base.color = el.color;
+          base.fontSize = el.fontSize;
+          base.width = el.width;
+          if (el.height) base.height = el.height;
+          if (el.isPending) base.isPending = true;
+        } else if (el.type === 'shape') {
+          base.shape = el.shape;
+          base.width = el.width;
+          base.height = el.height;
+          base.fill = el.fill;
+        } else if (el.type === 'image') {
+          base.width = el.width;
+          base.height = el.height;
+        }
+        return base;
+      });
+      return `Toplam sayfa: ${pages} | Aktif araç: ${activeTool || 'select'} | Mevcut sayfa elementleri:\n${JSON.stringify(elSummaries)}`;
     };
 
     try {
