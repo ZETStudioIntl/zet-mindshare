@@ -1585,7 +1585,6 @@ const Editor = () => {
           return { ...prev, pages };
         });
       }
-      const overflowEls = [];
       setCanvasElements(prev => {
         let els = [...prev];
         for (const op of operations) {
@@ -1602,13 +1601,15 @@ const Editor = () => {
             const el = { ...op.element, isPending: true };
             const ph = pageSize.height;
             const elH = el.height || (el.fontSize || 16) * 3;
+            const mt = marginTop || 40;
             if ((el.y || 0) + elH > ph + 20) {
-              // Element sayfa dışında — yeni sayfaya taşı (fire-and-forget sonrası)
-              overflowEls.push(el);
+              // Sayfa dışına taşıyorsa y'yi sıkıştır — current page'de pending olarak göster
+              const clampedY = Math.max(mt, ph - elH - 20);
+              els.push({ ...el, y: clampedY });
             } else {
               els.push(el);
-              newPendingLog.push({ action: 'add', elementId: el.id });
             }
+            newPendingLog.push({ action: 'add', elementId: el.id });
           } else if (op.action === 'modify' && op.element_id && op.changes) {
             els = els.map(el => {
               if (el.id !== op.element_id) return el;
@@ -1626,26 +1627,6 @@ const Editor = () => {
         pendingOpsRef.current = newPendingLog;
         return els;
       });
-      // Overflow elementlerini yeni sayfaya ekle
-      if (overflowEls.length > 0) {
-        const firstY = marginTop || 40;
-        let curY = firstY;
-        const newPageEls = overflowEls.map(el => {
-          const placed = { ...el, y: curY, isPending: true };
-          curY += (el.height || (el.fontSize || 16) * 3) + 12;
-          return placed;
-        });
-        setDocument(prev => {
-          const pages = [...(prev.pages || [])];
-          const nextIdx = currentPage + 1;
-          if (pages[nextIdx]) {
-            pages[nextIdx] = { ...pages[nextIdx], elements: [...(pages[nextIdx].elements || []), ...newPageEls] };
-          } else {
-            pages.splice(nextIdx, 0, { page_id: `page_${Date.now()}`, elements: newPageEls, drawPaths: [], pageSize });
-          }
-          return { ...prev, pages };
-        });
-      }
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Bir hata oluştu';
       setZetaEditExplanation(`Hata: ${msg}`);
