@@ -420,6 +420,17 @@ const Editor = () => {
     window.addEventListener('zet:preferences-loaded', onShortcutsLoaded);
     return () => window.removeEventListener('zet:preferences-loaded', onShortcutsLoaded);
   }, []);
+
+  // Fast Select — sunucudan geç gelen tercihler senkronize edilir (cihazlar arası)
+  useEffect(() => {
+    const onFastSelectLoaded = (e) => {
+      if (e.detail?.['zet_fast_select']) {
+        try { setFastSelectTools(JSON.parse(e.detail['zet_fast_select'])); } catch {}
+      }
+    };
+    window.addEventListener('zet:preferences-loaded', onFastSelectLoaded);
+    return () => window.removeEventListener('zet:preferences-loaded', onFastSelectLoaded);
+  }, []);
   
   // Gradient colors for text (legacy — kept for chart generation)
   const [gradientStart, setGradientStart] = useState(null);
@@ -471,7 +482,7 @@ const Editor = () => {
   const [shortcutSearch, setShortcutSearch] = useState('');
 
   // Fast Select state
-  const [fastSelectTools] = useState(() => {
+  const [fastSelectTools, setFastSelectTools] = useState(() => {
     const saved = localStorage.getItem('zet_fast_select');
     return saved ? JSON.parse(saved) : ['select', 'hand', 'draw', 'image'];
   });
@@ -4433,7 +4444,7 @@ body{background:#fff}
           case 'strikethrough': window.document.execCommand('strikeThrough', false, null); break;
           case 'fontSize':      window.document.execCommand('insertHTML', false, `<span style="font-size:${value}px">${esc(selText)}</span>`); break;
           case 'fontFamily':    window.document.execCommand('insertHTML', false, `<span style="font-family:'${value}'">${esc(selText)}</span>`); break;
-          case 'lineHeight':    window.document.execCommand('insertHTML', false, `<span style="line-height:${value}">${esc(selText)}</span>`); break;
+          case 'lineHeight':    applyTextStyle('lineHeight', value); return;
           default: break;
         }
       } else {
@@ -4444,9 +4455,9 @@ body{background:#fff}
           case 'underline':     window.document.execCommand('underline', false, null); break;
           case 'strikethrough': window.document.execCommand('strikeThrough', false, null); break;
           case 'fontFamily':    window.document.execCommand('fontName', false, value); break;
-          case 'fontSize':
-          case 'lineHeight': {
-            const styleAttr = type === 'fontSize' ? `font-size:${value}px` : `line-height:${value}`;
+          case 'lineHeight':    applyTextStyle('lineHeight', value); return;
+          case 'fontSize': {
+            const styleAttr = `font-size:${value}px`;
             window.document.execCommand('insertHTML', false, `<span style="${styleAttr}" data-zet-anchor="1">&#8203;</span>`);
             const anchor = editableDiv.querySelector('[data-zet-anchor="1"]');
             if (anchor) {
