@@ -1682,8 +1682,17 @@ const Editor = () => {
     const pw = pageSize?.width || 794;
     const fs = currentFontSize || DEFAULT_FONT_SIZE;
     const ff = currentFont || DEFAULT_FONT;
-    const fc = currentColor || DEFAULT_COLOR;
     const htmlLine = cleanContent.replace(/\n/g, '<br>');
+    // Çok açık renkler (beyaz dahil) beyaz sayfada görünmez — EditableText'in dark/light detection'ına bırak
+    const hexLum = (hex) => {
+      if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return -1;
+      const r = parseInt(hex.slice(1,3), 16) / 255;
+      const g = parseInt(hex.slice(3,5), 16) / 255;
+      const b = parseInt(hex.slice(5,7), 16) / 255;
+      return 0.299*r + 0.587*g + 0.114*b;
+    };
+    const fcLum = hexLum(currentColor);
+    const fc = fcLum >= 0 && fcLum < 0.8 ? currentColor : undefined;
     setCanvasElements(prev => {
       const withoutDuplicates = prev.filter(el => {
         if (el.type !== 'text') return true;
