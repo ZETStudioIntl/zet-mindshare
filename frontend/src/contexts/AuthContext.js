@@ -30,6 +30,15 @@ export const AuthProvider = ({ children }) => {
       setLoading(false);
       return;
     }
+    // Çevrimdışıysa ağ isteği yapma — cached user'ı hemen kullan
+    if (!navigator.onLine) {
+      const cached = localStorage.getItem('zet_cached_user');
+      if (cached) {
+        try { setUser(JSON.parse(cached)); loadPreferences(); } catch {}
+      }
+      setLoading(false);
+      return;
+    }
     try {
       const response = await axios.get(`${API}/auth/me`);
       setUser(response.data);
@@ -48,7 +57,7 @@ export const AuthProvider = ({ children }) => {
           // Network hatası veya sunucu hatası — token geçerli olabilir, cached user'ı kullan
           const cached = localStorage.getItem('zet_cached_user');
           if (cached) {
-            try { setUser(JSON.parse(cached)); } catch {}
+            try { setUser(JSON.parse(cached)); loadPreferences(); } catch {}
           }
         }
       }

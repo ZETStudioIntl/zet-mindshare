@@ -63,6 +63,7 @@ const AuthCallback = () => {
         try {
           const res = await axios.post(`${API}/auth/exchange`, { token });
           localStorage.setItem('session_token', token);
+          localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
           setUser(res.data);
           loadPreferences();
           try {
