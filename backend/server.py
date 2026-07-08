@@ -5011,6 +5011,7 @@ Bu bilgiler kullanıcının farklı belgelerinde seninle yaptığı konuşmalard
 📍 CANLI EDITÖR DURUMU (şu an kullanıcının ekranında ne var):
 {req.canvas_context}
 Bu bilgiyi kullanarak daha bağlamsal ve doğru yardım sağla. Kullanıcı hangi araçla çalışıyor, kaç sayfa var, neler var — bunları biliyorsun.
+ÖNEMLI: Yukarıdaki "Mevcut sayfa elementleri" JSON listesinde her elementin id, type, x, y, content, color, fontSize, width bilgileri VAR. Kullanıcı bir elementin koordinatlarını, rengini veya konumunu sorarsa bu verilerden okuyup cevapla — "erişimim yok" veya "bilemiyorum" deme, bu yanlış olur.
 """
 
     # If document content is provided, add it to the context
