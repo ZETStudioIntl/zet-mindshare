@@ -1553,7 +1553,7 @@ const Editor = () => {
       }
       // Handle operations targeting other pages
       const skipActions = new Set(['add_path', 'delete_page', 'clear_page', 'generate_ai_image', 'add_page', 'update_settings']);
-      const otherPageOps = operations.filter(op => !skipActions.has(op.action) && op.target_page != null && op.target_page !== currentPage);
+      const otherPageOps = operations.filter(op => !skipActions.has(op.action) && op.action !== 'add' && op.target_page != null && op.target_page !== currentPage);
       if (otherPageOps.length > 0) {
         setDocument(prev => {
           const pages = [...(prev.pages || [])];
@@ -1579,7 +1579,7 @@ const Editor = () => {
         let els = [...prev];
         for (const op of operations) {
           if (skipActions.has(op.action)) continue;
-          if (op.target_page != null && op.target_page !== currentPage) continue;
+          if (op.action !== 'add' && op.target_page != null && op.target_page !== currentPage) continue;
           if (op.action === 'add' && op.element && op.element.type === 'chart' && op.element.chartMeta) {
             const { svg, imgSrc, width, height } = generateChartSVG(op.element.chartMeta);
             op.element.svgContent = svg;
