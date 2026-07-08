@@ -1598,7 +1598,11 @@ const Editor = () => {
             op.element.height = op.element.height || height;
           }
           if (op.action === 'add' && op.element) {
-            const el = { ...op.element, isPending: true };
+            const base = { ...op.element };
+            if (base.type === 'text' && base.content && !base.htmlContent) {
+              base.htmlContent = base.content.replace(/\n/g, '<br>');
+            }
+            const el = { ...base, isPending: true };
             const ph = pageSize.height;
             const elH = el.height || (el.fontSize || 16) * 3;
             const mt = marginTop || 40;
@@ -1670,6 +1674,7 @@ const Editor = () => {
   const handleInsertText = (content) => {
     if (!content) return;
     const cleanContent = content.replace(/\*\*(.*?)\*\*/g, '$1').trim();
+    if (!cleanContent) return;
     const mt = marginTop || 40;
     const ph = pageSize?.height || 1123;
     const ml = marginLeft || 40;
@@ -1678,10 +1683,11 @@ const Editor = () => {
     const fs = currentFontSize || DEFAULT_FONT_SIZE;
     const ff = currentFont || DEFAULT_FONT;
     const fc = currentColor || DEFAULT_COLOR;
+    const htmlLine = cleanContent.replace(/\n/g, '<br>');
     setCanvasElements(prev => {
       const withoutDuplicates = prev.filter(el => {
         if (el.type !== 'text') return true;
-        const elContent = (el.content || '').trim();
+        const elContent = (el.content || el.htmlContent?.replace(/<[^>]*>/g, '') || '').trim();
         const isAtTop = (el.y || 0) < mt + 30;
         const isSameContent = elContent === cleanContent || elContent.includes(cleanContent);
         return !(isAtTop && isSameContent);
@@ -1692,7 +1698,10 @@ const Editor = () => {
         if (elY >= ph) continue;
         const efs = existing.fontSize || 16;
         const elh = existing.lineHeight || 1.5;
-        const lines = Math.max(1, (existing.content || '').split('\n').length);
+        // htmlContent'in <br> sayısını da dikkate al — sadece content boşsa
+        const textForLines = existing.content || existing.htmlContent?.replace(/<[^>]*>/g, '') || '';
+        const brCount = (existing.htmlContent || '').split('<br').length - 1;
+        const lines = Math.max(1, brCount > 0 ? brCount + 1 : textForLines.split('\n').length);
         const h = Math.min(existing.height || efs * lines * elh, ph - elY);
         const elBottom = elY + h;
         if (elBottom > bottomY) bottomY = elBottom;
@@ -1704,6 +1713,7 @@ const Editor = () => {
         x: ml,
         y: newY,
         content: cleanContent,
+        htmlContent: htmlLine,
         fontSize: fs,
         fontFamily: ff,
         color: fc,
