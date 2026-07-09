@@ -5410,6 +5410,7 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 ━━━ KURALLAR ━━━
 - Elementleri sayfa dışına çıkarma: x + width <= {pw}, y + height <= {ph}
 - Mevcut elementlerin üzerine binme — YENİ element y'si = hedef elementin (y + height) + boşluk. Her elementin "height" alanı yukarıda verildi; bunu kullan
+- Kullanıcı konum belirtirse ("X'in altına", "sahne Y'den sonra", "sayfa başına" vb.): element listesinde o referans elementi content alanından bul, onun (y + height + 16) değerini yeni elementin y'si olarak kullan
 - fontSize PİKSEL (px) cinsinden — punto değil. Kullanıcı "12 punto" derse 16 yaz, "14 punto" → 19, "18 punto" → 24, "24 punto" → 32. Formül: px = round(pt * 4/3)
 - Taşıma: modify ile x ve/veya y koordinatlarını değiştir
 - ID'ler benzersiz olmalı: "el_" + büyük sayı (örn: el_1717000000000_a3b2)
@@ -5418,6 +5419,7 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 - Renk belirtilmemişse koyu metinler #000000, başlıklar #1a1a2e, vurgular #292f91 kullan
 - Kullanıcı "sil" diyorsa element_id'yi mevcut elementlerden al
 - Kullanıcı "değiştir/düzenle/taşı" diyorsa mevcut element'i modify et, yenisini ekleme
+- Kullanıcı yeni bir metin EKLE/YAZ/EKLE diyorsa ASLA mevcut elementin content/htmlContent'ini değiştirme — her zaman type:"text" ile yeni "add" operasyonu oluştur. Mevcut büyük metin bloklarına append/concat YASAKTIR.
 - Başka sayfaya element eklerken doğru target_page belirt
 - "Yazıları sil" = sadece type:"text" elementlerini delete et; "Her şeyi sil" = clear_page kullan
 - "Sadece [X] sil" = ilgili type/içerik filtrele; "Tüm sayfayı sil" = delete_page (1 sayfa kalırsa yapma)
