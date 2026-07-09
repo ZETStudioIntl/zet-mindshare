@@ -1283,7 +1283,7 @@ const Editor = () => {
     }
     const pagesToCache = userPlan !== 'free'
       ? updatedPages
-      : updatedPages.map(p => ({ ...p, elements: [], drawPaths: [] }));
+      : updatedPages.map(p => ({ ...p, elements: (p.elements || []).filter(el => el.type === 'text'), drawPaths: [] }));
     try {
       localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
         title: document.title, subtitle: document.subtitle || null,
@@ -1821,8 +1821,8 @@ const Editor = () => {
 
   const getLockedTools = () => {
     if (localStorage.getItem('zet_ceo_mode') === 'true') return [];
-    // Free users offline: all tools locked — they can only type in existing text elements
-    if (isFreeOffline) return TOOLS.map(t => t.id);
+    // Free users offline: text/select/hand açık, diğerleri kilitli
+    if (isFreeOffline) return TOOLS.map(t => t.id).filter(id => !['text', 'select', 'hand'].includes(id));
     if (userPlan === 'free') {
       return TOOLS.map(t => t.id).filter(id => !FREE_ALLOWED_TOOLS.has(id));
     }
@@ -1836,6 +1836,7 @@ const Editor = () => {
   };
 
   const getToolLockReason = (toolId) => {
+    if (isFreeOffline) return 'İnternet bağlantısı olmadan bu araç kullanılamaz. Bağlantı gelince tüm araçlar açılır.';
     if (userPlan === 'free') return 'Bu araç sadece aboneler içindir. Herhangi bir planla tüm araçlara erişin.';
     const names = { layers: 'Katmanlar', signature: 'Dijital İmza', watermark: 'Filigran', pagecolor: 'Sayfa Rengi', graphic: 'Grafikler' };
     return `${names[toolId] || toolId} aracı mevcut planınızda kullanılamaz. Lütfen planınızı yükseltin.`;
