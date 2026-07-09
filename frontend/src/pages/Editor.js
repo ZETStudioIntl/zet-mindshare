@@ -1693,6 +1693,7 @@ const Editor = () => {
     };
     const fcLum = hexLum(currentColor);
     const fc = fcLum >= 0 && fcLum < 0.8 ? currentColor : undefined;
+    const newId = `el_${Date.now()}_zeta`;
     setCanvasElements(prev => {
       const withoutDuplicates = prev.filter(el => {
         if (el.type !== 'text') return true;
@@ -1717,7 +1718,7 @@ const Editor = () => {
       }
       const newY = Math.min(bottomY + 16, ph - 60);
       const el = {
-        id: `el_${Date.now()}_zeta`,
+        id: newId,
         type: 'text',
         x: ml,
         y: newY,
@@ -1734,6 +1735,10 @@ const Editor = () => {
       handleSaveHistory(updated);
       return updated;
     });
+    // Element oluşturulunca seç — kullanıcı nerede olduğunu hemen görür
+    setSelectedElement(newId);
+    setSelectedElements([newId]);
+    setActiveTool('select');
   };
 
   const handleAutoWriteContent = (pages, pageCount) => {
