@@ -203,9 +203,8 @@ const Editor = () => {
   }, []);
 
   // Sync per-element text style when a different element is selected.
-  // Paragraph panel settings (textAlign, firstLineIndent, paragraphSpacing) are intentionally
-  // NOT synced here — they are user-level defaults that persist across element selections.
-  // Applying them to the selected element is done via applyTextAlign / setFirstLineIndent etc.
+  // textAlign, lineHeight, firstLineIndent, paragraphSpacing are user-level defaults — NOT synced
+  // from the selected element so they persist across element selections.
   useEffect(() => {
     if (selectedElement) {
       const el = canvasElements.find(e => e.id === selectedElement);
@@ -216,7 +215,6 @@ const Editor = () => {
         if (el.strikethrough !== undefined) setIsStrikethrough(el.strikethrough);
         if (el.fontSize) setCurrentFontSize(el.fontSize);
         if (el.fontFamily) setCurrentFont(el.fontFamily);
-        if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
         if (el.color) setCurrentColor(el.color);
         setIndentLeft(el.paddingLeft || 0);
         setIndentRight(el.paddingRight || 0);
