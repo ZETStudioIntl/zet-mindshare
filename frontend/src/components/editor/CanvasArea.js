@@ -1111,33 +1111,32 @@ export const CanvasArea = ({
   }, [zoom]);
 
   const handleTextCommit = useCallback((id, text, isHtml = false) => {
-    // Extract plain text for empty check
     const plainText = isHtml ? text.replace(/<[^>]*>/g, '').trim() : text.trim();
-    if (!plainText) { const f = canvasElements.filter(el => el.id !== id); setCanvasElements(f); onSaveHistory(f); }
-    else { 
-      const el = canvasElements.find(e => e.id === id);
-      const update = isHtml 
+    if (!plainText) {
+      setCanvasElements(prev => {
+        const f = prev.filter(el => el.id !== id);
+        onSaveHistory(f);
+        return f;
+      });
+    } else {
+      const update = isHtml
         ? { htmlContent: text, content: plainText }
         : { content: text, htmlContent: text.replace(/\n/g, '<br>') };
-      const u = canvasElements.map(el => el.id === id ? { ...el, ...update } : el); 
-      setCanvasElements(u); 
-      onSaveHistory(u);
-      
-      // Check if text overflows the page and auto-add new page
+      // Functional updater ensures we merge into the LATEST state, not a stale closure —
+      // prevents textAlign/other formatting set via panel from being overwritten on blur.
+      setCanvasElements(prev => {
+        const u = prev.map(el => el.id === id ? { ...el, ...update } : el);
+        onSaveHistory(u);
+        return u;
+      });
+      // Overflow check uses geometry only (y/fontSize/lineHeight won't change via panel)
+      const el = canvasElements.find(e => e.id === id);
       if (el && onAddPage) {
         const lineCount = (plainText || '').split('\n').length;
-        const fontSize = el.fontSize || 16;
-        const lineHeight = el.lineHeight || 1.5;
-        const textHeight = lineCount * fontSize * lineHeight;
-        const bottomY = el.y + textHeight;
-        const pageBottom = pageSize.height - margins.bottom;
-        if (bottomY > pageBottom) {
-          onAddPage();
-        }
+        const textHeight = lineCount * (el.fontSize || 16) * (el.lineHeight || 1.5);
+        if (el.y + textHeight > pageSize.height - margins.bottom) onAddPage();
       }
     }
-    // Only clear editingId if it's still this element — prevents race where another element
-    // already started editing before this commit fires (e.g. clicking Y while editing X).
     setEditingId(prev => prev === id ? null : prev);
   }, [canvasElements, setCanvasElements, onSaveHistory, pageSize.height, onAddPage, margins.bottom]);
 
