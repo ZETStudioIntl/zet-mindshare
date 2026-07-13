@@ -202,7 +202,10 @@ const Editor = () => {
     };
   }, []);
 
-  // Sync formatting state when a text element is selected
+  // Sync per-element text style when a different element is selected.
+  // Paragraph panel settings (textAlign, firstLineIndent, paragraphSpacing) are intentionally
+  // NOT synced here — they are user-level defaults that persist across element selections.
+  // Applying them to the selected element is done via applyTextAlign / setFirstLineIndent etc.
   useEffect(() => {
     if (selectedElement) {
       const el = canvasElements.find(e => e.id === selectedElement);
@@ -214,11 +217,7 @@ const Editor = () => {
         if (el.fontSize) setCurrentFontSize(el.fontSize);
         if (el.fontFamily) setCurrentFont(el.fontFamily);
         if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
-        if (el.textAlign) setCurrentTextAlign(el.textAlign);
         if (el.color) setCurrentColor(el.color);
-        setFirstLineIndent(el.textIndent || 0);
-        setParagraphSpaceBefore(el.paragraphSpaceBefore || 0);
-        setParagraphSpaceAfter(el.paragraphSpaceAfter || 0);
         setIndentLeft(el.paddingLeft || 0);
         setIndentRight(el.paddingRight || 0);
         setIndentTop(el.paddingTop || 0);
@@ -1488,12 +1487,6 @@ const Editor = () => {
       const operations = rawOps.filter(op => {
         if (!ALLOWED_ACTIONS.has(op.action)) return false;
         if (op.action === 'add' && op.element && !ALLOWED_ADD_TYPES.has(op.element?.type)) return false;
-        // "İçine girme" koruması: sadece content/htmlContent değiştiren modify = AI yanlışlıkla
-        // mevcut elementin içine yazıyor demektir → blokla, yeni add operasyonu kullanılmalı
-        if (op.action === 'modify' && op.changes) {
-          const keys = Object.keys(op.changes);
-          if (keys.length > 0 && keys.every(k => k === 'content' || k === 'htmlContent')) return false;
-        }
         return true;
       });
       const { explanation = '', suggestions = [] } = res.data;

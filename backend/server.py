@@ -5417,9 +5417,10 @@ METİN EKLEME (type: "text"):
 - Kullanıcı belirtirse yaz: "kalın" → bold:true, "12 punto" → fontSize:16, "kırmızı" → color:"#ef4444"
 - Kullanıcı ne yazmamı istiyorsa AYNEN yaz — kısaltma, özetleme yok
 - Uzun içerik (birden fazla paragraf) → her paragraf ayrı "add" operasyonu
-- Yeni metin = HER ZAMAN yeni "add" — istisnasız
-- ⛔ YASAK: "modify" ile content/htmlContent değiştirme — bu "içine girme" hatasıdır
-- "modify" SADECE FORMAT: bold, italic, color, fontSize, textAlign, lineHeight
+- YENİ içerik ekle → "add" operasyonu (yeni element_id ile)
+- Mevcut metni düzenle / değiştir → "modify" + element_id + {content, htmlContent} (element listesindeki id'yi kullan)
+- Mevcut metni biçimlendir → "modify" + element_id + {bold, italic, color, fontSize, textAlign, lineHeight}
+- "şunu değiştir", "şunu düzenle", "yerine yaz" gibi istekler → mevcut element id'sini listeden bul, modify kullan
 
 SAYFA TAŞMA (OVERFLOW) KURALI:
 - max_bottom_y >= alt_marj_sınırı ise sayfa doludur — yeni metin ekleme, önce add_page yap
