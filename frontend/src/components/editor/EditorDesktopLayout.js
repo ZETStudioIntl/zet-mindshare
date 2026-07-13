@@ -44,7 +44,7 @@ const EditorDesktopLayout = () => {
     handleChangeImage, handleEditChart, handleElementSelect, handleImageUpload,
     handleInsertText, handleLinkClick, handleRedo, handleSaveHistory, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
-    history, importPDF, importFromMS, isOnline, isFreeOffline,
+    history, importPDF, importFromMS, importFile, isOnline, isFreeOffline,
     isBold, isItalic, isMobile, isPlaying, isStrikethrough, isUnderline,
     judgeMood, leftWidth, setLeftWidth,
     screenplayMode, handleScriptElementChange,
@@ -84,18 +84,14 @@ const EditorDesktopLayout = () => {
         </div>
       )}
       {/* Hidden PDF input */}
-      <input ref={pdfInputRef} type="file" accept=".pdf,.ms" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) { f.name.endsWith('.ms') ? importFromMS(f) : importPDF(f); } e.target.value = ''; }} />
-      {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><MiniDocLoader padding="8px 0" /><p style={{ color: 'var(--zet-text)', marginTop: 4 }}>PDF içe aktarılıyor...</p></div></div>}
+      <input ref={pdfInputRef} type="file" accept=".pdf,.ms,.txt,.md,.docx,.html,.htm" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; }} />
+      {pdfImporting && <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]"><div className="zet-card p-6 text-center animate-fadeIn"><MiniDocLoader padding="8px 0" /><p style={{ color: 'var(--zet-text)', marginTop: 4 }}>Dosya içe aktarılıyor...</p></div></div>}
       <header data-testid="editor-header" className="h-12 px-3 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-2">
           <button data-testid="home-btn" onClick={() => navigate('/dashboard')} className="tool-btn w-8 h-8"><Home className="h-4 w-4" /></button>
           <div className="flex flex-col">
             <input data-testid="doc-title-input" value={document.title} onChange={(e) => setDocument(prev => ({ ...prev, title: e.target.value }))}
               className="bg-transparent font-medium px-2 text-sm border-b border-transparent hover:border-white/20 focus:border-white/40 transition-colors outline-none" style={{ color: 'var(--zet-text)', maxWidth: 200 }} />
-            <input data-testid="doc-subtitle-input" value={document.subtitle || ''} onChange={(e) => setDocument(prev => ({ ...prev, subtitle: e.target.value }))}
-              placeholder={!document.subtitle ? '⚠ Alt başlık ekle...' : ''}
-              className="bg-transparent px-2 text-[10px] border-b border-transparent hover:border-white/20 focus:border-white/40 transition-colors outline-none"
-              style={{ color: document.subtitle ? 'var(--zet-text-muted)' : '#f59e0b', maxWidth: 200 }} />
           </div>
         </div>
         <div className="flex items-center gap-1.5">
