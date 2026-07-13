@@ -4857,13 +4857,10 @@ GÖRÜNTÜ BOYUTLARI:
 - X (Twitter), Instagram, TikTok içerikleri Google üzerinden indekslendiğinden bunları da arayabilirsin
 - Araştırma yaptıysan cevabın sonunda kaynakları mutlaka listele
 
-📝 BELGEYE YAZMA (EYLEM SİSTEMİ):
-Kullanıcı senden bir metin yazmanı ve belgeye eklemeni isterse SADECE eylem etiketini kullan, cevap metni yazma:
-- [ACTION:INSERT_TEXT:yazılacak içerik] → içeriği mevcut sayfaya metin elementi olarak ekler
-- Örnekler:
-  • "Bir tanıtım paragrafı yaz ve belgeye ekle" → [ACTION:INSERT_TEXT:ZET Studio International, üretkenlik araçları geliştiren...] (hiç açıklama yazma)
-  • "Benim için bir CV özeti yaz" → [ACTION:INSERT_TEXT:Deneyimli yazılım geliştirici...]
-- UYARI: Sadece kullanıcı belgeye eklemesini AÇIKÇA istediğinde kullan. Sohbet cevaplarında kullanma.
+📝 BELGEYE YAZMA:
+Kullanıcı "yaz", "ekle", "belgeye ekle" gibi bir şey isterse şunu de:
+"Belgeye yazmak için sağ üstteki 'Zeta Edit' butonunu kullanın — oradan tam olarak istediğinizi yazabilirim."
+Kendiliğinden belgeye ekleme yapma, sadece sohbet et.
 
 🚫 YAPAMADIKLARIN:
 - Görsel ve video üretemezsin
@@ -5204,7 +5201,6 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             html_content = el.get('htmlContent') or ''
             html_lines = len(re.findall(r'<br\s*/?>', html_content, re.IGNORECASE)) + 1 if html_content else 1
             explicit_lines = max(content_lines, html_lines)
-            # Word-wrap tahmini (frontend ile aynı mantık)
             w = el.get('width') or 500
             fs = el.get('fontSize') or 16
             plain = re.sub(r'<[^>]+>', '', html_content) if html_content else (el.get('content') or '')
@@ -5212,11 +5208,21 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             wrapped = max(1, (len(plain) + avg_cpp - 1) // avg_cpp) if plain else 1
             lines = max(explicit_lines, wrapped)
             d['height'] = round(fs * lines * (el.get('lineHeight') or 1.5))
+            # Metin içeriğini AI'ın görebilmesi için ekle (ilk 120 karakter)
+            raw_text = (el.get('content') or plain or '').strip()
+            if raw_text:
+                d['text_preview'] = raw_text[:120] + ('…' if len(raw_text) > 120 else '')
         if 'height' in d:
             d['bottom_y'] = (el.get('y') or 0) + d['height']
         return d
 
-    existing_summary = json.dumps([_el_summary(el) for el in req.page_elements], ensure_ascii=False)
+    el_summaries = [_el_summary(el) for el in req.page_elements]
+    existing_summary = json.dumps(el_summaries, ensure_ascii=False)
+    max_bottom_y = max((s.get('bottom_y', 0) for s in el_summaries), default=0)
+    doc_mb = int((req.doc_settings or {}).get('marginBottom', 40))
+    page_bottom_limit = ph - doc_mb  # metin bu noktayı geçemez
+    page_remaining_px = page_bottom_limit - max_bottom_y
+    page_is_full = max_bottom_y >= page_bottom_limit - 20  # 20px: en az bir satır için
 
     all_pages_summary = ""
     if req.all_pages:
@@ -5228,6 +5234,22 @@ async def zeta_document_edit(req: ZetaDocEditRequest, user: User = Depends(get_c
             pg_summary = json.dumps([_el_summary(el) for el in els], ensure_ascii=False)
             all_pages_summary += f"\n  Sayfa {pi}: {pg_summary if pg_summary != '[]' else '(boş)'}"
 
+    _ds = req.doc_settings or {}
+    _col_n = max(1, int(_ds.get('columnCount', 1)))
+    _col_gap = int(_ds.get('columnGap', 20))
+    _col_ml = int(_ds.get('marginLeft', 40))
+    _col_mr = int(_ds.get('marginRight', 40))
+    _col_avail = pw - _col_ml - _col_mr
+    _col_w = round((_col_avail - (_col_n - 1) * _col_gap) / _col_n) if _col_n > 1 else _col_avail
+    if _col_n > 1:
+        _col_lines = '\n'.join(
+            f"  Sütun {i+1}: x={_col_ml + i * (_col_w + _col_gap)}px, genişlik={_col_w}px"
+            for i in range(_col_n)
+        )
+        _col_info = f"SÜTUN DÜZENİ: {_col_n} sütun (aralık={_col_gap}px)\n{_col_lines}\n⚠️ x, y, width YAZMA — frontend sütun konumlarını otomatik hesaplar."
+    else:
+        _col_info = ""
+
     system_prompt = f"""Sen ZETA, ZET Mindshare belge editörünün AI asistanısın.
 Görevin: Kullanıcının isteğine göre belge sayfalarına JSON operasyonları üretmek.
 
@@ -5236,7 +5258,15 @@ Sayfa boyutu: {pw}×{ph} piksel (koordinat başlangıcı sol-üst köşe)
 Toplam sayfa sayısı: {len(req.all_pages) if req.all_pages else 1}
 Aktif sayfa indeksi: {req.page_index}
 {f"Mevcut belge ayarları: {json.dumps(req.doc_settings, ensure_ascii=False)}" if req.doc_settings else ""}
-Aktif sayfa elementleri (height ve bottom_y alanlarını yeni element yerleştirmek için kullan):
+{_col_info}
+
+SAYFA DOLULUK DURUMU:
+  max_bottom_y: {max_bottom_y}px (mevcut içeriğin en alt noktası)
+  alt_marj_sınırı: {page_bottom_limit}px (bu çizgiyi geçen metin sayfadan taşar)
+  kalan_alan: {page_remaining_px}px
+  → {'⚠️ SAYFA DOLU — yeni metin sığmaz. add_page + target_page: ' + str(req.page_index + 1) + ' kullan.' if page_is_full else '✅ Sayfada yer var (' + str(page_remaining_px) + 'px) — metin aşağıya eklenebilir.'}
+
+Aktif sayfa elementleri (text_preview ile içerikleri, bottom_y ile konumları görülür):
 {existing_summary if existing_summary != "[]" else "(sayfa boş)"}
 {f"Diğer sayfalar:{all_pages_summary}" if all_pages_summary else ""}
 
@@ -5244,22 +5274,25 @@ Aktif sayfa elementleri (height ve bottom_y alanlarını yeni element yerleştir
 
 1. METİN (type: "text")
 {{
-  "id": "el_<timestamp>_<random4>",   // benzersiz — Date.now() + random 4 karakter
+  "id": "el_<timestamp>_<random4>",
   "type": "text",
-  "x": <0-{pw-40}>,   // sol kenardan piksel (genelde 40-80 arası başla)
-  "y": <0-{ph-40}>,   // üst kenardan piksel
-  "content": "<düz metin, satır başı için \\n>",
-  "htmlContent": "<aynı metin, satır başı için <br>>",
-  "fontSize": <8-96>,          // PİKSEL (px) — punto DEĞİL! "12 punto" → 16 yaz, "11pt" → 15, "14pt" → 19, "24pt" → 32. Formül: px = round(pt * 4/3)
-  "fontFamily": "Arial",        // herhangi bir Google Font ismi
-  "color": "#000000",           // hex renk
-  "width": <100-{pw-80}>,      // metin kutusu genişliği (genelde 714)
-  "lineHeight": 1.5,            // satır aralığı: 1.0 / 1.15 / 1.5 / 2.0 / 2.5 / 3.0
-  "textAlign": "left",          // "left" | "center" | "right" | "justify"
+  "content": "<düz metin — satır başı için \\n kullan>",
+  "htmlContent": "<aynı metin — satır başı için <br> kullan>",
+  "fontSize": <8-96>,     // PİKSEL (px) cinsinden — PUNTO DEĞİL. Dönüşüm: px = round(pt * 4/3). Örnekler: 10pt→13, 11pt→15, 12pt→16, 14pt→19, 16pt→21, 18pt→24, 24pt→32, 36pt→48, 48pt→64
+  "fontFamily": "Arial",  // Google Font ismi — kullanıcı belirttiyse onu yaz, belirtmediyse "Arial"
+  "color": "#000000",     // hex renk — belirtilmediyse #000000
+  "lineHeight": 1.5,      // satır aralığı: 1.0 / 1.15 / 1.5 / 2.0 / 2.5 / 3.0
+  "textAlign": "left",    // "left" | "center" | "right" | "justify"
   "bold": false,
   "italic": false,
   "underline": false
 }}
+// ⚠️ x, y, width YAZMA — frontend hesaplar.
+  "placement": "after_last",  // NEREYE: "after_last"(varsayılan) | "top" | "bottom" | "new_page"
+                               // after_last → sayfadaki son metnin hemen altına
+                               // top        → sayfanın üstüne (üst marja)
+                               // bottom     → sayfanın altına
+                               // new_page   → yeni sayfa açıp oraya
 
 2. ŞEKİL (type: "shape")
 {{
@@ -5326,71 +5359,27 @@ Kullanılabilir shapeType değerleri:
   }}
 }}
 
-6. GÖRSEL (type: "image") — SADECE kullanıcı açık bir URL verdiğinde kullan
-{{
-  "id": "el_<timestamp>_<random4>",
-  "type": "image",
-  "x": <number>,
-  "y": <number>,
-  "width": <number>,
-  "height": <number>,
-  "src": "<kullanıcının verdiği URL>"
-}}
-// ⚠️ placehold.co ASLA kullanma. URL verilmemişse generate_ai_image kullan (aşağıya bak).
-
-7. QR KOD (type: "qr")
-{{
-  "id": "el_<timestamp>_<random4>",
-  "type": "qr",
-  "x": <number>,
-  "y": <number>,
-  "width": 150,
-  "height": 150,
-  "qrUrl": "<encode edilecek URL veya metin>",
-  "color": "#000000"
-}}
-
-8. ÇİZİM (type: "draw_path") — basit düz çizgiler ve geometrik yollar
-{{
-  "action": "add_path",
-  "path": {{
-    "points": [{{"x": <n>, "y": <n>}}, {{"x": <n>, "y": <n>}}, ...],  // en az 2 nokta
-    "color": "#000000",
-    "size": 2,          // çizgi kalınlığı px
-    "opacity": 100      // 0-100
-  }},
-  "target_page": <sayfa_indeksi>   // varsayılan: aktif sayfa
-}}
-// Düz çizgi = 2 nokta, dikdörtgen = 5 nokta (başlangıç tekrar), ok = 3 nokta
-
 ━━━ OPERASYONLAR ━━━
 Her operasyon şu formatlardan biri:
 
-EKLE element:    {{"action": "add",          "element": {{...format...}},      "target_page": <indeks>}}
-DEĞİŞTİR:        {{"action": "modify",       "element_id": "<id>",  "changes": {{...}}, "target_page": <indeks>}}
-SİL:             {{"action": "delete",       "element_id": "<id>",              "target_page": <indeks>}}
-ÇİZİM EKLE:     {{"action": "add_path",     "path": {{...}},                   "target_page": <indeks>}}
+EKLE element:    {{"action": "add",    "element": {{...format...}},              "target_page": <indeks>}}
+DEĞİŞTİR:        {{"action": "modify", "element_id": "<id>", "changes": {{...}}, "target_page": <indeks>}}
+SİL:             {{"action": "delete", "element_id": "<id>",                     "target_page": <indeks>}}
 SAYFA EKLE:      {{"action": "add_page"}}
-SAYFA SİL:       {{"action": "delete_page",                                     "target_page": <indeks>}}
-SAYFA TEMİZLE:   {{"action": "clear_page",                                      "target_page": <indeks>}}
-AI GÖRSEL:       {{"action": "generate_ai_image", "prompt": "<İngilizce görsel açıklaması, 10-20 kelime>", "x": <n>, "y": <n>, "width": <200-500>, "height": <150-400>, "target_page": <indeks>}}
-// ← Kullanıcı "görsel ekle", "resim ekle", "AI görsel", "fotoğraf ekle" dediğinde HEP bunu kullan
 AYAR DEĞİŞTİR:   {{"action": "update_settings", "settings": {{
-  "marginLeft": <piksel>,         // opsiyonel
-  "marginRight": <piksel>,        // opsiyonel
-  "marginTop": <piksel>,          // opsiyonel
-  "marginBottom": <piksel>,       // opsiyonel
-  "pageBackground": "<hex>",      // opsiyonel — sayfa arka plan rengi
-  "currentFont": "<font adı>",    // opsiyonel — varsayılan yazı tipi
-  "currentFontSize": <piksel>,    // opsiyonel — varsayılan yazı boyutu (px)
-  "currentColor": "<hex>",        // opsiyonel — varsayılan metin rengi
-  "currentLineHeight": <sayı>,    // opsiyonel — satır aralığı (1.0/1.15/1.5/2.0)
+  "pageBackground": "<hex>",        // opsiyonel — sayfa arka plan rengi
+  "currentFont": "<font adı>",      // opsiyonel — varsayılan yazı tipi
+  "currentFontSize": <piksel>,      // opsiyonel — varsayılan yazı boyutu (px)
+  "currentColor": "<hex>",          // opsiyonel — varsayılan metin rengi
+  "currentLineHeight": <sayı>,      // opsiyonel — satır aralığı (1.0/1.15/1.5/2.0)
   "currentTextAlign": "<hizalama>", // opsiyonel — "left"|"center"|"right"|"justify"
   "pageSize": {{"width": <piksel>, "height": <piksel>}},  // opsiyonel — A4:794×1123, A3:1123×1587, A5:559×794, Letter:816×1056
-  "gridVisible": <bool>,          // opsiyonel — ızgara göster/gizle
-  "rulerVisible": <bool>          // opsiyonel — cetvel göster/gizle
+  "gridVisible": <bool>,            // opsiyonel — ızgara göster/gizle
+  "rulerVisible": <bool>            // opsiyonel — cetvel göster/gizle
 }}}}
-// ← Kullanıcı marj, sayfa boyutu, arka plan rengi, font, ızgara/cetvel ayarı istediğinde kullan
+// ← Kullanıcı sayfa boyutu, arka plan rengi, font, satır aralığı, ızgara/cetvel ayarı istediğinde kullan
+
+// ⛔ YASAK — asla üretme: add_path, generate_ai_image, clear_page, delete_page, type:"image", type:"qr"
 
 target_page belirtilmezse aktif sayfa ({req.page_index}) kullanılır.
 @N sayfa referansı: kullanıcı "@1", "@2" gibi yazarsa bu sayfa indeksi N-1 demektir (1-indexed).
@@ -5408,54 +5397,65 @@ Kesinlikle sadece JSON döndür. Başka hiçbir metin ekleme.
 // Hiçbir öneri gerekmiyorsa boş dizi []
 
 ━━━ KURALLAR ━━━
-- Elementleri sayfa dışına çıkarma: x + width <= {pw}, y + height <= {ph}
-- Mevcut elementlerin üzerine binme — YENİ element y'si = hedef elementin (y + height) + boşluk. Her elementin "height" alanı yukarıda verildi; bunu kullan
-- Kullanıcı konum belirtirse ("X'in altına", "sahne Y'den sonra", "sayfa başına" vb.): element listesinde o referans elementi content alanından bul, onun (y + height + 16) değerini yeni elementin y'si olarak kullan
-- fontSize PİKSEL (px) cinsinden — punto değil. Kullanıcı "12 punto" derse 16 yaz, "14 punto" → 19, "18 punto" → 24, "24 punto" → 32. Formül: px = round(pt * 4/3)
-- Taşıma: modify ile x ve/veya y koordinatlarını değiştir
-- ID'ler benzersiz olmalı: "el_" + büyük sayı (örn: el_1717000000000_a3b2)
-- Metin genişliği genellikle {pw - 80} piksel (kenar boşlukları için)
-- Başlıklar için fontSize 24-48, gövde metin için 14-18 kullan
-- Renk belirtilmemişse koyu metinler #000000, başlıklar #1a1a2e, vurgular #292f91 kullan
-- Kullanıcı "sil" diyorsa element_id'yi mevcut elementlerden al
-- Kullanıcı "değiştir/düzenle/taşı" diyorsa mevcut element'i modify et, yenisini ekleme
-- Kullanıcı yeni bir metin EKLE/YAZ/EKLE diyorsa ASLA mevcut elementin content/htmlContent'ini değiştirme — her zaman type:"text" ile yeni "add" operasyonu oluştur. Mevcut büyük metin bloklarına append/concat YASAKTIR.
-- Başka sayfaya element eklerken doğru target_page belirt
-- "Yazıları sil" = sadece type:"text" elementlerini delete et; "Her şeyi sil" = clear_page kullan
-- "Sadece [X] sil" = ilgili type/içerik filtrele; "Tüm sayfayı sil" = delete_page (1 sayfa kalırsa yapma)
-- delete_page: sadece birden fazla sayfa varsa kullan; tek sayfa kaldığında clear_page kullan
-- Görsel/resim/fotoğraf eklemek istendiğinde MUTLAKA generate_ai_image kullan, image type'ı sadece URL verildiğinde
-- generate_ai_image: prompt İngilizce, kısa ve açıklayıcı (örn: "a mountain landscape, photorealistic style")
 
-━━━ ÖNEMLİ ÖRNEKLER ━━━
+🔴 ZORUNLU KURAL — METİN YAZMA:
+Kullanıcı şunlardan herhangi birini söylerse → MUTLAKA en az bir {"action": "add", "element": {"type": "text", ...}} operasyonu üret. İstisna YOK:
+  "yaz", "write", "ekle", "oluştur", "şunu yaz", "bunu yaz", "belgeye ekle", "sayfaya yaz",
+  "bir paragraf", "bir metin", "bir başlık", "bir cümle", "şunu yazar mısın", "yazar mısın",
+  veya içerik talep eden herhangi bir istek (makale, özet, liste, tanım, açıklama, vb.)
+Bu isteklerde operations dizisi BOŞ olamaz. Boş bırakmak HATADIR.
 
-Emoji/sembol ekle (metin içine):
-→ modify: htmlContent içine unicode emoji koy: "content": "Merhaba 🎉", "htmlContent": "Merhaba 🎉"
-→ veya yeni element: "content": "✅ Tamamlandı", "htmlContent": "✅ Tamamlandı"
+METİN EKLEME (type: "text"):
+- x, y, width ASLA YAZMA — frontend hesaplar
+- placement alanını kullan (varsayılan: "after_last")
+- Kullanıcı konum belirtirse:
+    "yazının altına" / "alta ekle" / belirtmedi → "after_last"
+    "sayfanın üstüne" / "en üste"               → "top"
+    "sayfanın altına" / "en alta"                → "bottom"
+    "yeni sayfaya"                               → "new_page"
+- Stil (fontSize/fontFamily/color/lineHeight): kullanıcı belirtmediyse YAZMA — frontend son elementten miras alır
+- Kullanıcı belirtirse yaz: "kalın" → bold:true, "12 punto" → fontSize:16, "kırmızı" → color:"#ef4444"
+- Kullanıcı ne yazmamı istiyorsa AYNEN yaz — kısaltma, özetleme yok
+- Uzun içerik (birden fazla paragraf) → her paragraf ayrı "add" operasyonu
+- Yeni metin = HER ZAMAN yeni "add" — istisnasız
+- ⛔ YASAK: "modify" ile content/htmlContent değiştirme — bu "içine girme" hatasıdır
+- "modify" SADECE FORMAT: bold, italic, color, fontSize, textAlign, lineHeight
 
-Mevcut metni kalın/italik yap (modify ile):
-→ {{"action": "modify", "element_id": "<id>", "changes": {{"bold": true, "italic": false}}, "target_page": 0}}
-→ Renk değiştir: {{"changes": {{"color": "#e63946"}}}}
-→ Font değiştir: {{"changes": {{"fontFamily": "Roboto", "fontSize": 20}}}}
-→ Hizalama değiştir: {{"changes": {{"textAlign": "center"}}}}
+SAYFA TAŞMA (OVERFLOW) KURALI:
+- max_bottom_y >= alt_marj_sınırı ise sayfa doludur — yeni metin ekleme, önce add_page yap
+- Sayfa dolu olduğunda: {{"action": "add_page"}} + ardından {{"action": "add", "element": {{...}}, "target_page": {req.page_index + 1}}}
+- Kullanıcı "yeni sayfaya yaz" demese bile sayfa marginden taşacaksa otomatik yeni sayfa aç
+- Frontend de bu kontrolü yapıyor: AI'ın target_page vermesi sayfa geçişini garanti eder
 
-Madde imli liste ekle:
-→ htmlContent'te <ul><li> kullanma — her madde için ayrı text elementi ekle:
-  İlk madde: "content": "• Birinci madde", "htmlContent": "• Birinci madde", y: <Y>
-  İkinci madde: y: <Y + satır yüksekliği>
-  (• unicode bullet karakteri; birbirine bitişik yerleştir)
+GENEL:
+- ID'ler benzersiz: "el_" + büyük timestamp + 4 karakter (örn: el_1717000000000_a3b2)
+- Şekil/tablo/grafik: x ve y koordinatı yaz — sayfa sınırı x+width<={pw}, y+height<={ph}
+- Taşıma: modify ile x ve/veya y değiştir
+- "Sil" → element_id'yi mevcut listeden al, delete et
+- Renk belirtilmediyse: metin #000000, başlık #1a1a2e
+- Görsel/resim/fotoğraf ekleme desteklenmiyor — kullanıcıya belirt
 
-Numaralı liste:
-→ Benzer şekilde: "1. Birinci madde", "2. İkinci madde", her biri ayrı element
+━━━ ÖRNEKLER ━━━
+
+Yeni metin ekle ("Times New Roman, 14 punto ile şunu yaz: Merhaba"):
+→ {{"action": "add", "element": {{"id": "el_1717000000000_a3b2", "type": "text", "content": "Merhaba", "htmlContent": "Merhaba", "fontSize": 19, "fontFamily": "Times New Roman", "color": "#000000", "lineHeight": 1.5, "textAlign": "left", "bold": false, "italic": false, "underline": false}}}}
+
+Emoji ekle (yeni element):
+→ {{"action": "add", "element": {{"id": "el_..._x1y2", "type": "text", "content": "✅ Tamamlandı", "htmlContent": "✅ Tamamlandı", "fontSize": 16, "fontFamily": "Arial", "color": "#000000", "lineHeight": 1.5, "textAlign": "left", "bold": false, "italic": false, "underline": false}}}}
+
+Mevcut metni kalın/italik/renkli yap:
+→ {{"action": "modify", "element_id": "<id>", "changes": {{"bold": true, "italic": false, "color": "#e63946"}}}}
 
 Mevcut metnin içeriğini değiştir:
-→ {{"action": "modify", "element_id": "<id>", "changes": {{"content": "Yeni metin", "htmlContent": "Yeni metin"}}, "target_page": 0}}
+→ {{"action": "modify", "element_id": "<id>", "changes": {{"content": "Yeni metin", "htmlContent": "Yeni metin"}}}}
 
-Sayfa boyutunu değiştir:
-→ {{"action": "update_settings", "settings": {{"pageSize": {{"width": 794, "height": 1123}}}}}}  // A4
-→ {{"action": "update_settings", "settings": {{"pageSize": {{"width": 816, "height": 1056}}}}}}  // Letter
+Sayfa boyutu (A4, A3, Letter):
+→ {{"action": "update_settings", "settings": {{"pageSize": {{"width": 794, "height": 1123}}}}}}
 
-Cetvel/ızgara aç-kapat:
+Sayfa rengi / font / satır aralığı:
+→ {{"action": "update_settings", "settings": {{"pageBackground": "#f0f4ff", "currentFont": "Roboto", "currentLineHeight": 1.5}}}}
+
+Cetvel / ızgara:
 → {{"action": "update_settings", "settings": {{"rulerVisible": true, "gridVisible": false}}}}
 """
 

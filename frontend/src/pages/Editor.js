@@ -1479,9 +1479,24 @@ const Editor = () => {
           pageBackground, currentFont, currentFontSize, currentColor,
           currentLineHeight, currentTextAlign, pageSize,
           rulerVisible, gridVisible,
+          columnCount, columnGap,
         },
       }, { withCredentials: true });
-      const { operations = [], explanation = '', suggestions = [] } = res.data;
+      const ALLOWED_ACTIONS = new Set(['add', 'modify', 'delete', 'add_page', 'update_settings']);
+      const ALLOWED_ADD_TYPES = new Set(['text', 'shape', 'table', 'link', 'chart']);
+      const rawOps = res.data.operations || [];
+      const operations = rawOps.filter(op => {
+        if (!ALLOWED_ACTIONS.has(op.action)) return false;
+        if (op.action === 'add' && op.element && !ALLOWED_ADD_TYPES.has(op.element?.type)) return false;
+        // "İçine girme" koruması: sadece content/htmlContent değiştiren modify = AI yanlışlıkla
+        // mevcut elementin içine yazıyor demektir → blokla, yeni add operasyonu kullanılmalı
+        if (op.action === 'modify' && op.changes) {
+          const keys = Object.keys(op.changes);
+          if (keys.length > 0 && keys.every(k => k === 'content' || k === 'htmlContent')) return false;
+        }
+        return true;
+      });
+      const { explanation = '', suggestions = [] } = res.data;
       setZetaEditExplanation(explanation);
       setZetaEditSuggestions(suggestions);
       setZetaEditInput('');
@@ -1585,6 +1600,142 @@ const Editor = () => {
           return { ...prev, pages };
         });
       }
+
+      // ── Metin yerleşimi: son elementten konum + stil miras ──
+      const _ph = pageSize.height;
+      const _mt = marginTop || 40;
+      const _ml = marginLeft || 40;
+      const _mr = marginRight || 40;
+      const _mb = marginBottom || 40;
+      const _availW = pageSize.width - _ml - _mr;
+      const _colCount = columnCount || 1;
+      const _colGap = _colCount > 1 ? (columnGap || 20) : 0;
+      const _colW = _colCount > 1
+        ? Math.round((_availW - (_colCount - 1) * _colGap) / _colCount)
+        : _availW;
+      const _cols = Array.from({ length: _colCount }, (_, i) => ({
+        x: _ml + i * (_colW + _colGap),
+        width: _colW,
+      }));
+
+      // Element yüksekliği tahmini — satır kırılma dahil, backend ile aynı mantık
+      const _estElH = (el, atY) => {
+        if (el.height) return el.height;
+        const fs = el.fontSize || 16;
+        const lh = Math.max(el.lineHeight || 1.5, 1.2);
+        const plain = el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '');
+        const brCount = (el.htmlContent || '').split('<br').length - 1;
+        const explicitLines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
+        const elW = el.width || _colW || 500;
+        const avgCpp = Math.max(1, Math.round(elW / (fs * 0.6)));
+        const wrapped = plain ? Math.max(1, Math.ceil(plain.length / avgCpp)) : 1;
+        return Math.min(Math.round(fs * Math.max(explicitLines, wrapped) * lh) + 14, _ph - (atY || 0));
+      };
+
+      // Sayfadaki son text elementini bul (y + height en büyük olan)
+      const _activeEls = canvasElements.filter(e => !e.isPending && !e.isPendingDelete);
+      const _lastTextEl = _activeEls
+        .filter(e => e.type === 'text')
+        .reduce((best, el) => {
+          if (!best) return el;
+          return ((el.y || 0) + _estElH(el, el.y)) > ((best.y || 0) + _estElH(best, best.y)) ? el : best;
+        }, null);
+
+      // Son elementten stil miras — AI belirtmezse bu değerler kullanılır
+      const _inheritStyle = (ref) => {
+        if (!ref) return {};
+        const s = {};
+        ['fontSize','fontFamily','color','lineHeight','textAlign','bold','italic'].forEach(k => {
+          if (ref[k] !== undefined) s[k] = ref[k];
+        });
+        return s;
+      };
+
+      // Son elementin hangi sütunda olduğunu bul
+      const _elColIdx = (el) => {
+        if (!el || _colCount === 1) return 0;
+        for (let i = 0; i < _cols.length; i++) {
+          if (Math.abs((el.x || 0) - _cols[i].x) <= _cols[i].width / 2) return i;
+        }
+        return _cols.length - 1;
+      };
+
+      const textPlacements = new Map(); // id → { x, y, width, defaults } | 'overflow'
+      const overflowTextEls = [];
+
+      // Batch içinde son eleman referansı ve sütun — sıralı ekleme için
+      let _runLastEl = _lastTextEl;
+      let _runColIdx = _elColIdx(_lastTextEl);
+
+      for (const op of operations) {
+        if (op.action !== 'add' || !op.element || op.element.type !== 'text') continue;
+        if (!op.element.id) op.element.id = `el_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+        const id = op.element.id;
+
+        // AI başka sayfayı hedefliyorsa direkt overflow
+        if (op.target_page != null && op.target_page !== currentPage) {
+          overflowTextEls.push({ ..._inheritStyle(_runLastEl), ...op.element, x: _cols[0].x, width: _cols[0].width });
+          textPlacements.set(id, 'overflow');
+          continue;
+        }
+
+        // Placement tipi — AI "placement" alanı ile yönlendirebilir
+        const pType = op.element.placement || 'after_last';
+        let pos;
+
+        if (pType === 'top') {
+          pos = { x: _cols[0].x, y: _mt, width: _cols[0].width };
+        } else if (pType === 'bottom') {
+          const estH = _estElH(op.element, _ph - _mb - 80);
+          pos = { x: _cols[0].x, y: Math.max(_mt, _ph - _mb - estH - 8), width: _cols[0].width };
+        } else if (pType === 'new_page') {
+          overflowTextEls.push({ ..._inheritStyle(_runLastEl), ...op.element, x: _cols[0].x, width: _cols[0].width });
+          textPlacements.set(id, 'overflow');
+          continue;
+        } else {
+          // after_last (varsayılan): son elementin hemen altı, aynı x ve genişlik
+          if (_runLastEl) {
+            const refH = _estElH(_runLastEl, _runLastEl.y);
+            const gap = Math.max((_runLastEl.fontSize || 16) * Math.max(_runLastEl.lineHeight || 1.5, 1.2) * 0.3, 8);
+            pos = {
+              x: _runLastEl.x !== undefined ? _runLastEl.x : _cols[_runColIdx].x,
+              y: (_runLastEl.y || 0) + refH + gap,
+              width: _runLastEl.width !== undefined ? _runLastEl.width : _cols[_runColIdx].width,
+            };
+          } else {
+            pos = { x: _cols[0].x, y: _mt, width: _cols[0].width };
+          }
+        }
+
+        const estH = _estElH(op.element, pos.y);
+
+        // Sayfa taşmasını kontrol et
+        if (pos.y + estH > _ph - _mb) {
+          // Sonraki sütuna geç
+          let moved = false;
+          for (let ci = _runColIdx + 1; ci < _colCount; ci++) {
+            if (_mt + estH <= _ph - _mb) {
+              pos = { x: _cols[ci].x, y: _mt, width: _cols[ci].width };
+              _runColIdx = ci;
+              moved = true;
+              break;
+            }
+          }
+          if (!moved) {
+            overflowTextEls.push({ ..._inheritStyle(_runLastEl), ...op.element, x: _cols[0].x, width: _cols[0].width });
+            textPlacements.set(id, 'overflow');
+            continue;
+          }
+        }
+
+        const defaults = _inheritStyle(_runLastEl);
+        textPlacements.set(id, { y: pos.y, x: pos.x, width: pos.width, defaults });
+        // Sonraki element için referansı güncelle
+        _runLastEl = { ...defaults, ...op.element, x: pos.x, y: pos.y, width: pos.width, height: estH };
+        _runColIdx = _elColIdx(_runLastEl);
+      }
+      // ──────────────────────────────────────────────────────────────────────
+
       setCanvasElements(prev => {
         let els = [...prev];
         for (const op of operations) {
@@ -1599,21 +1750,29 @@ const Editor = () => {
           }
           if (op.action === 'add' && op.element) {
             const base = { ...op.element };
-            if (base.type === 'text' && base.content && !base.htmlContent) {
-              base.htmlContent = base.content.replace(/\n/g, '<br>');
-            }
-            const el = { ...base, isPending: true };
-            const ph = pageSize.height;
-            const elH = el.height || (el.fontSize || 16) * 3;
-            const mt = marginTop || 40;
-            if ((el.y || 0) + elH > ph + 20) {
-              // Sayfa dışına taşıyorsa y'yi sıkıştır — current page'de pending olarak göster
-              const clampedY = Math.max(mt, ph - elH - 20);
-              els.push({ ...el, y: clampedY });
-            } else {
+            if (!base.id) base.id = `el_${Date.now()}_${Math.random().toString(36).slice(2,6)}`;
+            const ph = _ph;
+            const mt = _mt;
+            if (base.type === 'text') {
+              const pl = textPlacements.get(base.id);
+              if (!pl || pl === 'overflow') continue;
+              // Inherited defaults (son elementten) + AI değerleri override eder
+              const el = { ...pl.defaults, ...base, x: pl.x, y: pl.y, width: pl.width, isPending: true };
+              if (el.content && !el.htmlContent) el.htmlContent = el.content.replace(/\n/g, '<br>');
+              else if (el.htmlContent && !el.content) el.content = el.htmlContent.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+              if (!el.content && !el.htmlContent) el.content = el.htmlContent = '(boş metin)';
+              delete el.placement; // iç alan, canvas'a geçmesin
               els.push(el);
+            } else {
+              // Metin dışı (şekil, tablo, grafik, link): AI koordinatı kullan, sayfa sınırına sıkıştır
+              const elH = base.height || 100;
+              if ((base.y || 0) + elH > ph + 20) {
+                els.push({ ...base, y: Math.max(mt, ph - elH - 20), isPending: true });
+              } else {
+                els.push({ ...base, isPending: true });
+              }
             }
-            newPendingLog.push({ action: 'add', elementId: el.id });
+            newPendingLog.push({ action: 'add', elementId: base.id });
           } else if (op.action === 'modify' && op.element_id && op.changes) {
             els = els.map(el => {
               if (el.id !== op.element_id) return el;
@@ -1631,6 +1790,38 @@ const Editor = () => {
         pendingOpsRef.current = newPendingLog;
         return els;
       });
+
+      // ── Overflow metin elementleri → sonraki sayfaya ekle ──
+      if (overflowTextEls.length > 0) {
+        const nextIdx = currentPage + 1;
+        setDocument(prev => {
+          const pages = [...(prev.pages || [])];
+          let nextY = _mt;
+          if (pages[nextIdx]) {
+            for (const ex of (pages[nextIdx].elements || [])) {
+              const b = (ex.y || 0) + _estElH(ex, ex.y);
+              if (b > nextY) nextY = b;
+            }
+            nextY += 28;
+          }
+          const positioned = overflowTextEls.map(el => {
+            const base = { ...el };
+            if (base.content && !base.htmlContent) base.htmlContent = base.content.replace(/\n/g, '<br>');
+            else if (base.htmlContent && !base.content) base.content = base.htmlContent.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+            if (!base.content && !base.htmlContent) base.content = base.htmlContent = '(boş metin)';
+            const placed = { ...base, y: nextY };
+            nextY += _estElH(base, nextY) + 28;
+            return placed;
+          });
+          if (pages[nextIdx]) {
+            pages[nextIdx] = { ...pages[nextIdx], elements: [...(pages[nextIdx].elements || []), ...positioned] };
+          } else {
+            pages.push({ page_id: `page_${Date.now()}`, elements: positioned, drawPaths: [], pageSize });
+          }
+          return { ...prev, pages };
+        });
+      }
+      // ─────────────────────────────────────────────────────────────────────
     } catch (err) {
       const msg = err?.response?.data?.detail || 'Bir hata oluştu';
       setZetaEditExplanation(`Hata: ${msg}`);
@@ -1641,10 +1832,24 @@ const Editor = () => {
 
   const approveZetaOps = () => {
     setCanvasElements(prev => {
+      const pw2 = pageSize.width;
       const kept = prev
         .filter(el => !el.isPendingDelete)
         .map(el => {
           const { isPending, _pendingOriginal, ...rest } = el;
+          // Onaylanan text elementlere height kaydet — sonraki Zeta çağrısında doğru konumlandırma için
+          if (rest.type === 'text' && !rest.height) {
+            const fs = rest.fontSize || 16;
+            const lh = Math.max(rest.lineHeight || 1.5, 1.2);
+            const plain = rest.content || (rest.htmlContent || '').replace(/<[^>]*>/g, '');
+            const brCount = (rest.htmlContent || '').split('<br').length - 1;
+            const explicitLines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
+            const elW = rest.width || (pw2 - (marginLeft || 40) - (marginRight || 40));
+            const avgCpp = Math.max(1, Math.round(elW / (fs * 0.6)));
+            const wrapped = plain ? Math.max(1, Math.ceil(plain.length / avgCpp)) : 1;
+            const lines = Math.max(explicitLines, wrapped);
+            rest.height = Math.round(fs * lines * lh) + 14;
+          }
           return rest;
         });
       handleSaveHistory(kept);
@@ -2886,6 +3091,186 @@ body{background:#fff}
     } finally {
       setPdfImporting(false);
     }
+  };
+
+  // === Generic import helper (txt / md / docx / html) ===
+  const insertImportedPages = (importedPages, label) => {
+    const ts = Date.now();
+    const ml = marginLeft || 40;
+    const mtv = marginTop || 40;
+    const tw = pageSize.width - (marginLeft || 40) - (marginRight || 40);
+    const makeEls = (pg, idx) => {
+      if (!pg.text && !pg.html) return [];
+      return [{
+        id: `el_imp_${ts}_${idx}`,
+        type: 'text',
+        x: ml, y: mtv,
+        content: pg.text || '',
+        htmlContent: pg.html || (pg.text || '').replace(/\n/g, '<br>'),
+        fontSize: pg.fontSize || 14,
+        fontFamily: pg.fontFamily || 'Arial',
+        color: '#000000',
+        width: tw,
+        lineHeight: pg.lineHeight || 1.5,
+        textAlign: 'left', bold: false, italic: false, underline: false,
+      }];
+    };
+    const firstEls = makeEls(importedPages[0], 0);
+    const updatedCurrentElements = [...canvasElements, ...firstEls];
+    const newCanvasPages = importedPages.slice(1).map((pg, i) => ({
+      page_id: `page_imp_${ts}_${i + 1}`,
+      elements: makeEls(pg, i + 1),
+      drawPaths: [],
+      pageSize,
+    }));
+    setDocument(prev => {
+      if (!prev?.pages) return prev;
+      const ps = [...prev.pages];
+      ps[currentPage] = { ...ps[currentPage], elements: updatedCurrentElements, drawPaths };
+      ps.splice(currentPage + 1, 0, ...newCanvasPages);
+      return { ...prev, pages: ps };
+    });
+    lastLoadedPageRef.current = null;
+    setCanvasElements(updatedCurrentElements);
+    handleSaveHistory(updatedCurrentElements);
+    alert(`${label} aktarıldı — ${importedPages.length} sayfa eklendi.`);
+  };
+
+  const importTXT = async (file) => {
+    setPdfImporting(true);
+    try {
+      const raw = await file.text();
+      const trimmed = raw.trim();
+      if (!trimmed) { alert('Dosya boş.'); return; }
+      insertImportedPages([{
+        text: trimmed,
+        html: trimmed.replace(/\n/g, '<br>'),
+        fontSize: 14, fontFamily: 'Arial', lineHeight: 1.5,
+      }], 'Metin dosyası');
+    } catch (err) { alert('Dosya aktarma başarısız: ' + err.message); }
+    finally { setPdfImporting(false); }
+  };
+
+  const importMD = async (file) => {
+    setPdfImporting(true);
+    try {
+      const raw = await file.text();
+      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      let html = '';
+      for (const line of raw.split('\n')) {
+        const trim = line.trim();
+        if (/^### /.test(trim)) {
+          html += `<div style="font-size:16px;font-weight:700;margin:8px 0 2px">${esc(trim.slice(4))}</div>`;
+        } else if (/^## /.test(trim)) {
+          html += `<div style="font-size:20px;font-weight:700;margin:10px 0 3px">${esc(trim.slice(3))}</div>`;
+        } else if (/^# /.test(trim)) {
+          html += `<div style="font-size:26px;font-weight:700;margin:14px 0 4px">${esc(trim.slice(2))}</div>`;
+        } else if (/^> /.test(trim)) {
+          html += `<div style="border-left:3px solid #aaa;padding-left:8px;color:#555;margin:2px 0">${esc(trim.slice(2))}</div>`;
+        } else if (/^[-*] /.test(trim)) {
+          html += `<div style="margin:1px 0">• ${esc(trim.slice(2))}</div>`;
+        } else if (/^\d+\. /.test(trim)) {
+          html += `<div style="margin:1px 0">${esc(trim)}</div>`;
+        } else if (trim === '') {
+          html += '<br>';
+        } else {
+          let s = esc(trim);
+          s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+          s = s.replace(/`(.+?)`/g, '<code style="font-family:monospace;background:rgba(0,0,0,0.08);padding:1px 3px;border-radius:2px">$1</code>');
+          html += `<div style="margin:1px 0">${s}</div>`;
+        }
+      }
+      const text = raw.replace(/#{1,6} /g, '').replace(/[*_`>-]/g, '').replace(/\n+/g, '\n').trim();
+      insertImportedPages([{ text, html, fontSize: 14, fontFamily: 'Arial', lineHeight: 1.5 }], 'Markdown');
+    } catch (err) { alert('Dosya aktarma başarısız: ' + err.message); }
+    finally { setPdfImporting(false); }
+  };
+
+  const importDOCX = async (file) => {
+    setPdfImporting(true);
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = await JSZip.loadAsync(await file.arrayBuffer());
+      const xmlFile = zip.file('word/document.xml');
+      if (!xmlFile) throw new Error('Geçersiz .docx dosyası');
+      const xmlText = await xmlFile.async('string');
+      const xmlDoc = new DOMParser().parseFromString(xmlText, 'application/xml');
+      const W = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+      const gwAttr = (el, name) => el?.getAttributeNS(W, name) || el?.getAttribute('w:' + name) || '';
+      const gwChild = (el, name) => el?.getElementsByTagNameNS(W, name)[0] || null;
+      const esc = (s) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      let html = '';
+      let text = '';
+      for (const p of Array.from(xmlDoc.getElementsByTagNameNS(W, 'p'))) {
+        const pPr = gwChild(p, 'pPr');
+        const styleName = gwAttr(gwChild(pPr, 'pStyle'), 'val').toLowerCase();
+        const jcVal = gwAttr(gwChild(pPr, 'jc'), 'val');
+        const align = jcVal === 'center' ? 'center' : jcVal === 'right' ? 'right' : 'left';
+        const isH1 = (styleName.includes('heading') && styleName.includes('1')) || styleName === 'title';
+        const isH2 = styleName.includes('heading') && styleName.includes('2');
+        const isH3 = styleName.includes('heading') && styleName.includes('3');
+        let paraHtml = '', paraText = '';
+        for (const r of Array.from(p.getElementsByTagNameNS(W, 'r'))) {
+          const rPr = gwChild(r, 'rPr');
+          const bEl = gwChild(rPr, 'b');
+          const iEl = gwChild(rPr, 'i');
+          const bold = bEl && gwAttr(bEl, 'val') !== 'false';
+          const italic = iEl && gwAttr(iEl, 'val') !== 'false';
+          const underline = !!gwChild(rPr, 'u');
+          const szEl = gwChild(rPr, 'sz');
+          const sz = szEl ? Math.max(8, Math.round(parseInt(gwAttr(szEl, 'val') || '28') / 2)) : null;
+          const tEl = gwChild(r, 't');
+          if (!tEl) continue;
+          const tText = tEl.textContent || '';
+          paraText += tText;
+          let style = '';
+          if (bold) style += 'font-weight:700;';
+          if (italic) style += 'font-style:italic;';
+          if (underline) style += 'text-decoration:underline;';
+          if (sz && !isH1 && !isH2 && !isH3) style += `font-size:${sz}px;`;
+          paraHtml += style ? `<span style="${style}">${esc(tText)}</span>` : esc(tText);
+        }
+        if (!paraText.trim()) { html += '<br>'; text += '\n'; continue; }
+        let divStyle = `text-align:${align};margin:2px 0;`;
+        if (isH1) divStyle += 'font-size:24px;font-weight:700;';
+        else if (isH2) divStyle += 'font-size:20px;font-weight:700;';
+        else if (isH3) divStyle += 'font-size:16px;font-weight:600;';
+        html += `<div style="${divStyle}">${paraHtml}</div>`;
+        text += paraText + '\n';
+      }
+      if (!text.trim()) throw new Error('Belge boş veya metin içermiyor');
+      insertImportedPages([{ text: text.trim(), html, fontSize: 14, fontFamily: 'Arial', lineHeight: 1.5 }], 'Word belgesi');
+    } catch (err) {
+      console.error('DOCX import failed:', err);
+      alert('Dosya aktarma başarısız: ' + err.message);
+    } finally { setPdfImporting(false); }
+  };
+
+  const importHTML = async (file) => {
+    setPdfImporting(true);
+    try {
+      const raw = await file.text();
+      const parsed = new DOMParser().parseFromString(raw, 'text/html');
+      parsed.querySelectorAll('script, style, head, meta, link').forEach(el => el.remove());
+      const body = parsed.body;
+      const text = (body.innerText || body.textContent || '').trim();
+      const innerHtml = body.innerHTML.trim();
+      if (!text && !innerHtml) { alert('HTML dosyası boş.'); return; }
+      insertImportedPages([{ text, html: innerHtml, fontSize: 14, fontFamily: 'Arial', lineHeight: 1.5 }], 'HTML dosyası');
+    } catch (err) { alert('Dosya aktarma başarısız: ' + err.message); }
+    finally { setPdfImporting(false); }
+  };
+
+  const importFile = (file) => {
+    const ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'ms') return importFromMS(file);
+    if (ext === 'pdf') return importPDF(file);
+    if (ext === 'txt') return importTXT(file);
+    if (ext === 'md') return importMD(file);
+    if (ext === 'docx') return importDOCX(file);
+    if (ext === 'html' || ext === 'htm') return importHTML(file);
+    alert(`Desteklenmeyen dosya türü: .${ext}`);
   };
 
   // Export handler
@@ -4724,7 +5109,7 @@ body{background:#fff}
     handleChangeImage, handleEditChart, handleElementSelect, handleImageUpload,
     handleInsertText, handleLinkClick, handleRedo, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
-    importPDF, importFromMS, isOnline, isFreeOffline, isPlaying,
+    importPDF, importFromMS, importFile, isOnline, isFreeOffline, isPlaying,
     leftWidth, setLeftWidth, magnifierPos, setMagnifierPos,
     mirrorElementById, mobilePanel, setMobilePanel,
     navigate, pdfImporting, pdfInputRef, playVoiceFrom, refreshCredits,
