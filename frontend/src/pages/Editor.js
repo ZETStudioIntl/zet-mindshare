@@ -1765,11 +1765,25 @@ const Editor = () => {
             }
             newPendingLog.push({ action: 'add', elementId: base.id });
           } else if (op.action === 'modify' && op.element_id && op.changes) {
-            els = els.map(el => {
-              if (el.id !== op.element_id) return el;
-              newPendingLog.push({ action: 'modify', elementId: el.id, originalState: { ...el } });
-              return { ...el, ...op.changes, isPending: true };
-            });
+            const modifyTarget = els.find(el => el.id === op.element_id);
+            if (modifyTarget) {
+              els = els.map(el => {
+                if (el.id !== op.element_id) return el;
+                newPendingLog.push({ action: 'modify', elementId: el.id, originalState: { ...el } });
+                return { ...el, ...op.changes, isPending: true };
+              });
+            } else if (op.changes.content || op.changes.htmlContent) {
+              // element_id bulunamadı ama içerik var → yeni element olarak ekle
+              const fallbackEl = {
+                id: `el_${Date.now()}_${Math.random().toString(36).slice(2,6)}`,
+                type: 'text', x: _ml, y: Math.max(_mt, _runLastEl ? (_runLastEl.y || 0) + _estElH(_runLastEl, _runLastEl.y) + 8 : _mt),
+                width: _colW, fontSize: 16, fontFamily: 'Arial', color: '#000000', lineHeight: 1.5, textAlign: 'left',
+                content: op.changes.content || '', htmlContent: op.changes.htmlContent || op.changes.content || '',
+                bold: false, italic: false, underline: false, isPending: true,
+              };
+              els.push(fallbackEl);
+              newPendingLog.push({ action: 'add', elementId: fallbackEl.id });
+            }
           } else if (op.action === 'delete' && op.element_id) {
             const target = els.find(el => el.id === op.element_id);
             if (target) {

@@ -5405,7 +5405,7 @@ Kullanıcı şunlardan herhangi birini söylerse → MUTLAKA en az bir {"action"
   veya içerik talep eden herhangi bir istek (makale, özet, liste, tanım, açıklama, vb.)
 Bu isteklerde operations dizisi BOŞ olamaz. Boş bırakmak HATADIR.
 
-METİN EKLEME (type: "text"):
+━━ YENİ METİN EKLE ("add"):
 - x, y, width ASLA YAZMA — frontend hesaplar
 - placement alanını kullan (varsayılan: "after_last")
 - Kullanıcı konum belirtirse:
@@ -5417,10 +5417,13 @@ METİN EKLEME (type: "text"):
 - Kullanıcı belirtirse yaz: "kalın" → bold:true, "12 punto" → fontSize:16, "kırmızı" → color:"#ef4444"
 - Kullanıcı ne yazmamı istiyorsa AYNEN yaz — kısaltma, özetleme yok
 - Uzun içerik (birden fazla paragraf) → her paragraf ayrı "add" operasyonu
-- YENİ içerik ekle → "add" operasyonu (yeni element_id ile)
-- Mevcut metni düzenle / değiştir → "modify" + element_id + {content, htmlContent} (element listesindeki id'yi kullan)
-- Mevcut metni biçimlendir → "modify" + element_id + {bold, italic, color, fontSize, textAlign, lineHeight}
-- "şunu değiştir", "şunu düzenle", "yerine yaz" gibi istekler → mevcut element id'sini listeden bul, modify kullan
+
+━━ MEVCUT METNİ DÜZENLE ("modify"):
+- Kullanıcı belgedeki mevcut bir metni değiştirmek istiyorsa kullan ("değiştir", "düzenle", "şunu şöyle yap" vb.)
+- element_id: MUTLAKA yukarıdaki element listesindeki GERÇEK bir id'yi kullan — ASLA uydurma, ASLA örnek yaz
+- Listede eşleşen element yoksa → modify değil add kullan
+- İçerik değiştir: changes: {{"content": "yeni metin", "htmlContent": "yeni metin"}}
+- Sadece format değiştir: changes: {{"bold": true, "color": "#e63946"}} (vb.)
 
 SAYFA TAŞMA (OVERFLOW) KURALI:
 - max_bottom_y >= alt_marj_sınırı ise sayfa doludur — yeni metin ekleme, önce add_page yap
