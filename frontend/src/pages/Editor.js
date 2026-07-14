@@ -1890,65 +1890,61 @@ const Editor = () => {
     const ml = marginLeft || 40;
     const mr = marginRight || 40;
     const pw = pageSize?.width || 794;
-    const fs = currentFontSize || DEFAULT_FONT_SIZE;
-    const ff = currentFont || DEFAULT_FONT;
     const htmlLine = cleanContent.replace(/\n/g, '<br>');
-    // Çok açık renkler (beyaz dahil) beyaz sayfada görünmez — EditableText'in dark/light detection'ına bırak
-    const hexLum = (hex) => {
-      if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return -1;
-      const r = parseInt(hex.slice(1,3), 16) / 255;
-      const g = parseInt(hex.slice(3,5), 16) / 255;
-      const b = parseInt(hex.slice(5,7), 16) / 255;
-      return 0.299*r + 0.587*g + 0.114*b;
-    };
-    const fcLum = hexLum(currentColor);
-    const fc = fcLum >= 0 && fcLum < 0.8 ? currentColor : undefined;
     const newId = `el_${Date.now()}_zeta`;
     setCanvasElements(prev => {
-      const withoutDuplicates = prev.filter(el => {
-        if (el.type !== 'text') return true;
-        const elContent = (el.content || el.htmlContent?.replace(/<[^>]*>/g, '') || '').trim();
-        const isAtTop = (el.y || 0) < mt + 30;
-        const isSameContent = elContent === cleanContent || elContent.includes(cleanContent);
-        return !(isAtTop && isSameContent);
-      });
+      const active = prev.filter(el => !el.isPending && !el.isPendingDelete);
+      // Son text elementini bul — stil miras için
+      const lastText = active.filter(e => e.type === 'text').reduce((best, el) => {
+        if (!best) return el;
+        return ((el.y || 0) + (el.height || 0)) > ((best.y || 0) + (best.height || 0)) ? el : best;
+      }, null);
+      // Son elementin alt kenarını bul
       let bottomY = mt;
-      for (const existing of withoutDuplicates) {
-        const elY = existing.y || 0;
+      for (const el of active) {
+        const elY = el.y || 0;
         if (elY >= ph) continue;
-        const efs = existing.fontSize || 16;
-        const elh = existing.lineHeight || 1.5;
-        // htmlContent'in <br> sayısını da dikkate al — sadece content boşsa
-        const textForLines = existing.content || existing.htmlContent?.replace(/<[^>]*>/g, '') || '';
-        const brCount = (existing.htmlContent || '').split('<br').length - 1;
-        const lines = Math.max(1, brCount > 0 ? brCount + 1 : textForLines.split('\n').length);
-        const h = Math.min(existing.height || efs * lines * elh, ph - elY);
-        const elBottom = elY + h;
+        const efs = el.fontSize || 16;
+        const elh = el.lineHeight || 1.5;
+        const plain = el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '');
+        const brCount = (el.htmlContent || '').split('<br').length - 1;
+        const lines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
+        const elBottom = elY + Math.min(el.height || efs * lines * elh, ph - elY);
         if (elBottom > bottomY) bottomY = elBottom;
       }
-      const newY = Math.min(bottomY + 16, ph - 60);
-      const el = {
-        id: newId,
-        type: 'text',
-        x: ml,
+      const newY = Math.min(bottomY + 12, ph - 60);
+      // Stil: son text elementinden miras al, yoksa editör defaults
+      const inheritStyle = lastText ? {
+        fontSize: lastText.fontSize || currentFontSize || 16,
+        fontFamily: lastText.fontFamily || currentFont || 'Arial',
+        color: lastText.color || currentColor || '#000000',
+        lineHeight: lastText.lineHeight || currentLineHeight || 1.5,
+        textAlign: lastText.textAlign || currentTextAlign || 'left',
+        bold: lastText.bold || false,
+        italic: lastText.italic || false,
+        underline: lastText.underline || false,
+      } : {
+        fontSize: currentFontSize || 16,
+        fontFamily: currentFont || 'Arial',
+        color: currentColor || '#000000',
+        lineHeight: currentLineHeight || 1.5,
+        textAlign: currentTextAlign || 'left',
+        bold: false, italic: false, underline: false,
+      };
+      const newEl = {
+        id: newId, type: 'text',
+        x: lastText?.x ?? ml,
         y: newY,
         content: cleanContent,
         htmlContent: htmlLine,
-        fontSize: fs,
-        fontFamily: ff,
-        color: fc,
-        width: pw - ml - mr,
-        lineHeight: 1.6,
-        textAlign: 'left',
+        width: lastText?.width ?? (pw - ml - mr),
+        ...inheritStyle,
+        isPending: true,
       };
-      const updated = [...withoutDuplicates, el];
-      handleSaveHistory(updated);
-      return updated;
+      pendingOpsRef.current = [{ action: 'add', elementId: newId }];
+      return [...active, newEl];
     });
-    // Element oluşturulunca seç — kullanıcı nerede olduğunu hemen görür
     setSelectedElement(newId);
-    setSelectedElements([newId]);
-    setActiveTool('select');
   };
 
   const handleAutoWriteContent = (pages, pageCount) => {
