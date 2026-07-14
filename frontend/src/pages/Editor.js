@@ -2051,9 +2051,20 @@ const Editor = () => {
 
   // === TOOL SELECT ===
   const handleToolSelect = (toolId) => {
-    // Action-only tools: don't change activeTool state
-    const actionTools = ['addpage', 'copy', 'importpdf', 'calculator'];
-    if (!actionTools.includes(toolId)) {
+    // Action-only tools and floating-panel tools: don't change activeTool state
+    // (keeps canvas in select/text mode while formatting panels are open)
+    const actionTools = new Set([
+      'addpage', 'copy', 'importpdf', 'calculator',
+      'paragraph', 'linespacing', 'font', 'textsize', 'wordtype',
+      'indent', 'color', 'styles', 'bulletlist', 'numberedlist',
+      'margins', 'columns', 'punctuation', 'grid', 'ruler',
+      'shapes', 'qrcode', 'watermark', 'pagenumbers', 'headerfooter',
+      'footnote', 'toc', 'table', 'templates', 'findreplace',
+      'graphic', 'signature', 'photoedit', 'createimage', 'translate',
+      'export', 'link', 'voiceinput', 'layers', 'zoom', 'pagesize',
+      'pagecolor', 'mirror',
+    ]);
+    if (!actionTools.has(toolId)) {
       setActiveTool(toolId);
     }
     const _html = window.document.documentElement;
