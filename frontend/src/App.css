@@ -32,3 +32,12 @@
         transform: rotate(360deg);
     }
 }
+
+/* Text elementleri — text tool dışında cursor değişmesin (hitbox görünmez) */
+[data-testid="canvas-container"]:not([data-tool="text"]) [data-testid^="text-element-"] {
+    cursor: default !important;
+}
+/* Düzenleme modunda text cursor'ı geri ver */
+[data-testid="canvas-container"] .text-editing [data-testid^="text-element-"] {
+    cursor: text !important;
+}

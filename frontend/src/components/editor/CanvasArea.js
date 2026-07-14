@@ -1878,7 +1878,7 @@ export const CanvasArea = ({
   };
 
   return (
-    <div ref={canvasContainerRef} data-testid="canvas-container" className="h-full overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'none' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
+    <div ref={canvasContainerRef} data-testid="canvas-container" data-tool={activeTool} className="h-full overflow-auto py-4 px-0" style={{ background: 'var(--zet-bg)', touchAction: activeTool === 'hand' ? 'none' : 'pan-y', WebkitOverflowScrolling: 'touch' }}>
       <style>{`[contenteditable]::selection { background: rgba(76,168,173,0.35); } [contenteditable] *::selection { background: rgba(76,168,173,0.35); }`}</style>
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
@@ -2285,7 +2285,7 @@ export const CanvasArea = ({
               const rotation = el.rotation || 0;
               const transformStyle = `scaleX(${scaleX}) scaleY(${scaleY}) rotate(${rotation}deg)`;
               return (
-                <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${(isSel && el.type !== 'image' && el.type !== 'chart' && el.type !== 'text') ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''} ${(el.groupId && isSel && el.type !== 'image' && el.type !== 'chart' && el.type !== 'text') ? 'ring-blue-400 ring-opacity-60' : ''}`}
+                <div key={el.id} data-testid={`canvas-element-${el.id}`} className={`absolute ${(isSel && el.type !== 'image' && el.type !== 'chart' && el.type !== 'text') ? 'ring-2 ring-blue-500' : ''} ${isLocked ? 'pointer-events-none' : ''} ${(el.groupId && isSel && el.type !== 'image' && el.type !== 'chart' && el.type !== 'text') ? 'ring-blue-400 ring-opacity-60' : ''} ${el.type === 'text' && editingId === el.id ? 'text-editing' : ''}`}
                   style={{
                     left: el.x * zoom,
                     top: el.y * zoom,
