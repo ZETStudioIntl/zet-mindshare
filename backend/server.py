@@ -5068,7 +5068,7 @@ The user may ask questions about this document. Use this content to provide rele
     # Parse and strip ACTION tags from response
     import re as _re
     actions = []
-    action_pattern = _re.compile(r'\[ACTION:([A-Z]+):([^\]]*)\]')
+    action_pattern = _re.compile(r'\[ACTION:([A-Z_]+):([^\]]*)\]')
     for match in action_pattern.finditer(response):
         actions.append({"type": match.group(1), "value": match.group(2).strip()})
     clean_response = action_pattern.sub('', response).lstrip()
