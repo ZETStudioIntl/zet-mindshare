@@ -217,10 +217,10 @@ const Editor = () => {
         if (el.color) setCurrentColor(el.color);
         if (el.textAlign) setCurrentTextAlign(el.textAlign);
         if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
-        setIndentLeft(el.paddingLeft || 0);
-        setIndentRight(el.paddingRight || 0);
-        setIndentTop(el.paddingTop || 0);
-        setIndentBottom(el.paddingBottom || 0);
+        if (el.paddingLeft !== undefined) setIndentLeft(el.paddingLeft);
+        if (el.paddingRight !== undefined) setIndentRight(el.paddingRight);
+        if (el.paddingTop !== undefined) setIndentTop(el.paddingTop);
+        if (el.paddingBottom !== undefined) setIndentBottom(el.paddingBottom);
       }
     }
   }, [selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps

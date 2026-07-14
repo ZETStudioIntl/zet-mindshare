@@ -632,7 +632,7 @@ export const RightPanel = ({
                   >
                     <div style={{ position: 'absolute', top: 0, left: 0, width: 794, height: 1123, transform: 'scale(0.09)', transformOrigin: 'top left', pointerEvents: 'none' }}>
                       {(idx === currentPage ? canvasElements : (page.elements || [])).slice(0, 8).map(el => (
-                        <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.width, fontSize: el.fontSize || 12, color: el.color || '#000', lineHeight: el.lineHeight || 1.4, overflow: 'hidden' }}>
+                        <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.width, fontSize: el.fontSize || 12, color: el.color || '#000', lineHeight: el.lineHeight || 1.4, overflow: 'hidden', textAlign: el.textAlign || 'left', fontFamily: el.fontFamily || 'inherit', fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal' }}>
                           {el.type === 'text' && (
                             <div style={{ maxHeight: el.height || 200 }} dangerouslySetInnerHTML={{ __html: el.htmlContent || el.content || '' }} />
                           )}

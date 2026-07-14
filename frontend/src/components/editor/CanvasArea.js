@@ -38,7 +38,8 @@ const isPointInElement = (x, y, el) => {
     const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.6)));
     const wrappedLines = Math.ceil((plainText.length || 1) / avgCharsPerLine);
     const lines = Math.max(explicitLines, wrappedLines);
-    const h = fs * lines * lh;
+    const padH = (el.paddingTop || 0) + (el.paddingBottom || 0) + (el.paragraphSpaceBefore || 0) + (el.paragraphSpaceAfter || 0);
+    const h = fs * lines * lh + padH;
     return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + h;
   }
   return x >= el.x && x <= el.x + (el.width || 80) && y >= el.y && y <= el.y + (el.height || 80);
