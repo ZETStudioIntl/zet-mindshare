@@ -12,6 +12,7 @@ import CommentsPanel from './CommentsPanel';
 import VersionHistoryPanel from './VersionHistoryPanel';
 import ZetaEditPanel from './ZetaEditPanel';
 import SpellCheckLayer, { SpellPopup } from './SpellCheckLayer';
+import PatchLayer from './PatchLayer';
 import { startCheckout } from '../../lib/lemonSqueezy';
 import { TOOLS } from '../../lib/editorConstants';
 import { MiniDocLoader } from '../LoadingScreens';
@@ -70,6 +71,7 @@ const EditorDesktopLayout = () => {
     docId, exportToPDF, handleExport,
     zetaCustomPrompt, zetaEmoji, zetaMood,
     zetaEditMode, setZetaEditMode, zetaPendingCount,
+    approveZetaOps, rejectZetaOps,
   } = useContext(EditorStateContext);
   return (
     <div data-testid="editor-page" className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
@@ -272,6 +274,13 @@ const EditorDesktopLayout = () => {
             snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart}
             screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange}
             pageMargins={{ top: marginTop, bottom: marginBottom, left: marginLeft, right: marginRight }} />
+          <PatchLayer
+            canvasElements={canvasElements}
+            document={document}
+            currentPage={currentPage}
+            zoom={zoom}
+            canvasContainerRef={canvasContainerRef}
+          />
           {spellCheckEnabled && (
             <SpellCheckLayer
               spellErrors={spellErrors}

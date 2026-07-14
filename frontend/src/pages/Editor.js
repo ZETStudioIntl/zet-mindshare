@@ -264,6 +264,11 @@ const Editor = () => {
   const [zetaEditSuggestions, setZetaEditSuggestions] = useState([]);
   const pendingOpsRef = useRef([]); // { action, elementId, originalState }
 
+  // Zeta Patch state
+  const [patchCorrections, setPatchCorrections] = useState([]);
+  const [patchIgnoreList, setPatchIgnoreList] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_patch_ignore') || '[]'); } catch { return []; } });
+  const [patchLoading, setPatchLoading] = useState(false);
+
   // Text/style state — son kullanılan ayarlar tercihlerden yüklenir, belgeden çıkınca sıfırlanmaz
   const savedTextDefaults = (() => {
     try { return JSON.parse(localStorage.getItem('zet_editor_text_defaults') || '{}'); } catch { return {}; }
@@ -1882,6 +1887,64 @@ const Editor = () => {
     setZetaEditExplanation('');
   };
 
+  const handlePatchScan = async (docContent) => {
+    if (!docContent?.trim()) return;
+    setPatchLoading(true);
+    try {
+      const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-scan`, {
+        doc_content: docContent,
+        ignore_list: patchIgnoreList,
+      }, { withCredentials: true });
+      setPatchCorrections(res.data.corrections || []);
+    } catch (e) {
+      console.error('Patch scan hatası:', e);
+    }
+    setPatchLoading(false);
+  };
+
+  const handlePatchAccept = async (corrId) => {
+    const corr = patchCorrections.find(c => c.id === corrId);
+    if (!corr || !corr.original) return;
+    // Metni canvas elementlerinde bul ve değiştir
+    setCanvasElements(prev => prev.map(el => {
+      if (el.type !== 'text') return el;
+      const hasWord = (el.content || '').includes(corr.original) || (el.htmlContent || '').includes(corr.original);
+      if (!hasWord) return el;
+      if (corr.type === 'spelling') {
+        const newContent = (el.content || '').replace(new RegExp(corr.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), corr.suggestion || '');
+        const newHtml = (el.htmlContent || '').replace(new RegExp(corr.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), corr.suggestion || '');
+        return { ...el, content: newContent, htmlContent: newHtml };
+      }
+      if (corr.type === 'extra') {
+        const rgx = new RegExp('\\s*' + corr.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s*', 'g');
+        const newContent = (el.content || '').replace(rgx, ' ').trim();
+        const newHtml = (el.htmlContent || '').replace(rgx, ' ').trim();
+        return { ...el, content: newContent, htmlContent: newHtml };
+      }
+      return el;
+    }));
+    // 2 kredi düş
+    try {
+      const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-accept`, { count: 1 }, { withCredentials: true });
+      if (res.data?.credits_remaining !== undefined) {
+        refreshCredits?.();
+      }
+    } catch {}
+    setPatchCorrections(prev => prev.filter(c => c.id !== corrId));
+  };
+
+  const handlePatchIgnore = (corrId) => {
+    const corr = patchCorrections.find(c => c.id === corrId);
+    if (corr?.original) {
+      const updated = [...patchIgnoreList, corr.original];
+      setPatchIgnoreList(updated);
+      localStorage.setItem('zet_patch_ignore', JSON.stringify(updated));
+    }
+    setPatchCorrections(prev => prev.filter(c => c.id !== corrId));
+  };
+
+  const clearPatchCorrections = () => setPatchCorrections([]);
+
   const handleInsertText = (content) => {
     if (!content) return;
     const cleanContent = content.replace(/\*\*(.*?)\*\*/g, '$1').trim();
@@ -1900,20 +1963,34 @@ const Editor = () => {
         if (!best) return el;
         return ((el.y || 0) + (el.height || 0)) > ((best.y || 0) + (best.height || 0)) ? el : best;
       }, null);
-      // Son elementin alt kenarını bul
+      // Son elementin alt kenarını bul — overlap imkansız olacak şekilde muhafazakar hesapla
+      const contentW = pw - ml - mr;
       let bottomY = mt;
       for (const el of active) {
         const elY = el.y || 0;
         if (elY >= ph) continue;
-        const efs = el.fontSize || 16;
-        const elh = el.lineHeight || 1.5;
-        const plain = el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '');
-        const brCount = (el.htmlContent || '').split('<br').length - 1;
-        const lines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
-        const elBottom = elY + Math.min(el.height || efs * lines * elh, ph - elY);
+        let elBottom;
+        if (el.height) {
+          // Daha önce approve edilmiş, gerçek DOM yüksekliği var
+          elBottom = elY + el.height;
+        } else if (el.type === 'text') {
+          const efs = el.fontSize || 16;
+          const elh = Math.max(el.lineHeight || 1.5, 1.2);
+          const plain = (el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '')).trim();
+          const brCount = (el.htmlContent || '').split('<br').length - 1;
+          const explicitLines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
+          const elW = el.width || contentW;
+          const charsPerLine = Math.max(1, Math.floor(elW / (efs * 0.58)));
+          const wrappedLines = plain ? Math.max(1, Math.ceil(plain.length / charsPerLine)) : 1;
+          const totalLines = Math.max(explicitLines, wrappedLines);
+          elBottom = elY + Math.round(efs * totalLines * elh) + 20;
+        } else {
+          elBottom = elY + (el.height || 80);
+        }
+        elBottom = Math.min(elBottom, ph);
         if (elBottom > bottomY) bottomY = elBottom;
       }
-      const newY = Math.min(bottomY + 12, ph - 60);
+      const newY = Math.min(bottomY + 28, ph - 80);
       // Stil: son text elementinden miras al, yoksa editör defaults
       const inheritStyle = lastText ? {
         fontSize: lastText.fontSize || currentFontSize || 16,
@@ -5112,6 +5189,8 @@ body{background:#fff}
     zetaEditLoading, zetaEditExplanation, zetaPendingCount,
     zetaEditSuggestions, setZetaEditSuggestions,
     applyZetaDocEdit, approveZetaOps, rejectZetaOps,
+    patchCorrections, patchIgnoreList, patchLoading,
+    handlePatchScan, handlePatchAccept, handlePatchIgnore, clearPatchCorrections,
     addPage, alignElements, audioRef, availableVoices,
     buyingCredits, canvasContainerRef, changePage, changeImageTarget, collab, collabEnabled, setCollabEnabled,
     copyElementById, creditPackages, deletePage, docId, drawPaths, setDrawPaths,

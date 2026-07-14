@@ -51,6 +51,7 @@ const EditorMobileLayout = () => {
     pdfInputRef, importPDF, importFromMS, importFile,
     showShareDialog, setShowShareDialog,
     showVersionHistory, setShowVersionHistory,
+    zetaPendingCount, zetaEditMode, approveZetaOps, rejectZetaOps,
   } = useContext(EditorStateContext);
   return (
       <div data-testid="editor-page" className="flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)', height: '100dvh', maxHeight: '100dvh' }}>

@@ -45,7 +45,7 @@ export const RightPanel = ({
 }) => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation, zetaEditSuggestions, setZetaEditSuggestions } = useContext(EditorStateContext);
+  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation, zetaEditSuggestions, setZetaEditSuggestions, patchCorrections, patchLoading, handlePatchScan, handlePatchAccept, handlePatchIgnore, clearPatchCorrections } = useContext(EditorStateContext);
   const [pagesOpen, setPagesOpen] = useState(true);
 
   // CEO / Admin / console state
@@ -223,13 +223,8 @@ export const RightPanel = ({
   };
 
   const handleModeChange = (newMode) => {
-    if (newMode === 'puzzle' && zetaMode !== 'puzzle') {
-      setPrevModel(zetaModel);
-      setZetaModel('aziz');
-    } else if (zetaMode === 'puzzle' && newMode !== 'puzzle') {
-      if (prevModel) setZetaModel(prevModel);
-      setPrevModel(null);
-    }
+    // Patch modundan çıkınca düzeltmeleri temizle
+    if (zetaMode === 'patch' && newMode !== 'patch') clearPatchCorrections?.();
     setZetaMode(newMode);
     try { const a = new Audio('/sounds/zeta-mode.wav'); a.volume = 0.55; a.play().catch(() => {}); } catch (_) {}
   };
@@ -766,29 +761,22 @@ export const RightPanel = ({
         )}
 
 
-        {/* ── Chat / Patch / Puzzle: shared messages + input layout ── */}
-        {(zetaMode === 'chat' || zetaMode === 'patch' || zetaMode === 'puzzle' || zetaMode === 'edit') && (
+        {/* ── Chat / Edit: mesaj + input layout ── */}
+        {(zetaMode === 'chat' || zetaMode === 'edit') && (
           <>
-            {zetaMode === 'puzzle' && (
-              <div className="flex-shrink-0 flex items-center justify-center gap-1.5 py-1 text-[10px] font-semibold" style={{ background: 'rgba(245,158,11,0.1)', borderBottom: '1px solid rgba(245,158,11,0.2)', color: '#f59e0b' }}>
-                <Star className="h-3 w-3" /> Zeta Aziz aktif — karmaşık problem modu
+            {/* Chat modunda pending varsa Onayla/Reddet */}
+            {zetaMode === 'chat' && zetaPendingCount > 0 && (
+              <div className="flex-shrink-0 flex items-center gap-2 px-2 py-1.5 border-b" style={{ borderColor: 'var(--zet-border)', background: 'rgba(76,168,173,0.07)' }}>
+                <span className="text-[10px] flex-1" style={{ color: 'var(--zet-text-muted)' }}>{zetaPendingCount} değişiklik bekliyor</span>
+                <button onClick={approveZetaOps} className="text-[10px] px-2.5 py-1 rounded-md font-semibold" style={{ background: 'rgba(76,168,173,0.2)', color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>Onayla</button>
+                <button onClick={rejectZetaOps} className="text-[10px] px-2.5 py-1 rounded-md font-semibold" style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.3)' }}>Reddet</button>
               </div>
             )}
             <div data-testid="zeta-messages" className="flex-1 p-2 overflow-y-auto text-xs" style={{ background: 'var(--zet-bg)' }}>
               {zetaMessages.length === 0 && (
                 <div className="text-center py-6" style={{ color: 'var(--zet-text-muted)' }}>
                   <img src="/zeta-icon.svg" alt="ZETA" className="mx-auto mb-2" style={{ width: 28, height: 28, opacity: 0.6, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
-                  {zetaMode === 'patch' ? (
-                    <>
-                      <p className="text-xs font-medium">Patch modu</p>
-                      <p className="text-[10px] mt-2 opacity-70">Belgedeki sorunları tarar ve düzeltir. Örnek: "5. ve 6. sayfalardaki yazım hatalarını bul"</p>
-                    </>
-                  ) : zetaMode === 'puzzle' ? (
-                    <>
-                      <p className="text-xs font-medium">Puzzle modu</p>
-                      <p className="text-[10px] mt-2 opacity-70">Karmaşık sorunlar için derin analiz. Zeta Aziz modeli kullanılıyor.</p>
-                    </>
-                  ) : zetaMode === 'edit' ? (
+                  {zetaMode === 'edit' ? (
                     <>
                       <p className="text-xs font-medium">Edit modu</p>
                       <p className="text-[10px] mt-2 opacity-70">Canvas elementlerini ekle, değiştir veya sil. Örnek: "Kırmızı bir başlık ekle"</p>
@@ -897,7 +885,6 @@ export const RightPanel = ({
                 const ZETA_MODES = [
                   { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
                   { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
-                  { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',            desc: 'Derin problem çözme · Aziz' },
                   { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
                   { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#4ca8ad',            desc: 'Canvas elementleri düzenle' },
                 ];
@@ -957,7 +944,7 @@ export const RightPanel = ({
               <div className="flex gap-1 items-end">
                 {/* Gear/settings button — shows active mode colour */}
                 {(() => {
-                  const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'puzzle' ? '#f59e0b' : zetaMode === 'colors' ? '#ec4899' : zetaMode === 'edit' ? '#4ca8ad' : 'var(--zet-primary)';
+                  const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'colors' ? '#ec4899' : zetaMode === 'edit' ? '#4ca8ad' : 'var(--zet-primary)';
                   return (
                     <button onClick={() => setShowModePanel(v => !v)} className="zet-btn px-2 flex-shrink-0" title="Mod seç"
                       style={{ color: modeColor, background: showModePanel ? modeColor + '18' : undefined }}>
@@ -1000,6 +987,86 @@ export const RightPanel = ({
           </>
         )}
 
+        {/* ── Zeta Patch: belge yazım denetimi ── */}
+        {zetaMode === 'patch' && (
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: 'var(--zet-bg)' }}>
+            {/* Header */}
+            <div className="flex-shrink-0 px-3 py-2 border-b flex items-center gap-2" style={{ borderColor: 'var(--zet-border)' }}>
+              <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: '#10b981' }} />
+              <span className="text-[11px] font-semibold flex-1" style={{ color: '#10b981' }}>Zeta Patch</span>
+              {patchCorrections.length > 0 && (
+                <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>{patchCorrections.length}</span>
+              )}
+            </div>
+
+            {/* Tara butonu */}
+            <div className="px-3 py-2 border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
+              <button
+                onClick={() => handlePatchScan(documentContent || '')}
+                disabled={patchLoading}
+                className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-md text-[11px] font-semibold transition-all"
+                style={{ background: patchLoading ? 'rgba(16,185,129,0.08)' : 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>
+                {patchLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wrench className="h-3 w-3" />}
+                {patchLoading ? 'Taranıyor…' : patchCorrections.length > 0 ? 'Yeniden Tara' : 'Belgeyi Tara'}
+              </button>
+              <p className="mt-1.5 text-[9px] text-center" style={{ color: 'var(--zet-text-muted)' }}>
+                {userPlan === 'free' ? 'Yazım düzeltmesi · Her kabul 2 kredi' : 'Yazım + eksik/fazla kelime · Her kabul 2 kredi'}
+              </p>
+            </div>
+
+            {/* Düzeltme listesi */}
+            {patchCorrections.length === 0 && !patchLoading ? (
+              <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
+                <Wrench className="h-6 w-6 opacity-20" style={{ color: '#10b981' }} />
+                <p className="text-[11px] font-medium" style={{ color: 'var(--zet-text-muted)' }}>Henüz tarama yok</p>
+                <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)', opacity: 0.7 }}>Belgeyi Tara butonuna bas, Zeta yazım hatalarını ve eksik/fazla kelimeleri işaretlesin</p>
+              </div>
+            ) : (
+              <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">
+                {patchCorrections.map(corr => {
+                  const isSpelling = corr.type === 'spelling';
+                  const isLocked = !isSpelling && userPlan === 'free';
+                  const color = isSpelling ? '#a855f7' : '#f59e0b';
+                  return (
+                    <div key={corr.id} className="rounded-lg px-2.5 py-2 flex flex-col gap-1" style={{ background: 'var(--zet-bg-card)', border: `1px solid ${color}28` }}>
+                      <div className="flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: color }} />
+                        <span className="text-[9px] font-bold uppercase tracking-wide flex-1" style={{ color }}>
+                          {isSpelling ? 'Yazım' : corr.type === 'missing' ? 'Eksik Kelime' : 'Fazla Kelime'}
+                        </span>
+                        {isLocked && <span className="text-[8px] px-1 rounded" style={{ background: 'rgba(245,158,11,0.1)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.3)' }}>Plus+</span>}
+                      </div>
+                      {corr.original && (
+                        <div className="text-[10px] flex items-center gap-1.5">
+                          <span className="line-through opacity-60" style={{ color: 'var(--zet-text)' }}>{corr.original}</span>
+                          {corr.suggestion && <><span style={{ color: 'var(--zet-text-muted)' }}>→</span><span className="font-semibold" style={{ color }}>{corr.suggestion}</span></>}
+                        </div>
+                      )}
+                      {corr.context && <p className="text-[9px] italic opacity-50 truncate" style={{ color: 'var(--zet-text)' }}>{corr.context}</p>}
+                      {!isLocked && (
+                        <div className="flex gap-1 mt-0.5">
+                          {(corr.suggestion || corr.type === 'extra') && (
+                            <button onClick={() => handlePatchAccept(corr.id)}
+                              className="flex-1 text-[9px] py-0.5 rounded-md font-semibold"
+                              style={{ background: `${color}22`, color, border: `1px solid ${color}44` }}>
+                              Onayla · 2 kredi
+                            </button>
+                          )}
+                          <button onClick={() => handlePatchIgnore(corr.id)}
+                            className="flex-1 text-[9px] py-0.5 rounded-md font-semibold"
+                            style={{ background: 'rgba(239,68,68,0.08)', color: '#fca5a5', border: '1px solid rgba(239,68,68,0.25)' }}>
+                            Kaldır
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
         {/* ── Zeta Colors: image generation ── */}
         {zetaMode === 'colors' && (
           <div className="flex-1 flex flex-col min-h-0 relative">
@@ -1008,7 +1075,6 @@ export const RightPanel = ({
               const ZETA_MODES = [
                 { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
                 { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
-                { id: 'puzzle', label: 'Puzzle',      Icon: Layers,        color: '#f59e0b',            desc: 'Derin problem çözme · Aziz' },
                 { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
               ];
               return (

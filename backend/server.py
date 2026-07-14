@@ -390,6 +390,13 @@ ZETA_MODEL_MAP = {
     "aziz": ("gemini-2.5-pro", 8192),       # en güçlü
 }
 
+class PatchScanRequest(BaseModel):
+    doc_content: str
+    ignore_list: List[str] = []
+
+class PatchAcceptRequest(BaseModel):
+    count: int = 1
+
 class ZetaChatRequest(BaseModel):
     message: str
     doc_id: Optional[str] = None
@@ -3715,6 +3722,7 @@ CREDIT_COSTS = {
     'deep_analysis': 100,
     'auto_write': 15,  # per page
     'doc_edit': 5,
+    'patch_correction': 2,
 }
 
 async def get_user_credits(user_id: str):
@@ -4621,6 +4629,60 @@ KURALLAR:
         "credits_spent": credit_result['cost'],
         "credits_remaining": credit_result['credits_remaining']
     }
+
+
+@api_router.post("/zeta/patch-scan")
+async def zeta_patch_scan(req: PatchScanRequest, user: User = Depends(get_current_user)):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(500, "GEMINI_API_KEY eksik")
+    can_word = user.plan != 'free'
+    ignore_str = ', '.join(f'"{w}"' for w in req.ignore_list) if req.ignore_list else 'Yok'
+    system_prompt = f"""Sen profesyonel bir yazım denetçisisin.
+{"Sadece yazım hatalarını (yanlış yazılmış kelimeler) tespit et." if not can_word else "Hem yazım hatalarını hem eksik/fazla kelimeleri tespit et."}
+
+ASLA düzeltme: {ignore_str}
+
+Sonucu SADECE aşağıdaki JSON formatında döndür, başka hiçbir şey yazma:
+[
+  {{"id": "c1", "type": "spelling", "original": "yanlız", "suggestion": "yanlış", "context": "Bu yanlız bir örnek"}},
+  {{"id": "c2", "type": "extra", "original": "çok", "suggestion": null, "context": "Bu çok çok güzel"}}
+]
+type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — original=null), "extra" (gereksiz kelime — suggestion=null)
+Hiç hata yoksa sadece [] döndür."""
+    client = google_genai.Client(api_key=api_key)
+    resp = await gemini_generate(
+        client, "gemini-2.5-flash", req.doc_content[:10000],
+        genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1)
+    )
+    raw = resp.text.strip()
+    import re as _re
+    m = _re.search(r'\[[\s\S]*\]', raw)
+    try:
+        corrections = json.loads(m.group()) if m else []
+    except Exception:
+        corrections = []
+    for i, c in enumerate(corrections):
+        if not c.get('id'):
+            c['id'] = f"c{i+1}"
+    return {"corrections": corrections, "can_word": can_word}
+
+
+@api_router.post("/zeta/patch-accept")
+async def zeta_patch_accept(req: PatchAcceptRequest, user: User = Depends(get_current_user)):
+    total_cost = 2 * max(1, req.count)
+    credit_info = await get_user_credits(user.user_id)
+    if credit_info['credits_remaining'] < total_cost:
+        raise HTTPException(402, f"Yetersiz kredi. Bu işlem {total_cost} kredi gerektirir.")
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    await db.usage.update_one({"user_id": user.user_id, "date": today}, {"$inc": {"credits_used": total_cost}}, upsert=True)
+    daily_limit = PLAN_LIMITS.get(user.plan, PLAN_LIMITS['free']).get('daily_credits', 0)
+    new_used = credit_info['credits_used'] + total_cost
+    overspend = new_used - daily_limit
+    if overspend > 0 and credit_info.get('bonus_credits', 0) > 0:
+        bonus_deduct = min(overspend, credit_info['bonus_credits'])
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": -bonus_deduct}})
+    return {"credits_remaining": max(0, credit_info['credits_remaining'] - total_cost)}
 
 
 @api_router.post("/zeta/chat")
