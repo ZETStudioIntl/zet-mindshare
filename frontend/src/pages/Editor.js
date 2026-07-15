@@ -1099,7 +1099,7 @@ const Editor = () => {
     if (isReadOnly) return; // Server'a gitme
     setSaveStatus('unsaved');
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 500);
+    autoSaveTimerRef.current = setTimeout(() => saveDocument(true), 2000);
     return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
   }, [canvasElements, drawPaths]);
 

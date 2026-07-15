@@ -2671,8 +2671,7 @@ async def update_document(doc_id: str, update: DocumentUpdate, user: User = Depe
         )
         if result.matched_count == 0:
             raise HTTPException(status_code=404, detail="Document not found")
-        doc = await db.documents.find_one({"doc_id": doc_id}, {"_id": 0})
-        return doc
+        return {"ok": True, "updated_at": update_data["updated_at"]}
     except HTTPException:
         raise
     except Exception as e:
