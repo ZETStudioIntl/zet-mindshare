@@ -221,6 +221,9 @@ const Editor = () => {
         if (el.paddingRight !== undefined) setIndentRight(el.paddingRight);
         if (el.paddingTop !== undefined) setIndentTop(el.paddingTop);
         if (el.paddingBottom !== undefined) setIndentBottom(el.paddingBottom);
+        if (el.textIndent !== undefined) setFirstLineIndent(el.textIndent);
+        if (el.paragraphSpaceBefore !== undefined) setParagraphSpaceBefore(el.paragraphSpaceBefore);
+        if (el.paragraphSpaceAfter !== undefined) setParagraphSpaceAfter(el.paragraphSpaceAfter);
       }
     }
   }, [selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps

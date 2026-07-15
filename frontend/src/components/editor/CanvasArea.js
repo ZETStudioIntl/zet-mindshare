@@ -1,6 +1,7 @@
-import React, { useRef, useEffect, useCallback, useState, memo } from 'react';
+import React, { useRef, useEffect, useCallback, useState, memo, useContext } from 'react';
 import { SHAPE_LIST } from './Toolbox';
 import { SCRIPT_ELEMENT_TYPES, SCRIPT_TAB_CYCLE, SCRIPT_ENTER_NEXT, SCREENPLAY_PX_PER_CM } from '../../lib/editorConstants';
+import { EditorStateContext } from '../../contexts/EditorStateContext';
 import { MoreVertical, Trash2, Image, RefreshCw, Wand2, Copy, FlipHorizontal2, EyeOff, Edit2 } from 'lucide-react';
 
 // Senaryo sahne başlığı normalizer: "int ev gece" → "INT. EV - GECE"
@@ -774,6 +775,7 @@ export const CanvasArea = ({
   const lastTapTimeRef = useRef(0);
   const lastTapPosRef = useRef({ x: 0, y: 0 });
   const margins = { top: pageMarginsProp?.top ?? 40, bottom: pageMarginsProp?.bottom ?? 40, left: pageMarginsProp?.left ?? 40, right: pageMarginsProp?.right ?? 40 };
+  const { firstLineIndent = 0, paragraphSpaceBefore = 0, paragraphSpaceAfter = 0 } = useContext(EditorStateContext);
   const [editingId, setEditingId] = useState(null);
   const pendingEditRef = useRef(null);
   const [imageNaturalRatios, setImageNaturalRatios] = useState({});
@@ -1086,6 +1088,7 @@ export const CanvasArea = ({
           lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
           bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
           gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+          textIndent: firstLineIndent || 0, paragraphSpaceBefore: paragraphSpaceBefore || 0, paragraphSpaceAfter: paragraphSpaceAfter || 0,
           ...scrDefaults,
         };
         setCanvasElements(prev => [...prev, ne]); setEditingId(ne.id); setSelectedElement(ne.id);
@@ -1276,6 +1279,7 @@ export const CanvasArea = ({
         lineHeight: currentLineHeight, textAlign: currentTextAlign || 'left',
         bold: isBold, italic: isItalic, underline: isUnderline, strikethrough: isStrikethrough,
         gradientStart: gradientStart || null, gradientEnd: gradientEnd || null,
+        textIndent: firstLineIndent || 0, paragraphSpaceBefore: paragraphSpaceBefore || 0, paragraphSpaceAfter: paragraphSpaceAfter || 0,
         ...scrDefaults2,
       };
       const u = [...canvasElements, ne]; setCanvasElements(u); setEditingId(ne.id); setSelectedElement(ne.id);
