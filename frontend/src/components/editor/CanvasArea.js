@@ -832,6 +832,13 @@ export const CanvasArea = ({
   const knifeStartRef = useRef(null);
   const knifeEndRef = useRef(null);
 
+  // Page virtualization — lazy hydration
+  const [hydratedPages, setHydratedPages] = useState(() => new Set([0, 1, 2]));
+  const pageIntersectRefs = useRef({});
+  const pageObserverRef = useRef(null);
+  const docPagesLenRef = useRef(0);
+  docPagesLenRef.current = doc?.pages?.length || 0;
+
   // Auto-fit zoom: fill container width on mount and container resize
   useEffect(() => {
     const container = canvasContainerRef.current;
@@ -848,6 +855,32 @@ export const CanvasArea = ({
     ro.observe(container);
     return () => { clearTimeout(t); ro.disconnect(); };
   }, [canvasContainerRef, pageSize?.width, setZoom]);
+
+  useEffect(() => {
+    const container = canvasContainerRef.current;
+    if (!container) return;
+    const observer = new IntersectionObserver((entries) => {
+      setHydratedPages(prev => {
+        const next = new Set(prev);
+        const total = docPagesLenRef.current;
+        let changed = false;
+        entries.forEach(entry => {
+          const idx = parseInt(entry.target.dataset.pageIdx, 10);
+          if (isNaN(idx) || !entry.isIntersecting) return;
+          for (let i = Math.max(0, idx - 2); i <= Math.min(total - 1, idx + 2); i++) {
+            if (!next.has(i)) { next.add(i); changed = true; }
+          }
+        });
+        return changed ? next : prev;
+      });
+    }, { root: container, threshold: 0, rootMargin: '400px 0px' });
+    pageObserverRef.current = observer;
+    Object.values(pageIntersectRefs.current).forEach(el => { if (el) observer.observe(el); });
+    return () => { observer.disconnect(); pageObserverRef.current = null; };
+  }, [canvasContainerRef]);
+  useEffect(() => {
+    setHydratedPages(prev => prev.has(currentPage) ? prev : new Set([...prev, currentPage]));
+  }, [currentPage]);
 
   // Zoom tool - scroll towards cursor position
   useEffect(() => {
@@ -1933,7 +1966,7 @@ export const CanvasArea = ({
       <style>{`[contenteditable]::selection { background: rgba(76,168,173,0.35); } [contenteditable] *::selection { background: rgba(76,168,173,0.35); }`}</style>
       <div className="flex flex-col items-center gap-3">
         {doc.pages?.map((page, idx) => (
-          <div key={page.page_id} data-testid={`canvas-page-${idx}`} ref={idx === currentPage ? canvasRef : null}
+          <div key={page.page_id} data-testid={`canvas-page-${idx}`} data-page-idx={idx} ref={el => { if (idx === currentPage) canvasRef.current = el; pageIntersectRefs.current[idx] = el; if (el && pageObserverRef.current) pageObserverRef.current.observe(el); else if (!el) delete pageIntersectRefs.current[idx]; }}
             className={`shadow-xl relative select-none transition-all duration-200 ${idx === currentPage ? 'ring-2' : 'ring-1 ring-white/20'}`}
             style={{ width: (page.pageSize?.width || pageSize.width) * zoom, height: (page.pageSize?.height || pageSize.height) * zoom, ringColor: 'var(--zet-primary-light)', cursor: getCursor(), background: pageBg, touchAction: activeTool === 'hand' ? 'none' : (['draw', 'pen', 'eraser'].includes(activeTool) ? 'none' : 'pan-y') }}
             onClick={(e) => handleCanvasClick(e, idx)} onDoubleClick={(e) => handleCanvasDoubleClick(e, idx)}
@@ -1985,7 +2018,8 @@ export const CanvasArea = ({
               handleMouseUp(e);
             }}>
             <div className="absolute -top-7 left-0 text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>Page {idx + 1}</div>
-            
+            {hydratedPages.has(idx) && <>
+
             {/* Ruler */}
             {rulerVisible && idx === currentPage && (() => {
               const pW = (page.pageSize?.width || pageSize.width);
@@ -2606,6 +2640,7 @@ export const CanvasArea = ({
                 );
               });
             })()}
+            </>}
           </div>
         ))}
       </div>
