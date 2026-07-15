@@ -1985,10 +1985,11 @@ const Editor = () => {
           const brCount = (el.htmlContent || '').split('<br').length - 1;
           const explicitLines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
           const elW = el.width || contentW;
-          const charsPerLine = Math.max(1, Math.floor(elW / (efs * 0.58)));
+          const charsPerLine = Math.max(1, Math.floor(elW / (efs * 0.72)));
           const wrappedLines = plain ? Math.max(1, Math.ceil(plain.length / charsPerLine)) : 1;
           const totalLines = Math.max(explicitLines, wrappedLines);
-          elBottom = elY + Math.round(efs * totalLines * elh) + 20;
+          const padH = (el.paddingTop || 0) + (el.paddingBottom || 0) + (el.paragraphSpaceBefore || 0) + (el.paragraphSpaceAfter || 0);
+          elBottom = elY + Math.round(efs * totalLines * elh) + padH + 20;
         } else {
           elBottom = elY + (el.height || 80);
         }
