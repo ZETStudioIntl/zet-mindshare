@@ -35,7 +35,7 @@ const isPointInElement = (x, y, el) => {
     const htmlLines = el.htmlContent ? (el.htmlContent.match(/<br\s*\/?>/gi) || []).length + 1 : 1;
     const explicitLines = Math.max(contentLines, htmlLines);
     const plainText = el.htmlContent?.replace(/<[^>]*>/g, '') || el.content || '';
-    const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.6)));
+    const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.72)));
     const wrappedLines = Math.ceil((plainText.length || 1) / avgCharsPerLine);
     const lines = Math.max(explicitLines, wrappedLines);
     const padH = (el.paddingTop || 0) + (el.paddingBottom || 0) + (el.paragraphSpaceBefore || 0) + (el.paragraphSpaceAfter || 0);

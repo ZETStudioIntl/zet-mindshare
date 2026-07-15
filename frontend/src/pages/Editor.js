@@ -810,7 +810,9 @@ const Editor = () => {
       
       // Tool shortcuts (single key) — suppressed in text tool mode (keys are for typing)
       const key = e.key.toUpperCase();
-      if (shortcuts[key] && !e.ctrlKey && !e.metaKey && !e.altKey && activeToolRef.current !== 'text') {
+      // Only fire for basic ASCII letters (a-z/A-Z) — Turkish chars like ı/ş/ğ
+      // toUpperCase to I/S/G and would wrongly trigger shortcuts
+      if (shortcuts[key] && /^[A-Z]$/.test(key) && /^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey && !e.altKey && activeToolRef.current !== 'text') {
         e.preventDefault();
         handleToolSelect(shortcuts[key]);
       }
