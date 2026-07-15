@@ -30,18 +30,20 @@ const SCENE_KW_RE = /^([iıİI][çÇc]\.?\s*\/\s*d[iıİI][şŞs]\.?|[iıİI][ç
 const isPointInElement = (x, y, el) => {
   if (el.type === 'text') {
     const w = el.width || 400;
-    const fs = el.fontSize || 16;
-    const lh = el.lineHeight || 1.5;
-    const contentLines = Math.max(1, (el.content || '').split('\n').length);
-    const htmlLines = el.htmlContent ? (el.htmlContent.match(/<br\s*\/?>/gi) || []).length + 1 : 1;
-    const explicitLines = Math.max(contentLines, htmlLines);
-    const plainText = el.htmlContent?.replace(/<[^>]*>/g, '') || el.content || '';
-    const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.72)));
-    const wrappedLines = Math.ceil((plainText.length || 1) / avgCharsPerLine);
-    const lines = Math.max(explicitLines, wrappedLines);
-    const padH = (el.paddingTop || 0) + (el.paddingBottom || 0) + (el.paragraphSpaceBefore || 0) + (el.paragraphSpaceAfter || 0);
-    const h = fs * lines * lh + padH;
-    return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + h;
+    const elH = el.height || (() => {
+      const fs = el.fontSize || 16;
+      const lh = el.lineHeight || 1.5;
+      const contentLines = Math.max(1, (el.content || '').split('\n').length);
+      const htmlLines = el.htmlContent ? (el.htmlContent.match(/<br\s*\/?>/gi) || []).length + 1 : 1;
+      const explicitLines = Math.max(contentLines, htmlLines);
+      const plainText = el.htmlContent?.replace(/<[^>]*>/g, '') || el.content || '';
+      const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.72)));
+      const wrappedLines = Math.ceil((plainText.length || 1) / avgCharsPerLine);
+      const lines = Math.max(explicitLines, wrappedLines);
+      const padH = (el.paddingTop || 0) + (el.paddingBottom || 0) + (el.paragraphSpaceBefore || 0) + (el.paragraphSpaceAfter || 0);
+      return fs * lines * lh + padH;
+    })();
+    return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + elH;
   }
   return x >= el.x && x <= el.x + (el.width || 80) && y >= el.y && y <= el.y + (el.height || 80);
 };
@@ -791,6 +793,7 @@ export const CanvasArea = ({
   const zoomRef = useRef(zoom);
   const currentColorRef = useRef(currentColor);
   const penDragRef = useRef(null); // tracks drag state for handle creation
+  const elementRoRef = useRef(new Map());
   const [penCursorPos, setPenCursorPos] = useState(null);
   const cropWasDraggedRef = useRef(false); // tracks if a crop handle was dragged this gesture
   const activeDragRef = useRef(null); // sync mirror of dragging — avoids async state race on touchmove
@@ -875,6 +878,39 @@ export const CanvasArea = ({
   useEffect(() => { penAnchorsRef.current = penAnchors; }, [penAnchors]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { currentColorRef.current = currentColor; }, [currentColor]);
+
+  useEffect(() => {
+    const ros = elementRoRef.current;
+    return () => { ros.forEach(ro => ro.disconnect()); ros.clear(); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    const ros = elementRoRef.current;
+    for (const el of canvasElements) {
+      if (el.type !== 'text' || ros.has(el.id)) continue;
+      const node = document.querySelector(`[data-testid="canvas-element-${el.id}"]`);
+      if (!node) continue;
+      const ro = new ResizeObserver(() => {
+        const h = Math.round(node.offsetHeight / zoomRef.current);
+        if (h <= 0) return;
+        setCanvasElements(prev => {
+          const t = prev.find(e => e.id === el.id);
+          if (!t || Math.abs((t.height || 0) - h) <= 1) return prev;
+          return prev.map(e => e.id === el.id ? { ...e, height: h } : e);
+        });
+      });
+      ro.observe(node);
+      ros.set(el.id, ro);
+    }
+    ros.forEach((ro, id) => {
+      if (!canvasElements.find(e => e.id === id)) {
+        ro.disconnect();
+        ros.delete(id);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canvasElements]);
 
   const markingColorRef = useRef(markingColor);
   useEffect(() => { markingColorRef.current = markingColor; }, [markingColor]);
