@@ -794,6 +794,7 @@ export const CanvasArea = ({
   const currentColorRef = useRef(currentColor);
   const penDragRef = useRef(null); // tracks drag state for handle creation
   const elementRoRef = useRef(new Map());
+  const processCanvasClickRef = useRef(null);
   const [penCursorPos, setPenCursorPos] = useState(null);
   const cropWasDraggedRef = useRef(false); // tracks if a crop handle was dragged this gesture
   const activeDragRef = useRef(null); // sync mirror of dragging — avoids async state race on touchmove
@@ -1291,7 +1292,7 @@ export const CanvasArea = ({
     if (justSelectedRef.current) { justSelectedRef.current = false; if (activeTool !== 'text') return; }
     const { x, y } = getCoords(e, e.currentTarget);
     if (x < 0 || y < 0 || x > pageSize.width || y > pageSize.height) return;
-    processCanvasClick(x, y, e);
+    processCanvasClickRef.current(x, y, e);
   }, [activeTool, canvasElements, changePage, currentPage, doc, dragging, draggingVector, getCoords, pageSize, resizing, justSelectedRef]);
 
   const processCanvasClick = (x, y, e) => {
@@ -1385,6 +1386,7 @@ export const CanvasArea = ({
       setMagnifierActive(true);
     }
   };
+  processCanvasClickRef.current = processCanvasClick;
 
   const handleCanvasDoubleClick = useCallback((e, pageIdx) => {
     if (activeTool === 'pen' && penAnchors.length > 1 && pageIdx === currentPage) {
