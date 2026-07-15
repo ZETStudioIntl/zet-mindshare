@@ -1498,7 +1498,7 @@ const Editor = () => {
           columnCount, columnGap,
         },
       }, { withCredentials: true });
-      const ALLOWED_ACTIONS = new Set(['add', 'modify', 'delete', 'add_page', 'update_settings']);
+      const ALLOWED_ACTIONS = new Set(['add', 'modify', 'delete', 'add_page', 'update_settings', 'inject']);
       const ALLOWED_ADD_TYPES = new Set(['text', 'shape', 'table', 'link', 'chart']);
       const rawOps = res.data.operations || [];
       const operations = rawOps.filter(op => {
@@ -1588,7 +1588,7 @@ const Editor = () => {
         setDrawPaths(prev => [...prev, ...pathOpsForCurrentPage.map(op => ({ ...op.path, id: `path_${Date.now()}_${Math.random().toString(36).slice(2,6)}` }))]);
       }
       // Handle operations targeting other pages
-      const skipActions = new Set(['add_path', 'delete_page', 'clear_page', 'generate_ai_image', 'add_page', 'update_settings']);
+      const skipActions = new Set(['add_path', 'delete_page', 'clear_page', 'generate_ai_image', 'add_page', 'update_settings', 'inject']);
       const otherPageOps = operations.filter(op => !skipActions.has(op.action) && op.action !== 'add' && op.target_page != null && op.target_page !== currentPage);
       if (otherPageOps.length > 0) {
         setDocument(prev => {
@@ -1610,6 +1610,144 @@ const Editor = () => {
           return { ...prev, pages };
         });
       }
+
+      // ── inject: Kelime akışı enjeksiyonu ────────────────────────────────────
+      const injectOps = operations.filter(op => op.action === 'inject' && (op.target_page == null || op.target_page === currentPage));
+      if (injectOps.length > 0) {
+        const _lev = (a, b) => {
+          if (!a.length) return b.length;
+          if (!b.length) return a.length;
+          const row = Array.from({ length: b.length + 1 }, (_, i) => i);
+          for (let i = 1; i <= a.length; i++) {
+            let prev = i;
+            for (let j = 1; j <= b.length; j++) {
+              const val = a[i - 1] === b[j - 1] ? row[j - 1] : 1 + Math.min(row[j - 1], row[j], prev);
+              row[j - 1] = prev;
+              prev = val;
+            }
+            row[b.length] = prev;
+          }
+          return row[b.length];
+        };
+
+        setCanvasElements(prev => {
+          let els = [...prev.filter(e => !e.isPending && !e.isPendingDelete)];
+          const ml = marginLeft || 40;
+          const mt = marginTop || 40;
+          const availW = pageSize.width - ml - (marginRight || 40);
+
+          for (const op of injectOps) {
+            const anchorWord = (op.anchor_word || '').trim();
+            const injectText = (op.inject_text || '').trim();
+            const direction = op.direction || 'right';
+            if (!injectText) continue;
+
+            // ── Kelime bulma ─────────────────────────────────────────────────
+            let targetEl = null;
+            let foundAnchor = anchorWord; // gerçek eşleşen kelime (fuzzy için güncellenir)
+
+            if (anchorWord) {
+              // 1. Tam eşleşme
+              for (const el of els) {
+                if (el.type !== 'text') continue;
+                const plain = (el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '')).toLowerCase();
+                if (plain.includes(anchorWord.toLowerCase())) { targetEl = el; break; }
+              }
+
+              // 2. Fuzzy eşleşme (Levenshtein — maksimum mesafe: kelime uzunluğunun ~%35'i)
+              if (!targetEl) {
+                const maxDist = Math.ceil(anchorWord.length * 0.35);
+                const anchorLow = anchorWord.toLowerCase();
+                let bestDist = Infinity;
+                for (const el of els) {
+                  if (el.type !== 'text') continue;
+                  const plain = (el.content || (el.htmlContent || '').replace(/<[^>]*>/g, ''));
+                  for (const word of plain.split(/\s+/)) {
+                    const d = _lev(word.toLowerCase(), anchorLow);
+                    if (d < bestDist && d <= maxDist) { bestDist = d; targetEl = el; foundAnchor = word; }
+                  }
+                }
+              }
+            }
+
+            if (!targetEl) {
+              // Bulunamadı → sonuna ekle
+              const lastText = els.filter(e => e.type === 'text').reduce((b, e) => !b || (e.y + (e.height || 40)) > (b.y + (b.height || 40)) ? e : b, null);
+              const newY = lastText ? lastText.y + (lastText.height || 40) + 8 : mt;
+              const fallbackEl = {
+                id: `el_${Date.now()}_inj`, type: 'text',
+                x: ml, y: newY, width: availW,
+                content: injectText, htmlContent: injectText.replace(/\n/g, '<br>'),
+                fontSize: 16, fontFamily: 'Arial', color: '#000000', lineHeight: 1.5, isPending: true,
+              };
+              els = [...els, fallbackEl];
+              newPendingLog.push({ action: 'add', elementId: fallbackEl.id });
+              console.log('[Zeta inject] Hedef bulunamadı, sona eklendi:', { anchorWord, injectText });
+              setZetaEditExplanation(prev => prev + (prev ? '\n' : '') + `"${anchorWord}" bulunamadı, sona eklendi.`);
+              continue;
+            }
+
+            console.log('[Zeta inject]', { direction, anchor: foundAnchor, injectText, element: targetEl.id });
+
+            if (direction === 'left' || direction === 'right') {
+              // ── Sağ/sol: mevcut elementin içeriğine enjekte et ───────────
+              const plain = targetEl.content || (targetEl.htmlContent || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+              const anchorLow = foundAnchor.toLowerCase();
+              const plainLow = plain.toLowerCase();
+              const idx = plainLow.indexOf(anchorLow);
+              if (idx === -1) continue;
+
+              let newContent;
+              if (direction === 'left') {
+                newContent = plain.slice(0, idx) + injectText + ' ' + plain.slice(idx);
+              } else {
+                newContent = plain.slice(0, idx + foundAnchor.length) + ' ' + injectText + plain.slice(idx + foundAnchor.length);
+              }
+              newContent = newContent.replace(/  +/g, ' ');
+              const newHtml = newContent.replace(/\n/g, '<br>');
+              console.log('[Zeta inject result]', { original: plain, result: newContent });
+
+              newPendingLog.push({ action: 'modify', elementId: targetEl.id, originalState: { ...targetEl } });
+              els = els.map(el => el.id !== targetEl.id ? el : { ...el, content: newContent, htmlContent: newHtml, isPending: true });
+
+            } else if (direction === 'above' || direction === 'below') {
+              // ── Üst/alt: yeni element + aşağıdaki elementleri kaydır ─────
+              const targetH = targetEl.height || Math.round((targetEl.fontSize || 16) * Math.max(targetEl.lineHeight || 1.5, 1.2) * 2);
+              const gap = Math.max(8, (targetEl.fontSize || 16) * Math.max(targetEl.lineHeight || 1.5, 1.2) * 0.3);
+              const injLines = Math.max(1, injectText.split('\n').length);
+              const injEstH = Math.round((targetEl.fontSize || 16) * injLines * Math.max(targetEl.lineHeight || 1.5, 1.2)) + 14;
+              const shiftAmt = injEstH + gap;
+
+              const insertY = direction === 'above' ? targetEl.y : targetEl.y + targetH + gap;
+
+              const newEl = {
+                id: `el_${Date.now()}_inj`, type: 'text',
+                x: targetEl.x, y: insertY, width: targetEl.width,
+                content: injectText, htmlContent: injectText.replace(/\n/g, '<br>'),
+                fontSize: targetEl.fontSize || 16,
+                fontFamily: targetEl.fontFamily || 'Arial',
+                color: targetEl.color || '#000000',
+                lineHeight: targetEl.lineHeight || 1.5,
+                textAlign: targetEl.textAlign || 'left',
+                bold: targetEl.bold || false,
+                italic: targetEl.italic || false,
+                underline: targetEl.underline || false,
+                isPending: true,
+              };
+
+              // Hedef element ve aşağısındakileri kaydır
+              const threshold = direction === 'above' ? targetEl.y : targetEl.y + (targetEl.height || 0);
+              els = els.map(el => el.y >= threshold ? { ...el, y: el.y + shiftAmt } : el);
+              els = [...els, newEl];
+              newPendingLog.push({ action: 'add', elementId: newEl.id });
+              console.log('[Zeta inject above/below]', { direction, element: targetEl.id, insertY, shiftAmt });
+            }
+          }
+
+          return els;
+        });
+      }
+      // ────────────────────────────────────────────────────────────────────────
 
       // ── Metin yerleşimi: son elementten konum + stil miras ──
       const _ph = pageSize.height;

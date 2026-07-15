@@ -5434,6 +5434,7 @@ EKLE element:    {{"action": "add",    "element": {{...format...}},             
 DEĞİŞTİR:        {{"action": "modify", "element_id": "<id>", "changes": {{...}}, "target_page": <indeks>}}
 SİL:             {{"action": "delete", "element_id": "<id>",                     "target_page": <indeks>}}
 SAYFA EKLE:      {{"action": "add_page"}}
+KELIME AKIŞI:    {{"action": "inject", "anchor_word": "<kelime>", "inject_text": "<eklenecek metin>", "direction": "<yön>", "target_page": <indeks>}}
 AYAR DEĞİŞTİR:   {{"action": "update_settings", "settings": {{
   "pageBackground": "<hex>",        // opsiyonel — sayfa arka plan rengi
   "currentFont": "<font adı>",      // opsiyonel — varsayılan yazı tipi
@@ -5473,7 +5474,25 @@ Kullanıcı şunlardan herhangi birini söylerse → MUTLAKA en az bir {"action"
   veya içerik talep eden herhangi bir istek (makale, özet, liste, tanım, açıklama, vb.)
 Bu isteklerde operations dizisi BOŞ olamaz. Boş bırakmak HATADIR.
 
-━━ YENİ METİN EKLE ("add"):
+━━ KELIME AKIŞ ENJEKSİYONU ("inject") — EN ÖNEMLİ KURAL:
+Kullanıcı belgedeki BELİRLİ BİR KELİMENİN yanına/altına/üstüne metin eklemek istiyorsa MUTLAKA inject kullan.
+Tetikleyiciler: "X kelimesinin soluna", "X'in sağına", "X'in yanına", "X'in üstüne", "X'in altına" vb.
+
+{{"action": "inject", "anchor_word": "güzel", "inject_text": "çok", "direction": "left", "target_page": 0}}
+
+Alanlar:
+- anchor_word: belgede aranacak hedef kelime/ifade (tam veya yaklaşık — frontend fuzzy eşleşme yapar)
+- inject_text: enjekte edilecek metin
+- direction:
+    "left"  → kelimenin SOLUNA ekle, cümle doğal akar (reflow). Örn: "güzel" → "çok güzel"
+    "right" → kelimenin SAĞINA ekle, cümle doğal akar (reflow). Örn: "güzel" → "güzel çok"
+    "above" → kelimenin bulunduğu satırın ÜSTÜNE yeni satır aç, içerik kayar
+    "below" → kelimenin bulunduğu satırın ALTINA yeni satır aç, içerik kayar
+- UYARI: KESİNLİKLE koordinat (x, y) YAZMA. inject'te x/y/width YOK.
+- Kelime bulunamazsa: frontend fuzzy eşleşme ile en yakın kelimeyi bulur. Bulamazsa sona ekler.
+
+━━ YENİ METİN EKLE ("add") — Referans kelime YOK, sadece genel konum:
+- Kullanıcı belirli bir kelimeye referans VERMEDİYSE ve sadece "alta yaz", "üste yaz" diyorsa → add kullan
 - x, y, width ASLA YAZMA — frontend hesaplar
 - placement alanını kullan (varsayılan: "after_last")
 - Kullanıcı konum belirtirse:
@@ -5529,6 +5548,19 @@ Sayfa rengi / font / satır aralığı:
 
 Cetvel / ızgara:
 → {{"action": "update_settings", "settings": {{"rulerVisible": true, "gridVisible": false}}}}
+
+Kelime akışı — soluna ekle ("güzel kelimesinin soluna çok ekle"):
+→ {{"action": "inject", "anchor_word": "güzel", "inject_text": "çok", "direction": "left"}}
+  Sonuç: "bugün kendimi güzel hissediyorum" → "bugün kendimi çok güzel hissediyorum"
+
+Kelime akışı — sağına ekle ("hissediyorum kelimesinin sağına artık ekle"):
+→ {{"action": "inject", "anchor_word": "hissediyorum", "inject_text": "artık", "direction": "right"}}
+
+Kelime akışı — altına yeni satır ("TEK HÜKÜMDAR'ın altına gülücük yaz"):
+→ {{"action": "inject", "anchor_word": "TEK HÜKÜMDAR", "inject_text": "😊", "direction": "below"}}
+
+Kelime akışı — üstüne yeni satır ("Merhaba'nın üstüne Hoş geldiniz yaz"):
+→ {{"action": "inject", "anchor_word": "Merhaba", "inject_text": "Hoş geldiniz", "direction": "above"}}
 """
 
     full_prompt = system_prompt + f"\n\n━━━ KULLANICI İSTEĞİ ━━━\n{req.user_request}"
