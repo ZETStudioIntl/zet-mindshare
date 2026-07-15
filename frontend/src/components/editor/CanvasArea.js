@@ -27,23 +27,13 @@ function normalizeSceneHeading(text) {
 // Sahne başlığı olabilecek anahtar kelimeler (çok dilli)
 const SCENE_KW_RE = /^([iıİI][çÇc]\.?\s*\/\s*d[iıİI][şŞs]\.?|[iıİI][çÇc]|d[iıİI][şŞs]|int\.?\/ext\.?|i\.?\/e\.?|int|ext|interior|exterior|innen|aussen|int[eé]rieur|ext[eé]rieur|mekan|sahne|lokasyon)\b/i;
 
-const isPointInElement = (x, y, el) => {
+const isPointInElement = (x, y, el, zoom = 1) => {
   if (el.type === 'text') {
     const w = el.width || 400;
-    const elH = el.height || (() => {
-      const fs = el.fontSize || 16;
-      const lh = el.lineHeight || 1.5;
-      const contentLines = Math.max(1, (el.content || '').split('\n').length);
-      const htmlLines = el.htmlContent ? (el.htmlContent.match(/<br\s*\/?>/gi) || []).length + 1 : 1;
-      const explicitLines = Math.max(contentLines, htmlLines);
-      const plainText = el.htmlContent?.replace(/<[^>]*>/g, '') || el.content || '';
-      const avgCharsPerLine = Math.max(1, Math.floor(w / (fs * 0.72)));
-      const wrappedLines = Math.ceil((plainText.length || 1) / avgCharsPerLine);
-      const lines = Math.max(explicitLines, wrappedLines);
-      const padH = (el.paddingTop || 0) + (el.paddingBottom || 0) + (el.paragraphSpaceBefore || 0) + (el.paragraphSpaceAfter || 0);
-      return fs * lines * lh + padH;
-    })();
-    return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + elH;
+    const outerDiv = document.querySelector(`[data-testid="canvas-element-${el.id}"]`);
+    if (!outerDiv) return false;
+    const realH = outerDiv.getBoundingClientRect().height / zoom;
+    return x >= el.x && x <= el.x + w && y >= el.y && y <= el.y + realH;
   }
   return x >= el.x && x <= el.x + (el.width || 80) && y >= el.y && y <= el.y + (el.height || 80);
 };
@@ -1334,14 +1324,7 @@ export const CanvasArea = ({
     setVectorMenu(null);
 
     if (activeTool === 'text') {
-      const cl = [...canvasElements].reverse().find(el => {
-        if (el.type !== 'text') return false;
-        const w = el.width || 400;
-        if (x < el.x || x > el.x + w || y < el.y) return false;
-        const inner = document.querySelector(`[data-testid="text-element-${el.id}"]`);
-        const realH = inner ? Math.round(inner.scrollHeight / zoom) : null;
-        return realH !== null ? y <= el.y + realH : isPointInElement(x, y, el);
-      });
+      const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el, zoom));
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
       onSaveHistory(canvasElements); // snapshot before creation — enables Ctrl+Z to remove the element
       const { x: colX, width: colWidth } = colSnap(x);
@@ -1379,13 +1362,13 @@ export const CanvasArea = ({
         return;
       }
       // Then check canvas elements
-      const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
+      const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el, zoom));
       if (cl) { setSelectedElement(cl.id); setSelectedElements([cl.id]); setSelectedVector(null); if (onElementSelect) onElementSelect(cl); }
       else {
         setSelectedElement(null); setSelectedElements([]); setEditingId(null); setSelectedVector(null);
       }
     } else if (activeTool === 'cut') {
-      const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
+      const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el, zoom));
       if (cl?.type === 'image' && !cropTarget) { setCropTarget(cl.id); setSelectedElement(cl.id); setCropRect({ x: cl.x + 10, y: cl.y + 10, w: cl.width - 20, h: cl.height - 20 }); }
       else if (!cropTarget || (cl && cl.id !== cropTarget)) { if (cl) { const u = canvasElements.filter(el => el.id !== cl.id); setCanvasElements(u); onSaveHistory(u); setSelectedElement(null); } setCropTarget(null); setCropRect(null); }
     } else if (activeTool === 'pen') {
@@ -1411,11 +1394,11 @@ export const CanvasArea = ({
         setPenAnchors(newAnchors);
       }
     } else if (activeTool === 'translate') {
-      const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
+      const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el, zoom));
       if (cl) { setSelectedElement(cl.id); if (onElementSelect) onElementSelect(cl); }
     } else if (activeTool === 'select') {
       // Single click to select or create text
-      const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
+      const cl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el, zoom));
       const vIdx = drawPaths.findIndex(path => path.isPen && isPointNearPath(x, y, path, 20));
       if (cl) { setSelectedElement(cl.id); setSelectedElements([cl.id]); if (cl.type === 'text') setEditingId(cl.id); }
       else if (vIdx !== -1) { setSelectedVector(vIdx); setSelectedVectors([vIdx]); }
@@ -1450,7 +1433,7 @@ export const CanvasArea = ({
     // Right-click rectangle selection (button === 2 is right click)
     if (e.button === 2) {
       // Check if right-clicking on a text element - allow native text selection
-      const clickedText = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
+      const clickedText = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el, zoom));
       if (clickedText) {
         // Allow native context menu on text elements for copy/paste
         setSelectedElement(clickedText.id);
@@ -1550,7 +1533,7 @@ export const CanvasArea = ({
     }
     
     if (activeTool === 'hand') {
-      const hitEl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el));
+      const hitEl = [...canvasElements].reverse().find(el => isPointInElement(x, y, el, zoom));
       if (hitEl && editingId !== hitEl.id) {
         setSelectedElement(hitEl.id);
         setSelectedElements([hitEl.id]);
@@ -1573,7 +1556,7 @@ export const CanvasArea = ({
     }
     if (activeTool === 'text') {
       const el = canvasElements.find(el => el.id === selectedElement);
-      if (el && isPointInElement(x, y, el) && editingId !== el.id) { setDragging(el.id); setDragOffset({ x: x - el.x, y: y - el.y }); }
+      if (el && isPointInElement(x, y, el, zoom) && editingId !== el.id) { setDragging(el.id); setDragOffset({ x: x - el.x, y: y - el.y }); }
     }
   }, [activeTool, canvasElements, cropRect, cropTarget, currentPage, drawPaths, editingId, getCoords, selectedElement, selectedElements, selectedVector]);
 
@@ -1776,7 +1759,7 @@ export const CanvasArea = ({
         // Silgi yolu üzerindeki elementleri bounding-box ile tespit et
         const elementsToRemove = canvasElements.filter(el => {
           if (el.locked || el.hidden) return false;
-          return eraserTrail.some(ep => isPointInElement(ep.x, ep.y, el));
+          return eraserTrail.some(ep => isPointInElement(ep.x, ep.y, el, zoom));
         });
         if (elementsToRemove.length > 0) {
           const updatedElements = canvasElements.filter(el => !elementsToRemove.includes(el));
@@ -1870,7 +1853,7 @@ export const CanvasArea = ({
     setIsPanning(false); panStartRef.current = null;
     setDragging(null); activeDragRef.current = null; setResizing(null);
     setSnapIndicator(null);
-  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements]);
+  }, [activeTool, applyCrop, canvasElements, currentColor, currentPath, draggingVector, drawOpacity, drawPaths, drawSize, dragging, eraserDragMode, eraserSize, eraserTrail, isDrawing, isRectSelecting, lassoPath, markingColor, markingOpacity, markingSize, onSaveHistory, rectSelectEnd, rectSelectStart, resizing, setDrawPaths, setSelectedElements, zoom]);
 
   // Delete vector path
   const handleDeleteVector = useCallback((idx) => {
@@ -1977,7 +1960,7 @@ export const CanvasArea = ({
               const rect = e.currentTarget.getBoundingClientRect();
               const cx = (e.clientX - rect.left) / zoom;
               const cy = (e.clientY - rect.top) / zoom;
-              const isOnText = canvasElements.some(el => el.type === 'text' && isPointInElement(cx, cy, el));
+              const isOnText = canvasElements.some(el => el.type === 'text' && isPointInElement(cx, cy, el, zoom));
               if (!isOnText) e.preventDefault();
             }}
             onTouchStart={(e) => {

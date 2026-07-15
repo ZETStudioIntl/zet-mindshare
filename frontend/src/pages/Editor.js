@@ -290,6 +290,14 @@ const Editor = () => {
   const [isItalic, setIsItalic] = useState(false);
   const [isUnderline, setIsUnderline] = useState(false);
   const [isStrikethrough, setIsStrikethrough] = useState(false);
+  const activeFormattingRef = useRef({
+    isBold: false, isItalic: false, isUnderline: false, isStrikethrough: false,
+    currentFont: savedTextDefaults.font || DEFAULT_FONT,
+    currentFontSize: savedTextDefaults.fontSize || DEFAULT_FONT_SIZE,
+    currentColor: savedTextDefaults.color || DEFAULT_COLOR,
+    currentLineHeight: savedTextDefaults.lineHeight || 1.5,
+    currentTextAlign: 'left',
+  });
 
   // Drawing state
   const [drawSize, setDrawSize] = useState(3);
@@ -385,11 +393,11 @@ const Editor = () => {
   const persistTextDefaults = (overrides) => {
     savePreference('zet_editor_text_defaults', JSON.stringify({ ...textDefaultsRef.current, ...overrides }));
   };
-  const setCurrentFontPersisted = (val) => { setCurrentFont(val); persistTextDefaults({ font: val }); };
-  const setCurrentFontSizePersisted = (val) => { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); };
-  const setCurrentColorPersisted = (val) => { setCurrentColor(val); persistTextDefaults({ color: val }); };
+  const setCurrentFontPersisted = (val) => { setCurrentFont(val); persistTextDefaults({ font: val }); activeFormattingRef.current.currentFont = val; };
+  const setCurrentFontSizePersisted = (val) => { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); activeFormattingRef.current.currentFontSize = val; };
+  const setCurrentColorPersisted = (val) => { setCurrentColor(val); persistTextDefaults({ color: val }); activeFormattingRef.current.currentColor = val; };
   const setCustomColorPersisted = (val) => { setCustomColor(val); persistTextDefaults({ customColor: val }); };
-  const setCurrentLineHeightPersisted = (val) => { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); };
+  const setCurrentLineHeightPersisted = (val) => { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); activeFormattingRef.current.currentLineHeight = val; };
   const setFirstLineIndentPersisted = (val) => { setFirstLineIndent(val); persistTextDefaults({ firstLineIndent: val }); };
   const setParagraphSpaceBeforePersisted = (val) => { setParagraphSpaceBefore(val); persistTextDefaults({ paragraphSpaceBefore: val }); };
   const setParagraphSpaceAfterPersisted = (val) => { setParagraphSpaceAfter(val); persistTextDefaults({ paragraphSpaceAfter: val }); };
@@ -2454,6 +2462,7 @@ const Editor = () => {
   const applyTextAlign = (align) => {
     setCurrentTextAlign(align);
     persistTextDefaults({ textAlign: align });
+    activeFormattingRef.current.currentTextAlign = align;
     const target = selectedElement || lastSelectedRef.current;
     if (target) {
       setCanvasElements(prev => {
@@ -4902,6 +4911,8 @@ body{background:#fff}
       });
       setCurrentFontSize(fontSize);
       setIsBold(bold);
+      activeFormattingRef.current.currentFontSize = fontSize;
+      activeFormattingRef.current.isBold = bold;
     }
   };
   // === INLINE STYLE — applies to selection, cursor (next chars), or whole element ===
@@ -5113,6 +5124,7 @@ body{background:#fff}
   // =============================
   // MOBILE LAYOUT
   const providerValue = {
+    activeFormattingRef,
     activeStopId, activeTool, addAiImageToCanvas, addEditedPhotoToCanvas, addSignatureToCanvas, addVoiceTextToDocument,
     aiAspectRatio, aiGenerating, aiImagePro, aiMimeType, aiPreview, aiPrompt, aiReference, aiTargetShape,
     allFonts, applyColor, applyGradient, applyHeaderFooter, applyHeadingStyle, applyInlineStyle, applyListFormat,
@@ -5155,7 +5167,11 @@ body{background:#fff}
     setGridSize, setGridVisible, setHeaderEven, setHeaderFooterMode, setHeaderOdd, setHeaderText,
     setHexInput, setHighlighterColor,
     setIndentBottom, setIndentLeft, setIndentRight, setIndentTop,
-    setIsBold, setIsDrawingOnPhoto, setIsItalic, setIsStrikethrough, setIsUnderline,
+    setIsBold: (v) => { setIsBold(v); activeFormattingRef.current.isBold = v; },
+    setIsDrawingOnPhoto,
+    setIsItalic: (v) => { setIsItalic(v); activeFormattingRef.current.isItalic = v; },
+    setIsStrikethrough: (v) => { setIsStrikethrough(v); activeFormattingRef.current.isStrikethrough = v; },
+    setIsUnderline: (v) => { setIsUnderline(v); activeFormattingRef.current.isUnderline = v; },
     setJudgeMood, setMagnifierBorderColor, setMagnifierGradientEnd, setMagnifierGradientStart,
     screenplayMode, setScreenplayMode, handleScriptElementChange,
     showSceneNavigator, setShowSceneNavigator,

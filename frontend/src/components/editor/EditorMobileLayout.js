@@ -32,6 +32,7 @@ const EditorMobileLayout = () => {
     handleChangeImage, handleEditChart, handleElementSelect, handleImageUpload,
     handleInsertText, handleLinkClick, handleRedo, handleSaveHistory, handleSetTextWrap,
     handleTextFlow, handleToolSelect, handleUndo, handleUpdateSettings, handleZetaTakeNote,
+    activeFormattingRef,
     history, isBold, isItalic, isMobile, isPlaying, isReadOnly, isStrikethrough, isUnderline,
     judgeMood, screenplayMode, handleScriptElementChange,
     magnifierBorderColor, magnifierGradientEnd, magnifierGradientStart,
@@ -96,8 +97,8 @@ const EditorMobileLayout = () => {
           <CanvasArea document={document} currentPage={currentPage} changePage={changePage}
             canvasElements={canvasElements} setCanvasElements={setCanvasElements}
             drawPaths={drawPaths} setDrawPaths={setDrawPaths} pageSize={pageSize} zoom={zoom} setZoom={setZoom}
-            activeTool={activeTool} currentFontSize={currentFontSize} currentFont={currentFont} currentColor={currentColor}
-            currentLineHeight={currentLineHeight} currentTextAlign={currentTextAlign}
+            activeTool={activeTool} currentFontSize={activeFormattingRef.current.currentFontSize} currentFont={activeFormattingRef.current.currentFont} currentColor={activeFormattingRef.current.currentColor}
+            currentLineHeight={activeFormattingRef.current.currentLineHeight} currentTextAlign={activeFormattingRef.current.currentTextAlign}
             drawSize={drawSize} drawOpacity={drawOpacity} eraserSize={eraserSize}
             markingColor={'#FFFF00'} markingOpacity={40} markingSize={20}
             selectedElement={selectedElement} setSelectedElement={setSelectedElement}
@@ -106,7 +107,7 @@ const EditorMobileLayout = () => {
             onElementSelect={handleElementSelect} onDeleteElement={deleteElement}
             onChangeImage={handleChangeImage} onAddImageToShape={handleAddImageToShape}
             onAddAiImageToShape={handleAddAiImageToShape}
-            isBold={isBold} isItalic={isItalic} isUnderline={isUnderline} isStrikethrough={isStrikethrough}
+            isBold={activeFormattingRef.current.isBold} isItalic={activeFormattingRef.current.isItalic} isUnderline={activeFormattingRef.current.isUnderline} isStrikethrough={activeFormattingRef.current.isStrikethrough}
             pageBackground={pageBackground} gradientStart={gradientStart} gradientEnd={gradientEnd} useGradient={useGradient}
             zoomLevel={zoomLevel} zoomRadius={zoomRadius} magnifierPos={magnifierPos} setMagnifierPos={setMagnifierPos}
             magnifierBorderColor={magnifierBorderColor} magnifierGradientStart={magnifierGradientStart}
