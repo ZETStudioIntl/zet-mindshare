@@ -791,6 +791,7 @@ export const CanvasArea = ({
   const [penAnchors, setPenAnchors] = useState([]); // [{x,y,hx,hy}] bezier anchors
   const penAnchorsRef = useRef([]); // stale-closure-safe mirror of penAnchors
   const zoomRef = useRef(zoom);
+  zoomRef.current = zoom;
   const currentColorRef = useRef(currentColor);
   const penDragRef = useRef(null); // tracks drag state for handle creation
   const elementRoRef = useRef(new Map());
@@ -890,10 +891,10 @@ export const CanvasArea = ({
     const ros = elementRoRef.current;
     for (const el of canvasElements) {
       if (el.type !== 'text' || ros.has(el.id)) continue;
-      const node = document.querySelector(`[data-testid="canvas-element-${el.id}"]`);
+      const node = document.querySelector(`[data-testid="text-element-${el.id}"]`);
       if (!node) continue;
       const ro = new ResizeObserver(() => {
-        const h = Math.round(node.offsetHeight / zoomRef.current);
+        const h = Math.round(node.scrollHeight / zoomRef.current);
         if (h <= 0) return;
         setCanvasElements(prev => {
           const t = prev.find(e => e.id === el.id);
@@ -1300,7 +1301,14 @@ export const CanvasArea = ({
     setVectorMenu(null);
 
     if (activeTool === 'text') {
-      const cl = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el));
+      const cl = [...canvasElements].reverse().find(el => {
+        if (el.type !== 'text') return false;
+        const w = el.width || 400;
+        if (x < el.x || x > el.x + w || y < el.y) return false;
+        const inner = document.querySelector(`[data-testid="text-element-${el.id}"]`);
+        const realH = inner ? Math.round(inner.scrollHeight / zoom) : null;
+        return realH !== null ? y <= el.y + realH : isPointInElement(x, y, el);
+      });
       if (cl) { setEditingId(cl.id); setSelectedElement(cl.id); return; }
       onSaveHistory(canvasElements); // snapshot before creation — enables Ctrl+Z to remove the element
       const { x: colX, width: colWidth } = colSnap(x);
