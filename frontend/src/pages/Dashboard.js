@@ -31,7 +31,8 @@ import {
   Search, Settings, Plus, FileText, StickyNote, LogOut, Package,
   Clock, Trash2, Cloud, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
-  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, ExternalLink
+  MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, ExternalLink,
+  Folder, FolderOpen, FolderInput
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -221,6 +222,17 @@ const Dashboard = () => {
   const [zetaMemories, setZetaMemories] = useState([]);
   const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [newMemoryInput, setNewMemoryInput] = useState('');
+  // Doc Files (Dosya) state
+  const [docFiles, setDocFiles] = useState([]);
+  const [activeDocFile, setActiveDocFile] = useState(null); // file object or null
+  const [newFileName, setNewFileName] = useState('');
+  const [showNewFile, setShowNewFile] = useState(false);
+  const [openMenuFileId, setOpenMenuFileId] = useState(null);
+  const [fileMenuPos, setFileMenuPos] = useState({ top: 0, right: 0 });
+  const [renamingFileId, setRenamingFileId] = useState(null);
+  const [renamingFileName, setRenamingFileName] = useState('');
+  const [importMode, setImportMode] = useState(null); // { fileId, selectedDocIds: Set }
+  const [importProgress, setImportProgress] = useState(null); // { current, total } or null
   const [renamingDocId, setRenamingDocId] = useState(null);
   const [renamingDocTitle, setRenamingDocTitle] = useState('');
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
@@ -731,6 +743,12 @@ const Dashboard = () => {
     } catch (error) {
       console.error('Error fetching notebooks:', error);
     }
+    try {
+      const filesRes = await axios.get(`${API}/doc-files`, { withCredentials: true });
+      setDocFiles(filesRes.data);
+    } catch (error) {
+      console.error('Error fetching doc files:', error);
+    }
   };
 
   const loadMoreDocs = async () => {
@@ -745,6 +763,83 @@ const Dashboard = () => {
       console.error('loadMoreDocs error', e);
     } finally {
       docsLoadingMoreRef.current = false;
+    }
+  };
+
+  const createDocFile = async () => {
+    if (!newFileName.trim()) return;
+    try {
+      const res = await axios.post(`${API}/doc-files`, { name: newFileName.trim() }, { withCredentials: true });
+      setDocFiles(prev => [res.data, ...prev]);
+      setNewFileName('');
+      setShowNewFile(false);
+    } catch (error) {
+      showToast('Dosya oluşturulamadı', 'error');
+    }
+  };
+
+  const deleteDocFile = async (fileId) => {
+    try {
+      await axios.delete(`${API}/doc-files/${fileId}`, { withCredentials: true });
+      setDocFiles(prev => prev.filter(f => f.file_id !== fileId));
+      setDocuments(prev => prev.map(d => d.file_id === fileId ? { ...d, file_id: undefined } : d));
+      if (activeDocFile?.file_id === fileId) setActiveDocFile(null);
+    } catch {
+      showToast('Dosya silinemedi', 'error');
+    }
+  };
+
+  const renameDocFile = async (fileId, name) => {
+    if (!name.trim()) return;
+    try {
+      await axios.put(`${API}/doc-files/${fileId}`, { name: name.trim() }, { withCredentials: true });
+      setDocFiles(prev => prev.map(f => f.file_id === fileId ? { ...f, name: name.trim() } : f));
+      if (activeDocFile?.file_id === fileId) setActiveDocFile(prev => ({ ...prev, name: name.trim() }));
+    } catch {
+      showToast('Yeniden adlandırılamadı', 'error');
+    }
+    setRenamingFileId(null);
+    setRenamingFileName('');
+  };
+
+  const executeImport = async () => {
+    if (!importMode || importMode.selectedDocIds.size === 0) return;
+    const { fileId, selectedDocIds } = importMode;
+    const docIdList = Array.from(selectedDocIds);
+    setImportProgress({ current: 0, total: docIdList.length });
+
+    try {
+      // Import one by one for real progress
+      let completed = 0;
+      for (const docId of docIdList) {
+        await axios.post(`${API}/doc-files/${fileId}/import`, { doc_ids: [docId] }, { withCredentials: true });
+        completed++;
+        setImportProgress({ current: completed, total: docIdList.length });
+      }
+      // Update local state: set file_id on each imported doc
+      setDocuments(prev => prev.map(d => selectedDocIds.has(d.doc_id) ? { ...d, file_id: fileId } : d));
+      setDocFiles(prev => prev.map(f => {
+        if (f.file_id !== fileId) return f;
+        const newIds = Array.from(new Set([...(f.document_ids || []), ...docIdList]));
+        return { ...f, document_ids: newIds };
+      }));
+      showToast(`${completed} belge aktarıldı`, 'success');
+    } catch (e) {
+      const msg = e.response?.data?.detail || 'Aktarım başarısız';
+      showToast(msg, 'error');
+    }
+
+    setImportProgress(null);
+    setImportMode(null);
+  };
+
+  const removeDocFromFile = async (docId, fileId) => {
+    try {
+      await axios.post(`${API}/doc-files/${fileId}/remove-doc`, { doc_id: docId }, { withCredentials: true });
+      setDocuments(prev => prev.map(d => d.doc_id === docId ? { ...d, file_id: undefined } : d));
+      setDocFiles(prev => prev.map(f => f.file_id !== fileId ? f : { ...f, document_ids: (f.document_ids || []).filter(id => id !== docId) }));
+    } catch {
+      showToast('Belgeden çıkarılamadı', 'error');
     }
   };
 
@@ -3021,8 +3116,141 @@ MATCHES:[1,3,5]`;
               <Trash2 className="h-3.5 w-3.5" /> Çöp Kutusu
             </button>
           </div>
+
+          {/* ── Dosyalar (Doc Files) ── */}
+          {(docFiles.length > 0 || showNewFile) && !searchQuery && (
+            <div className="mb-5">
+              <div className="flex items-center gap-2 mb-2">
+                <Folder className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--zet-text-muted)' }}>Dosyalar</span>
+                <button onClick={() => setShowNewFile(v => !v)} className="ml-auto p-1 rounded hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }} title="Yeni Dosya">
+                  <Plus className="h-3.5 w-3.5" />
+                </button>
+              </div>
+              {showNewFile && (
+                <div className="flex gap-2 mb-3">
+                  <input
+                    className="zet-input flex-1 text-sm"
+                    placeholder="Dosya adı..."
+                    value={newFileName}
+                    onChange={e => setNewFileName(e.target.value)}
+                    onKeyDown={e => { if (e.key === 'Enter') createDocFile(); if (e.key === 'Escape') { setShowNewFile(false); setNewFileName(''); } }}
+                    autoFocus
+                  />
+                  <button onClick={createDocFile} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>Oluştur</button>
+                  <button onClick={() => { setShowNewFile(false); setNewFileName(''); }} className="p-1.5 rounded-lg hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                </div>
+              )}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {docFiles.map(file => {
+                  const docCount = (file.document_ids || []).length;
+                  const isOpen = activeDocFile?.file_id === file.file_id;
+                  return (
+                    <div key={file.file_id} className="zet-card p-3 cursor-pointer group relative" onClick={() => setActiveDocFile(isOpen ? null : file)}>
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f59e0b44, #f59e0b22)' }}>
+                          {isOpen ? <FolderOpen className="h-5 w-5" style={{ color: '#f59e0b' }} /> : <Folder className="h-5 w-5" style={{ color: '#f59e0b' }} />}
+                        </div>
+                        <button
+                          onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setFileMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuFileId(openMenuFileId === file.file_id ? null : file.file_id); }}
+                          className="p-1 rounded hover:bg-white/10 transition-all"
+                          style={{ color: 'var(--zet-text-muted)' }}
+                        >
+                          <MoreVertical className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {renamingFileId === file.file_id ? (
+                        <div className="flex gap-1 mb-1" onClick={e => e.stopPropagation()}>
+                          <input
+                            className="zet-input flex-1 text-sm font-medium"
+                            value={renamingFileName}
+                            onChange={e => setRenamingFileName(e.target.value)}
+                            onKeyDown={e => { if (e.key === 'Enter') renameDocFile(file.file_id, renamingFileName); if (e.key === 'Escape') { setRenamingFileId(null); setRenamingFileName(''); } }}
+                            autoFocus
+                          />
+                          <button onClick={() => renameDocFile(file.file_id, renamingFileName)} className="p-1 rounded hover:bg-white/10"><Check className="h-4 w-4" style={{ color: '#22c55e' }} /></button>
+                          <button onClick={() => { setRenamingFileId(null); setRenamingFileName(''); }} className="p-1 rounded hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                        </div>
+                      ) : (
+                        <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{file.name}</p>
+                      )}
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{docCount} belge</p>
+                    </div>
+                  );
+                })}
+                {docFiles.length === 0 && showNewFile && null}
+              </div>
+              {/* File three-dot menu */}
+              {openMenuFileId && (
+                <div
+                  className="fixed z-50 py-1 rounded-xl min-w-[160px] animate-fadeIn"
+                  style={{ top: fileMenuPos.top, right: fileMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+                  onClick={e => e.stopPropagation()}
+                >
+                  {[
+                    { icon: <FolderInput className="h-4 w-4" />, label: 'Belge Aktar', action: () => { setImportMode({ fileId: openMenuFileId, selectedDocIds: new Set() }); setOpenMenuFileId(null); } },
+                    { icon: <FileEdit className="h-4 w-4" />, label: 'Yeniden Adlandır', action: () => { const f = docFiles.find(f => f.file_id === openMenuFileId); if (f) { setRenamingFileId(f.file_id); setRenamingFileName(f.name); } setOpenMenuFileId(null); } },
+                    { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { const fid = openMenuFileId; setOpenMenuFileId(null); showConfirm('Dosyayı Sil', 'Bu dosyayı silmek istediğinizden emin misiniz? İçindeki belgeler silinmez, sadece dosyadan çıkarılır.', () => deleteDocFile(fid), true); } },
+                  ].map(item => (
+                    <button key={item.label} onClick={item.action} className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5" style={{ color: item.color || 'var(--zet-text)' }}>
+                      {item.icon}{item.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          {!docFiles.length && !showNewFile && !searchQuery && (
+            <button onClick={() => setShowNewFile(true)} className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg mb-4 hover:bg-white/5 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px dashed var(--zet-border)' }}>
+              <Folder className="h-3.5 w-3.5" /> Yeni Dosya Oluştur
+            </button>
+          )}
+
+          {/* Active file contents view */}
+          {activeDocFile && !importMode && (
+            <div className="mb-4">
+              <div className="flex items-center gap-2 mb-3">
+                <button onClick={() => setActiveDocFile(null)} className="p-1 rounded hover:bg-white/10"><ChevronLeft className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                <FolderOpen className="h-4 w-4" style={{ color: '#f59e0b' }} />
+                <span className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{activeDocFile.name}</span>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>({(activeDocFile.document_ids || []).length} belge)</span>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
+                {documents.filter(d => d.file_id === activeDocFile.file_id).map(doc => (
+                  <div key={doc.doc_id} className="zet-card p-4 cursor-pointer group relative" onClick={() => navigate(`/editor/${doc.doc_id}`)}>
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
+                        <FileText className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                      </div>
+                      <button onClick={e => { e.stopPropagation(); showConfirm('Dosyadan Çıkar', `"${doc.title}" belgesini dosyadan çıkarmak istiyor musunuz?`, () => removeDocFromFile(doc.doc_id, activeDocFile.file_id)); }} className="p-1 rounded hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100" style={{ color: 'var(--zet-text-muted)' }} title="Dosyadan çıkar">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <h3 className="font-medium mb-1 truncate text-sm" style={{ color: 'var(--zet-text)' }}>{doc.title}</h3>
+                    <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}>
+                      <Clock className="h-3 w-3" />{formatTime(doc.updated_at || doc.created_at)}
+                    </div>
+                  </div>
+                ))}
+                {documents.filter(d => d.file_id === activeDocFile.file_id).length === 0 && (
+                  <div className="col-span-full text-center py-6 text-sm" style={{ color: 'var(--zet-text-muted)' }}>Bu dosya henüz boş. Belge aktarmak için dosya menüsünü kullanın.</div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Import mode header */}
+          {importMode && (
+            <div className="mb-3 px-3 py-2 rounded-lg flex items-center gap-2 text-sm" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)', color: '#4ca8ad' }}>
+              <FolderInput className="h-4 w-4 flex-shrink-0" />
+              <span>Aktarılacak belgeleri seçin</span>
+              <span className="ml-auto font-semibold">{importMode.selectedDocIds.size} seçili</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
-            {/* New Document Card */}
+            {/* New Document Card — hidden during import */}
+            {!importMode && (
             <button
               onClick={() => !isFreeOffline && setShowNewDoc(true)}
               className={`zet-card p-4 flex flex-col items-center justify-center min-h-[120px] ${isFreeOffline ? 'opacity-40 cursor-not-allowed' : 'hover:bg-white/5'}`}
@@ -3032,22 +3260,40 @@ MATCHES:[1,3,5]`;
               <Plus className="h-8 w-8 mb-2" style={{ color: 'var(--zet-primary-light)' }} />
               <span style={{ color: 'var(--zet-text-muted)' }}>{t('newDocument')}</span>
             </button>
+            )}
 
             {/* Document Cards */}
-            {filteredDocs.map(doc => (
+            {filteredDocs.filter(d => !d.file_id || importMode).map(doc => {
+              const isSelected = importMode?.selectedDocIds.has(doc.doc_id);
+              return (
               <div
                 key={doc.doc_id}
                 className="zet-card p-4 cursor-pointer group relative"
-                style={{ border: doc.pinned ? '1px solid rgba(245,158,11,0.4)' : undefined }}
-                onMouseEnter={() => playSfx('mixkit-interface-device-click-2577.wav')}
-                onClick={() => { if (renamingDocId !== doc.doc_id) navigate(`/editor/${doc.doc_id}`); }}
+                style={{ border: importMode ? (isSelected ? '2px solid #4ca8ad' : '1px solid var(--zet-border)') : (doc.pinned ? '1px solid rgba(245,158,11,0.4)' : undefined) }}
+                onMouseEnter={() => !importMode && playSfx('mixkit-interface-device-click-2577.wav')}
+                onClick={() => {
+                  if (importMode) {
+                    setImportMode(prev => {
+                      const next = new Set(prev.selectedDocIds);
+                      next.has(doc.doc_id) ? next.delete(doc.doc_id) : next.add(doc.doc_id);
+                      return { ...prev, selectedDocIds: next };
+                    });
+                    return;
+                  }
+                  if (renamingDocId !== doc.doc_id) navigate(`/editor/${doc.doc_id}`);
+                }}
                 data-testid={`doc-card-${doc.doc_id}`}
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="w-10 h-10 rounded-lg flex items-center justify-center relative" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
                     <FileText className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
-                    {doc.pinned && <Pin className="h-3 w-3 absolute -top-1 -right-1" style={{ color: '#f59e0b' }} />}
+                    {!importMode && doc.pinned && <Pin className="h-3 w-3 absolute -top-1 -right-1" style={{ color: '#f59e0b' }} />}
                   </div>
+                  {importMode ? (
+                    <div className="w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0" style={{ borderColor: isSelected ? '#4ca8ad' : 'var(--zet-border)', background: isSelected ? '#4ca8ad' : 'transparent' }}>
+                      {isSelected && <Check className="h-3 w-3" style={{ color: '#fff' }} />}
+                    </div>
+                  ) : (
                   <button
                     onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setDocMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuDocId(openMenuDocId === doc.doc_id ? null : doc.doc_id); }}
                     className="p-1 rounded hover:bg-white/10 transition-all"
@@ -3056,6 +3302,7 @@ MATCHES:[1,3,5]`;
                   >
                     <MoreVertical className="h-4 w-4" />
                   </button>
+                  )}
                 </div>
                 {renamingDocId === doc.doc_id ? (
                   <div className="flex gap-1 mb-1" onClick={e => e.stopPropagation()}>
@@ -3093,7 +3340,8 @@ MATCHES:[1,3,5]`;
                   </div>
                 )}
               </div>
-            ))}
+            );
+            })}
 
             {/* Infinite scroll sentinel */}
             {!searchQuery && docsHasMore && (
@@ -3161,6 +3409,31 @@ MATCHES:[1,3,5]`;
               </div>
             )}
           </div>
+
+          {/* Import mode bottom bar */}
+          {importMode && !importProgress && (
+            <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3" style={{ background: 'var(--zet-bg-card)', borderTop: '1px solid var(--zet-border)', boxShadow: '0 -4px 20px rgba(0,0,0,0.3)' }}>
+              <span className="text-sm flex-1" style={{ color: 'var(--zet-text-muted)' }}>{importMode.selectedDocIds.size} belge seçildi</span>
+              <button onClick={() => setImportMode(null)} className="px-4 py-2 rounded-lg text-sm hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>İptal</button>
+              <button onClick={executeImport} disabled={importMode.selectedDocIds.size === 0} className="px-4 py-2 rounded-lg text-sm font-medium transition-all" style={{ background: importMode.selectedDocIds.size > 0 ? 'var(--zet-primary)' : 'var(--zet-border)', color: 'var(--zet-text)', opacity: importMode.selectedDocIds.size === 0 ? 0.5 : 1 }}>Tamamla</button>
+            </div>
+          )}
+
+          {/* Import progress overlay */}
+          {importProgress && (
+            <div className="fixed inset-0 z-50 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
+              <div className="rounded-2xl p-8 flex flex-col items-center gap-5 w-72" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                <FolderInput className="h-10 w-10" style={{ color: '#4ca8ad' }} />
+                <p className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>Belgeler aktarılıyor...</p>
+                <div className="w-full rounded-full overflow-hidden h-3" style={{ background: 'var(--zet-border)' }}>
+                  <div className="h-3 rounded-full transition-all duration-300" style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%`, background: 'linear-gradient(90deg, #4ca8ad, var(--zet-primary-light))' }} />
+                </div>
+                <p className="text-2xl font-bold" style={{ color: '#4ca8ad' }}>{Math.round((importProgress.current / importProgress.total) * 100)}%</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{importProgress.current} / {importProgress.total} belge</p>
+              </div>
+            </div>
+          )}
+
           </div>
         ) : activeNotebook ? (
           /* ── Defter İçi Görünüm ── */

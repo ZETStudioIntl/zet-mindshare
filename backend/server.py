@@ -390,6 +390,15 @@ ZETA_MODEL_MAP = {
     "aziz": ("gemini-2.5-pro", 8192),       # en güçlü
 }
 
+class DocFileCreate(BaseModel):
+    name: str
+
+class DocFileUpdate(BaseModel):
+    name: Optional[str] = None
+
+class DocFileImportRequest(BaseModel):
+    doc_ids: List[str]
+
 class PatchScanRequest(BaseModel):
     doc_content: str
     ignore_list: List[str] = []
@@ -2810,6 +2819,115 @@ async def clear_presence_beacon(doc_id: str, session_id: str):
     await db.doc_presence.delete_one({"doc_id": doc_id, "session_id": session_id})
     return {"ok": True}
 
+# ============ DOC FILES ROUTES ============
+
+@api_router.get("/doc-files", response_model=List[dict])
+async def get_doc_files(user: User = Depends(get_current_user)):
+    files = await db.doc_files.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(200)
+    return files
+
+@api_router.post("/doc-files")
+async def create_doc_file(body: DocFileCreate, user: User = Depends(get_current_user)):
+    file_id = f"df_{uuid.uuid4().hex[:12]}"
+    now = datetime.now(timezone.utc).isoformat()
+    doc_file = {
+        "file_id": file_id,
+        "user_id": user.user_id,
+        "name": body.name.strip(),
+        "document_ids": [],
+        "created_at": now,
+        "updated_at": now,
+    }
+    await db.doc_files.insert_one(doc_file)
+    return {k: v for k, v in doc_file.items() if k != "_id"}
+
+@api_router.put("/doc-files/{file_id}")
+async def update_doc_file(file_id: str, body: DocFileUpdate, user: User = Depends(get_current_user)):
+    update_data = {}
+    if body.name is not None:
+        update_data["name"] = body.name.strip()
+    if not update_data:
+        raise HTTPException(status_code=400, detail="Güncellenecek alan yok")
+    update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
+    result = await db.doc_files.update_one(
+        {"file_id": file_id, "user_id": user.user_id},
+        {"$set": update_data}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+    return {"ok": True}
+
+@api_router.delete("/doc-files/{file_id}")
+async def delete_doc_file(file_id: str, user: User = Depends(get_current_user)):
+    existing = await db.doc_files.find_one({"file_id": file_id, "user_id": user.user_id})
+    if not existing:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+    # Remove file_id from all contained documents
+    await db.documents.update_many(
+        {"user_id": user.user_id, "file_id": file_id},
+        {"$unset": {"file_id": ""}}
+    )
+    await db.doc_files.delete_one({"file_id": file_id, "user_id": user.user_id})
+    return {"ok": True}
+
+@api_router.post("/doc-files/{file_id}/import")
+async def import_docs_to_file(file_id: str, body: DocFileImportRequest, user: User = Depends(get_current_user)):
+    doc_file = await db.doc_files.find_one({"file_id": file_id, "user_id": user.user_id})
+    if not doc_file:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"subscription": 1})
+    sub = normalize_subscription(user_data.get("subscription") if user_data else None)
+    plan = sub.get("plan", "free")
+    limits = PLAN_LIMITS.get(plan, PLAN_LIMITS["free"])
+    docs_per_file = limits.get("docs_per_file", 10)
+
+    current_ids = doc_file.get("document_ids", [])
+    remaining_slots = docs_per_file - len(current_ids)
+
+    if docs_per_file < 9999 and remaining_slots <= 0:
+        plan_label = {"free": "Free: 10", "plus": "Plus: 30"}.get(plan, str(docs_per_file))
+        raise HTTPException(status_code=403, detail=f"Bu dosya için belge limitine ulaştınız ({plan_label}).")
+
+    # Only import up to remaining slots
+    to_import = body.doc_ids
+    if docs_per_file < 9999 and len(to_import) > remaining_slots:
+        to_import = to_import[:remaining_slots]
+
+    imported = []
+    for doc_id in to_import:
+        result = await db.documents.update_one(
+            {"doc_id": doc_id, "user_id": user.user_id, "deleted": {"$ne": True}},
+            {"$set": {"file_id": file_id}}
+        )
+        if result.matched_count > 0:
+            imported.append(doc_id)
+
+    if imported:
+        new_ids = list(dict.fromkeys(current_ids + imported))  # preserve order, deduplicate
+        await db.doc_files.update_one(
+            {"file_id": file_id},
+            {"$set": {"document_ids": new_ids, "updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+
+    blocked = len(body.doc_ids) - len(imported)
+    return {"imported": len(imported), "blocked": blocked, "imported_ids": imported}
+
+@api_router.post("/doc-files/{file_id}/remove-doc")
+async def remove_doc_from_file(file_id: str, body: dict, user: User = Depends(get_current_user)):
+    doc_id = body.get("doc_id")
+    if not doc_id:
+        raise HTTPException(status_code=400, detail="doc_id gerekli")
+    await db.documents.update_one(
+        {"doc_id": doc_id, "user_id": user.user_id},
+        {"$unset": {"file_id": ""}}
+    )
+    await db.doc_files.update_one(
+        {"file_id": file_id, "user_id": user.user_id},
+        {"$pull": {"document_ids": doc_id}}
+    )
+    return {"ok": True}
+
 # ============ NOTEBOOKS ROUTES ============
 
 @api_router.get("/notebooks", response_model=List[dict])
@@ -3618,6 +3736,7 @@ PLAN_LIMITS = {
         'daily_credits': 80,
         'daily_tokens': 100_000,
         'notebooks_max': 1,
+        'docs_per_file': 10,
         'fastselect_limit': 3,
         'prime_drive_gb': 1,
         'chest_daily_chance': 20,
@@ -3642,6 +3761,7 @@ PLAN_LIMITS = {
         'daily_credits': 250,
         'daily_tokens': 480_000,
         'notebooks_max': 10,
+        'docs_per_file': 30,
         'fastselect_limit': 5,
         'prime_drive_gb': 20,
         'chest_daily_chance': 40,
@@ -3666,6 +3786,7 @@ PLAN_LIMITS = {
         'daily_credits': 500,
         'daily_tokens': 1_300_000,
         'notebooks_max': 999,
+        'docs_per_file': 9999,
         'fastselect_limit': 8,
         'prime_drive_gb': 50,
         'chest_daily_chance': 60,
@@ -3690,6 +3811,7 @@ PLAN_LIMITS = {
         'daily_credits': 4000,
         'daily_tokens': 4_800_000,
         'notebooks_max': 999,
+        'docs_per_file': 9999,
         'fastselect_limit': 999,
         'prime_drive_gb': 1024,
         'chest_daily_chance': 100,
