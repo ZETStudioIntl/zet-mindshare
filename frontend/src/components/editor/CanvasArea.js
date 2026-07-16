@@ -326,7 +326,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false, screenplayMode, onScriptElementChange, onScreenplayEnter }) => {
+const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false, screenplayMode, onScriptElementChange, onScreenplayEnter, pendingCaretRef }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const pendingContentRef = useRef(null);
@@ -362,8 +362,26 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
         setRemoveTarget(null);
       }
       ref.current.focus({ preventScroll: true });
-      const r = window.document.createRange(); const s = window.getSelection();
-      r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
+      // Place caret at click/tap position via real DOM measurement (caretRangeFromPoint)
+      const coords = pendingCaretRef?.current;
+      if (pendingCaretRef) pendingCaretRef.current = null;
+      let caretPlaced = false;
+      if (coords?.clientX != null && coords?.clientY != null) {
+        const range = document.caretRangeFromPoint?.(coords.clientX, coords.clientY) ?? (() => {
+          const pos = document.caretPositionFromPoint?.(coords.clientX, coords.clientY);
+          if (!pos) return null;
+          const r2 = document.createRange(); r2.setStart(pos.offsetNode, pos.offset); r2.collapse(true); return r2;
+        })();
+        if (range && ref.current?.contains(range.startContainer)) {
+          const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range);
+          console.log('[TextEdit] caret via caretRangeFromPoint | offset:', range.startOffset);
+          caretPlaced = true;
+        }
+      }
+      if (!caretPlaced) {
+        const r = window.document.createRange(); const s = window.getSelection();
+        r.selectNodeContents(ref.current); r.collapse(false); s.removeAllRanges(); s.addRange(r);
+      }
     } else if (!isEditing && prevEditingRef.current) {
       // Use content captured during render phase (before dangerouslySetInnerHTML overwrote the DOM)
       const captured = pendingContentRef.current;
@@ -425,7 +443,10 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
   const handleClick = useCallback((e) => {
     e.stopPropagation();
     const target = e.target.nodeType === 3 ? e.target.parentElement : e.target;
-    if (!target) { onStartEdit(el.id); return; }
+    if (!target) {
+      if (pendingCaretRef && !pendingCaretRef.current) pendingCaretRef.current = { clientX: e.clientX, clientY: e.clientY };
+      onStartEdit(el.id); return;
+    }
 
     const redactedSpan = target.closest?.('[data-redacted="true"]');
     const highlightSpan = target.closest?.('[data-highlight="true"]');
@@ -434,8 +455,11 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
     if (highlightSpan) { setRemoveTarget('highlight'); return; }
 
     setRemoveTarget(null);
+    // Fallback: mousedown didn't set coords (non-text-tool path) — store click position for caret placement
+    if (pendingCaretRef && !pendingCaretRef.current) pendingCaretRef.current = { clientX: e.clientX, clientY: e.clientY };
+    console.log('[TextEdit] click | el:', el.id, '| client:', e.clientX, e.clientY);
     onStartEdit(el.id);
-  }, [el.id, onStartEdit]);
+  }, [el.id, onStartEdit, pendingCaretRef]);
 
   const handleRemoveFormatting = useCallback(() => {
     let html = el.htmlContent || el.content || '';
@@ -810,7 +834,8 @@ export const CanvasArea = ({
   const [magnifierActive, setMagnifierActive] = useState(false);
   const [magnifierPosition, setMagnifierPosition] = useState({ x: 0, y: 0 });
   const justSelectedRef = useRef(false);
-  
+  const pendingTextCaretRef = useRef(null);
+
   // Right-click rectangle selection state
   const [rectSelectStart, setRectSelectStart] = useState(null);
   const [rectSelectEnd, setRectSelectEnd] = useState(null);
@@ -1446,7 +1471,23 @@ export const CanvasArea = ({
       setRectSelectEnd({ x, y });
       return;
     }
-    
+
+    // Bug 1 + Bug 2 fix: text tool left-click / single-tap on existing text → enter edit mode immediately
+    // (mirrors the right-click path above; browser click event then positions caret at exact point)
+    if (activeTool === 'text') {
+      const hitText = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el, zoom));
+      if (hitText) {
+        const cx = e.clientX ?? e.touches?.[0]?.clientX;
+        const cy = e.clientY ?? e.touches?.[0]?.clientY;
+        console.log('[TextEdit] mousedown → edit', hitText.id, '| client:', cx, cy);
+        pendingTextCaretRef.current = { clientX: cx, clientY: cy };
+        setSelectedElement(hitText.id);
+        setSelectedElements([hitText.id]);
+        setEditingId(hitText.id);
+        return;
+      }
+    }
+
     if (activeTool === 'knife') {
       knifeStartRef.current = { x, y };
       knifeEndRef.current = { x, y };
@@ -2384,7 +2425,7 @@ export const CanvasArea = ({
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
-                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom, elId, keepHtml) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom, keepHtml }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} screenplayMode={screenplayMode} onScriptElementChange={onScriptElementChange} onScreenplayEnter={handleScreenplayEnter} />
+                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom, elId, keepHtml) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom, keepHtml }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} screenplayMode={screenplayMode} onScriptElementChange={onScriptElementChange} onScreenplayEnter={handleScreenplayEnter} pendingCaretRef={pendingTextCaretRef} />
                   </>}
                   {el.type === 'chart' && (() => {
                     return (
