@@ -2039,16 +2039,22 @@ const Editor = () => {
   };
 
   const handlePatchScan = async (docContent) => {
-    if (!docContent?.trim()) return;
+    console.log('[Patch] scan başlatıldı, içerik uzunluğu:', docContent?.length);
+    if (!docContent?.trim()) {
+      console.warn('[Patch] içerik boş, tarama iptal edildi');
+      return;
+    }
     setPatchLoading(true);
     try {
+      console.log('[Patch] API çağrısı yapılıyor...');
       const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-scan`, {
         doc_content: docContent,
         ignore_list: patchIgnoreList,
       }, { withCredentials: true });
+      console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme');
       setPatchCorrections(res.data.corrections || []);
     } catch (e) {
-      console.error('Patch scan hatası:', e);
+      console.error('[Patch] scan hatası:', e);
     }
     setPatchLoading(false);
   };
@@ -5040,10 +5046,20 @@ body{background:#fff}
   };
 
   const applyHeadingStyle = (fontSize, bold) => {
+    console.log('[applyHeadingStyle] fontSize:', fontSize, 'bold:', bold);
     const target = selectedElement || lastSelectedRef.current;
+    console.log('[applyHeadingStyle] target:', target);
     if (target) {
       setCanvasElements(prev => {
-        const updated = prev.map(el => el.id === target ? { ...el, fontSize, bold } : el);
+        const updated = prev.map(el => {
+          if (el.id !== target) return el;
+          // Strip inline font-size and font-weight so element-level CSS takes effect
+          let html = el.htmlContent || '';
+          html = html.replace(/font-size\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
+          html = html.replace(/font-weight\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
+          html = html.replace(/style="\s*;?\s*"/gi, '');
+          return { ...el, fontSize, bold, htmlContent: html };
+        });
         handleSaveHistory(updated);
         return updated;
       });
@@ -5051,6 +5067,8 @@ body{background:#fff}
       setIsBold(bold);
       activeFormattingRef.current.currentFontSize = fontSize;
       activeFormattingRef.current.isBold = bold;
+    } else {
+      console.warn('[applyHeadingStyle] no target element selected');
     }
   };
   // === INLINE STYLE — applies to selection, cursor (next chars), or whole element ===

@@ -989,7 +989,35 @@ export const RightPanel = ({
 
         {/* ── Zeta Patch: belge yazım denetimi ── */}
         {zetaMode === 'patch' && (
-          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto" style={{ background: 'var(--zet-bg)' }}>
+          <div className="flex-1 flex flex-col min-h-0 overflow-y-auto relative" style={{ background: 'var(--zet-bg)' }}>
+            {/* Mode popup for Patch panel */}
+            {showModePanel && (() => {
+              const ZETA_MODES = [
+                { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
+                { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
+                { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#4ca8ad',            desc: 'Canvas elementleri düzenle' },
+              ];
+              return (
+                <div className="absolute top-8 left-2 right-2 rounded-lg shadow-xl overflow-hidden z-50 border"
+                  style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
+                  <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
+                  {ZETA_MODES.map(m => {
+                    const active = zetaMode === m.id;
+                    return (
+                      <button key={m.id}
+                        onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
+                        style={{ borderLeft: `2px solid ${active ? m.color : 'transparent'}`, background: active ? m.color + '12' : 'transparent' }}>
+                        <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
+                        <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
+                        <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             {/* Header */}
             <div className="flex-shrink-0 px-3 py-2 border-b flex items-center gap-2" style={{ borderColor: 'var(--zet-border)' }}>
               <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: '#10b981' }} />
@@ -997,6 +1025,9 @@ export const RightPanel = ({
               {patchCorrections.length > 0 && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>{patchCorrections.length}</span>
               )}
+              <button onClick={() => setShowModePanel(v => !v)} className="zet-btn px-1" title="Mod seç" style={{ color: '#10b981', background: showModePanel ? 'rgba(16,185,129,0.15)' : undefined }}>
+                <Settings className="h-3 w-3" />
+              </button>
             </div>
 
             {/* Tara butonu */}
