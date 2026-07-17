@@ -45,7 +45,7 @@ export const RightPanel = ({
 }) => {
   const { t } = useLanguage();
   const { user } = useAuth();
-  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation, zetaEditSuggestions, setZetaEditSuggestions, patchCorrections, patchLoading, handlePatchScan, handlePatchAccept, handlePatchIgnore, clearPatchCorrections } = useContext(EditorStateContext);
+  const { applyZetaDocEdit, zetaEditLoading, zetaPendingCount, approveZetaOps, rejectZetaOps, zetaEditExplanation, zetaEditSuggestions, setZetaEditSuggestions, patchCorrections, patchLoading, patchScanned, patchError, handlePatchScan, handlePatchAccept, handlePatchIgnore, clearPatchCorrections } = useContext(EditorStateContext);
   const [pagesOpen, setPagesOpen] = useState(true);
 
   // CEO / Admin / console state
@@ -1048,9 +1048,26 @@ export const RightPanel = ({
             {/* Düzeltme listesi */}
             {patchCorrections.length === 0 && !patchLoading ? (
               <div className="flex-1 flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
-                <Wrench className="h-6 w-6 opacity-20" style={{ color: '#10b981' }} />
-                <p className="text-[11px] font-medium" style={{ color: 'var(--zet-text-muted)' }}>Henüz tarama yok</p>
-                <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)', opacity: 0.7 }}>Belgeyi Tara butonuna bas, Zeta yazım hatalarını ve eksik/fazla kelimeleri işaretlesin</p>
+                {patchError ? (
+                  <>
+                    <Wrench className="h-6 w-6 opacity-20" style={{ color: '#ef4444' }} />
+                    <p className="text-[11px] font-medium" style={{ color: '#ef4444' }}>Tarama başarısız</p>
+                    <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)', opacity: 0.8 }}>{patchError}</p>
+                    <button onClick={() => handlePatchScan(documentContent || '')} className="mt-1 text-[9px] px-2 py-1 rounded" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Tekrar Dene</button>
+                  </>
+                ) : patchScanned ? (
+                  <>
+                    <Wrench className="h-6 w-6 opacity-20" style={{ color: '#10b981' }} />
+                    <p className="text-[11px] font-medium" style={{ color: '#10b981' }}>Hata bulunamadı</p>
+                    <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)', opacity: 0.7 }}>Belgede yazım hatası veya eksik/fazla kelime yok</p>
+                  </>
+                ) : (
+                  <>
+                    <Wrench className="h-6 w-6 opacity-20" style={{ color: '#10b981' }} />
+                    <p className="text-[11px] font-medium" style={{ color: 'var(--zet-text-muted)' }}>Henüz tarama yok</p>
+                    <p className="text-[9px]" style={{ color: 'var(--zet-text-muted)', opacity: 0.7 }}>Belgeyi Tara butonuna bas, Zeta yazım hatalarını ve eksik/fazla kelimeleri işaretlesin</p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="flex-1 overflow-y-auto px-2 py-2 space-y-1.5">

@@ -271,6 +271,8 @@ const Editor = () => {
   const [patchCorrections, setPatchCorrections] = useState([]);
   const [patchIgnoreList, setPatchIgnoreList] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_patch_ignore') || '[]'); } catch { return []; } });
   const [patchLoading, setPatchLoading] = useState(false);
+  const [patchScanned, setPatchScanned] = useState(false);
+  const [patchError, setPatchError] = useState(null);
 
   // Text/style state — son kullanılan ayarlar tercihlerden yüklenir, belgeden çıkınca sıfırlanmaz
   const savedTextDefaults = (() => {
@@ -2042,9 +2044,12 @@ const Editor = () => {
     console.log('[Patch] scan başlatıldı, içerik uzunluğu:', docContent?.length);
     if (!docContent?.trim()) {
       console.warn('[Patch] içerik boş, tarama iptal edildi');
+      setPatchError('Belgede taranacak metin bulunamadı. Lütfen önce metin aracıyla içerik ekleyin.');
       return;
     }
     setPatchLoading(true);
+    setPatchError(null);
+    setPatchScanned(false);
     try {
       console.log('[Patch] API çağrısı yapılıyor...');
       const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-scan`, {
@@ -2053,8 +2058,11 @@ const Editor = () => {
       }, { withCredentials: true });
       console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme');
       setPatchCorrections(res.data.corrections || []);
+      setPatchScanned(true);
     } catch (e) {
       console.error('[Patch] scan hatası:', e);
+      const detail = e.response?.data?.detail;
+      setPatchError(detail || 'Tarama başarısız oldu. Lütfen tekrar deneyin.');
     }
     setPatchLoading(false);
   };
@@ -2100,7 +2108,7 @@ const Editor = () => {
     setPatchCorrections(prev => prev.filter(c => c.id !== corrId));
   };
 
-  const clearPatchCorrections = () => setPatchCorrections([]);
+  const clearPatchCorrections = () => { setPatchCorrections([]); setPatchScanned(false); setPatchError(null); };
 
   const handleInsertText = (content) => {
     if (!content) return;
@@ -5367,7 +5375,7 @@ body{background:#fff}
     zetaEditLoading, zetaEditExplanation, zetaPendingCount,
     zetaEditSuggestions, setZetaEditSuggestions,
     applyZetaDocEdit, approveZetaOps, rejectZetaOps,
-    patchCorrections, patchIgnoreList, patchLoading,
+    patchCorrections, patchIgnoreList, patchLoading, patchScanned, patchError,
     handlePatchScan, handlePatchAccept, handlePatchIgnore, clearPatchCorrections,
     addPage, alignElements, audioRef, availableVoices,
     buyingCredits, canvasContainerRef, changePage, changeImageTarget, collab, collabEnabled, setCollabEnabled,
