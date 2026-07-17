@@ -7364,7 +7364,13 @@ _allowed_origins = list(filter(None, [
 async def global_exception_handler(request: Request, exc: Exception):
     import traceback
     logger.error("500 on %s %s: %s\n%s", request.method, request.url.path, exc, traceback.format_exc())
-    return JSONResponse(status_code=500, content={"detail": "Internal server error"})
+    # ServerErrorMiddleware'in response'u CORSMiddleware'i bypass eder; CORS başlığını elle ekle
+    origin = request.headers.get("origin", "")
+    cors_headers = {}
+    if origin in _allowed_origins:
+        cors_headers["Access-Control-Allow-Origin"] = origin
+        cors_headers["Access-Control-Allow-Credentials"] = "true"
+    return JSONResponse(status_code=500, content={"detail": "Internal server error"}, headers=cors_headers)
 
 @app.middleware("http")
 async def hafizz_ip_ban_middleware(request, call_next):
@@ -7387,4 +7393,41 @@ logger = logging.getLogger(__name__)
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
-# Wed Jun 25 redeploy-trigger
+
+# CancelledError ve diğer BaseException'lar CORSMiddleware'i bypass eder.
+# Bu wrapper, TÜM response'lara CORS başlığı ekler — en dış katman olarak.
+class _OuterCORSFix:
+    """ServerErrorMiddleware dahil HER response'a CORS başlığı garantiler."""
+    _ALLOWED = set(_allowed_origins)
+
+    def __init__(self, asgi_app):
+        self._app = asgi_app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+        origin = dict(scope.get("headers", [])).get(b"origin", b"").decode("utf-8", errors="ignore")
+        if not origin or origin not in self._ALLOWED:
+            await self._app(scope, receive, send)
+            return
+
+        async def patched_send(message):
+            if message["type"] == "http.response.start":
+                existing = {k.lower() for k, _ in message.get("headers", [])}
+                if b"access-control-allow-origin" not in existing:
+                    headers = list(message.get("headers", []))
+                    headers.append((b"access-control-allow-origin", origin.encode()))
+                    headers.append((b"access-control-allow-credentials", b"true"))
+                    message = {**message, "headers": headers}
+            await send(message)
+
+        try:
+            await self._app(scope, receive, patched_send)
+        except asyncio.CancelledError:
+            pass  # client disconnected — gönderilebilecek bir şey yok
+        except Exception:
+            pass  # zaten global_exception_handler yakaladı
+
+app = _OuterCORSFix(app)
+
