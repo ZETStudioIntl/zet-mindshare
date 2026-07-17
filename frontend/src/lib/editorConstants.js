@@ -7,7 +7,7 @@ import {
   Grid3X3, LayoutTemplate, Table, QrCode, Droplets, Hash,
   PanelTop, Search, Copy, FlipHorizontal2, Mic, ImagePlus, PenLine,
   IndentIncrease, Maximize, ShieldOff, FileUp, List, ListOrdered, SmilePlus,
-  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator, Link2
+  Shapes, Pilcrow, ZoomIn, Columns3, BookOpen, Calculator, Link2, Network
 } from 'lucide-react';
 
 // RazorIcon — gizli, knife tool altyapısı korunuyor
@@ -378,6 +378,7 @@ export const TOOLS = [
   { id: 'zoom', icon: ZoomIn, nameKey: 'zoomTool', shortcut: 'Z' },
   { id: 'calculator', icon: Calculator, nameKey: 'calculator', shortcut: null },
   { id: 'link', icon: Link2, nameKey: 'link', shortcut: null },
+  { id: 'mindmap', icon: Network, nameKey: 'mindmap', shortcut: null },
 ];
 
 // Default keyboard shortcuts

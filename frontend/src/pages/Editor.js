@@ -48,6 +48,7 @@ import FindReplacePanel from '../components/editor/FindReplacePanel';
 import TemplatesPanel from '../components/editor/TemplatesPanel';
 import ExportPanel from '../components/editor/ExportPanel';
 import ChartPanel from '../components/editor/ChartPanel';
+import MindmapPanel from '../components/editor/MindmapPanel';
 import { EditorStateContext } from '../contexts/EditorStateContext';
 import EditorPanels from '../components/editor/EditorPanels';
 import EditorMobileLayout from '../components/editor/EditorMobileLayout';
@@ -534,6 +535,7 @@ const Editor = () => {
   // New professional tools state
   const [showTable, setShowTable] = useState(false);
   const [showLayers, setShowLayers] = useState(false);
+  const [showMindmap, setShowMindmap] = useState(false);
   const [showRuler, setShowRuler] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
@@ -2110,6 +2112,10 @@ const Editor = () => {
 
   const clearPatchCorrections = () => { setPatchCorrections([]); setPatchScanned(false); setPatchError(null); };
 
+  const handleMindmapSave = useCallback((data) => {
+    setDocument(prev => prev ? { ...prev, mindmap: data } : prev);
+  }, []);
+
   const handleInsertText = (content) => {
     if (!content) return;
     const cleanContent = content.replace(/\*\*(.*?)\*\*/g, '$1').trim();
@@ -2305,7 +2311,7 @@ const Editor = () => {
       'footnote', 'toc', 'table', 'templates', 'findreplace',
       'graphic', 'signature', 'photoedit', 'createimage', 'translate',
       'export', 'link', 'voiceinput', 'layers', 'zoom', 'pagesize',
-      'pagecolor', 'mirror',
+      'pagecolor', 'mirror', 'mindmap',
     ]);
     if (!actionTools.has(toolId)) {
       setActiveTool(toolId);
@@ -2357,6 +2363,7 @@ const Editor = () => {
       emoji: () => setShowEmoji(!showEmoji),
       zoom: () => setShowZoom(true),
       link: () => setShowLink(true),
+      mindmap: () => setShowMindmap(true),
     };
     if (panels[toolId]) panels[toolId]();
   };
@@ -5445,6 +5452,14 @@ body{background:#fff}
           </div>
         </div>
       )}
+      {showMindmap && (
+        <MindmapPanel
+          docId={docId}
+          initialData={document?.mindmap || null}
+          onClose={() => setShowMindmap(false)}
+          onSave={handleMindmapSave}
+        />
+      )}
       </EditorStateContext.Provider>
     );
   }
@@ -5457,6 +5472,14 @@ body{background:#fff}
     {hiddenPasteInput}
     <EditorDesktopLayout />
     <QuestNotification quest={questNotification} onClose={() => setQuestNotification(null)} />
+    {showMindmap && (
+      <MindmapPanel
+        docId={docId}
+        initialData={document?.mindmap || null}
+        onClose={() => setShowMindmap(false)}
+        onSave={handleMindmapSave}
+      />
+    )}
     {exportCountdown && (
       <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', borderRadius: 16, padding: '32px 36px', width: 320, textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
