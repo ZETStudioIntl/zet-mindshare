@@ -237,6 +237,21 @@ function MindmapPanelInner({ docId, initialData, onSave }) {
   const { screenToFlowPosition, fitView } = useReactFlow();
   const saveTimerRef = useRef(null);
   const readyRef = useRef(false);
+  const nodesRef = useRef([]);
+  const edgesRef = useRef([]);
+  nodesRef.current = nodes;
+  edgesRef.current = edges;
+
+  const doSave = useCallback(async () => {
+    if (!readyRef.current || !docId) return;
+    const data = { nodes: nodesRef.current, edges: edgesRef.current };
+    try {
+      await axios.put(`${API}/documents/${docId}`, { mindmap: data }, { withCredentials: true });
+      onSave?.(data);
+    } catch (e) {
+      console.error('[Mindmap] kaydetme hatası:', e);
+    }
+  }, [docId, onSave]);
 
   // Initialize from saved data
   useEffect(() => {
@@ -245,24 +260,23 @@ function MindmapPanelInner({ docId, initialData, onSave }) {
       setEdges(initialData.edges || []);
       setTimeout(() => fitView({ padding: 0.18, duration: 400 }), 80);
     }
-    // Mark ready after initial state settles
-    setTimeout(() => { readyRef.current = true; }, 200);
+    setTimeout(() => { readyRef.current = true; }, 250);
   }, []); // eslint-disable-line
 
-  // Debounced auto-save
+  // Debounced auto-save on change
   useEffect(() => {
     if (!readyRef.current) return;
     clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      const data = { nodes, edges };
-      try {
-        await axios.put(`${API}/documents/${docId}`, { mindmap: data }, { withCredentials: true });
-        onSave?.(data);
-      } catch (e) {
-        console.error('[Mindmap] save error:', e);
-      }
-    }, 1500);
-  }, [nodes, edges, docId, onSave]);
+    saveTimerRef.current = setTimeout(doSave, 1500);
+  }, [nodes, edges, doSave]);
+
+  // Flush save on unmount (panel kapanınca beklemeden kaydet)
+  useEffect(() => {
+    return () => {
+      clearTimeout(saveTimerRef.current);
+      doSave();
+    };
+  }, [doSave]);
 
   const onConnect = useCallback((params) => {
     setEdges(eds => addEdge({ ...params, type: 'mindmapEdge' }, eds));
