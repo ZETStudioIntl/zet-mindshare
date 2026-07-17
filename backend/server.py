@@ -1207,11 +1207,11 @@ def _xp_to_rank(xp: int) -> str:
 
 # Saat bazlı rank — sezon dağıtımında kullanılır
 _SEASON_RANK_HOURS = [
-    (200, "endless"),
-    (90,  "emerald"),
-    (60,  "diamond"),
-    (25,  "gold"),
-    (10,  "silver"),
+    (500, "endless"),
+    (230, "emerald"),
+    (130, "diamond"),
+    (75,  "gold"),
+    (40,  "silver"),
     (0,   "iron"),
 ]
 
@@ -2313,10 +2313,6 @@ async def zet_id_login(req: ZetIdLoginRequest, request: Request, response: Respo
             rt_exp = rt_exp.replace(tzinfo=timezone.utc)
         if rt_exp < datetime.now(timezone.utc):
             raise HTTPException(status_code=401, detail="ZET ID oturumunun süresi dolmuş — yeniden giriş gerekli")
-
-    if session_record["device_hash"] != device_hash:
-        # Şüpheli giriş — farklı cihaz: yeniden kimlik doğrulama gerekiyor
-        raise HTTPException(status_code=409, detail="suspicious_login")
 
     user_doc = await db.users.find_one({"user_id": session_record["user_id"]}, {"_id": 0})
     if not user_doc:
