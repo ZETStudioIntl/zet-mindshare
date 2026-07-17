@@ -266,12 +266,12 @@ const Dashboard = () => {
 
   // Rank system
   const RANKS = [
-    { name: 'Demir',   xp: 0,   color: '#9ca3af', level: 1, next: 10  },
-    { name: 'Gümüş',  xp: 10,  color: '#cdd2d6', level: 2, next: 25  },
-    { name: 'Altın',  xp: 25,  color: '#ecca66', level: 3, next: 60  },
-    { name: 'Elmas',  xp: 60,  color: '#250b62', level: 4, next: 90  },
-    { name: 'Zümrüt', xp: 90,  color: '#065a10', level: 5, next: 200 },
-    { name: 'Endless', xp: 200, color: '#ef4444', level: 6, next: null },
+    { name: 'Demir',   xp: 0,   color: '#9ca3af', level: 1, next: 40  },
+    { name: 'Gümüş',  xp: 40,  color: '#cdd2d6', level: 2, next: 75  },
+    { name: 'Altın',  xp: 75,  color: '#ecca66', level: 3, next: 130 },
+    { name: 'Elmas',  xp: 130, color: '#250b62', level: 4, next: 230 },
+    { name: 'Zümrüt', xp: 230, color: '#065a10', level: 5, next: 500 },
+    { name: 'Endless', xp: 500, color: '#ef4444', level: 6, next: null },
   ];
   const getCurrentRank = (hours) => {
     let rank = RANKS[0];
@@ -1860,7 +1860,6 @@ MATCHES:[1,3,5]`;
                 { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: 'Envanter',         color: '#60a5fa' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
-                { id: 'identity',     icon: <UserCheck className="h-4 w-4" />,  label: 'Kimlik Doğrulama', color: '#22c55e' },
                 ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: 'Kullanıcılar', color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
               ].map(item => (
                 <button
@@ -2258,11 +2257,11 @@ MATCHES:[1,3,5]`;
 
               {settingsTab === 'ranks' && (() => {
                 const RANK_REQUIREMENTS = {
-                  'Gümüş':  { hours: 10  },
-                  'Altın':  { hours: 25  },
-                  'Elmas':  { hours: 60  },
-                  'Zümrüt': { hours: 90  },
-                  'Endless':{ hours: 200 },
+                  'Gümüş':  { hours: 40  },
+                  'Altın':  { hours: 75  },
+                  'Elmas':  { hours: 130 },
+                  'Zümrüt': { hours: 230 },
+                  'Endless':{ hours: 500 },
                 };
                 const RANK_REWARDS = {
                   'Demir':   { credits: 30,   sp: 50   },
