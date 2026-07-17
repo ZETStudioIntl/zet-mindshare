@@ -1472,15 +1472,28 @@ export const CanvasArea = ({
       return;
     }
 
-    // Bug 1 + Bug 2 fix: text tool left-click / single-tap on existing text → enter edit mode immediately
-    // (mirrors the right-click path above; browser click event then positions caret at exact point)
+    // Text tool: left-click/tap on existing text → enter edit mode
+    // Primary: screen-space hit test via getBoundingClientRect (eliminates coord-conversion bugs on mobile)
+    // Fallback: canvas-space isPointInElement (for mouse events)
     if (activeTool === 'text') {
-      const hitText = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el, zoom));
+      const rawX = e.clientX ?? e.touches?.[0]?.clientX;
+      const rawY = e.clientY ?? e.touches?.[0]?.clientY;
+      let hitText = null;
+      if (rawX != null && rawY != null) {
+        hitText = [...canvasElements].reverse().find(el => {
+          if (el.type !== 'text') return false;
+          const domEl = document.querySelector(`[data-testid="canvas-element-${el.id}"]`);
+          if (!domEl) return false;
+          const r = domEl.getBoundingClientRect();
+          return rawX >= r.left && rawX <= r.right && rawY >= r.top && rawY <= r.bottom;
+        });
+      }
+      if (!hitText) {
+        hitText = [...canvasElements].reverse().find(el => el.type === 'text' && isPointInElement(x, y, el, zoom));
+      }
       if (hitText) {
-        const cx = e.clientX ?? e.touches?.[0]?.clientX;
-        const cy = e.clientY ?? e.touches?.[0]?.clientY;
-        console.log('[TextEdit] mousedown → edit', hitText.id, '| client:', cx, cy);
-        pendingTextCaretRef.current = { clientX: cx, clientY: cy };
+        console.log('[TextEdit] mousedown → edit', hitText.id, '| client:', rawX, rawY, '| isMobile:', !!e.touches?.length);
+        pendingTextCaretRef.current = { clientX: rawX, clientY: rawY };
         setSelectedElement(hitText.id);
         setSelectedElements([hitText.id]);
         setEditingId(hitText.id);
@@ -2022,6 +2035,25 @@ export const CanvasArea = ({
               lastTapPosRef.current = { x: touch.clientX, y: touch.clientY };
               if (['draw', 'pen', 'eraser'].includes(activeTool)) { e.stopPropagation(); handleMouseDown(e, idx); return; }
               if (activeTool === 'hand') { e.stopPropagation(); handleMouseDown(e, idx); return; }
+              // Mobile debug: log coordinates for text tool taps
+              if (activeTool === 'text') {
+                const t2 = e.touches[0];
+                const pEl = e.currentTarget;
+                const pR = pEl ? pEl.getBoundingClientRect() : null;
+                console.log('[TOUCH-DBG] raw:', t2?.clientX?.toFixed(0), t2?.clientY?.toFixed(0), '| zoom:', zoom, '| currentTarget:', pEl ? 'OK' : 'NULL');
+                console.log('[TOUCH-DBG] pageRect:', pR ? `(${pR.left.toFixed(0)},${pR.top.toFixed(0)})→(${pR.right.toFixed(0)},${pR.bottom.toFixed(0)})` : 'null');
+                if (t2 && pR) console.log('[TOUCH-DBG] canvasCoords:', ((t2.clientX - pR.left) / zoom).toFixed(1), ((t2.clientY - pR.top) / zoom).toFixed(1));
+                canvasElements.filter(el => el.type === 'text').forEach(el => {
+                  const d = document.querySelector(`[data-testid="canvas-element-${el.id}"]`);
+                  if (d) {
+                    const r = d.getBoundingClientRect();
+                    const hit = t2.clientX >= r.left && t2.clientX <= r.right && t2.clientY >= r.top && t2.clientY <= r.bottom;
+                    console.log(`[TOUCH-DBG] el ${el.id.slice(-6)}: (${r.left.toFixed(0)},${r.top.toFixed(0)})→(${r.right.toFixed(0)},${r.bottom.toFixed(0)}) screenHIT=${hit}`);
+                  } else {
+                    console.log(`[TOUCH-DBG] el ${el.id.slice(-6)}: DOM node missing!`);
+                  }
+                });
+              }
               handleMouseDown(e, idx);
             }}
             onTouchMove={(e) => {
@@ -2409,6 +2441,17 @@ export const CanvasArea = ({
                   }}
                   onMouseEnter={() => setHoveredElementId(el.id)}
                   onMouseLeave={() => setHoveredElementId(null)}
+                  onTouchEnd={el.type === 'text' && !isLocked ? (e) => {
+                    if (activeTool !== 'text') return;
+                    const t = e.changedTouches?.[0];
+                    if (!t) return;
+                    // Verify touch ended on this element (screen-space, no coord conversion needed)
+                    const r = e.currentTarget.getBoundingClientRect();
+                    if (t.clientX < r.left || t.clientX > r.right || t.clientY < r.top || t.clientY > r.bottom) return;
+                    console.log('[TextEdit] onTouchEnd → edit', el.id, '| client:', t.clientX, t.clientY);
+                    pendingTextCaretRef.current = { clientX: t.clientX, clientY: t.clientY };
+                    setSelectedElement(el.id); setSelectedElements([el.id]); setEditingId(el.id);
+                  } : undefined}
                   onClick={(e) => {
                     if (isLocked) return;
                     e.stopPropagation();
