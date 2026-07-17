@@ -4769,9 +4769,14 @@ type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — origin
 Hiç hata yoksa sadece [] döndür."""
     try:
         client = google_genai.Client(api_key=api_key)
-        resp = await gemini_generate(
-            client, "gemini-2.5-flash", req.doc_content[:10000],
-            genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1)
+        # 30s timeout: prevents CancelledError from propagating past CORS middleware
+        # when user clicks the button multiple times in quick succession
+        resp = await asyncio.wait_for(
+            gemini_generate(
+                client, "gemini-2.5-flash", req.doc_content[:10000],
+                genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1)
+            ),
+            timeout=30
         )
         raw = resp.text.strip()
         import re as _re
@@ -4786,6 +4791,12 @@ Hiç hata yoksa sadece [] döndür."""
         return {"corrections": corrections, "can_word": can_word}
     except HTTPException:
         raise
+    except asyncio.CancelledError:
+        # Client disconnected / request cancelled — re-raise so FastAPI cleans up properly
+        raise HTTPException(status_code=499, detail="İstek iptal edildi")
+    except asyncio.TimeoutError:
+        logging.warning("patch-scan timeout (30s)")
+        raise HTTPException(status_code=504, detail="Tarama zaman aşımı — lütfen tekrar deneyin")
     except Exception as e:
         logging.error(f"patch-scan error: {e}")
         raise HTTPException(status_code=500, detail=f"Tarama başarısız: {str(e)[:200]}")
