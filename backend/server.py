@@ -128,13 +128,11 @@ def check_rate_limit(user_id: str, action: str, limit: int, window: int):
 # ============ GEMINI RETRY HELPER ============
 
 async def gemini_generate(client, model: str, contents, config, max_retries: int = 3):
-    """generate_content wrapper with retry on 503 (overloaded)."""
-    import time
+    """generate_content async wrapper with retry on 503 (overloaded)."""
     last_exc = None
     for attempt in range(1, max_retries + 1):
         try:
-            return await asyncio.to_thread(
-                client.models.generate_content,
+            return await client.aio.models.generate_content(
                 model=model,
                 contents=contents,
                 config=config,
@@ -147,7 +145,7 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
                     logging.warning(f"Gemini 503, deneme {attempt}/{max_retries} — 3s bekleniyor")
                     await asyncio.sleep(3)
                     continue
-            raise  # non-503 hataları direkt fırlat
+            raise
     raise last_exc
 
 _FAKE_DOMAINS = {'example.com', 'example.org', 'example.net', 'localhost', 'test.com', 'test.org', 'placeholder.com'}
