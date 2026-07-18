@@ -4794,10 +4794,8 @@ Hiç hata yoksa sadece [] döndür."""
     except asyncio.TimeoutError:
         logging.warning("patch-scan timeout (30s)")
         return JSONResponse({"detail": "Tarama zaman aşımı — lütfen tekrar deneyin"}, status_code=504, headers=cors_h)
-    except asyncio.CancelledError:
-        raise
-    except Exception as e:
-        logging.error(f"patch-scan error: {e}")
+    except (asyncio.CancelledError, Exception) as e:
+        logging.error(f"patch-scan error: {type(e).__name__}: {e}")
         return JSONResponse({"detail": f"Tarama başarısız: {str(e)[:200]}"}, status_code=500, headers=cors_h)
 
 

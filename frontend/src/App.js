@@ -117,6 +117,8 @@ const GradientAnimEffect = () => {
       const target = e.target.closest ? e.target.closest(SELECTOR) : null;
       if (!target) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
       if (target === currentTargetRef.current) return;
+      const rect = target.getBoundingClientRect();
+      if (rect.width > 320 || rect.height > 120) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
       currentTargetRef.current = target;
       positionOverlay(target);
       overlay.style.opacity = '1';
