@@ -2128,8 +2128,8 @@ const Editor = () => {
       setPatchCorrections(res.data.corrections || []);
       setPatchScanned(true);
     } catch (e) {
-      console.error('[Patch] scan hatası:', e);
       const detail = e.response?.data?.detail;
+      console.error('[Patch] scan hatası:', e.message, '| detail:', detail);
       setPatchError(detail || 'Tarama başarısız oldu. Lütfen tekrar deneyin.');
     }
     setPatchLoading(false);

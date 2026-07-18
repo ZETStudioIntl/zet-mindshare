@@ -4773,12 +4773,10 @@ type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — origin
 Hiç hata yoksa sadece [] döndür."""
     try:
         client = google_genai.Client(api_key=api_key)
-        resp = await asyncio.wait_for(
-            gemini_generate(
-                client, "gemini-2.5-flash", req.doc_content[:10000],
-                genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1)
-            ),
-            timeout=30
+        resp = await gemini_generate(
+            client, "gemini-2.5-flash", req.doc_content[:10000],
+            genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1),
+            max_retries=1
         )
         raw = resp.text.strip()
         import re as _re
@@ -4791,12 +4789,11 @@ Hiç hata yoksa sadece [] döndür."""
             if not c.get('id'):
                 c['id'] = f"c{i+1}"
         return JSONResponse({"corrections": corrections, "can_word": can_word}, headers=cors_h)
-    except asyncio.TimeoutError:
-        logging.warning("patch-scan timeout (30s)")
-        return JSONResponse({"detail": "Tarama zaman aşımı — lütfen tekrar deneyin"}, status_code=504, headers=cors_h)
     except (asyncio.CancelledError, Exception) as e:
-        logging.error(f"patch-scan error: {type(e).__name__}: {e}")
-        return JSONResponse({"detail": f"Tarama başarısız: {str(e)[:200]}"}, status_code=500, headers=cors_h)
+        err_type = type(e).__name__
+        err_msg = str(e)[:300]
+        logging.error(f"patch-scan error: {err_type}: {err_msg}")
+        return JSONResponse({"detail": f"[{err_type}] {err_msg}"}, status_code=500, headers=cors_h)
 
 
 @api_router.post("/zeta/patch-accept")
