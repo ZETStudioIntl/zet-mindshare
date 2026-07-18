@@ -26,6 +26,7 @@ const APPS = [
     hoverBg: '#0d0f2a',
     route: '/dashboard',
     Icon: MindshareIcon,
+    version: 'v26.07.18',
     features: ['Belge editörü & sayfa sistemi', 'Zeta AI yazma asistanı', 'ZET Media sosyal feed', 'Quest haritası & XP sistemi'],
   },
   {
@@ -38,6 +39,7 @@ const APPS = [
     hoverBg: '#160310',
     route: '/judge',
     Icon: JudgeIcon,
+    version: 'v26.07.18',
     features: ['İş planı analizi', 'Risk & başarı skoru', 'Derin araştırma modu', 'Geçmiş analizler'],
   },
   {
@@ -50,6 +52,7 @@ const APPS = [
     hoverBg: '#050505',
     route: '/media',
     Icon: MediaIcon,
+    version: 'v26.07.18 beta',
     features: ['Akış & Keşfet', 'Gönderi paylaşımı', 'Mesajlaşma (DM)', 'Bildirimler & profil'],
   },
 ];
@@ -139,14 +142,17 @@ const AppSelector = () => {
                 ))}
               </ul>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 14, fontWeight: 600 }}>
-                  {isSelecting ? 'Açılıyor...' : 'Başla'}
-                </span>
-                {isSelecting
-                  ? <RainbowSpinner size={20} thickness={3} />
-                  : <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 18 }}>→</span>
-                }
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 14, fontWeight: 600 }}>
+                    {isSelecting ? 'Açılıyor...' : 'Başla'}
+                  </span>
+                  {isSelecting
+                    ? <RainbowSpinner size={20} thickness={3} />
+                    : <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 18 }}>→</span>
+                  }
+                </div>
+                <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{app.version}</span>
               </div>
             </button>
           );

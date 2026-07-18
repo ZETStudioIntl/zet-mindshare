@@ -58,6 +58,7 @@ const GradientAnimEffect = () => {
         pointer-events: none;
         z-index: 99999;
         overflow: hidden;
+        clip-path: inset(0);
         opacity: 0;
         transition: opacity 0.2s ease;
         mix-blend-mode: screen;
@@ -101,11 +102,13 @@ const GradientAnimEffect = () => {
 
     const positionOverlay = (target) => {
       const rect = target.getBoundingClientRect();
+      const br = getComputedStyle(target).borderRadius;
       overlay.style.left = rect.left + 'px';
       overlay.style.top = rect.top + 'px';
       overlay.style.width = rect.width + 'px';
       overlay.style.height = rect.height + 'px';
-      overlay.style.borderRadius = getComputedStyle(target).borderRadius;
+      overlay.style.borderRadius = br;
+      overlay.style.clipPath = `inset(0 round ${br})`;
     };
 
     const onMouseOver = (e) => {
@@ -118,7 +121,8 @@ const GradientAnimEffect = () => {
       if (!target) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
       if (target === currentTargetRef.current) return;
       const rect = target.getBoundingClientRect();
-      if (rect.width > 320 || rect.height > 120) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
+      // Sadece canvas sayfası gibi çok büyük elementleri atla
+      if (rect.width > 900 || rect.height > 600) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
       currentTargetRef.current = target;
       positionOverlay(target);
       overlay.style.opacity = '1';
@@ -134,7 +138,15 @@ const GradientAnimEffect = () => {
     };
 
     const onScroll = () => {
-      if (currentTargetRef.current) positionOverlay(currentTargetRef.current);
+      if (!currentTargetRef.current) return;
+      const rect = currentTargetRef.current.getBoundingClientRect();
+      // Element viewport dışına çıktıysa overlay'i gizle
+      if (rect.bottom < 0 || rect.top > window.innerHeight || rect.right < 0 || rect.left > window.innerWidth) {
+        overlay.style.opacity = '0';
+        currentTargetRef.current = null;
+        return;
+      }
+      positionOverlay(currentTargetRef.current);
     };
 
     document.addEventListener('mouseover', onMouseOver, { passive: true });
