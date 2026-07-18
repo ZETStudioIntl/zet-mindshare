@@ -29,7 +29,6 @@ const GradientAnimEffect = () => {
   const overlayRef = useRef(null);
   const currentTargetRef = useRef(null);
   const rafRef = useRef(null);
-  const enabledRef = useRef(false);
   const colorsRef = useRef(['#4ca8dd', '#292f91']);
 
   useEffect(() => {
@@ -37,14 +36,6 @@ const GradientAnimEffect = () => {
       ? ['#c8005a', '#4b0c37']
       : ['#4ca8dd', '#292f91'];
   }, [pathname]);
-
-  useEffect(() => {
-    const check = () => { enabledRef.current = localStorage.getItem('zet_gradient_anim') === 'true'; };
-    check();
-    const onStorage = (e) => { if (e.key === 'zet_gradient_anim') check(); };
-    window.addEventListener('storage', onStorage);
-    return () => window.removeEventListener('storage', onStorage);
-  }, []);
 
   useEffect(() => {
     const overlay = document.createElement('div');
@@ -69,7 +60,10 @@ const GradientAnimEffect = () => {
     };
 
     const onMouseOver = (e) => {
-      if (!enabledRef.current) return;
+      if (localStorage.getItem('zet_gradient_anim') !== 'true') {
+        if (currentTargetRef.current) { overlay.style.opacity = '0'; currentTargetRef.current = null; }
+        return;
+      }
       const target = e.target.closest ? e.target.closest(SELECTOR) : null;
       if (!target) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
       currentTargetRef.current = target;
