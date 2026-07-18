@@ -2442,6 +2442,16 @@ export const CanvasArea = ({
                     ...(el.isPending ? { outline: '2px dashed #ef4444', boxShadow: '0 0 10px rgba(239,68,68,0.35)', zIndex: 50 } : {}),
                     ...(el.isPendingDelete ? { outline: '2px dashed #ef4444', opacity: 0.35, pointerEvents: 'none' } : {}),
                   }}
+                  onMouseDown={el.isPending && !el.isPendingDelete ? (e) => {
+                    const pageEl = e.currentTarget.closest('[data-page-idx]');
+                    if (!pageEl) return;
+                    e.stopPropagation();
+                    const { x: cx, y: cy } = getCoords(e, pageEl);
+                    setSelectedElement(el.id);
+                    setSelectedElements([el.id]);
+                    setDragging(el.id);
+                    setDragOffset({ x: cx - el.x, y: cy - el.y });
+                  } : undefined}
                   onMouseEnter={() => setHoveredElementId(el.id)}
                   onMouseLeave={() => setHoveredElementId(null)}
                   onTouchEnd={el.type === 'text' && !isLocked ? (e) => {

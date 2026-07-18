@@ -246,7 +246,7 @@ function MindmapPanelInner({ docId, initialData, onSave }) {
     if (!readyRef.current || !docId) return;
     const data = { nodes: nodesRef.current, edges: edgesRef.current };
     try {
-      await axios.put(`${API}/documents/${docId}`, { mindmap: data }, { withCredentials: true });
+      await axios.put(`${API}/api/documents/${docId}`, { mindmap: data }, { withCredentials: true });
       onSave?.(data);
     } catch (e) {
       console.error('[Mindmap] kaydetme hatası:', e);
