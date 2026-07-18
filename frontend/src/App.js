@@ -28,35 +28,84 @@ const GradientAnimEffect = () => {
   const { pathname } = useLocation();
   const overlayRef = useRef(null);
   const currentTargetRef = useRef(null);
-  const rafRef = useRef(null);
-  const colorsRef = useRef(['#4ca8dd', '#292f91']);
 
+  // Renkleri path'e göre güncelle
   useEffect(() => {
-    colorsRef.current = pathname.startsWith('/judge')
-      ? ['#c8005a', '#4b0c37']
-      : ['#4ca8dd', '#292f91'];
+    const overlay = overlayRef.current;
+    if (!overlay) return;
+    const isJudge = pathname.startsWith('/judge');
+    overlay.style.setProperty('--gc1', isJudge ? '#c8005a' : '#4ca8dd');
+    overlay.style.setProperty('--gc2', isJudge ? '#4b0c37' : '#292f91');
   }, [pathname]);
 
   useEffect(() => {
+    // CSS keyframe'leri ve blob stilleri bir kez enjekte et
+    const styleEl = document.createElement('style');
+    styleEl.id = '__zet-grad-style';
+    styleEl.textContent = `
+      @keyframes zet-b1 {
+        0%,100% { transform: translate(-15%, -20%); }
+        33%      { transform: translate(55%, 30%); }
+        66%      { transform: translate(20%, 65%); }
+      }
+      @keyframes zet-b2 {
+        0%,100% { transform: translate(60%, 60%); }
+        33%      { transform: translate(-10%, 20%); }
+        66%      { transform: translate(40%, -15%); }
+      }
+      #__zet-grad-overlay {
+        position: fixed;
+        pointer-events: none;
+        z-index: 99999;
+        overflow: hidden;
+        opacity: 0;
+        transition: opacity 0.2s ease;
+        mix-blend-mode: screen;
+      }
+      #__zet-grad-overlay .zgb {
+        position: absolute;
+        width: 130%;
+        height: 130%;
+        top: -15%;
+        left: -15%;
+        border-radius: 50%;
+        filter: blur(16px);
+        will-change: transform;
+      }
+      #__zet-grad-overlay .zgb1 {
+        background: var(--gc1, #4ca8dd);
+        animation: zet-b1 3.5s ease-in-out infinite;
+      }
+      #__zet-grad-overlay .zgb2 {
+        background: var(--gc2, #292f91);
+        animation: zet-b2 4.8s ease-in-out infinite;
+        animation-delay: -2s;
+      }
+    `;
+    document.head.appendChild(styleEl);
+
+    const isJudge = window.location.pathname.startsWith('/judge');
     const overlay = document.createElement('div');
-    overlay.id = '__zet-gradient-overlay';
-    overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;opacity:0;transition:opacity 0.15s ease;';
+    overlay.id = '__zet-grad-overlay';
+    overlay.style.setProperty('--gc1', isJudge ? '#c8005a' : '#4ca8dd');
+    overlay.style.setProperty('--gc2', isJudge ? '#4b0c37' : '#292f91');
+
+    const b1 = document.createElement('div'); b1.className = 'zgb zgb1';
+    const b2 = document.createElement('div'); b2.className = 'zgb zgb2';
+    overlay.appendChild(b1);
+    overlay.appendChild(b2);
     document.body.appendChild(overlay);
     overlayRef.current = overlay;
 
     const SELECTOR = 'a,button,[role="button"],.cursor-pointer,input[type="button"],input[type="submit"],input[type="reset"],input[type="checkbox"],input[type="radio"],summary';
 
-    const updateOverlay = (target, mx, my) => {
+    const positionOverlay = (target) => {
       const rect = target.getBoundingClientRect();
-      const gax = ((mx - rect.left) / rect.width * 100).toFixed(1) + '%';
-      const gay = ((my - rect.top) / rect.height * 100).toFixed(1) + '%';
-      const [c1, c2] = colorsRef.current;
       overlay.style.left = rect.left + 'px';
       overlay.style.top = rect.top + 'px';
       overlay.style.width = rect.width + 'px';
       overlay.style.height = rect.height + 'px';
       overlay.style.borderRadius = getComputedStyle(target).borderRadius;
-      overlay.style.background = `radial-gradient(circle at ${gax} ${gay}, ${c1}99, ${c2}55, transparent 70%)`;
     };
 
     const onMouseOver = (e) => {
@@ -67,17 +116,10 @@ const GradientAnimEffect = () => {
       }
       const target = e.target.closest ? e.target.closest(SELECTOR) : null;
       if (!target) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
+      if (target === currentTargetRef.current) return;
       currentTargetRef.current = target;
-      updateOverlay(target, e.clientX, e.clientY);
+      positionOverlay(target);
       overlay.style.opacity = '1';
-    };
-
-    const onMouseMove = (e) => {
-      if (!enabledRef.current || !currentTargetRef.current) return;
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
-      rafRef.current = requestAnimationFrame(() => {
-        if (currentTargetRef.current) updateOverlay(currentTargetRef.current, e.clientX, e.clientY);
-      });
     };
 
     const onMouseOut = (e) => {
@@ -89,16 +131,20 @@ const GradientAnimEffect = () => {
       }
     };
 
+    const onScroll = () => {
+      if (currentTargetRef.current) positionOverlay(currentTargetRef.current);
+    };
+
     document.addEventListener('mouseover', onMouseOver, { passive: true });
-    document.addEventListener('mousemove', onMouseMove, { passive: true });
     document.addEventListener('mouseout', onMouseOut, { passive: true });
+    document.addEventListener('scroll', onScroll, { passive: true, capture: true });
 
     return () => {
       document.removeEventListener('mouseover', onMouseOver);
-      document.removeEventListener('mousemove', onMouseMove);
       document.removeEventListener('mouseout', onMouseOut);
+      document.removeEventListener('scroll', onScroll, { capture: true });
       overlay.remove();
-      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      styleEl.remove();
     };
   }, []);
 
