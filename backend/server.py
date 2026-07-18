@@ -128,11 +128,12 @@ def check_rate_limit(user_id: str, action: str, limit: int, window: int):
 # ============ GEMINI RETRY HELPER ============
 
 async def gemini_generate(client, model: str, contents, config, max_retries: int = 3):
-    """generate_content async wrapper with retry on 503 (overloaded)."""
+    """generate_content wrapper with retry on 503 (overloaded)."""
     last_exc = None
     for attempt in range(1, max_retries + 1):
         try:
-            return await client.aio.models.generate_content(
+            return await asyncio.to_thread(
+                client.models.generate_content,
                 model=model,
                 contents=contents,
                 config=config,
@@ -4748,10 +4749,14 @@ KURALLAR:
 
 
 @api_router.post("/zeta/patch-scan")
-async def zeta_patch_scan(req: PatchScanRequest, user: User = Depends(get_current_user)):
+async def zeta_patch_scan(request: Request, req: PatchScanRequest, user: User = Depends(get_current_user)):
+    origin = request.headers.get("origin", "")
+    cors_h = {"Access-Control-Allow-Origin": origin, "Access-Control-Allow-Credentials": "true"} if origin in _allowed_origins else {}
+
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
-        raise HTTPException(500, "GEMINI_API_KEY eksik")
+        return JSONResponse({"detail": "GEMINI_API_KEY eksik"}, status_code=500, headers=cors_h)
+
     can_word = user.plan != 'free'
     ignore_str = ', '.join(f'"{w}"' for w in req.ignore_list) if req.ignore_list else 'Yok'
     system_prompt = f"""Sen profesyonel bir yazım denetçisisin.
@@ -4768,8 +4773,6 @@ type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — origin
 Hiç hata yoksa sadece [] döndür."""
     try:
         client = google_genai.Client(api_key=api_key)
-        # 30s timeout: prevents CancelledError from propagating past CORS middleware
-        # when user clicks the button multiple times in quick succession
         resp = await asyncio.wait_for(
             gemini_generate(
                 client, "gemini-2.5-flash", req.doc_content[:10000],
@@ -4787,17 +4790,15 @@ Hiç hata yoksa sadece [] döndür."""
         for i, c in enumerate(corrections):
             if not c.get('id'):
                 c['id'] = f"c{i+1}"
-        return {"corrections": corrections, "can_word": can_word}
-    except HTTPException:
-        raise
-    except asyncio.CancelledError:
-        raise  # doğal olarak yayılsın; _OuterCORSFix yakalar
+        return JSONResponse({"corrections": corrections, "can_word": can_word}, headers=cors_h)
     except asyncio.TimeoutError:
         logging.warning("patch-scan timeout (30s)")
-        raise HTTPException(status_code=504, detail="Tarama zaman aşımı — lütfen tekrar deneyin")
+        return JSONResponse({"detail": "Tarama zaman aşımı — lütfen tekrar deneyin"}, status_code=504, headers=cors_h)
+    except asyncio.CancelledError:
+        raise
     except Exception as e:
         logging.error(f"patch-scan error: {e}")
-        raise HTTPException(status_code=500, detail=f"Tarama başarısız: {str(e)[:200]}")
+        return JSONResponse({"detail": f"Tarama başarısız: {str(e)[:200]}"}, status_code=500, headers=cors_h)
 
 
 @api_router.post("/zeta/patch-accept")
