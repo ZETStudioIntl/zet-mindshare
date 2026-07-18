@@ -4793,8 +4793,7 @@ Hiç hata yoksa sadece [] döndür."""
     except HTTPException:
         raise
     except asyncio.CancelledError:
-        # Client disconnected / request cancelled — re-raise so FastAPI cleans up properly
-        raise HTTPException(status_code=499, detail="İstek iptal edildi")
+        raise  # doğal olarak yayılsın; _OuterCORSFix yakalar
     except asyncio.TimeoutError:
         logging.warning("patch-scan timeout (30s)")
         raise HTTPException(status_code=504, detail="Tarama zaman aşımı — lütfen tekrar deneyin")
@@ -7422,12 +7421,35 @@ class _OuterCORSFix:
                     message = {**message, "headers": headers}
             await send(message)
 
+        response_started = False
+
+        async def tracked_send(message):
+            nonlocal response_started
+            if message["type"] == "http.response.start":
+                response_started = True
+            await patched_send(message)
+
         try:
-            await self._app(scope, receive, patched_send)
-        except asyncio.CancelledError:
-            pass  # client disconnected — gönderilebilecek bir şey yok
-        except Exception:
-            pass  # zaten global_exception_handler yakaladı
+            await self._app(scope, receive, tracked_send)
+        except (asyncio.CancelledError, Exception):
+            # Response gönderilmediyse CORS başlıklı 503 gönder;
+            # böylece Chrome "CORS hatası" yerine gerçek hatayı gösterir.
+            if not response_started:
+                body = b'{"detail":"service unavailable"}'
+                try:
+                    await send({
+                        "type": "http.response.start",
+                        "status": 503,
+                        "headers": [
+                            (b"access-control-allow-origin", origin.encode()),
+                            (b"access-control-allow-credentials", b"true"),
+                            (b"content-type", b"application/json"),
+                            (b"content-length", str(len(body)).encode()),
+                        ],
+                    })
+                    await send({"type": "http.response.body", "body": body, "more_body": False})
+                except Exception:
+                    pass
 
 app = _OuterCORSFix(app)
 
