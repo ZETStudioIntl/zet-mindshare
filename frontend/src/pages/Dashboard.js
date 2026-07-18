@@ -1897,6 +1897,11 @@ MATCHES:[1,3,5]`;
                   <Trash2 className="h-4 w-4" /> Hesabı Sil
                 </button>
               </div>
+
+              {/* Versiyon */}
+              <div className="mt-auto pt-4 px-3">
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.07.18</span>
+              </div>
             </div>
 
             {/* Right content - hidden on mobile when sidebar shown */}
