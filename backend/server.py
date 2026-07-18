@@ -3499,8 +3499,13 @@ async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depen
             timeout=15.0,
         )
     if resp.status_code not in (200, 201):
-        raise HTTPException(status_code=502, detail=f"Lemon Squeezy checkout oluşturulamadı: {resp.text[:200]}")
-    checkout_url = resp.json()["data"]["attributes"]["url"]
+        logging.error(f"LS checkout hata {resp.status_code}: {resp.text[:500]}")
+        raise HTTPException(status_code=502, detail=f"LS {resp.status_code}: {resp.text[:400]}")
+    try:
+        checkout_url = resp.json()["data"]["attributes"]["url"]
+    except Exception as e:
+        logging.error(f"LS checkout parse hatası: {e} | body: {resp.text[:300]}")
+        raise HTTPException(status_code=502, detail=f"LS yanıtı parse edilemedi: {resp.text[:200]}")
     return {"checkout_url": checkout_url}
 
 
