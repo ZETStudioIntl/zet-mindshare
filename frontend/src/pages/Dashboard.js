@@ -1987,7 +1987,7 @@ MATCHES:[1,3,5]`;
                         <div className="flex items-center justify-between">
                           <span className="text-sm" style={{ color: 'var(--zet-text)' }}>Hover gradient animasyonu</span>
                           <button
-                            onClick={() => { const v = !gradientAnimEnabled; setGradientAnimEnabled(v); localStorage.setItem('zet_gradient_anim', v); }}
+                            onClick={() => { const v = !gradientAnimEnabled; setGradientAnimEnabled(v); localStorage.setItem('zet_gradient_anim', v); localStorage.setItem('zet_gradient_anim_plan', userSubscription); }}
                             className="relative w-10 h-5 rounded-full transition-colors"
                             style={{ background: gradientAnimEnabled ? 'var(--zet-primary)' : 'rgba(255,255,255,0.15)' }}
                           >

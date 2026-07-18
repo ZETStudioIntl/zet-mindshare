@@ -60,7 +60,8 @@ const GradientAnimEffect = () => {
     };
 
     const onMouseOver = (e) => {
-      if (localStorage.getItem('zet_gradient_anim') !== 'true') {
+      const plan = localStorage.getItem('zet_gradient_anim_plan');
+      if (localStorage.getItem('zet_gradient_anim') !== 'true' || !plan || plan === 'free') {
         if (currentTargetRef.current) { overlay.style.opacity = '0'; currentTargetRef.current = null; }
         return;
       }
