@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import "@/index.css";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppThemeProvider } from "./contexts/AppThemeContext";
@@ -24,6 +24,92 @@ import axios from "axios";
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // Global heartbeat — tüm sayfalarda çalışır, online status için
+const GradientAnimEffect = () => {
+  const { pathname } = useLocation();
+  const overlayRef = useRef(null);
+  const currentTargetRef = useRef(null);
+  const rafRef = useRef(null);
+  const enabledRef = useRef(false);
+  const colorsRef = useRef(['#4ca8dd', '#292f91']);
+
+  useEffect(() => {
+    colorsRef.current = pathname.startsWith('/judge')
+      ? ['#c8005a', '#4b0c37']
+      : ['#4ca8dd', '#292f91'];
+  }, [pathname]);
+
+  useEffect(() => {
+    const check = () => { enabledRef.current = localStorage.getItem('zet_gradient_anim') === 'true'; };
+    check();
+    const onStorage = (e) => { if (e.key === 'zet_gradient_anim') check(); };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
+
+  useEffect(() => {
+    const overlay = document.createElement('div');
+    overlay.id = '__zet-gradient-overlay';
+    overlay.style.cssText = 'position:fixed;pointer-events:none;z-index:99999;opacity:0;transition:opacity 0.15s ease;';
+    document.body.appendChild(overlay);
+    overlayRef.current = overlay;
+
+    const SELECTOR = 'a,button,[role="button"],.cursor-pointer,input[type="button"],input[type="submit"],input[type="reset"],input[type="checkbox"],input[type="radio"],summary';
+
+    const updateOverlay = (target, mx, my) => {
+      const rect = target.getBoundingClientRect();
+      const gax = ((mx - rect.left) / rect.width * 100).toFixed(1) + '%';
+      const gay = ((my - rect.top) / rect.height * 100).toFixed(1) + '%';
+      const [c1, c2] = colorsRef.current;
+      overlay.style.left = rect.left + 'px';
+      overlay.style.top = rect.top + 'px';
+      overlay.style.width = rect.width + 'px';
+      overlay.style.height = rect.height + 'px';
+      overlay.style.borderRadius = getComputedStyle(target).borderRadius;
+      overlay.style.background = `radial-gradient(circle at ${gax} ${gay}, ${c1}99, ${c2}55, transparent 70%)`;
+    };
+
+    const onMouseOver = (e) => {
+      if (!enabledRef.current) return;
+      const target = e.target.closest ? e.target.closest(SELECTOR) : null;
+      if (!target) { overlay.style.opacity = '0'; currentTargetRef.current = null; return; }
+      currentTargetRef.current = target;
+      updateOverlay(target, e.clientX, e.clientY);
+      overlay.style.opacity = '1';
+    };
+
+    const onMouseMove = (e) => {
+      if (!enabledRef.current || !currentTargetRef.current) return;
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        if (currentTargetRef.current) updateOverlay(currentTargetRef.current, e.clientX, e.clientY);
+      });
+    };
+
+    const onMouseOut = (e) => {
+      if (!currentTargetRef.current) return;
+      const related = e.relatedTarget;
+      if (!related || !currentTargetRef.current.contains(related)) {
+        currentTargetRef.current = null;
+        overlay.style.opacity = '0';
+      }
+    };
+
+    document.addEventListener('mouseover', onMouseOver, { passive: true });
+    document.addEventListener('mousemove', onMouseMove, { passive: true });
+    document.addEventListener('mouseout', onMouseOut, { passive: true });
+
+    return () => {
+      document.removeEventListener('mouseover', onMouseOver);
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('mouseout', onMouseOut);
+      overlay.remove();
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
+
+  return null;
+};
+
 const GlobalHeartbeat = () => {
   const { user } = useAuth();
   const lastActivityRef = useRef(Date.now());
@@ -136,6 +222,7 @@ function App() {
         <AppThemeProvider>
           <BrowserRouter>
             <GlobalHeartbeat />
+            <GradientAnimEffect />
             <AppRouter />
           </BrowserRouter>
         </AppThemeProvider>

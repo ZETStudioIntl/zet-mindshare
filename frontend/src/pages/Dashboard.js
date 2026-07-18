@@ -108,6 +108,7 @@ const Dashboard = () => {
   const [questNotification, setQuestNotification] = useState(null);
   const [sfxEnabled, setSfxEnabled] = useState(() => localStorage.getItem('zet_sfx_enabled') !== 'false');
   const [sfxVolume, setSfxVolume] = useState(() => parseFloat(localStorage.getItem('zet_sfx_volume') || '0.35'));
+  const [gradientAnimEnabled, setGradientAnimEnabled] = useState(() => localStorage.getItem('zet_gradient_anim') === 'true');
   const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
   const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
   const isPrivileged = isCEO || isAdminMode;
@@ -1977,6 +1978,25 @@ MATCHES:[1,3,5]`;
                       )}
                     </div>
                   </div>
+
+                  {/* Görsel Efektler */}
+                  {userSubscription !== 'free' && (
+                    <div className="mb-8">
+                      <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Görsel Efektler</p>
+                      <div className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm" style={{ color: 'var(--zet-text)' }}>Hover gradient animasyonu</span>
+                          <button
+                            onClick={() => { const v = !gradientAnimEnabled; setGradientAnimEnabled(v); localStorage.setItem('zet_gradient_anim', v); }}
+                            className="relative w-10 h-5 rounded-full transition-colors"
+                            style={{ background: gradientAnimEnabled ? 'var(--zet-primary)' : 'rgba(255,255,255,0.15)' }}
+                          >
+                            <span className="absolute top-0.5 transition-all w-4 h-4 rounded-full bg-white" style={{ left: gradientAnimEnabled ? '1.25rem' : '0.125rem' }} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Plan */}
                   <div>
