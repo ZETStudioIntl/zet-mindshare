@@ -1497,6 +1497,9 @@ export const CanvasArea = ({
         setSelectedElement(hitText.id);
         setSelectedElements([hitText.id]);
         setEditingId(hitText.id);
+        // Sync focus: iOS needs focus() in gesture handler; PC gets instant cursor
+        const editDiv = document.querySelector(`[data-testid="text-element-${hitText.id}"]`);
+        if (editDiv) { editDiv.setAttribute('contenteditable', 'true'); editDiv.focus({ preventScroll: true }); }
         return;
       }
     }
@@ -2451,6 +2454,9 @@ export const CanvasArea = ({
                     console.log('[TextEdit] onTouchEnd → edit', el.id, '| client:', t.clientX, t.clientY);
                     pendingTextCaretRef.current = { clientX: t.clientX, clientY: t.clientY };
                     setSelectedElement(el.id); setSelectedElements([el.id]); setEditingId(el.id);
+                    // iOS: focus must happen synchronously inside touchend to open keyboard
+                    const editDiv = e.currentTarget.querySelector(`[data-testid="text-element-${el.id}"]`);
+                    if (editDiv) { editDiv.setAttribute('contenteditable', 'true'); editDiv.focus({ preventScroll: true }); }
                   } : undefined}
                   onClick={(e) => {
                     if (isLocked) return;
@@ -2462,7 +2468,7 @@ export const CanvasArea = ({
                     }
                     setSelectedElement(el.id);
                     setSelectedElements([el.id]);
-                    if (activeTool === 'text' && el.type === 'text') setEditingId(el.id);
+                    if (el.type === 'text') setEditingId(el.id);
                     if (onElementSelect) onElementSelect(el);
                   }}>
                   {el.groupId && isSel && (
