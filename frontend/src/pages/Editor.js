@@ -1996,28 +1996,94 @@ const Editor = () => {
     }
   };
 
+  const _estimateTextHeight = (el, pw2) => {
+    const fs = el.fontSize || 16;
+    const lh = Math.max(el.lineHeight || 1.5, 1.2);
+    const plain = el.content || (el.htmlContent || '').replace(/<[^>]*>/g, '');
+    const brCount = (el.htmlContent || '').split('<br').length - 1;
+    const explicitLines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
+    const elW = el.width || (pw2 - (marginLeft || 40) - (marginRight || 40));
+    const avgCpp = Math.max(1, Math.round(elW / (fs * 0.6)));
+    const wrapped = plain ? Math.max(1, Math.ceil(plain.length / avgCpp)) : 1;
+    return Math.round(fs * Math.max(explicitLines, wrapped) * lh) + 14;
+  };
+
   const approveZetaOps = () => {
     setCanvasElements(prev => {
       const pw2 = pageSize.width;
-      const kept = prev
+
+      // Yeni eklenen pending elementler (modify değil, add): _pendingOriginal yoksa yeni ekleme
+      const newlyAdded = prev.filter(el => el.isPending && !el._pendingOriginal && el.type === 'text');
+      const stableEls = prev.filter(el => !el.isPending && !el.isPendingDelete);
+
+      let working = [...prev];
+
+      for (const pEl of newlyAdded) {
+        const pElH = pEl.height || _estimateTextHeight(pEl, pw2);
+        const pElBottom = pEl.y + pElH;
+
+        // En yakın üst text element: altı pEl.y'ye en yakın olan
+        let bestTarget = null;
+        let bestGap = Infinity;
+        for (const el of stableEls) {
+          if (el.type !== 'text') continue;
+          const elBottom = el.y + (el.height || _estimateTextHeight(el, pw2));
+          const gap = pEl.y - elBottom;
+          if (gap > -30 && gap < 200 && gap < bestGap) {
+            bestGap = gap;
+            bestTarget = el;
+          }
+        }
+
+        if (bestTarget) {
+          // İçeriği hedef elemente enjekte et (sonuna ekle)
+          const addContent = pEl.content || '';
+          const addHtml = pEl.htmlContent || addContent;
+          const origH = bestTarget.height || _estimateTextHeight(bestTarget, pw2);
+
+          working = working.map(el => {
+            if (el.id !== bestTarget.id) return el;
+            const base = el.content || '';
+            const baseHtml = el.htmlContent || base;
+            const newContent = base ? base + '\n' + addContent : addContent;
+            const newHtml = baseHtml ? baseHtml + '<br>' + addHtml : addHtml;
+            const newH = _estimateTextHeight({ ...el, content: newContent, htmlContent: newHtml }, pw2);
+            return { ...el, content: newContent, htmlContent: newHtml, height: newH };
+          });
+
+          // Enjeksiyonla büyüyen hedefin altındaki elementleri kaydır
+          const newH = working.find(e => e.id === bestTarget.id)?.height || origH;
+          const shift = newH - origH;
+          if (shift > 0) {
+            const targetBottom = bestTarget.y + origH;
+            working = working.map(el => {
+              if (el.isPending || el.id === bestTarget.id) return el;
+              return el.y >= targetBottom ? { ...el, y: el.y + shift } : el;
+            });
+          }
+
+          // Pending elementi kaldır
+          working = working.filter(el => el.id !== pEl.id);
+        } else {
+          // Hedef bulunamadı — altındaki elementleri kaydır (üst üste binmesin)
+          working = working.map(el => {
+            if (el.isPending || el.id === pEl.id) return el;
+            if (el.y >= pEl.y && el.y < pElBottom) return { ...el, y: pElBottom + 8 };
+            return el;
+          });
+        }
+      }
+
+      const kept = working
         .filter(el => !el.isPendingDelete)
         .map(el => {
           const { isPending, _pendingOriginal, ...rest } = el;
-          // Onaylanan text elementlere height kaydet — sonraki Zeta çağrısında doğru konumlandırma için
           if (rest.type === 'text' && !rest.height) {
-            const fs = rest.fontSize || 16;
-            const lh = Math.max(rest.lineHeight || 1.5, 1.2);
-            const plain = rest.content || (rest.htmlContent || '').replace(/<[^>]*>/g, '');
-            const brCount = (rest.htmlContent || '').split('<br').length - 1;
-            const explicitLines = Math.max(1, brCount > 0 ? brCount + 1 : plain.split('\n').length);
-            const elW = rest.width || (pw2 - (marginLeft || 40) - (marginRight || 40));
-            const avgCpp = Math.max(1, Math.round(elW / (fs * 0.6)));
-            const wrapped = plain ? Math.max(1, Math.ceil(plain.length / avgCpp)) : 1;
-            const lines = Math.max(explicitLines, wrapped);
-            rest.height = Math.round(fs * lines * lh) + 14;
+            rest.height = _estimateTextHeight(rest, pw2);
           }
           return rest;
         });
+
       handleSaveHistory(kept);
       return kept;
     });
