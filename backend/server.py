@@ -564,9 +564,9 @@ LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
 LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
 LS_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "342968")
 LS_VARIANTS: Dict[str, Dict[str, str]] = {
-    "plus":             {"monthly": os.getenv("LS_VARIANT_PLUS_MONTHLY", "1633716"), "yearly": os.getenv("LS_VARIANT_PLUS_YEARLY", "1633755")},
-    "pro":              {"monthly": os.getenv("LS_VARIANT_PRO_MONTHLY", "1633736"),  "yearly": os.getenv("LS_VARIANT_PRO_YEARLY", "1633759")},
-    "creative_station": {"monthly": os.getenv("LS_VARIANT_CS_MONTHLY", "1633753"),  "yearly": os.getenv("LS_VARIANT_CS_YEARLY", "1633854")},
+    "plus":             {"monthly": "1633716", "yearly": "1633755"},
+    "pro":              {"monthly": "1633736", "yearly": "1633759"},
+    "creative_station": {"monthly": "1633753", "yearly": "1633854"},
 }
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
