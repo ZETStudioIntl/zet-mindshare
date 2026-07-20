@@ -6367,11 +6367,10 @@ async def upload_to_icloud(user: User = Depends(get_current_user)):
 
 @api_router.get("/quests/progress")
 async def get_quest_progress(user: User = Depends(get_current_user)):
-    user_data = await users_collection.find_one({"user_id": user.user_id}, {"_id": 0, "completed_quests": 1, "quest_xp": 1, "active_time_seconds": 1})
     return {
-        "completed_quests": user_data.get("completed_quests", []) if user_data else [],
-        "quest_xp": user_data.get("quest_xp", 0) if user_data else 0,
-        "active_time_seconds": user_data.get("active_time_seconds", 0) if user_data else 0,
+        "completed_quests": user.completed_quests or [],
+        "quest_xp": user.quest_xp or 0,
+        "active_time_seconds": user.active_time_seconds or 0,
     }
 
 ISTANBUL_TZ_OFFSET = 3  # UTC+3
@@ -6382,11 +6381,7 @@ async def user_heartbeat(user: User = Depends(get_current_user)):
     now_utc = datetime.now(timezone.utc)
     now_istanbul = now_utc + timedelta(hours=ISTANBUL_TZ_OFFSET)
 
-    user_data = await users_collection.find_one(
-        {"user_id": user.user_id},
-        {"_id": 0, "last_heartbeat": 1}
-    )
-    last_hb = user_data.get("last_heartbeat") if user_data else None
+    last_hb = user.last_heartbeat
 
     # Rate-limit: son heartbeat'ten en az 25 saniye geçmeli
     if last_hb:
