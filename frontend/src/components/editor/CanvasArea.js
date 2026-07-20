@@ -326,7 +326,7 @@ const ShapeRenderer = ({ el }) => {
   return <div style={style} />;
 };
 
-const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false, screenplayMode, onScriptElementChange, onScreenplayEnter, pendingCaretRef }) => {
+const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStartEdit, onCommit, pageHeight, onAutoAddPage, onFlowText, onRemoveRedact, spellCheck, onLinkClick, wrapElements, pageElements, pageDark = false, screenplayMode, onScriptElementChange, onScreenplayEnter, pendingCaretRef, activeTool }) => {
   const ref = useRef(null);
   const prevEditingRef = useRef(false);
   const pendingContentRef = useRef(null);
@@ -524,6 +524,14 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
     <div style={{ position: 'relative' }}>
       <div ref={ref} data-testid={`text-element-${el.id}`} contentEditable={isEditing} suppressContentEditableWarning
         spellCheck={isEditing && spellCheck !== false}
+        onTouchStart={(e) => {
+          if (activeTool === 'text' && !isEditing) {
+            const domEl = e.currentTarget;
+            domEl.setAttribute('contenteditable', 'true');
+            domEl.focus({ preventScroll: true });
+            onStartEdit(el.id);
+          }
+        }}
         onDoubleClick={(e) => { e.stopPropagation(); setRemoveTarget(null); onStartEdit(el.id); }}
         onClick={(e) => {
           // Handle clickable links (footnotes, TOC)
@@ -2484,7 +2492,7 @@ export const CanvasArea = ({
                   {el.groupId && isSel && (
                     <div className="absolute -top-5 left-0 text-[9px] px-1 py-0.5 rounded" style={{ background: 'rgba(59,130,246,0.8)', color: '#fff' }}>G</div>
                   )}
-                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom, elId, keepHtml) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom, keepHtml }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} screenplayMode={screenplayMode} onScriptElementChange={onScriptElementChange} onScreenplayEnter={handleScreenplayEnter} pendingCaretRef={pendingTextCaretRef} />
+                  {el.type === 'text' && <><EditableText el={el} zoom={zoom} pageWidth={page.pageSize?.width || pageSize.width} pageMargins={margins} isEditing={editingId === el.id && idx === currentPage} onStartEdit={id => { if (idx !== currentPage) { pendingEditRef.current = { elementId: id, x: 0, y: 0, pageIdx: idx }; changePage(idx); } else { setEditingId(id); } }} onCommit={handleTextCommit} pageHeight={page.pageSize?.height || pageSize.height} onAutoAddPage={onAddPage} onFlowText={onFlowText ? (overflowHtml, obstacleBottom, elId, keepHtml) => onFlowText({ elementId: el.id, overflowHtml, el, obstacleBottom, keepHtml }) : undefined} onRemoveRedact={handleRemoveRedact} spellCheck={spellCheck} onLinkClick={onLinkClick} wrapElements={canvasElements.filter(e => e.type === 'image' && e.textWrap && e.textWrap !== 'none')} pageElements={(idx === currentPage ? canvasElements : page.elements || []).filter(e => e.id !== el.id && e.type !== 'text')} pageDark={isColorDark(pageBg)} screenplayMode={screenplayMode} onScriptElementChange={onScriptElementChange} onScreenplayEnter={handleScreenplayEnter} pendingCaretRef={pendingTextCaretRef} activeTool={activeTool} />
                   </>}
                   {el.type === 'chart' && (() => {
                     return (
