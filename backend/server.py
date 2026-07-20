@@ -54,6 +54,19 @@ db = client[os.environ['DB_NAME']]
 users_collection = db.users
 docs_collection = db.documents
 
+# In-memory auth cache — DB her sorgu için ~16s aldığından session/user cache kritik
+# min-instances=1 olduğu için cache kalıcıdır
+_session_cache: dict = {}  # token → (session_dict, expires_at_datetime)
+_user_cache: dict    = {}  # user_id → (raw_user_dict, cache_expires_at_datetime)
+_SESSION_TTL = 300         # 5 dakika
+_USER_TTL    = 120         # 2 dakika (credits/subscription gibi değişkenler kısa TTL ister)
+
+def _invalidate_auth_cache(session_token: str = None, user_id: str = None):
+    if session_token:
+        _session_cache.pop(session_token, None)
+    if user_id:
+        _user_cache.pop(user_id, None)
+
 # ============ CLOUDFLARE R2 ============
 import boto3
 from botocore.config import Config as BotoConfig
@@ -757,13 +770,21 @@ async def get_current_user(request: Request) -> User:
     if not session_token:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    try:
-        session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
-    except Exception as e:
-        logging.error(f"DB error in get_current_user (session lookup): {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    if not session:
-        raise HTTPException(status_code=401, detail="Invalid session")
+    _now = datetime.now(timezone.utc)
+
+    # Session cache kontrolü
+    _cached_sess = _session_cache.get(session_token)
+    if _cached_sess and _now < _cached_sess[1]:
+        session = _cached_sess[0]
+    else:
+        try:
+            session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+        except Exception as e:
+            logging.error(f"DB error in get_current_user (session lookup): {e}")
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        if not session:
+            raise HTTPException(status_code=401, detail="Invalid session")
+        _session_cache[session_token] = (session, _now + timedelta(seconds=_SESSION_TTL))
 
     expires_at = session.get("expires_at")
     if not expires_at:
@@ -773,7 +794,7 @@ async def get_current_user(request: Request) -> User:
             expires_at = datetime.fromisoformat(expires_at)
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
-        if expires_at < datetime.now(timezone.utc):
+        if expires_at < _now:
             raise HTTPException(status_code=401, detail="Session expired")
     except HTTPException:
         raise
@@ -781,13 +802,20 @@ async def get_current_user(request: Request) -> User:
         logging.error(f"expires_at parse error: {e!r} value={expires_at!r}")
         raise HTTPException(status_code=401, detail="Invalid session")
 
-    try:
-        raw = await db.users.find_one({"user_id": session["user_id"]})
-    except Exception as e:
-        logging.error(f"DB error in get_current_user (user lookup): {e}")
-        raise HTTPException(status_code=503, detail="Service temporarily unavailable")
-    if not raw:
-        raise HTTPException(status_code=401, detail="User not found")
+    _uid = session["user_id"]
+    # User cache kontrolü
+    _cached_user = _user_cache.get(_uid)
+    if _cached_user and _now < _cached_user[1]:
+        raw = _cached_user[0]
+    else:
+        try:
+            raw = await db.users.find_one({"user_id": _uid})
+        except Exception as e:
+            logging.error(f"DB error in get_current_user (user lookup): {e}")
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable")
+        if not raw:
+            raise HTTPException(status_code=401, detail="User not found")
+        _user_cache[_uid] = (raw, _now + timedelta(seconds=_USER_TTL))
 
     # DB verisini Pydantic'e geçmeden önce tam normalize et
     user = sanitize_user_doc(raw)
@@ -1879,27 +1907,24 @@ async def exchange_token(request: Request, response: Response):
 
 @api_router.get("/auth/me")
 async def get_me(user: User = Depends(get_current_user)):
-    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
-    if not user_data:
-        raise HTTPException(status_code=404, detail="User not found")
     return {
-        "user_id": user_data.get("user_id"),
-        "email": user_data.get("email"),
-        "name": user_data.get("name", ""),
-        "picture": user_data.get("picture"),
-        "username": user_data.get("username"),
-        "display_name": user_data.get("display_name"),
-        "bio": user_data.get("bio", ""),
-        "verified_type": user_data.get("verified_type"),
-        "subscription": user_data.get("subscription", "free"),
-        "subscription_date": user_data.get("subscription_date"),
-        "needs_onboarding": user_data.get("needs_onboarding", False),
-        "credits": user_data.get("mindshare_credits", user_data.get("credits", 0)),
-        "sp_balance": user_data.get("sp_balance", user_data.get("zc_balance", 0)),
-        "rank": user_data.get("mindshare_rank", user_data.get("rank", "iron")),
-        "quest_xp": user_data.get("mindshare_xp", user_data.get("quest_xp", user_data.get("xp", 0))),
-        "followers_count": user_data.get("followers_count", 0),
-        "following_count": user_data.get("following_count", 0),
+        "user_id": user.user_id,
+        "email": user.email,
+        "name": user.name or "",
+        "picture": user.picture,
+        "username": user.username,
+        "display_name": user.display_name,
+        "bio": user.bio or "",
+        "verified_type": user.verified_type,
+        "subscription": user.subscription or "free",
+        "subscription_date": user.subscription_date,
+        "needs_onboarding": user.needs_onboarding or False,
+        "credits": user.mindshare_credits or user.credits or 0,
+        "sp_balance": user.sp_balance or user.zc_balance or 0,
+        "rank": user.mindshare_rank or user.rank or "iron",
+        "quest_xp": user.mindshare_xp or user.quest_xp or user.xp or 0,
+        "followers_count": user.followers_count or 0,
+        "following_count": user.following_count or 0,
     }
 
 class ProfileUpdate(BaseModel):
@@ -1989,6 +2014,7 @@ async def logout(request: Request, response: Response):
     session_token = request.cookies.get("session_token")
     if session_token:
         await db.user_sessions.delete_one({"session_token": session_token})
+        _invalidate_auth_cache(session_token=session_token)
     response.delete_cookie(key="session_token", path="/")
     return {"message": "Logged out"}
 
