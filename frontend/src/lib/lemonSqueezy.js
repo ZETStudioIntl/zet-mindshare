@@ -2,17 +2,17 @@ import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-/**
- * Opens a LemonSqueezy checkout in an overlay.
- * If the lemon.js script hasn't loaded yet, falls back to a new tab
- * so the user never loses their current page.
- */
+const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
 export const openCheckoutOverlay = (url) => {
   if (!url) return;
-  if (window.LemonSqueezy?.Url?.Open) {
+  if (isMobile()) {
+    // On mobile, redirect to LS checkout page directly so Apple Pay / Google Pay
+    // native sheets can appear (iframe blocks the Payment Request API)
+    window.location.href = url;
+  } else if (window.LemonSqueezy?.Url?.Open) {
     window.LemonSqueezy.Url.Open(url);
   } else {
-    // lemon.js not yet loaded — open in new tab instead of navigating away
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 };
