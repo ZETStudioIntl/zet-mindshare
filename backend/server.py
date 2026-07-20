@@ -3456,6 +3456,12 @@ async def create_lemonsqueezy_checkout(data: CheckoutRequest, user: User = Depen
     if not variant_id:
         raise HTTPException(status_code=400, detail=f"Bu plan/dönem için Lemon Squeezy varyant ID tanımlı değil")
 
+    # Variant'ın gerçekten var olup olmadığını doğrula
+    ls_headers = {"Authorization": f"Bearer {ls_api_key}", "Accept": "application/vnd.api+json"}
+    async with httpx.AsyncClient() as _c:
+        _vr = await _c.get(f"https://api.lemonsqueezy.com/v1/variants/{variant_id}", headers=ls_headers, timeout=10.0)
+        logging.info(f"LS variant check: id={variant_id} store={LS_STORE_ID} plan={data.plan} cycle={data.billing_cycle} → {_vr.status_code}: {_vr.text[:300]}")
+
     frontend_url = os.getenv("FRONTEND_URL", "https://zetmindshare.com")
     payload = {
         "data": {
