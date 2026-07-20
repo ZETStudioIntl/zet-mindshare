@@ -562,7 +562,7 @@ SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <info@zetstudiointl
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
 LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
 LS_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET", "")
-LS_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID", "342968")
+LS_STORE_ID = "342968"
 LS_VARIANTS: Dict[str, Dict[str, str]] = {
     "plus":             {"monthly": "1633716", "yearly": "1633755"},
     "pro":              {"monthly": "1633736", "yearly": "1633759"},
