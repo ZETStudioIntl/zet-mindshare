@@ -3706,12 +3706,12 @@ CREDIT_PACKAGES = [
 MAX_CREDIT_BALANCE = 2_000_000
 SUBSCRIBER_DISCOUNT = 0.10  # 10% discount for paid plans
 
-# LemonSqueezy one-time variant IDs for credit packages (fill after creating in LS dashboard)
+# LemonSqueezy one-time variant IDs for credit packages
 LS_CREDIT_VARIANTS: Dict[str, str] = {
-    "pack_50k":  os.getenv("LS_CREDIT_VARIANT_50K",  ""),
-    "pack_230k": os.getenv("LS_CREDIT_VARIANT_230K", ""),
-    "pack_700k": os.getenv("LS_CREDIT_VARIANT_700K", ""),
-    "pack_950k": os.getenv("LS_CREDIT_VARIANT_950K", ""),
+    "pack_50k":  "1931705",
+    "pack_230k": "1931709",
+    "pack_700k": "1931712",
+    "pack_950k": "1931713",
 }
 
 class CreditPurchaseRequest(BaseModel):
