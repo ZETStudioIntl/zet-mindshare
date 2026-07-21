@@ -157,6 +157,7 @@ const Dashboard = () => {
   const showUpgradePrompt = (featureName, requiredPlan) => setUpgradePrompt({ featureName, requiredPlan });
   const [billingCycle, setBillingCycle] = useState('yearly');
   const [currentPlanIndex, setCurrentPlanIndex] = useState(2);
+  const [currentCreditIndex, setCurrentCreditIndex] = useState(0);
   const [userSubscription, setUserSubscription] = useState('free');
   const isFreeOffline = !isOnline && userSubscription === 'free';
   const [subscribing, setSubscribing] = useState(false);
@@ -2573,96 +2574,107 @@ MATCHES:[1,3,5]`;
 
               {settingsTab === 'credits' && (() => {
                 const CREDIT_TIERS = [
-                  { id: 'pack_50k',  color: '#10b981', glow: 'rgba(16,185,129,0.15)',  label: 'Başlangıç' },
-                  { id: 'pack_230k', color: '#3b82f6', glow: 'rgba(59,130,246,0.15)',  label: 'Standart' },
-                  { id: 'pack_700k', color: '#8b5cf6', glow: 'rgba(139,92,246,0.18)', label: 'Popüler',      badge: true },
-                  { id: 'pack_950k', color: '#f59e0b', glow: 'rgba(245,158,11,0.18)', label: 'En Avantajlı', badge: true, featured: true },
+                  { id: 'pack_50k',  color: '#10b981', glow: 'rgba(16,185,129,0.18)', label: 'Başlangıç' },
+                  { id: 'pack_230k', color: '#3b82f6', glow: 'rgba(59,130,246,0.18)', label: 'Standart'  },
+                  { id: 'pack_700k', color: '#8b5cf6', glow: 'rgba(139,92,246,0.2)',  label: 'Popüler'   },
+                  { id: 'pack_950k', color: '#f59e0b', glow: 'rgba(245,158,11,0.2)',  label: 'En Avantajlı' },
                 ];
-                const hasDiscount = creditPackages.length > 0 && creditPackages[0].discounted_price !== creditPackages[0].price;
+                const BAR_WIDTHS = [18, 42, 72, 100];
+                if (creditPackages.length === 0) return <MiniDocLoader />;
+                const pkg = creditPackages[currentCreditIndex] || creditPackages[0];
+                const tier = CREDIT_TIERS[currentCreditIndex] || CREDIT_TIERS[0];
+                const priceDiff = pkg.discounted_price !== pkg.price;
+                const hasDiscount = priceDiff;
+                const fmtCredits = pkg.credits >= 1000000
+                  ? `${(pkg.credits / 1000000).toFixed(0)}M`
+                  : `${(pkg.credits / 1000).toFixed(0)}K`;
                 return (
-                  <div className="max-w-xl">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Zap className="h-5 w-5" style={{ color: '#f59e0b' }} />
-                      <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Kredi Satın Al</h2>
+                  <div style={{ maxWidth: 400 }}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Zap className="h-4 w-4" style={{ color: '#f59e0b' }} />
+                      <h2 className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>Kredi Satın Al</h2>
                     </div>
-                    <p className="text-xs mb-5" style={{ color: 'var(--zet-text-muted)' }}>Krediler AI özellikleri için kullanılır. Satın alma anında hesabınıza eklenir.</p>
+                    <p className="text-xs mb-5" style={{ color: 'var(--zet-text-muted)' }}>Krediler AI özellikleri için kullanılır.</p>
+
+                    {/* Carousel card */}
+                    <div
+                      key={currentCreditIndex}
+                      className="animate-fadeIn rounded-3xl p-8 mb-4 flex flex-col items-center text-center"
+                      style={{
+                        background: `radial-gradient(ellipse at top, ${tier.glow}, transparent 70%), var(--zet-bg-card)`,
+                        border: `1px solid ${tier.color}50`,
+                        boxShadow: `0 0 40px ${tier.glow}`,
+                        minHeight: 260,
+                      }}
+                    >
+                      {/* Tier badge */}
+                      <span className="text-xs font-bold px-3 py-1 rounded-full mb-5"
+                        style={{ background: tier.glow, color: tier.color, border: `1px solid ${tier.color}40` }}>
+                        {tier.label}
+                      </span>
+
+                      {/* Icon */}
+                      <div className="rounded-2xl flex items-center justify-center mb-4"
+                        style={{ width: 64, height: 64, background: tier.glow }}>
+                        <Zap style={{ width: 32, height: 32, color: tier.color }} />
+                      </div>
+
+                      {/* Credits */}
+                      <div className="flex items-baseline gap-1.5 mb-1">
+                        <span className="font-black" style={{ fontSize: 42, lineHeight: 1, color: tier.color }}>{fmtCredits}</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--zet-text-muted)' }}>kredi</span>
+                      </div>
+
+                      {/* Bar */}
+                      <div className="w-full h-1.5 rounded-full overflow-hidden mt-3 mb-6" style={{ background: 'rgba(255,255,255,0.07)' }}>
+                        <div className="h-full rounded-full" style={{ width: `${BAR_WIDTHS[currentCreditIndex]}%`, background: `linear-gradient(90deg, ${tier.color}66, ${tier.color})`, transition: 'width 0.4s ease' }} />
+                      </div>
+
+                      {/* Price */}
+                      <div className="flex items-baseline gap-2 mb-5">
+                        {priceDiff && <span className="text-sm line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price.toFixed(2)}</span>}
+                        <span className="font-black" style={{ fontSize: 32, color: priceDiff ? '#10b981' : 'var(--zet-text)' }}>${pkg.discounted_price.toFixed(2)}</span>
+                      </div>
+
+                      <button
+                        onClick={() => handleBuyCredits(pkg.id)}
+                        disabled={buyingCredits}
+                        className="w-full py-3 rounded-2xl font-bold text-sm transition-all hover:scale-[1.02] disabled:opacity-40"
+                        style={{ background: tier.color, color: '#fff' }}
+                        data-testid={`buy-credit-${pkg.credits}`}
+                      >
+                        {buyingCredits ? '...' : 'Satın Al'}
+                      </button>
+                    </div>
+
+                    {/* Dots */}
+                    <div className="flex justify-center gap-2 mb-3">
+                      {creditPackages.map((_, idx) => {
+                        const t = CREDIT_TIERS[idx] || CREDIT_TIERS[0];
+                        return (
+                          <button
+                            key={idx}
+                            onClick={() => setCurrentCreditIndex(idx)}
+                            className="rounded-full transition-all"
+                            style={{
+                              width: currentCreditIndex === idx ? 24 : 8,
+                              height: 8,
+                              background: currentCreditIndex === idx ? t.color : 'var(--zet-text-muted)',
+                              opacity: currentCreditIndex === idx ? 1 : 0.35,
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
 
                     {hasDiscount && (
-                      <div className="mb-4 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                        <Zap className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#10b981' }} />
-                        <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Abone indirimi aktif — tüm paketlere %10 indirim uygulandı!</span>
+                      <div className="px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 mt-1" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
+                        <Zap className="h-3 w-3" style={{ color: '#10b981' }} />
+                        <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>Abone indirimi aktif — %10 indirim uygulandı</span>
                       </div>
                     )}
-
-                    {creditPackages.length === 0 ? (
-                      <MiniDocLoader />
-                    ) : (
-                      <div className="grid grid-cols-1 gap-3">
-                        {creditPackages.map((pkg, i) => {
-                          const tier = CREDIT_TIERS.find(t => t.id === pkg.id) || CREDIT_TIERS[0];
-                          const priceDiff = pkg.discounted_price !== pkg.price;
-                          const fmtCredits = pkg.credits >= 1000000
-                            ? `${(pkg.credits / 1000000).toFixed(pkg.credits % 1000000 === 0 ? 0 : 1)}M`
-                            : `${(pkg.credits / 1000).toFixed(0)}K`;
-                          const barWidth = [15, 35, 70, 100][i] || 50;
-                          return (
-                            <div
-                              key={pkg.id}
-                              data-testid={`credit-pack-${pkg.credits}`}
-                              className="relative overflow-hidden rounded-2xl transition-all hover:scale-[1.01]"
-                              style={{
-                                background: tier.featured ? `linear-gradient(135deg, rgba(245,158,11,0.08), rgba(251,191,36,0.04))` : 'var(--zet-bg-card)',
-                                border: `1px solid ${tier.featured ? 'rgba(245,158,11,0.35)' : 'var(--zet-border)'}`,
-                                padding: tier.featured ? '18px 20px' : '14px 18px',
-                                boxShadow: tier.featured ? `0 0 24px ${tier.glow}` : 'none',
-                              }}
-                            >
-                              {tier.badge && (
-                                <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full"
-                                  style={{ background: tier.glow, color: tier.color, border: `1px solid ${tier.color}40` }}>
-                                  {tier.label}
-                                </span>
-                              )}
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="flex items-center gap-3 flex-1 min-w-0">
-                                  <div className="rounded-xl flex items-center justify-center flex-shrink-0"
-                                    style={{ width: tier.featured ? 44 : 36, height: tier.featured ? 44 : 36, background: tier.glow }}>
-                                    <Zap style={{ width: tier.featured ? 22 : 17, height: tier.featured ? 22 : 17, color: tier.color }} />
-                                  </div>
-                                  <div className="flex-1 min-w-0">
-                                    <div className="flex items-baseline gap-1.5">
-                                      <span className="font-bold" style={{ fontSize: tier.featured ? 22 : 17, color: tier.color }}>{fmtCredits}</span>
-                                      <span className="text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>kredi</span>
-                                      {!tier.badge && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: tier.glow, color: tier.color }}>{tier.label}</span>}
-                                    </div>
-                                    <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)', width: '100%' }}>
-                                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: `linear-gradient(90deg, ${tier.color}88, ${tier.color})` }} />
-                                    </div>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3 flex-shrink-0">
-                                  <div className="text-right">
-                                    {priceDiff && <p className="text-[10px] line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price.toFixed(2)}</p>}
-                                    <p className="font-bold" style={{ fontSize: tier.featured ? 18 : 15, color: priceDiff ? '#10b981' : 'var(--zet-text)' }}>${pkg.discounted_price.toFixed(2)}</p>
-                                  </div>
-                                  <button
-                                    onClick={() => handleBuyCredits(pkg.id)}
-                                    disabled={buyingCredits}
-                                    className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 disabled:opacity-40"
-                                    style={{ background: tier.color, color: '#fff', minWidth: 72 }}
-                                    data-testid={`buy-credit-${pkg.credits}`}
-                                  >
-                                    {buyingCredits ? '...' : 'Satın Al'}
-                                  </button>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-                    <p className="text-[10px] text-center mt-4" style={{ color: 'var(--zet-text-muted)' }}>
-                      Ödeme LemonSqueezy üzerinden güvenli şekilde işlenir. Abonelik sahiplerine %10 indirim otomatik uygulanır.
+                    <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
+                      Ödeme LemonSqueezy üzerinden güvenli işlenir.
                     </p>
                   </div>
                 );
