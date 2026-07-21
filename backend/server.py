@@ -3806,20 +3806,23 @@ async def create_credit_checkout(req: CreditCheckoutRequest, user: User = Depend
     final_price = round(pkg["price"] * (1 - SUBSCRIBER_DISCOUNT), 2) if has_discount else pkg["price"]
 
     frontend_url = os.getenv("FRONTEND_URL", "https://zetmindshare.com")
+    checkout_data: Dict[str, Any] = {
+        "email": user.email,
+        "name": user.name or "",
+        "custom": {
+            "user_id": user.user_id,
+            "credit_package_id": req.package_id,
+            "credits": str(pkg["credits"]),
+        },
+    }
+    if has_discount:
+        checkout_data["discount_code"] = "MZMZG3NW"
     payload = {
         "data": {
             "type": "checkouts",
             "attributes": {
                 "checkout_options": {"dark": True, "discount": False},
-                "checkout_data": {
-                    "email": user.email,
-                    "name": user.name or "",
-                    "custom": {
-                        "user_id": user.user_id,
-                        "credit_package_id": req.package_id,
-                        "credits": str(pkg["credits"]),
-                    },
-                },
+                "checkout_data": checkout_data,
                 "product_options": {
                     "redirect_url": f"{frontend_url}/payment/success",
                     "receipt_link_url": f"{frontend_url}/payment/success",
