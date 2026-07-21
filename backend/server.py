@@ -3674,23 +3674,52 @@ async def lemonsqueezy_webhook(request: Request):
             </div>"""
             await send_email(ud["email"], "⚠️ ZET Mindshare Ödeme Başarısız", html)
 
+    elif event_name == "order_created":
+        credit_pkg_id = custom.get("credit_package_id")
+        credits_to_add = custom.get("credits")
+        if credit_pkg_id and credits_to_add:
+            credits_to_add = int(credits_to_add)
+            ud = await db.users.find_one({"user_id": user_id}, {"_id": 0, "bonus_credits": 1, "email": 1})
+            current = (ud or {}).get("bonus_credits", 0)
+            new_balance = min(current + credits_to_add, MAX_CREDIT_BALANCE)
+            await db.users.update_one({"user_id": user_id}, {"$set": {"bonus_credits": new_balance}})
+            await db.credit_purchases.insert_one({
+                "user_id": user_id,
+                "package_id": credit_pkg_id,
+                "credits": credits_to_add,
+                "ls_order_id": ls_id,
+                "date": now.isoformat(),
+            })
+            _invalidate_auth_cache(user_id=user_id)
+            logging.info(f"Credit purchase: user={user_id} pkg={credit_pkg_id} credits={credits_to_add} new_balance={new_balance}")
+
     return {"ok": True}
 
 # ============ CREDIT PACKAGES ============
 
 CREDIT_PACKAGES = [
-    {"id": "pack_50",   "credits": 50,   "price": 0.99},
-    {"id": "pack_150",  "credits": 150,  "price": 2.49},
-    {"id": "pack_400",  "credits": 400,  "price": 5.99},
-    {"id": "pack_900",  "credits": 900,  "price": 11.99},
-    {"id": "pack_2000", "credits": 2000, "price": 22.99},
+    {"id": "pack_50k",   "credits": 50_000,  "price": 1.00},
+    {"id": "pack_230k",  "credits": 230_000, "price": 3.00},
+    {"id": "pack_700k",  "credits": 700_000, "price": 5.00},
+    {"id": "pack_950k",  "credits": 950_000, "price": 6.00},
 ]
-MAX_CREDIT_BALANCE = 5000
-SUBSCRIBER_DISCOUNT = 0.20  # 20% discount for paid plans
+MAX_CREDIT_BALANCE = 2_000_000
+SUBSCRIBER_DISCOUNT = 0.10  # 10% discount for paid plans
+
+# LemonSqueezy one-time variant IDs for credit packages (fill after creating in LS dashboard)
+LS_CREDIT_VARIANTS: Dict[str, str] = {
+    "pack_50k":  os.getenv("LS_CREDIT_VARIANT_50K",  ""),
+    "pack_230k": os.getenv("LS_CREDIT_VARIANT_230K", ""),
+    "pack_700k": os.getenv("LS_CREDIT_VARIANT_700K", ""),
+    "pack_950k": os.getenv("LS_CREDIT_VARIANT_950K", ""),
+}
 
 class CreditPurchaseRequest(BaseModel):
     package_id: str
     confirm_overflow: bool = False
+
+class CreditCheckoutRequest(BaseModel):
+    package_id: str
 
 @api_router.get("/credits/packages")
 async def get_credit_packages(user: User = Depends(get_current_user)):
@@ -3757,6 +3786,67 @@ async def buy_credits(req: CreditPurchaseRequest, user: User = Depends(get_curre
         "price_paid": final_price,
         "bonus_credits": new_bonus
     }
+
+@api_router.post("/credits/checkout")
+async def create_credit_checkout(req: CreditCheckoutRequest, user: User = Depends(get_current_user)):
+    pkg = next((p for p in CREDIT_PACKAGES if p["id"] == req.package_id), None)
+    if not pkg:
+        raise HTTPException(status_code=400, detail="Geçersiz paket")
+
+    variant_id = LS_CREDIT_VARIANTS.get(req.package_id, "")
+    if not variant_id:
+        raise HTTPException(status_code=503, detail="Bu paket henüz satışa açılmadı")
+
+    ls_api_key = (os.environ.get("LEMONSQUEEZY_API_KEY") or LS_API_KEY or "").strip()
+    if not ls_api_key:
+        raise HTTPException(status_code=503, detail="LEMONSQUEEZY_API_KEY eksik")
+
+    user_data = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "subscription": 1})
+    has_discount = is_active_subscriber(user_data)
+    final_price = round(pkg["price"] * (1 - SUBSCRIBER_DISCOUNT), 2) if has_discount else pkg["price"]
+
+    frontend_url = os.getenv("FRONTEND_URL", "https://zetmindshare.com")
+    payload = {
+        "data": {
+            "type": "checkouts",
+            "attributes": {
+                "checkout_options": {"dark": True, "discount": False},
+                "checkout_data": {
+                    "email": user.email,
+                    "name": user.name or "",
+                    "custom": {
+                        "user_id": user.user_id,
+                        "credit_package_id": req.package_id,
+                        "credits": str(pkg["credits"]),
+                    },
+                },
+                "product_options": {
+                    "redirect_url": f"{frontend_url}/payment/success",
+                    "receipt_link_url": f"{frontend_url}/payment/success",
+                },
+            },
+            "relationships": {
+                "store":   {"data": {"type": "stores",   "id": str(LS_STORE_ID)}},
+                "variant": {"data": {"type": "variants", "id": str(variant_id)}},
+            },
+        }
+    }
+    async with httpx.AsyncClient() as client:
+        resp = await client.post(
+            "https://api.lemonsqueezy.com/v1/checkouts",
+            headers={
+                "Authorization": f"Bearer {ls_api_key}",
+                "Accept": "application/vnd.api+json",
+                "Content-Type": "application/vnd.api+json",
+            },
+            json=payload,
+            timeout=15.0,
+        )
+    if resp.status_code not in (200, 201):
+        logging.error(f"LS credit checkout error {resp.status_code}: {resp.text[:500]}")
+        raise HTTPException(status_code=502, detail=f"LS {resp.status_code}: {resp.text[:400]}")
+    checkout_url = resp.json()["data"]["attributes"]["url"]
+    return {"checkout_url": checkout_url, "credits": pkg["credits"], "price": final_price}
 
 # ============ USAGE LIMITS ============
 

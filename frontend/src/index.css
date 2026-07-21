@@ -161,6 +161,14 @@ body {
   animation: fadeIn 0.3s ease-out;
 }
 
+@keyframes slideInFromRight {
+  from { opacity: 0; transform: translateX(18px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.animate-slideIn {
+  animation: slideInFromRight 0.22s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
 @keyframes pulse-glow {
   0%, 100% { box-shadow: 0 0 10px var(--zet-glow); }
   50% { box-shadow: 0 0 25px var(--zet-glow); }

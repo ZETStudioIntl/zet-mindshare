@@ -604,35 +604,14 @@ const Dashboard = () => {
   };
 
   const handleBuyCredits = async (packageId) => {
-    const pkg = creditPackages.find(p => p.id === packageId);
-    if (!pkg) return;
-    showConfirm(
-      'Kredi Satın Al',
-      `${pkg.credits} kredi satın almak istiyor musunuz?\nFiyat: $${pkg.discounted_price}`,
-      async () => {
-        setBuyingCredits(true);
-        try {
-          const res = await axios.post(`${API}/credits/buy`, { package_id: packageId }, { withCredentials: true });
-          if (res.data.needs_confirmation) {
-            showConfirm(
-              'Kredi Limiti Aşılıyor',
-              res.data.message + '\n\nDevam etmek istiyor musunuz?',
-              async () => {
-                const res2 = await axios.post(`${API}/credits/buy`, { package_id: packageId, confirm_overflow: true }, { withCredentials: true });
-                showToast(res2.data.message, 'success');
-                fetchSubscription();
-              }
-            );
-          } else {
-            showToast(res.data.message, 'success');
-            fetchSubscription();
-          }
-        } catch (err) {
-          showToast(err.response?.data?.detail || 'Satın alma başarısız', 'error');
-        }
-        setBuyingCredits(false);
-      }
-    );
+    setBuyingCredits(true);
+    try {
+      const res = await axios.post(`${API}/credits/checkout`, { package_id: packageId }, { withCredentials: true });
+      openCheckoutOverlay(res.data.checkout_url);
+    } catch (err) {
+      showToast(err.response?.data?.detail || 'Ödeme sayfası açılamadı', 'error');
+    }
+    setBuyingCredits(false);
   };
 
 
@@ -1907,6 +1886,7 @@ MATCHES:[1,3,5]`;
 
             {/* Right content - hidden on mobile when sidebar shown */}
             <div className={`${mobileSettingsSidebar ? 'hidden' : 'flex flex-col'} md:flex md:flex-col flex-1 overflow-y-auto p-4 md:p-8`}>
+
               {/* Mobile back button */}
               <button
                 className="md:hidden flex items-center gap-2 mb-4 text-sm font-medium"
@@ -1916,6 +1896,7 @@ MATCHES:[1,3,5]`;
                 <ChevronLeft className="h-4 w-4" /> Geri
               </button>
 
+              <div key={settingsTab} className="animate-slideIn flex-1">
               {settingsTab === 'general' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('general')}</h2>
@@ -2590,48 +2571,102 @@ MATCHES:[1,3,5]`;
                 </div>
               )}
 
-              {settingsTab === 'credits' && (
-                <div className="max-w-lg">
-                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('buyCredits')}</h2>
-                  {creditPackages.length > 0 && creditPackages[0].discounted_price !== creditPackages[0].price && (
-                    <div className="mb-3 px-3 py-2 rounded-lg text-center" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
-                      <span className="text-xs font-bold" style={{ color: '#10b981' }}>%15 Abone İndirimi Uygulandı!</span>
+              {settingsTab === 'credits' && (() => {
+                const CREDIT_TIERS = [
+                  { id: 'pack_50k',  color: '#10b981', glow: 'rgba(16,185,129,0.15)',  label: 'Başlangıç' },
+                  { id: 'pack_230k', color: '#3b82f6', glow: 'rgba(59,130,246,0.15)',  label: 'Standart' },
+                  { id: 'pack_700k', color: '#8b5cf6', glow: 'rgba(139,92,246,0.18)', label: 'Popüler',      badge: true },
+                  { id: 'pack_950k', color: '#f59e0b', glow: 'rgba(245,158,11,0.18)', label: 'En Avantajlı', badge: true, featured: true },
+                ];
+                const hasDiscount = creditPackages.length > 0 && creditPackages[0].discounted_price !== creditPackages[0].price;
+                return (
+                  <div className="max-w-xl">
+                    <div className="flex items-center gap-3 mb-2">
+                      <Zap className="h-5 w-5" style={{ color: '#f59e0b' }} />
+                      <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Kredi Satın Al</h2>
                     </div>
-                  )}
-                  <div className="space-y-2.5">
+                    <p className="text-xs mb-5" style={{ color: 'var(--zet-text-muted)' }}>Krediler AI özellikleri için kullanılır. Satın alma anında hesabınıza eklenir.</p>
+
+                    {hasDiscount && (
+                      <div className="mb-4 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.25)' }}>
+                        <Zap className="h-3.5 w-3.5 flex-shrink-0" style={{ color: '#10b981' }} />
+                        <span className="text-xs font-semibold" style={{ color: '#10b981' }}>Abone indirimi aktif — tüm paketlere %10 indirim uygulandı!</span>
+                      </div>
+                    )}
+
                     {creditPackages.length === 0 ? (
                       <MiniDocLoader />
-                    ) : creditPackages.map(pkg => {
-                      const hasDiscount = pkg.discounted_price !== pkg.price;
-                      return (
-                        <div key={pkg.id} className="flex items-center justify-between p-3 rounded-xl transition-all hover:scale-[1.01]" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }} data-testid={`credit-pack-${pkg.credits}`}>
-                          <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: pkg.credits >= 1000 ? 'rgba(251,191,36,0.15)' : pkg.credits >= 700 ? 'rgba(139,92,246,0.15)' : pkg.credits >= 350 ? 'rgba(59,130,246,0.15)' : 'rgba(16,185,129,0.15)' }}>
-                              <Zap className="h-5 w-5" style={{ color: pkg.credits >= 1000 ? '#fbbf24' : pkg.credits >= 700 ? '#8b5cf6' : pkg.credits >= 350 ? '#3b82f6' : '#10b981' }} />
+                    ) : (
+                      <div className="grid grid-cols-1 gap-3">
+                        {creditPackages.map((pkg, i) => {
+                          const tier = CREDIT_TIERS.find(t => t.id === pkg.id) || CREDIT_TIERS[0];
+                          const priceDiff = pkg.discounted_price !== pkg.price;
+                          const fmtCredits = pkg.credits >= 1000000
+                            ? `${(pkg.credits / 1000000).toFixed(pkg.credits % 1000000 === 0 ? 0 : 1)}M`
+                            : `${(pkg.credits / 1000).toFixed(0)}K`;
+                          const barWidth = [15, 35, 70, 100][i] || 50;
+                          return (
+                            <div
+                              key={pkg.id}
+                              data-testid={`credit-pack-${pkg.credits}`}
+                              className="relative overflow-hidden rounded-2xl transition-all hover:scale-[1.01]"
+                              style={{
+                                background: tier.featured ? `linear-gradient(135deg, rgba(245,158,11,0.08), rgba(251,191,36,0.04))` : 'var(--zet-bg-card)',
+                                border: `1px solid ${tier.featured ? 'rgba(245,158,11,0.35)' : 'var(--zet-border)'}`,
+                                padding: tier.featured ? '18px 20px' : '14px 18px',
+                                boxShadow: tier.featured ? `0 0 24px ${tier.glow}` : 'none',
+                              }}
+                            >
+                              {tier.badge && (
+                                <span className="absolute top-3 right-3 text-[10px] font-bold px-2 py-0.5 rounded-full"
+                                  style={{ background: tier.glow, color: tier.color, border: `1px solid ${tier.color}40` }}>
+                                  {tier.label}
+                                </span>
+                              )}
+                              <div className="flex items-center justify-between gap-3">
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="rounded-xl flex items-center justify-center flex-shrink-0"
+                                    style={{ width: tier.featured ? 44 : 36, height: tier.featured ? 44 : 36, background: tier.glow }}>
+                                    <Zap style={{ width: tier.featured ? 22 : 17, height: tier.featured ? 22 : 17, color: tier.color }} />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-baseline gap-1.5">
+                                      <span className="font-bold" style={{ fontSize: tier.featured ? 22 : 17, color: tier.color }}>{fmtCredits}</span>
+                                      <span className="text-xs font-medium" style={{ color: 'var(--zet-text-muted)' }}>kredi</span>
+                                      {!tier.badge && <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: tier.glow, color: tier.color }}>{tier.label}</span>}
+                                    </div>
+                                    <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)', width: '100%' }}>
+                                      <div className="h-full rounded-full transition-all" style={{ width: `${barWidth}%`, background: `linear-gradient(90deg, ${tier.color}88, ${tier.color})` }} />
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-3 flex-shrink-0">
+                                  <div className="text-right">
+                                    {priceDiff && <p className="text-[10px] line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price.toFixed(2)}</p>}
+                                    <p className="font-bold" style={{ fontSize: tier.featured ? 18 : 15, color: priceDiff ? '#10b981' : 'var(--zet-text)' }}>${pkg.discounted_price.toFixed(2)}</p>
+                                  </div>
+                                  <button
+                                    onClick={() => handleBuyCredits(pkg.id)}
+                                    disabled={buyingCredits}
+                                    className="px-4 py-2 rounded-xl text-xs font-bold transition-all hover:scale-105 disabled:opacity-40"
+                                    style={{ background: tier.color, color: '#fff', minWidth: 72 }}
+                                    data-testid={`buy-credit-${pkg.credits}`}
+                                  >
+                                    {buyingCredits ? '...' : 'Satın Al'}
+                                  </button>
+                                </div>
+                              </div>
                             </div>
-                            <div>
-                              <p className="text-sm font-bold" style={{ color: 'var(--zet-text)' }}>{pkg.credits} Kredi</p>
-                              <p className="text-[10px]" style={{ color: 'var(--zet-text-muted)' }}>{pkg.credits >= 1000 ? 'En Avantajlı' : pkg.credits >= 700 ? 'Popüler' : pkg.credits >= 350 ? 'Standart' : 'Başlangıç'}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2.5">
-                            <div className="text-right">
-                              {hasDiscount && <p className="text-[10px] line-through" style={{ color: 'var(--zet-text-muted)' }}>${pkg.price}</p>}
-                              <p className="text-sm font-bold" style={{ color: hasDiscount ? '#10b981' : 'var(--zet-text)' }}>${pkg.discounted_price}</p>
-                            </div>
-                            <button onClick={() => handleBuyCredits(pkg.id)} disabled={buyingCredits} className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all hover:scale-105 disabled:opacity-40" style={{ background: 'var(--zet-primary)', color: 'white' }} data-testid={`buy-credit-${pkg.credits}`}>
-                              {buyingCredits ? '...' : 'Satın Al'}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
+                          );
+                        })}
+                      </div>
+                    )}
+                    <p className="text-[10px] text-center mt-4" style={{ color: 'var(--zet-text-muted)' }}>
+                      Ödeme LemonSqueezy üzerinden güvenli şekilde işlenir. Abonelik sahiplerine %10 indirim otomatik uygulanır.
+                    </p>
                   </div>
-                  <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-                    Kredi paketleri anında hesabınıza eklenir. Free dışındaki planlara %15 indirim uygulanır.<br />Maksimum kredi bakiyesi: 1000. Limit aşıldığında fazla krediler silinir.
-                  </p>
-                </div>
-              )}
+                );
+              })()}
 
               {settingsTab === 'primedrive' && (() => {
                 const QUOTA_MAP = { free: 1, plus: 10, pro: 30, creative_station: 1024 };
@@ -3022,6 +3057,7 @@ MATCHES:[1,3,5]`;
                 </div>
               )}
 
+              </div>{/* /animate-slideIn */}
             </div>
           </div>
         </div>
