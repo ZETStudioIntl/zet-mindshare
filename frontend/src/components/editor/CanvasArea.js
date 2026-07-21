@@ -2463,7 +2463,6 @@ export const CanvasArea = ({
                   onMouseEnter={() => setHoveredElementId(el.id)}
                   onMouseLeave={() => setHoveredElementId(null)}
                   onTouchEnd={el.type === 'text' && !isLocked ? (e) => {
-                    if (activeTool !== 'text') return;
                     const t = e.changedTouches?.[0];
                     if (!t) return;
                     // Verify touch ended on this element (screen-space, no coord conversion needed)
