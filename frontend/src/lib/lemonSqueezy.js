@@ -2,18 +2,39 @@ import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
-const isMobile = () => /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+// Touch device OR narrow viewport → mobile hosted checkout
+// (Payment Request API / Apple Pay / Google Pay requires top-level browsing context)
+const isMobile = () => {
+  if (typeof window === 'undefined') return false;
+  const uaMatch = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const hasTouch = navigator.maxTouchPoints > 0 || 'ontouchstart' in window;
+  const narrow = window.innerWidth < 768;
+  return uaMatch || (hasTouch && narrow);
+};
+
+const withEmbed = (url) => {
+  try {
+    const u = new URL(url);
+    u.searchParams.set('embed', '1');
+    return u.toString();
+  } catch {
+    return url + (url.includes('?') ? '&' : '?') + 'embed=1';
+  }
+};
 
 export const openCheckoutOverlay = (url) => {
   if (!url) return;
   if (isMobile()) {
-    // On mobile, redirect to LS checkout page directly so Apple Pay / Google Pay
-    // native sheets can appear (iframe blocks the Payment Request API)
+    // Mobile: full-page redirect so Apple Pay / Google Pay native sheets work
     window.location.href = url;
-  } else if (window.LemonSqueezy?.Url?.Open) {
-    window.LemonSqueezy.Url.Open(url);
   } else {
-    window.open(url, '_blank', 'noopener,noreferrer');
+    // Desktop: overlay via LemonSqueezy.js SDK (requires ?embed=1)
+    const embedUrl = withEmbed(url);
+    if (window.LemonSqueezy?.Url?.Open) {
+      window.LemonSqueezy.Url.Open(embedUrl);
+    } else {
+      window.open(embedUrl, '_blank', 'noopener,noreferrer');
+    }
   }
 };
 
