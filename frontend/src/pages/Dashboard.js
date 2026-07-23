@@ -153,6 +153,7 @@ const Dashboard = () => {
   // Gerçek abonelik planı sunucudan yüklenene kadar limit zorlaması ertelenir
   const subscriptionLoadedRef = useRef(false);
   const [showSubscription, setShowSubscription] = useState(false);
+  const [subscriptionInitSlide, setSubscriptionInitSlide] = useState(null);
   const [upgradePrompt, setUpgradePrompt] = useState(null); // { featureName, requiredPlan }
   const showUpgradePrompt = (featureName, requiredPlan) => setUpgradePrompt({ featureName, requiredPlan });
   const [billingCycle, setBillingCycle] = useState('yearly');
@@ -2480,94 +2481,16 @@ MATCHES:[1,3,5]`;
               {settingsTab === 'subscription' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('subscription')}</h2>
-                  <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
-                    <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
-                    <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userZP.toLocaleString()} ZP</span>
-                    <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- ZP ile de plan alabilirsiniz</span>
-                  </div>
-                  <div className="flex justify-center mb-6">
-                    <div className="flex rounded-lg p-1" style={{ background: 'var(--zet-bg)' }}>
-                      <button onClick={() => setBillingCycle('monthly')} className="px-4 py-2 rounded-md text-sm font-medium transition-all" style={{ background: billingCycle === 'monthly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'monthly' ? 'white' : 'var(--zet-text-muted)' }}>{t('monthly')}</button>
-                      <button onClick={() => setBillingCycle('yearly')} className="px-4 py-2 rounded-md text-sm font-medium transition-all flex items-center gap-1" style={{ background: billingCycle === 'yearly' ? 'var(--zet-primary)' : 'transparent', color: billingCycle === 'yearly' ? 'white' : 'var(--zet-text-muted)' }}>
-                        {t('yearly')}
-                      </button>
-                    </div>
-                  </div>
-                  {(() => {
-                    const FREE_PLAN_ITEM = { id: 'free', name: 'Free', monthlyPrice: 0, yearlyPrice: 0, color: '#6b7280', zpCost: 0, recommended: false, scope: null, scopeLabel: null, features: ['80 Kredi/gün', '100K Token/gün (Zeta + Judge)', '1 Defter, 3 Fast Select', 'Temel editör araçları', 'Judge AI sohbet'] };
-                    const allPlansDisplay = [FREE_PLAN_ITEM, ...SUBSCRIPTION_PLANS];
-                    const isFreeUser = !userSubscription || userSubscription === 'free';
-                    return (
-                  <div className="relative">
-                    <button onClick={() => setCurrentPlanIndex(Math.max(0, currentPlanIndex - 1))} disabled={currentPlanIndex === 0} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30" style={{ background: 'var(--zet-bg-card)' }}>
-                      <ChevronLeft className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                  <div className="rounded-2xl p-6 text-center" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.07)' }}>
+                    <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>Tüm planları karşılaştırmak veya aboneliğini yönetmek için planlar ekranını aç.</p>
+                    <button
+                      onClick={() => setShowSubscription(true)}
+                      className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:opacity-90"
+                      style={{ background: 'var(--zet-primary)' }}
+                    >
+                      Planları Karşılaştır
                     </button>
-                    <button onClick={() => setCurrentPlanIndex(Math.min(allPlansDisplay.length - 1, currentPlanIndex + 1))} disabled={currentPlanIndex === allPlansDisplay.length - 1} className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30" style={{ background: 'var(--zet-bg-card)' }}>
-                      <ChevronRight className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
-                    </button>
-                    <div className="overflow-hidden">
-                      <div className="flex transition-transform duration-300" style={{ transform: `translateX(-${currentPlanIndex * 100}%)` }}>
-                        {allPlansDisplay.map((plan) => {
-                          const isYearly = billingCycle === 'yearly';
-                          const price = isYearly ? plan.yearlyPrice : plan.monthlyPrice;
-                          const fullYearlyPrice = plan.monthlyPrice * 12;
-                          const period = isYearly ? '/yr' : '/mo';
-                          const isCurrent = plan.id === 'free' ? isFreeUser : userSubscription === plan.id;
-                          return (
-                            <div key={plan.id} className="w-full flex-shrink-0 px-2">
-                              <div className={`relative rounded-2xl p-6 transition-all ${plan.recommended ? 'ring-2' : ''}`} style={{ background: `linear-gradient(135deg, ${plan.color}15 0%, ${plan.color}05 100%)`, border: isCurrent ? `2px solid ${plan.color}` : `1px solid ${plan.color}30` }}>
-                                {isCurrent && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>MEVCUT PLAN</div>}
-                                {plan.recommended && !isCurrent && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>{t('recommended')}</div>}
-                                <div className="text-center mb-6 pt-2">
-                                  <h3 className="text-2xl font-bold mb-1" style={{ color: plan.color }}>{plan.name}</h3>
-                                  {plan.scopeLabel && (
-                                    <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2" style={{ background: plan.scope === 'both' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.06)', color: plan.scope === 'both' ? '#f59e0b' : 'var(--zet-text-muted)', border: plan.scope === 'both' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.1)' }}>
-                                      {plan.scope === 'both' ? '✦ ' : ''}{plan.scopeLabel}
-                                    </span>
-                                  )}
-                                  {plan.id === 'free' ? (
-                                    <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>Ücretsiz</span></div>
-                                  ) : isYearly ? (
-                                    <div className="flex flex-col items-center gap-0.5">
-                                      <span className="text-sm line-through" style={{ color: 'var(--zet-text-muted)' }}>${fullYearlyPrice}/yr</span>
-                                      <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>/yr</span></div>
-                                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">%{Math.round((1 - price / fullYearlyPrice) * 100)} tasarruf</span>
-                                    </div>
-                                  ) : (
-                                    <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>/mo</span></div>
-                                  )}
-                                </div>
-                                <ul className="space-y-3 mb-4">
-                                  {plan.features.map((feature, fidx) => (<li key={fidx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}><Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />{feature}</li>))}
-                                </ul>
-                                <div className="space-y-2">
-                                  <button onClick={() => setShowSubscription(true)} className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1.5 text-sm" style={{ background: 'transparent', color: plan.color, border: `1px solid ${plan.color}40` }}>
-                                    Paket Hakkında Herşey
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-                                  </button>
-                                  {plan.id !== 'free' && (
-                                    <button onClick={() => handleSubscribe(plan.id)} disabled={subscribing || isCurrent} className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50" style={{ background: isCurrent ? 'var(--zet-bg)' : plan.color, color: isCurrent ? plan.color : 'white', border: isCurrent ? `2px solid ${plan.color}` : 'none' }} data-testid={`select-plan-${plan.id}`}>
-                                      {isCurrent ? t('currentPlan') : `$${price}${period} ile Al`}
-                                    </button>
-                                  )}
-                                  {plan.id !== 'free' && !isCurrent && (
-                                    <button onClick={() => handleBuyWithSP(plan.id)} disabled={subscribing || userZP < plan.zpCost} className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-40 flex items-center justify-center gap-2" style={{ background: userZP >= plan.zpCost ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.03)', color: userZP >= plan.zpCost ? '#fbbf24' : 'var(--zet-text-muted)', border: `1px solid ${userZP >= plan.zpCost ? 'rgba(251,191,36,0.35)' : 'rgba(255,255,255,0.08)'}` }}>
-                                      <Star className="h-4 w-4" />{plan.zpCost.toLocaleString()} ZP ile Al
-                                    </button>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    <div className="flex justify-center gap-2 mt-4">
-                      {allPlansDisplay.map((p, idx) => (<button key={idx} onClick={() => setCurrentPlanIndex(idx)} className={`w-2 h-2 rounded-full transition-all ${currentPlanIndex === idx ? 'w-6' : ''}`} style={{ background: currentPlanIndex === idx ? allPlansDisplay[idx].color : 'var(--zet-text-muted)' }} />))}
-                    </div>
                   </div>
-                    );
-                  })()}
                   <p className="text-center text-xs mt-4" style={{ color: 'var(--zet-text-muted)' }}>{t('subscriptionNote')}</p>
                 </div>
               )}
@@ -4187,12 +4110,13 @@ MATCHES:[1,3,5]`;
       {/* Subscription Modal */}
       {showSubscription && (
         <SubscriptionModal
-          onClose={() => setShowSubscription(false)}
+          onClose={() => { setShowSubscription(false); setSubscriptionInitSlide(null); }}
           userZP={userZP} billingCycle={billingCycle} setBillingCycle={setBillingCycle}
           currentPlanIndex={currentPlanIndex} setCurrentPlanIndex={setCurrentPlanIndex}
           SUBSCRIPTION_PLANS={SUBSCRIPTION_PLANS} userSubscription={userSubscription}
           subscribing={subscribing} handleSubscribe={handleSubscribe}
           handleBuyWithSP={handleBuyWithSP} t={t}
+          initialSlide={subscriptionInitSlide}
         />
       )}
 

@@ -311,9 +311,10 @@ const SubscriptionModal = ({
   onClose, userZP, billingCycle, setBillingCycle,
   SUBSCRIPTION_PLANS, userSubscription, subscribing,
   handleSubscribe, handleBuyWithSP,
+  initialSlide = null,
 }) => {
   // null = plans grid, { planId, idx } = inline slideshow
-  const [slideView, setSlideView] = useState(null);
+  const [slideView, setSlideView] = useState(initialSlide);
 
   const FREE_PLAN = {
     id: 'free', name: 'Free', monthlyPrice: 0, yearlyPrice: 0,
