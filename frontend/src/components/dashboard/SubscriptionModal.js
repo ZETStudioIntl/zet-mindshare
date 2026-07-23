@@ -152,6 +152,9 @@ const PLAN_SLIDES = {
   ],
 };
 
+// Per-plan ZP bonus (per 100 ZP spent → extra ZP back)
+const ZP_BONUS = { plus: 10, pro: 20, creative_station: 30 };
+
 const VISUAL_ICONS = {
   notebook: (color) => (
     <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 80, height: 80 }}>
@@ -304,134 +307,13 @@ const VISUAL_ICONS = {
   ),
 };
 
-function PlanSlideshow({ plan, planColor, slides, onClose }) {
-  const [current, setCurrent] = useState(0);
-  const total = slides.length;
-
-  return (
-    <div
-      style={{
-        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.85)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        zIndex: 10001, padding: 16,
-      }}
-      onClick={onClose}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: 480,
-          background: slides[current].bg,
-          border: `1px solid ${planColor}40`,
-          borderRadius: 24, overflow: 'hidden',
-          fontFamily: "'DM Sans', sans-serif",
-          boxShadow: `0 0 60px ${planColor}30`,
-        }}
-      >
-        {/* Visual area */}
-        <div style={{
-          height: 220, display: 'flex', alignItems: 'center', justifyContent: 'center',
-          position: 'relative',
-          background: `radial-gradient(circle at 50% 60%, ${slides[current].accent}20 0%, transparent 70%)`,
-        }}>
-          <div style={{ transform: 'scale(1.8)', opacity: 0.9 }}>
-            {(VISUAL_ICONS[slides[current].visual] || VISUAL_ICONS.ai)(slides[current].accent)}
-          </div>
-          <button
-            onClick={onClose}
-            style={{
-              position: 'absolute', top: 14, right: 14,
-              background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: 8,
-              color: 'rgba(255,255,255,0.6)', cursor: 'pointer', padding: '4px 6px',
-              lineHeight: 1,
-            }}
-          >
-            <X size={16} />
-          </button>
-          {/* Plan badge */}
-          <div style={{
-            position: 'absolute', top: 14, left: 14,
-            background: planColor + '30', border: `1px solid ${planColor}60`,
-            borderRadius: 99, padding: '3px 10px',
-            color: planColor, fontSize: 11, fontWeight: 700,
-          }}>
-            {plan.toUpperCase().replace('_', ' ')}
-          </div>
-          {/* Slide counter */}
-          <div style={{
-            position: 'absolute', bottom: 14, right: 14,
-            color: 'rgba(255,255,255,0.3)', fontSize: 11,
-          }}>
-            {current + 1}/{total}
-          </div>
-        </div>
-
-        {/* Text area */}
-        <div style={{ padding: '24px 28px 28px' }}>
-          <h3 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 10px' }}>
-            {slides[current].title}
-          </h3>
-          <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 24px' }}>
-            {slides[current].desc}
-          </p>
-
-          {/* Navigation */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <button
-              onClick={() => setCurrent(c => Math.max(0, c - 1))}
-              disabled={current === 0}
-              style={{
-                width: 40, height: 40, borderRadius: 12, border: `1px solid ${planColor}40`,
-                background: current === 0 ? 'rgba(255,255,255,0.03)' : planColor + '20',
-                color: current === 0 ? 'rgba(255,255,255,0.2)' : planColor,
-                cursor: current === 0 ? 'default' : 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {slides.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrent(i)}
-                  style={{
-                    width: i === current ? 20 : 6, height: 6,
-                    borderRadius: 99, border: 'none', cursor: 'pointer',
-                    background: i === current ? planColor : 'rgba(255,255,255,0.2)',
-                    transition: 'all 0.25s',
-                    padding: 0,
-                  }}
-                />
-              ))}
-            </div>
-
-            <button
-              onClick={() => current < total - 1 ? setCurrent(c => c + 1) : onClose()}
-              style={{
-                width: 40, height: 40, borderRadius: 12, border: 'none',
-                background: current === total - 1 ? planColor : planColor + '25',
-                color: '#fff',
-                cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-            >
-              {current === total - 1 ? <X size={18} /> : <ChevronRight size={18} />}
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 const SubscriptionModal = ({
   onClose, userZP, billingCycle, setBillingCycle,
   SUBSCRIPTION_PLANS, userSubscription, subscribing,
   handleSubscribe, handleBuyWithSP,
 }) => {
-  const [slideshow, setSlideshow] = useState(null); // planId
+  // null = plans grid, { planId, idx } = inline slideshow
+  const [slideView, setSlideView] = useState(null);
 
   const FREE_PLAN = {
     id: 'free', name: 'Free', monthlyPrice: 0, yearlyPrice: 0,
@@ -440,199 +322,331 @@ const SubscriptionModal = ({
 
   const allPlans = [FREE_PLAN, ...SUBSCRIPTION_PLANS];
 
-  return (
-    <>
-      <div
-        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
-        onClick={onClose}
-      >
-        <div
-          onClick={e => e.stopPropagation()}
-          style={{
-            background: 'linear-gradient(135deg, #0d0f2a 0%, #111827 100%)',
-            border: '1px solid rgba(255,255,255,0.1)',
-            borderRadius: 24, padding: '28px 24px 24px',
-            width: '100%', maxWidth: 880,
-            fontFamily: "'DM Sans', sans-serif",
-            maxHeight: '90vh', overflowY: 'auto',
-          }}
-        >
-          {/* Header */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-            <div>
-              <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0 }}>Planını Seç</h2>
-              <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '4px 0 0' }}>İhtiyacına uygun paketi bul</p>
+  const openSlide = (planId) => setSlideView({ planId, idx: 0 });
+  const closeSlide = () => setSlideView(null);
+
+  // ── Inline slideshow view ─────────────────────────────────────────────────
+  const renderSlideView = () => {
+    const { planId, idx } = slideView;
+    const plan = allPlans.find(p => p.id === planId) || allPlans[0];
+    const slides = PLAN_SLIDES[planId] || [];
+    const slide = slides[idx] || slides[0];
+    const total = slides.length;
+    if (!slide) return null;
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 480 }}>
+        {/* Back button row */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 0 }}>
+          <button
+            onClick={closeSlide}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'none', border: 'none', color: 'rgba(255,255,255,0.45)',
+              cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '0 0 16px',
+            }}
+          >
+            <ChevronLeft size={15} /> Planlara Dön
+          </button>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: '0 0 16px' }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Visual area */}
+        <div style={{
+          borderRadius: 20, overflow: 'hidden',
+          background: slide.bg,
+          border: `1px solid ${plan.color}30`,
+          boxShadow: `0 0 40px ${plan.color}20`,
+          flex: 1,
+        }}>
+          <div style={{
+            height: 240, display: 'flex', alignItems: 'center', justifyContent: 'center',
+            position: 'relative',
+            background: `radial-gradient(circle at 50% 60%, ${slide.accent}25 0%, transparent 70%)`,
+          }}>
+            <div style={{ transform: 'scale(1.8)', opacity: 0.9 }}>
+              {(VISUAL_ICONS[slide.visual] || VISUAL_ICONS.ai)(slide.accent)}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {/* ZP balance */}
-              {userZP > 0 && (
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)',
-                  borderRadius: 99, padding: '4px 12px',
-                }}>
-                  <Star size={13} color="#fbbf24" />
-                  <span style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700 }}>{userZP.toLocaleString()} ZP</span>
-                </div>
-              )}
-              {/* Billing toggle */}
-              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 3 }}>
-                {['monthly', 'yearly'].map(cycle => (
+            {/* Plan badge */}
+            <div style={{
+              position: 'absolute', top: 14, left: 14,
+              background: plan.color + '30', border: `1px solid ${plan.color}60`,
+              borderRadius: 99, padding: '3px 10px',
+              color: plan.color, fontSize: 11, fontWeight: 700,
+            }}>
+              {plan.name.toUpperCase()}
+            </div>
+            {/* Counter */}
+            <div style={{ position: 'absolute', bottom: 14, right: 14, color: 'rgba(255,255,255,0.3)', fontSize: 11 }}>
+              {idx + 1}/{total}
+            </div>
+          </div>
+
+          {/* Text + navigation */}
+          <div style={{ padding: '24px 28px 28px' }}>
+            <h3 style={{ color: '#fff', fontSize: 20, fontWeight: 700, margin: '0 0 10px' }}>{slide.title}</h3>
+            <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 14, lineHeight: 1.65, margin: '0 0 24px' }}>{slide.desc}</p>
+
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button
+                onClick={() => setSlideView(v => ({ ...v, idx: Math.max(0, v.idx - 1) }))}
+                disabled={idx === 0}
+                style={{
+                  width: 40, height: 40, borderRadius: 12, border: `1px solid ${plan.color}40`,
+                  background: idx === 0 ? 'rgba(255,255,255,0.03)' : plan.color + '20',
+                  color: idx === 0 ? 'rgba(255,255,255,0.2)' : plan.color,
+                  cursor: idx === 0 ? 'default' : 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                <ChevronLeft size={18} />
+              </button>
+
+              <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                {slides.map((_, i) => (
                   <button
-                    key={cycle}
-                    onClick={() => setBillingCycle(cycle)}
+                    key={i}
+                    onClick={() => setSlideView(v => ({ ...v, idx: i }))}
                     style={{
-                      padding: '5px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
-                      background: billingCycle === cycle ? 'rgba(255,255,255,0.15)' : 'transparent',
-                      color: billingCycle === cycle ? '#fff' : 'rgba(255,255,255,0.4)',
-                      fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                      width: i === idx ? 20 : 6, height: 6,
+                      borderRadius: 99, border: 'none', cursor: 'pointer',
+                      background: i === idx ? plan.color : 'rgba(255,255,255,0.2)',
+                      transition: 'all 0.25s', padding: 0,
                     }}
-                  >
-                    {cycle === 'monthly' ? 'Aylık' : 'Yıllık'}
-                    {cycle === 'yearly' && (
-                      <span style={{ background: '#22c55e', color: '#fff', fontSize: 9, borderRadius: 4, padding: '1px 4px' }}>-17%</span>
-                    )}
-                  </button>
+                  />
                 ))}
               </div>
-              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4 }}>
-                <X size={20} />
+
+              <button
+                onClick={() => idx < total - 1
+                  ? setSlideView(v => ({ ...v, idx: v.idx + 1 }))
+                  : closeSlide()
+                }
+                style={{
+                  width: 40, height: 40, borderRadius: 12, border: 'none',
+                  background: idx === total - 1 ? plan.color : plan.color + '25',
+                  color: '#fff', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}
+              >
+                {idx === total - 1 ? <X size={18} /> : <ChevronRight size={18} />}
               </button>
             </div>
           </div>
+        </div>
+      </div>
+    );
+  };
 
-          {/* Plan Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
-            {allPlans.map(plan => {
-              const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
-              const isCurrent = userSubscription === plan.id || (!userSubscription && plan.id === 'free');
-              const slides = PLAN_SLIDES[plan.id] || [];
-
-              return (
-                <div
-                  key={plan.id}
-                  style={{
-                    borderRadius: 16,
-                    padding: '18px 16px',
-                    border: isCurrent ? `2px solid ${plan.color}` : `1px solid ${plan.color}30`,
-                    background: `linear-gradient(160deg, ${plan.color}15 0%, ${plan.color}05 100%)`,
-                    display: 'flex', flexDirection: 'column', gap: 0,
-                    position: 'relative',
-                  }}
-                >
-                  {isCurrent && (
-                    <div style={{
-                      position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)',
-                      background: plan.color, color: '#fff', fontSize: 9, fontWeight: 700,
-                      padding: '2px 10px', borderRadius: 99, whiteSpace: 'nowrap',
-                    }}>
-                      MEVCUT PLAN
-                    </div>
-                  )}
-                  {plan.id === 'pro' && !isCurrent && (
-                    <div style={{
-                      position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)',
-                      background: plan.color, color: '#fff', fontSize: 9, fontWeight: 700,
-                      padding: '2px 10px', borderRadius: 99, whiteSpace: 'nowrap',
-                    }}>
-                      ÖNERİLEN
-                    </div>
-                  )}
-
-                  {/* Plan header */}
-                  <div style={{ marginBottom: 12 }}>
-                    <div style={{ color: plan.color, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{plan.name}</div>
-                    <div>
-                      <span style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>
-                        {price === 0 ? 'Ücretsiz' : `$${price}`}
-                      </span>
-                      {price > 0 && (
-                        <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
-                          /{billingCycle === 'monthly' ? 'ay' : 'yıl'}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Features */}
-                  <div style={{ flex: 1, marginBottom: 14 }}>
-                    {plan.features.slice(0, 5).map((f, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
-                        <Check size={11} color={plan.color} style={{ flexShrink: 0, marginTop: 3 }} />
-                        <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, lineHeight: 1.4 }}>{f}</span>
-                      </div>
-                    ))}
-                  </div>
-
-                  {/* Paket detay butonu */}
-                  {slides.length > 0 && (
-                    <button
-                      onClick={() => setSlideshow(plan.id)}
-                      style={{
-                        width: '100%', padding: '7px 0', borderRadius: 8, marginBottom: 8,
-                        border: `1px solid ${plan.color}40`, background: 'transparent',
-                        color: plan.color, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      }}
-                    >
-                      Paket Hakkında Herşey
-                      <ArrowRight size={11} />
-                    </button>
-                  )}
-
-                  {/* Subscribe button */}
-                  {plan.id !== 'free' && (
-                    <button
-                      onClick={() => handleSubscribe(plan.id)}
-                      disabled={subscribing || isCurrent}
-                      style={{
-                        width: '100%', padding: '9px 0', borderRadius: 10, border: 'none',
-                        background: isCurrent ? 'rgba(255,255,255,0.06)' : plan.color,
-                        color: isCurrent ? plan.color : '#fff',
-                        fontSize: 12, fontWeight: 700, cursor: isCurrent ? 'default' : 'pointer',
-                        opacity: subscribing ? 0.6 : 1,
-                      }}
-                    >
-                      {isCurrent ? 'Mevcut Plan' : 'Satın Al'}
-                    </button>
-                  )}
-                  {plan.id !== 'free' && userZP >= plan.zpCost && !isCurrent && (
-                    <button
-                      onClick={() => handleBuyWithSP(plan.id)}
-                      disabled={subscribing}
-                      style={{
-                        width: '100%', padding: '7px 0', borderRadius: 10, marginTop: 6,
-                        border: '1px solid rgba(251,191,36,0.3)',
-                        background: 'rgba(251,191,36,0.08)',
-                        color: '#fbbf24', fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-                      }}
-                    >
-                      <Star size={11} />
-                      {plan.zpCost.toLocaleString()} ZP ile Al
-                    </button>
-                  )}
-                </div>
-              );
-            })}
+  // ── Plans grid view ───────────────────────────────────────────────────────
+  const renderPlansView = () => (
+    <>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+        <div>
+          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0 }}>Planını Seç</h2>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '4px 0 0' }}>İhtiyacına uygun paketi bul</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {userZP > 0 && (
+            <div style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.25)',
+              borderRadius: 99, padding: '4px 12px',
+            }}>
+              <Star size={13} color="#fbbf24" />
+              <span style={{ color: '#fbbf24', fontSize: 12, fontWeight: 700 }}>{userZP.toLocaleString()} ZP</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', background: 'rgba(255,255,255,0.06)', borderRadius: 10, padding: 3 }}>
+            {['monthly', 'yearly'].map(cycle => (
+              <button
+                key={cycle}
+                onClick={() => setBillingCycle(cycle)}
+                style={{
+                  padding: '5px 12px', borderRadius: 7, border: 'none', cursor: 'pointer',
+                  background: billingCycle === cycle ? 'rgba(255,255,255,0.15)' : 'transparent',
+                  color: billingCycle === cycle ? '#fff' : 'rgba(255,255,255,0.4)',
+                  fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
+                }}
+              >
+                {cycle === 'monthly' ? 'Aylık' : 'Yıllık'}
+                {cycle === 'yearly' && (
+                  <span style={{ background: '#22c55e', color: '#fff', fontSize: 9, borderRadius: 4, padding: '1px 4px' }}>-17%</span>
+                )}
+              </button>
+            ))}
           </div>
-
-          <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 10, marginTop: 16 }}>
-            Abonelik aynı takvim günü her ay yenilenir · İptal etmek istersen her zaman iptal edebilirsin
-          </p>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.4)', cursor: 'pointer', padding: 4 }}>
+            <X size={20} />
+          </button>
         </div>
       </div>
 
-      {/* Slideshow */}
-      {slideshow && (
-        <PlanSlideshow
-          plan={slideshow}
-          planColor={allPlans.find(p => p.id === slideshow)?.color || '#6b7280'}
-          slides={PLAN_SLIDES[slideshow] || []}
-          onClose={() => setSlideshow(null)}
-        />
-      )}
+      {/* Plan Cards Grid */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 12 }}>
+        {allPlans.map(plan => {
+          const price = billingCycle === 'monthly' ? plan.monthlyPrice : plan.yearlyPrice;
+          const isCurrent = userSubscription === plan.id || (!userSubscription && plan.id === 'free');
+          const slides = PLAN_SLIDES[plan.id] || [];
+          const zpBonus = ZP_BONUS[plan.id];
+
+          // ZP button visible: not free, not CS, only monthly, user has enough ZP, not current plan
+          const showZpBtn = plan.id !== 'free'
+            && plan.id !== 'creative_station'
+            && billingCycle === 'monthly'
+            && userZP >= plan.zpCost
+            && !isCurrent;
+
+          return (
+            <div
+              key={plan.id}
+              style={{
+                borderRadius: 16, padding: '18px 16px',
+                border: isCurrent ? `2px solid ${plan.color}` : `1px solid ${plan.color}30`,
+                background: `linear-gradient(160deg, ${plan.color}15 0%, ${plan.color}05 100%)`,
+                display: 'flex', flexDirection: 'column', gap: 0,
+                position: 'relative',
+              }}
+            >
+              {isCurrent && (
+                <div style={{
+                  position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)',
+                  background: plan.color, color: '#fff', fontSize: 9, fontWeight: 700,
+                  padding: '2px 10px', borderRadius: 99, whiteSpace: 'nowrap',
+                }}>
+                  MEVCUT PLAN
+                </div>
+              )}
+              {plan.id === 'pro' && !isCurrent && (
+                <div style={{
+                  position: 'absolute', top: -9, left: '50%', transform: 'translateX(-50%)',
+                  background: plan.color, color: '#fff', fontSize: 9, fontWeight: 700,
+                  padding: '2px 10px', borderRadius: 99, whiteSpace: 'nowrap',
+                }}>
+                  ÖNERİLEN
+                </div>
+              )}
+
+              {/* Plan header */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ color: plan.color, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{plan.name}</div>
+                <div>
+                  <span style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>
+                    {price === 0 ? 'Ücretsiz' : `$${price}`}
+                  </span>
+                  {price > 0 && (
+                    <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
+                      /{billingCycle === 'monthly' ? 'ay' : 'yıl'}
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {/* Features */}
+              <div style={{ flex: 1, marginBottom: 14 }}>
+                {plan.features.slice(0, 5).map((f, i) => (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
+                    <Check size={11} color={plan.color} style={{ flexShrink: 0, marginTop: 3 }} />
+                    <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, lineHeight: 1.4 }}>{f}</span>
+                  </div>
+                ))}
+                {/* ZP bonus feature line */}
+                {zpBonus && (
+                  <div style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
+                    <Star size={11} color={plan.color} style={{ flexShrink: 0, marginTop: 3 }} />
+                    <span style={{ color: plan.color, fontSize: 11, lineHeight: 1.4, fontWeight: 600 }}>
+                      Her 100 ZP → +{zpBonus} ZP bonus
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Paket detay butonu */}
+              {slides.length > 0 && (
+                <button
+                  onClick={() => openSlide(plan.id)}
+                  style={{
+                    width: '100%', padding: '7px 0', borderRadius: 8, marginBottom: 8,
+                    border: `1px solid ${plan.color}40`, background: 'transparent',
+                    color: plan.color, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}
+                >
+                  Paket Hakkında Herşey
+                  <ArrowRight size={11} />
+                </button>
+              )}
+
+              {/* Subscribe button */}
+              {plan.id !== 'free' && (
+                <button
+                  onClick={() => handleSubscribe(plan.id)}
+                  disabled={subscribing || isCurrent}
+                  style={{
+                    width: '100%', padding: '9px 0', borderRadius: 10, border: 'none',
+                    background: isCurrent ? 'rgba(255,255,255,0.06)' : plan.color,
+                    color: isCurrent ? plan.color : '#fff',
+                    fontSize: 12, fontWeight: 700, cursor: isCurrent ? 'default' : 'pointer',
+                    opacity: subscribing ? 0.6 : 1,
+                  }}
+                >
+                  {isCurrent ? 'Mevcut Plan' : 'Satın Al'}
+                </button>
+              )}
+
+              {/* ZP ile Al — sadece aylık, CS hariç */}
+              {showZpBtn && (
+                <button
+                  onClick={() => handleBuyWithSP(plan.id)}
+                  disabled={subscribing}
+                  style={{
+                    width: '100%', padding: '7px 0', borderRadius: 10, marginTop: 6,
+                    border: '1px solid rgba(251,191,36,0.3)',
+                    background: 'rgba(251,191,36,0.08)',
+                    color: '#fbbf24', fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+                  }}
+                >
+                  <Star size={11} />
+                  {plan.zpCost.toLocaleString()} ZP ile Al
+                </button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 10, marginTop: 16 }}>
+        Abonelik aynı takvim günü her ay yenilenir · İptal etmek istersen her zaman iptal edebilirsin
+      </p>
     </>
+  );
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', zIndex: 9998, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+      onClick={slideView ? closeSlide : onClose}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          background: 'linear-gradient(135deg, #0d0f2a 0%, #111827 100%)',
+          border: '1px solid rgba(255,255,255,0.1)',
+          borderRadius: 24,
+          padding: '28px 24px 24px',
+          width: '100%',
+          maxWidth: slideView ? 520 : 880,
+          fontFamily: "'DM Sans', sans-serif",
+          maxHeight: '90vh', overflowY: 'auto',
+          transition: 'max-width 0.25s ease',
+        }}
+      >
+        {slideView ? renderSlideView() : renderPlansView()}
+      </div>
+    </div>
   );
 };
 
