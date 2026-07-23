@@ -1155,6 +1155,7 @@ const Editor = () => {
       axios.put(`${API}/documents/${docId}`, {
         title: d.document.title, subtitle: d.document.subtitle || null,
         content: d.document.content, pages: pages2, settings,
+        mindmap: d.document.mindmap || null,
       }, { withCredentials: true }).catch(() => {});
     };
     const onVis = () => { if (window.document.visibilityState === 'hidden') flushSave(); };
@@ -1327,7 +1328,7 @@ const Editor = () => {
       localStorage.setItem(`zet_doc_settings_${docId}`, JSON.stringify(docSettings));
     } catch {}
     try {
-      await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages, settings: docSettings }, { withCredentials: true });
+      await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages, settings: docSettings, mindmap: document.mindmap || null }, { withCredentials: true });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
       localStorage.removeItem(`zet_offline_doc_${docId}`);
@@ -1405,6 +1406,8 @@ const Editor = () => {
     // Otherwise flow to next page
     const nextPageIdx = currentPage + 1;
     const overflowEl = makeOverflowEl(marginTop);
+    // Capture next-page elements synchronously to avoid stale closure inside setTimeout
+    const nextEls = [overflowEl, ...(document?.pages?.[nextPageIdx]?.elements || [])];
     setDocument(prev => {
       if (!prev?.pages) return prev;
       const pages = [...prev.pages];
@@ -1417,7 +1420,7 @@ const Editor = () => {
         pages[currentPage] = { ...pages[currentPage], elements: correctedElements, drawPaths };
       }
       if (pages[nextPageIdx]) {
-        pages[nextPageIdx] = { ...pages[nextPageIdx], elements: [overflowEl, ...(pages[nextPageIdx].elements || [])] };
+        pages[nextPageIdx] = { ...pages[nextPageIdx], elements: nextEls };
       } else {
         pages.push({ page_id: `page_${Date.now()}`, elements: [overflowEl], drawPaths: [], pageSize });
       }
@@ -1425,10 +1428,9 @@ const Editor = () => {
     });
     setTimeout(() => {
       setCurrentPage(nextPageIdx);
-      setCanvasElements(prev => {
-        const next = document?.pages?.[nextPageIdx]?.elements || [overflowEl];
-        history.reset(next);
-        return next;
+      setCanvasElements(() => {
+        history.reset(nextEls);
+        return nextEls;
       });
     }, 60);
   }, [currentPage, canvasElements, drawPaths, document, marginLeft, marginTop, marginRight, marginBottom, pageSize, currentFontSize, currentFont, currentColor, currentLineHeight, history, handleSaveHistory]); // eslint-disable-line

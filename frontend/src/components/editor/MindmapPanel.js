@@ -245,9 +245,9 @@ function MindmapPanelInner({ docId, initialData, onSave }) {
   const doSave = useCallback(async () => {
     if (!readyRef.current || !docId) return;
     const data = { nodes: nodesRef.current, edges: edgesRef.current };
+    onSave?.(data); // Update Editor.js state first so full-doc save always has latest mindmap
     try {
       await axios.put(`${API}/api/documents/${docId}`, { mindmap: data }, { withCredentials: true });
-      onSave?.(data);
     } catch (e) {
       console.error('[Mindmap] kaydetme hatası:', e);
     }
