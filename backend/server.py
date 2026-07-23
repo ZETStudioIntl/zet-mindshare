@@ -7518,6 +7518,12 @@ async def quest_collect(quest_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Görev bulunamadı")
 
     zp_reward = quest_def["zp"]
+    # Plan bonus: Plus +10%, Pro +20%, Creative Station +30%
+    _ZP_BONUS = {"plus": 0.10, "pro": 0.20, "creative_station": 0.30}
+    bonus_pct = _ZP_BONUS.get(user_data.get("plan", "free"), 0)
+    if bonus_pct > 0:
+        zp_reward += int(zp_reward * bonus_pct)
+
     await db.users.update_one(
         {"user_id": user.user_id},
         {
