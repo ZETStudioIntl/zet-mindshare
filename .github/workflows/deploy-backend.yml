@@ -73,6 +73,7 @@ jobs:
           ENV_VARS="$ENV_VARS,R2_SECRET_KEY=${{ secrets.R2_SECRET_KEY }}"
           ENV_VARS="$ENV_VARS,R2_BUCKET=${{ secrets.R2_BUCKET }}"
           ENV_VARS="$ENV_VARS,R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}"
+          ENV_VARS="$ENV_VARS,CRON_SECRET=${{ secrets.CRON_SECRET }}"
 
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE:${{ github.sha }} \

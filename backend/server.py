@@ -1,4 +1,4 @@
-from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi import FastAPI, APIRouter, HTTPException, Depends, Request, Response, Body, Query, WebSocket, WebSocketDisconnect, UploadFile, File, Header
 from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -3401,9 +3401,12 @@ async def cancel_subscription_at_period_end(user: User = Depends(get_current_use
 
 # ── Abonelik yenileme kontrolü (günlük zamanlayıcı tarafından çağrılır) ───────
 @api_router.post("/subscription/check-renewals")
-async def check_subscription_renewals():
+async def check_subscription_renewals(x_cron_secret: Optional[str] = Header(None, alias="x-cron-secret")):
     """Calendar-based renewal: find users whose next_renewal_date is today or past,
     and users whose next_renewal_date is exactly 3 days away (reminder)."""
+    expected = os.getenv("CRON_SECRET", "")
+    if not expected or x_cron_secret != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
     today = datetime.now(timezone.utc).date()
     today_iso = today.isoformat()
     reminder_day = (today + timedelta(days=3)).isoformat()

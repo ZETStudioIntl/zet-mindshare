@@ -1,0 +1,25 @@
+name: Daily Subscription Renewals
+
+on:
+  schedule:
+    - cron: '0 8 * * *'   # Her gün 08:00 UTC
+  workflow_dispatch:        # Manuel tetikleme (test için)
+
+jobs:
+  check-renewals:
+    name: Check & Send Renewal Emails
+    runs-on: ubuntu-latest
+    steps:
+      - name: POST /subscription/check-renewals
+        run: |
+          RESPONSE=$(curl -s -o /tmp/body.json -w "%{http_code}" \
+            -X POST "${{ secrets.REACT_APP_BACKEND_URL }}/api/subscription/check-renewals" \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            -H "Content-Type: application/json")
+          echo "HTTP Status: $RESPONSE"
+          cat /tmp/body.json
+          if [ "$RESPONSE" != "200" ]; then
+            echo "❌ Renewal check failed with status $RESPONSE"
+            exit 1
+          fi
+          echo "✅ Renewal check completed"
