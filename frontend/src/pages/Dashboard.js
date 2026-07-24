@@ -19,6 +19,7 @@ import MissionsModal from '../components/dashboard/MissionsModal';
 import SubscriptionModal from '../components/dashboard/SubscriptionModal';
 import UpgradePromptModal from '../components/dashboard/UpgradePromptModal';
 import DeleteConfirmModal from '../components/dashboard/DeleteConfirmModal';
+import PlanFeaturesModal from '../components/dashboard/PlanFeaturesModal';
 import SeasonEndModal from '../components/dashboard/SeasonEndModal';
 import ConfirmModal from '../components/dashboard/ConfirmModal';
 import ironRankImg from '../assets/rank-iron.svg';
@@ -32,7 +33,7 @@ import {
   Clock, Trash2, Cloud, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
   MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, ExternalLink,
-  Folder, FolderOpen, FolderInput
+  Folder, FolderOpen, FolderInput, LayoutGrid
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -154,6 +155,7 @@ const Dashboard = () => {
   const subscriptionLoadedRef = useRef(false);
   const [showSubscription, setShowSubscription] = useState(false);
   const [subscriptionInitSlide, setSubscriptionInitSlide] = useState(null);
+  const [showPlanFeatures, setShowPlanFeatures] = useState(false);
   const [upgradePrompt, setUpgradePrompt] = useState(null); // { featureName, requiredPlan }
   const showUpgradePrompt = (featureName, requiredPlan) => setUpgradePrompt({ featureName, requiredPlan });
   const [billingCycle, setBillingCycle] = useState('yearly');
@@ -1753,7 +1755,7 @@ MATCHES:[1,3,5]`;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
-      <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.07.18</span>
+      <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.07.25</span>
       {/* Offline banner */}
       {!isOnline && (
         <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
@@ -1795,29 +1797,6 @@ MATCHES:[1,3,5]`;
           )}
         </div>
         <div className="flex items-center gap-2">
-          {/* App Switcher */}
-          <div className="hidden sm:flex items-center gap-0.5 rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
-            <button
-              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
-              style={{ background: 'var(--zet-primary)', color: '#fff' }}
-            >
-              Mindshare
-            </button>
-            <button
-              onClick={() => navigate('/editor/new')}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-white/10"
-              style={{ color: 'var(--zet-text-muted)' }}
-            >
-              <FileEdit className="h-3.5 w-3.5 inline mr-1" />Editör
-            </button>
-            <button
-              onClick={() => { switchApp('judge'); navigate('/judge'); }}
-              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-white/10"
-              style={{ color: '#c8005a' }}
-            >
-              <Scale className="h-3.5 w-3.5 inline mr-1" />Judge
-            </button>
-          </div>
           <button
             onClick={() => { setShowSettings(!showSettings); setMobileSettingsSidebar(true); }}
             className="tool-btn"
@@ -1866,11 +1845,12 @@ MATCHES:[1,3,5]`;
                 { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: 'Envanter',         color: '#60a5fa' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
+                { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: 'Uygulama Seçici' },
                 ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: 'Kullanıcılar', color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
-                  onClick={() => { if (item.id === 'quests') { navigate('/quest-map'); setShowSettings(false); } else { setSettingsTab(item.id); setMobileSettingsSidebar(false); } }}
+                  onClick={() => { if (item.id === 'quests') { navigate('/quest-map'); setShowSettings(false); } else if (item.id === 'appswitcher') { navigate('/'); setShowSettings(false); } else { setSettingsTab(item.id); setMobileSettingsSidebar(false); } }}
                   className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mb-0.5 transition-all"
                   style={{
                     background: settingsTab === item.id ? 'rgba(255,255,255,0.08)' : 'transparent',
@@ -1894,7 +1874,7 @@ MATCHES:[1,3,5]`;
 
               {/* Versiyon */}
               <div className="mt-auto pt-4 px-3">
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.07.18</span>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.07.25</span>
               </div>
             </div>
 
@@ -2009,9 +1989,18 @@ MATCHES:[1,3,5]`;
                       </span>
                     </div>
                     {userSubscription !== 'free' && (
-                      <button onClick={handleCancelSubscription} disabled={subscribing} className="mt-2 text-sm text-red-400 hover:text-red-300 w-full text-center py-2">
-                        {t('cancelSubscription')}
-                      </button>
+                      <>
+                        <button
+                          onClick={() => setShowPlanFeatures(true)}
+                          className="mt-2 w-full py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
+                          style={{ background: userSubscription === 'creative_station' ? 'rgba(245,158,11,0.1)' : userSubscription === 'pro' ? 'rgba(139,92,246,0.1)' : 'rgba(59,130,246,0.1)', color: userSubscription === 'creative_station' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : '#3b82f6', border: '1px solid currentColor', borderColor: userSubscription === 'creative_station' ? 'rgba(245,158,11,0.25)' : userSubscription === 'pro' ? 'rgba(139,92,246,0.25)' : 'rgba(59,130,246,0.25)' }}
+                        >
+                          Nelerden Faydalanıyorum?
+                        </button>
+                        <button onClick={handleCancelSubscription} disabled={subscribing} className="mt-1 text-sm text-red-400 hover:text-red-300 w-full text-center py-2">
+                          {t('cancelSubscription')}
+                        </button>
+                      </>
                     )}
                   </div>
                 </div>
@@ -2562,6 +2551,15 @@ MATCHES:[1,3,5]`;
                                   {plan.id !== 'free' && (
                                     <button onClick={() => handleSubscribe(plan.id)} disabled={subscribing || isCurrent} className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50" style={{ background: isCurrent ? 'var(--zet-bg)' : plan.color, color: isCurrent ? plan.color : 'white', border: isCurrent ? `2px solid ${plan.color}` : 'none' }} data-testid={`select-plan-${plan.id}`}>
                                       {isCurrent ? t('currentPlan') : `$${price}${period} ile Al`}
+                                    </button>
+                                  )}
+                                  {isCurrent && plan.id !== 'free' && (
+                                    <button
+                                      onClick={() => setShowPlanFeatures(true)}
+                                      className="w-full py-2.5 rounded-xl font-semibold transition-all hover:opacity-80 text-sm"
+                                      style={{ background: `${plan.color}12`, color: plan.color, border: `1px solid ${plan.color}35` }}
+                                    >
+                                      Nelerden Faydalanıyorum?
                                     </button>
                                   )}
                                   {plan.id !== 'free' && plan.id !== 'creative_station' && !isYearly && !isCurrent && (
@@ -4196,6 +4194,10 @@ MATCHES:[1,3,5]`;
             </p>
           </div>
         </div>
+      )}
+
+      {showPlanFeatures && (
+        <PlanFeaturesModal plan={userSubscription} onClose={() => setShowPlanFeatures(false)} />
       )}
 
       {/* Subscription Modal */}
