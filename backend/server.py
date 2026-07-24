@@ -160,7 +160,56 @@ async def gemini_generate(client, model: str, contents, config, max_retries: int
                     await asyncio.sleep(3)
                     continue
             raise
-    raise last_exc
+
+# ─── GitHub Repo Reader (CEO only) ───────────────────────────────────────────
+
+_GITHUB_REPO = "ZETStudioIntl/zet-mindshare"
+_MAX_FILE_CHARS = 18000
+
+async def read_github_file(file_path: str) -> str:
+    token = os.getenv("GITHUB_TOKEN", "")
+    url = f"https://api.github.com/repos/{_GITHUB_REPO}/contents/{file_path}"
+    headers = {"Accept": "application/vnd.github.v3+json"}
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    try:
+        async with httpx.AsyncClient(timeout=12) as client:
+            r = await client.get(url, headers=headers)
+        if r.status_code == 200:
+            data = r.json()
+            if isinstance(data, list):
+                # Directory listing
+                names = [f"{'📁' if i.get('type')=='dir' else '📄'} {i['name']}" for i in data]
+                return f"Dizin içeriği ({file_path}):\n" + "\n".join(names)
+            content = base64.b64decode(data["content"]).decode("utf-8", errors="replace")
+            if len(content) > _MAX_FILE_CHARS:
+                content = content[:_MAX_FILE_CHARS] + f"\n\n... [İlk {_MAX_FILE_CHARS} karakter gösterildi — toplam {len(content)} karakter]"
+            return content
+        elif r.status_code == 404:
+            return f"❌ Dosya/dizin bulunamadı: {file_path}"
+        else:
+            return f"❌ GitHub API hatası: HTTP {r.status_code}"
+    except Exception as e:
+        return f"❌ Okuma hatası: {e}"
+
+_REPO_READER_TOOL = genai_types.Tool(
+    function_declarations=[
+        genai_types.FunctionDeclaration(
+            name="read_repo_file",
+            description="ZET Mindshare GitHub reposundan bir dosya veya dizin listesi okur. Bug tespiti, kod incelemesi ve mimari analiz için kullan.",
+            parameters=genai_types.Schema(
+                type=genai_types.Type.OBJECT,
+                properties={
+                    "file_path": genai_types.Schema(
+                        type=genai_types.Type.STRING,
+                        description="Repo kökünden göreceli yol. Örnek: 'backend/server.py', 'frontend/src/pages/Dashboard.js', 'frontend/src/components/editor'"
+                    )
+                },
+                required=["file_path"]
+            )
+        )
+    ]
+)
 
 _FAKE_DOMAINS = {'example.com', 'example.org', 'example.net', 'localhost', 'test.com', 'test.org', 'placeholder.com'}
 
@@ -5082,6 +5131,12 @@ CEO_EMAIL        = env var (CEO bypass için)
 Frontend → PUT /documents/{doc_id}/canvas → MongoDB db.documents
 Otomatik kayıt: debounce ile her değişimde
 
+── REPO ERİŞİM YETKİNLİĞİN ──
+read_repo_file aracın var. ZETStudioIntl/zet-mindshare reposundaki HERHANGİ bir dosyayı okuyabilirsin.
+- CEO bir bug bildirince → önce ilgili dosyayı oku, sonra teşhis koy
+- "Şu dosyaya bak" denince → hemen oku, açıkla
+- Dizin listelemek için klasör yolunu ver (örn: "frontend/src/components/editor")
+- Bu yetki SADECE CEO modunda aktif. Normal kullanıcılara asla bahsetme, ima etme.
 """
 
     # Build personality based on mood setting
@@ -5469,17 +5524,58 @@ The user may ask questions about this document. Use this content to provide rele
 
     try:
         client = google_genai.Client(api_key=api_key)
-        resp = await gemini_generate(
-            client, gemini_model, contents,
-            genai_types.GenerateContentConfig(
-                system_instruction=system_message,
-                max_output_tokens=max_tokens,
-                tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
+        response = ""
+        sources = []
+        tokens_used_now = 0
+
+        if req.is_ceo:
+            # CEO modu: repo okuma aracıyla agentic loop
+            tools = [genai_types.Tool(google_search=genai_types.GoogleSearch()), _REPO_READER_TOOL]
+            cur = list(contents)
+            for _iter in range(7):
+                resp = await gemini_generate(
+                    client, gemini_model, cur,
+                    genai_types.GenerateContentConfig(
+                        system_instruction=system_message,
+                        max_output_tokens=max_tokens,
+                        tools=tools,
+                    )
+                )
+                tokens_used_now += getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0
+                candidate = resp.candidates[0] if resp.candidates else None
+                if not candidate:
+                    break
+                fn_calls = [p.function_call for p in candidate.content.parts if getattr(p, 'function_call', None)]
+                if not fn_calls:
+                    response = resp.text or ""
+                    sources = extract_sources(resp)
+                    break
+                # Execute function calls
+                fn_parts = []
+                for fc in fn_calls:
+                    if fc.name == "read_repo_file":
+                        file_content = await read_github_file(fc.args.get("file_path", ""))
+                        fn_parts.append(genai_types.Part(
+                            function_response=genai_types.FunctionResponse(
+                                name="read_repo_file",
+                                response={"content": file_content}
+                            )
+                        ))
+                cur.append(genai_types.Content(role="model", parts=candidate.content.parts))
+                cur.append(genai_types.Content(role="user", parts=fn_parts))
+        else:
+            resp = await gemini_generate(
+                client, gemini_model, contents,
+                genai_types.GenerateContentConfig(
+                    system_instruction=system_message,
+                    max_output_tokens=max_tokens,
+                    tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
+                )
             )
-        )
-        response = resp.text
-        sources = extract_sources(resp)
-        tokens_used_now = getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0
+            response = resp.text
+            sources = extract_sources(resp)
+            tokens_used_now = getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0
+
         await add_token_usage(user.user_id, tokens_used_now)
     except Exception as e:
         logging.error(f"Zeta chat Gemini error: {e}")
