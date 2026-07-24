@@ -1795,7 +1795,30 @@ MATCHES:[1,3,5]`;
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button 
+          {/* App Switcher */}
+          <div className="hidden sm:flex items-center gap-0.5 rounded-xl p-1" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <button
+              className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+              style={{ background: 'var(--zet-primary)', color: '#fff' }}
+            >
+              Mindshare
+            </button>
+            <button
+              onClick={() => navigate('/editor/new')}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-white/10"
+              style={{ color: 'var(--zet-text-muted)' }}
+            >
+              <FileEdit className="h-3.5 w-3.5 inline mr-1" />Editör
+            </button>
+            <button
+              onClick={() => { switchApp('judge'); navigate('/judge'); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:bg-white/10"
+              style={{ color: '#c8005a' }}
+            >
+              <Scale className="h-3.5 w-3.5 inline mr-1" />Judge
+            </button>
+          </div>
+          <button
             onClick={() => { setShowSettings(!showSettings); setMobileSettingsSidebar(true); }}
             className="tool-btn"
             data-testid="settings-btn"
@@ -1858,17 +1881,6 @@ MATCHES:[1,3,5]`;
                   {item.icon} {item.label}
                 </button>
               ))}
-
-              {/* App switcher */}
-              <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                <button
-                  onClick={() => { switchApp('judge'); navigate('/judge'); setShowSettings(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm mb-0.5 transition-all hover:bg-white/5"
-                  style={{ color: '#c8005a' }}
-                >
-                  <Scale className="h-4 w-4" /> ZET Judge'e Geç
-                </button>
-              </div>
 
               {/* Çıkış */}
               <div className="mt-4 pt-4 border-t" style={{ borderColor: 'var(--zet-border)' }}>
@@ -2068,12 +2080,12 @@ MATCHES:[1,3,5]`;
                       <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Biyografi</label>
                       <textarea
                         value={editBio}
-                        onChange={e => setEditBio(e.target.value.slice(0, 160))}
+                        onChange={e => setEditBio(e.target.value.slice(0, 200))}
                         className="zet-input w-full resize-none"
                         rows={3}
                         placeholder="Kendinizi kısaca tanıtın..."
                       />
-                      <p className="text-xs mt-1 text-right" style={{ color: 'var(--zet-text-muted)' }}>{editBio.length}/160</p>
+                      <p className="text-xs mt-1 text-right" style={{ color: 'var(--zet-text-muted)' }}>{editBio.length}/200</p>
                     </div>
                     {/* E-posta değiştir */}
                     <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.06)' }}>
@@ -2129,15 +2141,14 @@ MATCHES:[1,3,5]`;
                             pictureUrl = photoRes.data.picture_url;
                           }
                           await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
-                          if (editUsername !== user?.username || editBio !== (user?.bio || '')) {
-                            await axios.patch(`${API}/users/me`, { username: editUsername, display_name: editName, bio: editBio }, { withCredentials: true });
-                          }
+                          await axios.patch(`${API}/users/me`, { username: editUsername, display_name: editName, bio: editBio }, { withCredentials: true });
                           if (updateUser) updateUser({ ...user, name: editName, username: editUsername, bio: editBio, picture: pictureUrl });
                           setProfilePhoto(null);
                           setProfilePhotoPreview(null);
                           showToast('Profil güncellendi!', 'success');
-                        } catch {
-                          showToast('Güncelleme başarısız', 'error');
+                        } catch (err) {
+                          const msg = err?.response?.data?.detail || 'Güncelleme başarısız';
+                          showToast(msg, 'error');
                         }
                         setUploadingPhoto(false);
                       }}

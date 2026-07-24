@@ -1595,7 +1595,7 @@ async def update_profile(body: UsernameUpdate, user: User = Depends(get_current_
     if body.display_name is not None:
         update["display_name"] = body.display_name[:50]
     if body.bio is not None:
-        update["bio"] = body.bio[:160]
+        update["bio"] = body.bio[:200]
     if body.complete_onboarding:
         update["needs_onboarding"] = False
     if update:
@@ -4227,9 +4227,13 @@ HIZLI ANALİZ MODU:
 - Hızlı sonuç ver
 """
     
+    user_bio = user_data.get("bio", "") if user_data else ""
     system_message = f"""{judge_ceo_section}Sen ZET Judge Mini - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
 
 {mode_instruction}
+
+MEVCUT KULLANICI:
+- İsim: {user.name or user.email}{f"{chr(10)}- Biyografi: {user_bio}" if user_bio else ""}
 
 KİMLİĞİN:
 - ZET Studio International tarafından geliştirildin
@@ -5114,8 +5118,9 @@ Otomatik kayıt: debounce ile her değişimde
 {emoji_text}
 
 👤 KULLANICI BİLGİSİ:
+- İsim: {user.name or user.email}
 - Mevcut Plan: {user_plan.upper()}
-- E-posta: {user.email}
+- E-posta: {user.email}{f"{chr(10)}- Biyografi: {user_data.get('bio')}" if user_data.get('bio') else ""}
 
 ⚖️ ZET JUDGE MİNİ HAKKINDA:
 - ZET Mindshare'de seninle birlikte "ZET Judge Mini" adında bir AI daha var
