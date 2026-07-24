@@ -4203,7 +4203,7 @@ async def list_gemini_models():
     except Exception as e:
         return {"error": str(e)}
 
-# ZET Judge Mini - Business Analysis AI
+# ZET Judge - Business Analysis AI
 @api_router.post("/judge/chat")
 async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)):
     user_data = await db.users.find_one({"user_id": user.user_id})
@@ -4277,7 +4277,7 @@ HIZLI ANALİZ MODU:
 """
     
     user_bio = user_data.get("bio", "") if user_data else ""
-    system_message = f"""{judge_ceo_section}Sen ZET Judge Mini - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
+    system_message = f"""{judge_ceo_section}Sen ZET Judge - ZET Studio International tarafından iş analizi için geliştirilmiş profesyonel bir AI'sın.
 
 {mode_instruction}
 
@@ -5177,22 +5177,22 @@ read_repo_file aracın var. ZETStudioIntl/zet-mindshare reposundaki HERHANGİ bi
 - Mevcut Plan: {user_plan.upper()}
 - E-posta: {user.email}{f"{chr(10)}- Biyografi: {user_data.get('bio')}" if user_data.get('bio') else ""}
 
-⚖️ ZET JUDGE MİNİ HAKKINDA:
-- ZET Mindshare'de seninle birlikte "ZET Judge Mini" adında bir AI daha var
-- ZET Judge Mini: İş analizi, strateji, vizyon, proje değerlendirme uzmanı
+⚖️ ZET JUDGE HAKKINDA:
+- ZET Judge, ZET Mindshare'den ayrı bağımsız bir uygulamadır (ayrı sayfa: /judge)
+- ZET Judge: İş analizi, strateji, vizyon, proje değerlendirme uzmanı AI
 - Dobra, dürüst ve analitik bir kişiliği var
 - Kullanıcı sana "analiz et", "projemi değerlendir", "iş planımı incele", "risk analizi yap" gibi ANALİZ İSTEKLERİ sorarsa:
-  → "Bu konuda ZET Judge Mini sana daha iyi yardımcı olabilir! Sağ panelde Judge sekmesine geçerek detaylı analiz alabilirsin. 📊" de
+  → "Bu konuda ZET Judge sana daha iyi yardımcı olabilir! Üstteki uygulama seçiciden Judge'a geçerek detaylı analiz alabilirsin." de
 - Sen uygulama kullanımı, araçlar ve genel sorularda yardımcı olursun
-- Free kullanıcılar için Judge kilitli - Plus veya üzeri plan gerekli
+- Free kullanıcılar için Judge kilitli — Plus veya üzeri plan gerekli
 
 💎 ABONELİK PAKETLERİ (KREDİ SİSTEMİ):
-| Plan                      | Fiyat        | Günlük Kredi | ZETA Harf | Judge | Judge Harf | Nano Pro |
-|---------------------------|-------------|-------------|-----------|-------|------------|----------|
-| Free                      | Ücretsiz    | 20          | 250       | Kapalı| -          | Yok      |
-| Plus                      | $9.99/ay    | 100         | 500       | Mini  | 150        | Yok      |
-| Pro                       | $19.99/ay   | 250         | Sınırsız  | Tam   | 600        | Var      |
-| Creative Station          | $49/ay      | 1000        | Sınırsız  | Tam   | Sınırsız   | Var      |
+| Plan             | Fiyat       | Günlük Kredi | Günlük Token | Judge  | Nano Pro |
+|------------------|-------------|-------------|--------------|--------|----------|
+| Free             | Ücretsiz    | 80          | 100K         | Kapalı | Yok      |
+| Plus             | $9.99/ay    | 250         | 480K         | Açık   | Yok      |
+| Pro              | $19.99/ay   | 500         | 1.3M         | Açık   | Var      |
+| Creative Station | $49/ay      | 4000        | 4.8M         | Açık   | Var      |
 
 KREDİ MALİYETLERİ:
 - Nano Banana görsel: 20 kredi
@@ -5203,10 +5203,10 @@ KREDİ MALİYETLERİ:
 - Judge derin analiz: 70 kredi
 
 PAKET ÖZELLİKLERİ:
-- Free: Layers/Signature/Watermark/Page Color/Grafikler kapalı, 3 fast select
-- Plus: Layers açık, Signature/Watermark/Page Color/Grafikler kapalı, Derin analiz yok
-- Pro: Tüm araçlar açık
-- Creative Station: Pro + sınırsız Judge + 1000 kredi/gün — hem ZET Mindshare hem Judge için tam erişim
+- Free: Layers/Signature/Watermark/Page Color/Grafikler kapalı, 3 fast select, Judge kapalı
+- Plus: Layers açık, tüm araçlar (Signature/Watermark/Page Color/Grafikler), 5 fast select, Judge açık
+- Pro: Tüm araçlar açık, Nano Banana Pro, 8 fast select, 50GB Drive, filigransız auto-write
+- Creative Station: Pro'nun her şeyi + 4000 kredi/gün, 4.8M token, 1TB Drive, garantili sandık
 
 💳 ÖDEME VE YENİLEME:
 - Abonelik aynı takvim günü her ay/yıl yenilenir (örn: 15'inde başladıysa her ay 15'inde)
