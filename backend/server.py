@@ -661,40 +661,219 @@ def compute_next_renewal(from_date: date, billing_cycle: str) -> date:
     delta = relativedelta(months=1) if billing_cycle == "monthly" else relativedelta(years=1)
     return from_date + delta
 
+# ── Email design helpers ──────────────────────────────────────────────────────
+
+_PLAN_META_EMAIL = {
+    "plus":             ("ZET Plus",        "#3b82f6"),
+    "pro":              ("ZET Pro",          "#8b5cf6"),
+    "creative_station": ("Creative Station", "#f59e0b"),
+}
+
+def _plan_label(plan: str):
+    return _PLAN_META_EMAIL.get(plan, ("ZET Mindshare", "#4ca8ad"))
+
+def _email_shell(body: str, accent: str = "#4ca8ad") -> str:
+    return f"""<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>ZET Mindshare</title></head>
+<body style="margin:0;padding:0;background-color:#070916;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+<table width="100%" border="0" cellspacing="0" cellpadding="0" bgcolor="#070916">
+<tr><td align="center" style="padding:48px 16px;">
+<table width="600" border="0" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;">
+<tr><td style="background-color:#0d1030;border-radius:16px 16px 0 0;padding:30px 48px;text-align:center;border-bottom:2px solid {accent};">
+  <span style="font-size:28px;font-weight:800;color:#ffffff;letter-spacing:1px;font-family:Helvetica,Arial,sans-serif;">ZET</span><span style="font-size:12px;font-weight:600;color:{accent};letter-spacing:5px;margin-left:10px;text-transform:uppercase;vertical-align:4px;font-family:Helvetica,Arial,sans-serif;">MINDSHARE</span>
+</td></tr>
+<tr><td style="background-color:#090c20;padding:52px 48px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04);">
+{body}
+</td></tr>
+<tr><td style="background-color:#060813;border-radius:0 0 16px 16px;padding:24px 48px;border:1px solid rgba(255,255,255,0.05);border-top:none;">
+  <p style="margin:0 0 5px;font-size:11px;color:#2d3352;text-align:center;font-weight:600;letter-spacing:1.5px;">ZET STUDIO INTERNATIONAL</p>
+  <p style="margin:0;font-size:11px;color:#2d3352;text-align:center;">Destek: <a href="mailto:support@zetstudiointl.com" style="color:{accent};text-decoration:none;">support@zetstudiointl.com</a></p>
+</td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
+
+def _info_row(label: str, value: str, accent: str, last: bool = False) -> str:
+    border = "" if last else "border-bottom:1px solid rgba(255,255,255,0.05);"
+    return f"""<tr>
+      <td style="padding:11px 0;{border}"><span style="font-size:11px;color:#4a5168;font-weight:700;letter-spacing:1px;text-transform:uppercase;">{label}</span></td>
+      <td style="padding:11px 0;{border}text-align:right;"><span style="font-size:14px;color:{accent};font-weight:700;">{value}</span></td>
+    </tr>"""
+
+def _info_row_plain(label: str, value: str, last: bool = False) -> str:
+    border = "" if last else "border-bottom:1px solid rgba(255,255,255,0.05);"
+    return f"""<tr>
+      <td style="padding:11px 0;{border}"><span style="font-size:11px;color:#4a5168;font-weight:700;letter-spacing:1px;text-transform:uppercase;">{label}</span></td>
+      <td style="padding:11px 0;{border}text-align:right;"><span style="font-size:14px;color:#c8cde8;font-weight:600;">{value}</span></td>
+    </tr>"""
+
+def _badge(text: str, accent: str) -> str:
+    return f'<p style="margin:0 0 22px;text-align:center;"><span style="display:inline-block;background:{accent}1a;border:1px solid {accent}44;border-radius:20px;padding:7px 20px;font-size:11px;font-weight:700;color:{accent};letter-spacing:1.5px;">{text}</span></p>'
+
+def _heading(text: str) -> str:
+    return f'<h1 style="margin:0 0 12px;font-size:30px;font-weight:800;color:#ffffff;line-height:1.25;text-align:center;">{text}</h1>'
+
+def _subtext(text: str) -> str:
+    return f'<p style="margin:0 0 36px;font-size:15px;color:#7b82a8;line-height:1.7;text-align:center;">{text}</p>'
+
+def _cta(text: str, url: str, accent: str) -> str:
+    return f'<p style="margin:0;text-align:center;"><a href="{url}" style="display:inline-block;background:{accent};color:#ffffff;padding:16px 44px;border-radius:10px;text-decoration:none;font-size:15px;font-weight:700;letter-spacing:0.3px;">{text}</a></p>'
+
+def _note(text: str) -> str:
+    return f'<p style="margin:18px 0 0;font-size:12px;color:#4a5168;text-align:center;line-height:1.6;">{text}</p>'
+
+def _card(rows_html: str) -> str:
+    return f"""<table width="100%" border="0" cellspacing="0" cellpadding="0" style="background:#0f1230;border-radius:12px;border:1px solid rgba(255,255,255,0.07);margin-bottom:32px;">
+    <tr><td style="padding:24px 28px;">
+      <table width="100%" border="0" cellspacing="0" cellpadding="0">
+        {rows_html}
+      </table>
+    </td></tr>
+    </table>"""
+
+def _warn_card(text: str, accent: str = "#ef4444") -> str:
+    return f"""<table width="100%" border="0" cellspacing="0" cellpadding="0" style="background:{accent}0d;border-radius:12px;border:1px solid {accent}33;margin-bottom:32px;">
+    <tr><td style="padding:20px 24px;">
+      <p style="margin:0;font-size:13px;color:{accent}cc;line-height:1.65;">{text}</p>
+    </td></tr>
+    </table>"""
+
+
 async def send_renewal_email(to_email: str, plan: str, renewal_date: date, amount: float, next_date: date):
-    currency = "USD"
-    html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
-        <h2 style="color:#4ca8ad;margin-bottom:20px;">🔄 ZET Mindshare Aboneliğiniz Yenilendi</h2>
-        <p style="font-size:16px;line-height:1.6;">Aboneliğiniz başarıyla yenilendi. Aşağıda fatura detaylarını bulabilirsiniz.</p>
-        <div style="background:rgba(255,255,255,0.08);padding:16px;border-radius:8px;margin:20px 0;">
-            <p style="margin:6px 0;color:#4ca8ad;"><strong>Plan:</strong> {plan.upper()}</p>
-            <p style="margin:6px 0;color:#4ca8ad;"><strong>Yenileme Tarihi:</strong> {renewal_date.strftime('%d.%m.%Y')}</p>
-            <p style="margin:6px 0;color:#4ca8ad;"><strong>Tahsil Edilen Tutar:</strong> {amount:.2f} {currency}</p>
-            <p style="margin:6px 0;color:#4ca8ad;"><strong>Sonraki Yenileme:</strong> {next_date.strftime('%d.%m.%Y')}</p>
-        </div>
-        <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">ZET Mindshare'e Git</a>
-        <p style="color:#888;font-size:12px;margin-top:20px;">Sorularınız için info@zetstudiointl.com adresine yazabilirsiniz.</p>
-    </div>
-    """
-    await send_email(to_email, f"🔄 ZET Mindshare {plan.upper()} Planı Yenilendi", html)
+    plan_name, accent = _plan_label(plan)
+    rows = (
+        _info_row("Plan", plan_name, accent) +
+        _info_row_plain("Yenileme Tarihi", renewal_date.strftime('%d.%m.%Y')) +
+        _info_row_plain("Tahsil Edilen Tutar", f"${amount:.2f}") +
+        _info_row_plain("Sonraki Yenileme", next_date.strftime('%d.%m.%Y'), last=True)
+    )
+    body = (
+        _badge("ÖDEME ALINDI", accent) +
+        _heading("Aboneliğiniz Yenilendi") +
+        _subtext("Ödemeniz başarıyla alındı. Aşağıda fatura detaylarınızı bulabilirsiniz.") +
+        _card(rows) +
+        _cta("ZET Mindshare'i Aç", "https://zetmindshare.com", accent)
+    )
+    await send_email(to_email, f"ZET Mindshare — {plan_name} aboneliğiniz yenilendi", _email_shell(body, accent))
+
 
 async def send_renewal_reminder_email(to_email: str, plan: str, renewal_date: date, amount: float):
-    currency = "USD"
-    html = f"""
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
-        <h2 style="color:#f59e0b;margin-bottom:20px;">⏰ Abonelik Yenileme Hatırlatması</h2>
-        <p style="font-size:16px;line-height:1.6;">ZET Mindshare aboneliğiniz <strong>3 gün içinde</strong> yenilenecektir.</p>
-        <div style="background:rgba(255,255,255,0.08);padding:16px;border-radius:8px;margin:20px 0;">
-            <p style="margin:6px 0;color:#f59e0b;"><strong>Plan:</strong> {plan.upper()}</p>
-            <p style="margin:6px 0;color:#f59e0b;"><strong>Yenileme Tarihi:</strong> {renewal_date.strftime('%d.%m.%Y')}</p>
-            <p style="margin:6px 0;color:#f59e0b;"><strong>Tahsil Edilecek Tutar:</strong> {amount:.2f} {currency}</p>
-        </div>
-        <p style="color:#ccc;font-size:14px;">Aboneliğinizi iptal etmek istiyorsanız yenileme tarihinden önce hesap ayarlarınızdan işlem yapabilirsiniz.</p>
-        <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">Hesabımı Yönet</a>
-    </div>
-    """
-    await send_email(to_email, f"⏰ ZET Mindshare {plan.upper()} Planı 3 Gün İçinde Yenilenecek", html)
+    plan_name, accent = _plan_label(plan)
+    reminder_accent = "#f59e0b"
+    rows = (
+        _info_row("Plan", plan_name, accent) +
+        _info_row("Yenileme Tarihi", renewal_date.strftime('%d.%m.%Y'), reminder_accent) +
+        _info_row_plain("Tahsil Edilecek Tutar", f"${amount:.2f}", last=True)
+    )
+    body = (
+        _badge("3 GÜN KALDI", reminder_accent) +
+        _heading("Aboneliğiniz Yakında Yenilenecek") +
+        _subtext("Aşağıdaki plan otomatik olarak yenilenecektir.<br>Devam etmek istemiyorsanız öncesinde iptal edebilirsiniz.") +
+        _card(rows) +
+        _cta("Hesabımı Yönet", "https://zetmindshare.com/dashboard", "#4ca8ad") +
+        _note("Bu e-postayı görmezden gelirseniz aboneliğiniz otomatik olarak yenilenecektir.")
+    )
+    await send_email(to_email, f"ZET Mindshare — {plan_name} planı 3 gün içinde yenilenecek", _email_shell(body, reminder_accent))
+
+
+async def send_welcome_email(to_email: str, plan: str, billing_cycle: str, next_renewal: date):
+    plan_name, accent = _plan_label(plan)
+    cycle_label = "Aylık" if billing_cycle == "monthly" else "Yıllık"
+    rows = (
+        _info_row("Plan", plan_name, accent) +
+        _info_row_plain("Dönem", cycle_label) +
+        _info_row_plain("Sonraki Yenileme", next_renewal.strftime('%d.%m.%Y'), last=True)
+    )
+    body = (
+        _badge("ABONELİK AKTİF", accent) +
+        _heading(f"{plan_name}'a<br>Hoş Geldiniz!") +
+        _subtext("Aboneliğiniz başarıyla aktifleştirildi.<br>Tüm premium özellikler artık kullanımınıza hazır.") +
+        _card(rows) +
+        _cta("ZET Mindshare'i Aç", "https://zetmindshare.com", accent)
+    )
+    await send_email(to_email, f"ZET Mindshare — {plan_name} planına hoş geldiniz!", _email_shell(body, accent))
+
+
+async def send_cancel_request_email(to_email: str, plan: str, cancel_link: str):
+    plan_name, accent = _plan_label(plan)
+    danger = "#ef4444"
+    body = (
+        _badge("İPTAL İSTEĞİ", danger) +
+        _heading("Aboneliği İptal Et") +
+        _subtext("Aboneliğinizi iptal etmek istediğinizi aldık.<br>Onaylamak için aşağıdaki butona tıklayın.") +
+        _warn_card(f"<strong>Dikkat:</strong> İptal sonrasında dönem sonuna kadar erişiminiz devam eder, ancak bir sonraki dönemde {plan_name} özelliklerinizi kaybedeceksiniz.", danger) +
+        _cta("İptali Onayla", cancel_link, danger) +
+        _note("Bu bağlantıya tıklamazsanız aboneliğiniz değişmeden devam eder.")
+    )
+    await send_email(to_email, "ZET Mindshare — Abonelik iptal onayı", _email_shell(body, danger))
+
+
+async def send_cancellation_confirmed_email(to_email: str, plan: str):
+    plan_name, _ = _plan_label(plan)
+    accent = "#4ca8ad"
+    body = (
+        _badge("ABONELİK İPTAL EDİLDİ", accent) +
+        _heading("Aboneliğiniz<br>İptal Edildi") +
+        _subtext(f"{plan_name} aboneliğiniz başarıyla iptal edildi.<br>Bizi tercih ettiğiniz için teşekkür ederiz.") +
+        '<p style="margin:0 0 32px;font-size:14px;color:#7b82a8;text-align:center;line-height:1.7;">Ücretsiz planla kullanmaya devam edebilirsiniz.<br>Dilediğiniz zaman tekrar abone olabilirsiniz.</p>' +
+        _cta("ZET Mindshare'e Dön", "https://zetmindshare.com", accent)
+    )
+    await send_email(to_email, "ZET Mindshare — Aboneliğiniz iptal edildi", _email_shell(body, accent))
+
+
+async def send_subscription_expired_email(to_email: str, plan: str):
+    plan_name, _ = _plan_label(plan)
+    accent = "#f59e0b"
+    body = (
+        _badge("ABONELİK SONA ERDİ", accent) +
+        _heading("Aboneliğiniz<br>Sona Erdi") +
+        _subtext(f"{plan_name} planı aboneliğiniz sona erdi.<br>Tekrar abone olarak tüm özelliklere erişebilirsiniz.") +
+        _cta("Yeniden Abone Ol", "https://zetmindshare.com/dashboard", accent)
+    )
+    await send_email(to_email, "ZET Mindshare — Aboneliğiniz sona erdi", _email_shell(body, accent))
+
+
+async def send_payment_failed_email(to_email: str, plan: str):
+    plan_name, _ = _plan_label(plan)
+    danger = "#ef4444"
+    body = (
+        _badge("ÖDEME BAŞARISIZ", danger) +
+        _heading("Ödeme Alınamadı") +
+        _subtext(f"{plan_name} abonelik ödemesi alınamadı.<br>Ödeme bilgilerinizi güncelleyerek aboneliğinizi sürdürebilirsiniz.") +
+        _warn_card("Ödeme 3 kez denendikten sonra aboneliğiniz otomatik olarak iptal edilebilir.", danger) +
+        _cta("Ödeme Bilgilerini Güncelle", "https://zetmindshare.com/dashboard", danger)
+    )
+    await send_email(to_email, "ZET Mindshare — Ödeme başarısız", _email_shell(body, danger))
+
+
+async def send_email_change_email(to_email: str, new_email: str, confirm_url: str):
+    accent = "#4ca8ad"
+    rows = _info_row("Yeni E-posta", new_email, accent, last=True)
+    body = (
+        _badge("GÜVENLİK DOĞRULAMASI", accent) +
+        _heading("E-posta Adresi<br>Değiştirme") +
+        _subtext("Hesabınızın e-posta adresini değiştirmek istediniz.<br>Yeni adresinizi onaylamak için butona tıklayın.") +
+        _card(rows) +
+        _cta("E-postayı Onayla", confirm_url, accent) +
+        _note("Bu bağlantı <strong style=\"color:#6b7380;\">1 saat</strong> geçerlidir. Bu isteği siz yapmadıysanız görmezden gelebilirsiniz.")
+    )
+    await send_email(to_email, "ZET Mindshare — E-posta adresinizi onaylayın", _email_shell(body, accent))
+
+
+async def send_account_deletion_email(to_email: str, confirm_url: str):
+    danger = "#ef4444"
+    body = (
+        _badge("GERİ ALINAMAZ İŞLEM", danger) +
+        _heading("Hesap Silme<br>Onayı") +
+        _subtext("Hesabınızı kalıcı olarak silmek istediğinizi aldık.<br>Bu işlem <strong>geri alınamaz</strong>.") +
+        _warn_card("Tüm notlarınız, belgeleriniz, sohbet geçmişiniz ve hesap verileriniz <strong>kalıcı olarak silinecektir</strong> ve kurtarılamaz.", danger) +
+        _cta("Hesabı Kalıcı Olarak Sil", confirm_url, danger) +
+        _note("Bu bağlantı <strong style=\"color:#6b7380;\">1 saat</strong> geçerlidir. Bu isteği siz yapmadıysanız görmezden gelebilirsiniz.")
+    )
+    await send_email(to_email, "ZET Mindshare — Hesap silme onayı", _email_shell(body, danger))
 
 # ============ SUBSCRIPTION HELPERS ============
 
@@ -2025,17 +2204,7 @@ async def request_email_change(req: EmailChangeRequest, user: User = Depends(get
     })
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     confirm_url = f"{frontend_url}/confirm-email-change?token={token}"
-    html_content = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #111827; color: #fff; border-radius: 12px;">
-        <h2 style="color: #4ca8ad; margin-bottom: 16px;">📧 E-posta Değiştirme Onayı</h2>
-        <p style="color: #d1d5db; margin-bottom: 8px;">Hesabınızın e-posta adresini değiştirmek istediniz.</p>
-        <p style="color: #d1d5db; margin-bottom: 20px;"><strong>Yeni e-posta:</strong> {new_email}</p>
-        <p style="color: #d1d5db; margin-bottom: 24px;">Bu isteği siz yapmadıysanız bu e-postayı görmezden gelebilirsiniz.</p>
-        <a href="{confirm_url}" style="display: inline-block; background: #4ca8ad; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px;">E-postayı Onayla</a>
-        <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Bu bağlantı 1 saat geçerlidir.</p>
-    </div>
-    """
-    await send_email(user.email, "📧 ZET Mindshare - E-posta Değiştirme Onayı", html_content)
+    await send_email_change_email(user.email, new_email, confirm_url)
     return {"message": "Confirmation email sent"}
 
 @api_router.post("/auth/change-email/confirm")
@@ -2079,16 +2248,7 @@ async def request_account_deletion(user: User = Depends(get_current_user)):
     })
     frontend_url = os.getenv("FRONTEND_URL", "http://localhost:3000")
     confirm_url = f"{frontend_url}/confirm-delete?token={token}"
-    html_content = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: #111827; color: #fff; border-radius: 12px;">
-        <h2 style="color: #ef4444; margin-bottom: 16px;">⚠️ Hesap Silme Onayı</h2>
-        <p style="color: #d1d5db; margin-bottom: 20px;">Hesabınızı silmek istediğinizi aldık. Bu işlem <strong>geri alınamaz</strong>. Tüm notlarınız, dokümanlarınız ve verileriniz kalıcı olarak silinecektir.</p>
-        <p style="color: #d1d5db; margin-bottom: 24px;">Bu isteği siz yapmadıysanız bu e-postayı görmezden gelebilirsiniz.</p>
-        <a href="{confirm_url}" style="display: inline-block; background: #ef4444; color: white; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px;">Hesabı Kalıcı Olarak Sil</a>
-        <p style="color: #6b7280; font-size: 12px; margin-top: 20px;">Bu bağlantı 1 saat geçerlidir.</p>
-    </div>
-    """
-    await send_email(user.email, "⚠️ ZET Mindshare - Hesap Silme Onayı", html_content)
+    await send_account_deletion_email(user.email, confirm_url)
     return {"message": "Confirmation email sent"}
 
 @api_router.post("/auth/delete-account/confirm")
@@ -3248,20 +3408,7 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
                 "cancel_pending": False,
             }}
         )
-        # Send welcome email
-        html_content = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
-            <h2 style="color: #4ca8ad; margin-bottom: 20px;">🎉 ZET Mindshare {sub.plan.upper()} Planına Hoş Geldiniz!</h2>
-            <p style="font-size: 16px; line-height: 1.6;">Aboneliğiniz başarıyla aktifleştirildi. Artık tüm premium özelliklerden yararlanabilirsiniz!</p>
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 4px 0; color: #4ca8ad;"><strong>Plan:</strong> {sub.plan.upper()}</p>
-                <p style="margin: 4px 0; color: #4ca8ad;"><strong>Dönem:</strong> {"Aylık" if billing_cycle == "monthly" else "Yıllık"}</p>
-                <p style="margin: 4px 0; color: #4ca8ad;"><strong>Sonraki Yenileme:</strong> {next_renewal.strftime('%d.%m.%Y')}</p>
-            </div>
-            <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">ZET Mindshare'e Git</a>
-        </div>
-        """
-        await send_email(user.email, f"🎉 ZET Mindshare {sub.plan.upper()} Planına Hoş Geldiniz!", html_content)
+        await send_welcome_email(user.email, sub.plan, billing_cycle, next_renewal)
         return {"message": f"Subscribed to {sub.plan}", "plan": sub.plan, "next_renewal_date": next_renewal.isoformat()}
     elif sub.action == "cancel":
         # Generate cancellation token
@@ -3270,21 +3417,10 @@ async def update_subscription(sub: SubscriptionUpdate, user: User = Depends(get_
             {"user_id": user.user_id},
             {"$set": {"cancel_token": cancel_token, "cancel_pending": True, "cancel_requested_at": datetime.now(timezone.utc).isoformat()}}
         )
-        # Send cancellation confirmation email
         backend_url = os.environ.get("REACT_APP_BACKEND_URL", "http://localhost:8001")
         cancel_link = f"{backend_url}/api/subscription/confirm-cancel?token={cancel_token}"
-        html_content = f"""
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
-            <h2 style="color: #f59e0b; margin-bottom: 20px;">⚠️ Abonelik İptal Onayı</h2>
-            <p style="font-size: 16px; line-height: 1.6;">Aboneliğinizi iptal etmek istediğinizi anlıyoruz. Bu işlemi tamamlamak için aşağıdaki butona tıklayın.</p>
-            <div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 8px; margin: 20px 0;">
-                <p style="margin: 0; color: #f87171;"><strong>Dikkat:</strong> İptal işlemi sonrasında premium özelliklerinizi kaybedeceksiniz.</p>
-            </div>
-            <a href="{cancel_link}" style="display: inline-block; background: #ef4444; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">İptali Onayla</a>
-            <p style="color: #888; font-size: 12px; margin-top: 20px;">Bu linke tıklamazsanız aboneliğiniz devam edecektir.</p>
-        </div>
-        """
-        await send_email(user.email, "⚠️ ZET Mindshare Abonelik İptal Onayı", html_content)
+        _cur_plan = user.subscription if isinstance(user.subscription, str) else ((user.subscription or {}).get("plan", "free") if isinstance(user.subscription, dict) else "free")
+        await send_cancel_request_email(user.email, _cur_plan, cancel_link)
         return {"message": "Cancellation email sent. Please check your email to confirm.", "plan": user.subscription, "cancel_pending": True}
     else:
         raise HTTPException(status_code=400, detail="Invalid action")
@@ -3302,16 +3438,7 @@ async def confirm_cancellation(token: str):
         {"$set": {"subscription": "free", "subscription_date": None, "cancel_token": None, "cancel_pending": False}}
     )
     
-    # Send confirmation email
-    html_content = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
-        <h2 style="color: #4ca8ad; margin-bottom: 20px;">Aboneliğiniz İptal Edildi</h2>
-        <p style="font-size: 16px; line-height: 1.6;">{old_plan.upper()} planı aboneliğiniz başarıyla iptal edildi. Artık ücretsiz plandaki özelliklerle devam edebilirsiniz.</p>
-        <p style="color: #888; margin-top: 20px;">Bizi tercih ettiğiniz için teşekkür ederiz. Dilediğiniz zaman tekrar abone olabilirsiniz!</p>
-        <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none; margin-top: 10px;">ZET Mindshare'e Git</a>
-    </div>
-    """
-    await send_email(user["email"], "ZET Mindshare Aboneliğiniz İptal Edildi", html_content)
+    await send_cancellation_confirmed_email(user["email"], old_plan)
     
     # Return HTML page so the email button shows a user-friendly confirmation
     from fastapi.responses import HTMLResponse
@@ -3368,21 +3495,7 @@ async def create_subscription(data: SubscriptionCreate, user: User = Depends(get
         {"$set": {"subscription": subscription}}
     )
 
-    # Hoş geldin maili
-    cycle_label = "Aylık" if data.billing_cycle == "monthly" else "Yıllık"
-    html_content = f"""
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 24px; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); color: #fff; border-radius: 12px;">
-        <h2 style="color: #4ca8ad; margin-bottom: 20px;">🎉 ZET Mindshare {data.plan.upper()} Planına Hoş Geldiniz!</h2>
-        <p style="font-size: 16px; line-height: 1.6;">Aboneliğiniz başarıyla aktifleştirildi. Tüm premium özelliklerden yararlanabilirsiniz!</p>
-        <div style="background: rgba(255,255,255,0.08); padding: 16px; border-radius: 8px; margin: 20px 0;">
-            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Plan:</strong> {data.plan.upper()}</p>
-            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Dönem:</strong> {cycle_label}</p>
-            <p style="margin: 4px 0; color: #4ca8ad;"><strong>Bitiş:</strong> {next_renewal.strftime('%d.%m.%Y')}</p>
-        </div>
-        <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 10px 20px; border-radius: 6px; text-decoration: none;">ZET Mindshare'i Aç</a>
-    </div>
-    """
-    await send_email(user.email, f"🎉 ZET Mindshare {data.plan.upper()} Planına Hoş Geldiniz!", html_content)
+    await send_welcome_email(user.email, data.plan, data.billing_cycle, next_renewal)
 
     return {"success": True, "subscription": subscription}
 
@@ -3456,14 +3569,7 @@ async def check_subscription_renewals(x_cron_secret: Optional[str] = Header(None
                 }}
             )
             expired_count += 1
-            html_content = f"""
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
-                <h2 style="color:#f59e0b;margin-bottom:20px;">Aboneliğiniz Sona Erdi</h2>
-                <p style="font-size:16px;line-height:1.6;">{plan.upper()} planı aboneliğiniz sona erdi. Dilediğiniz zaman yeniden abone olabilirsiniz.</p>
-                <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;margin-top:10px;">Yeniden Abone Ol</a>
-            </div>
-            """
-            await send_email(u["email"], "ZET Mindshare Aboneliğiniz Sona Erdi", html_content)
+            await send_subscription_expired_email(u["email"], plan)
         else:
             # Renew: advance next_renewal_date by one billing period
             billing_cycle = u.get("billing_cycle") or (isinstance(sub_raw, dict) and sub_raw.get("billing_cycle")) or "monthly"
@@ -3649,17 +3755,7 @@ async def lemonsqueezy_webhook(request: Request):
             return_document=True,
         )
         if user_data:
-            cycle_label = "Aylık" if billing_cycle == "monthly" else "Yıllık"
-            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
-                <h2 style="color:#4ca8ad;">🎉 ZET Mindshare {plan.upper()} Planına Hoş Geldiniz!</h2>
-                <div style="background:rgba(255,255,255,0.08);padding:16px;border-radius:8px;margin:16px 0;">
-                    <p style="margin:4px 0;color:#4ca8ad;"><strong>Plan:</strong> {plan.upper()}</p>
-                    <p style="margin:4px 0;color:#4ca8ad;"><strong>Dönem:</strong> {cycle_label}</p>
-                    <p style="margin:4px 0;color:#4ca8ad;"><strong>Bitiş:</strong> {next_renewal.strftime('%d.%m.%Y')}</p>
-                </div>
-                <a href="https://zetmindshare.com" style="display:inline-block;background:#4ca8ad;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;">ZET Mindshare'i Aç</a>
-            </div>"""
-            await send_email(user_data["email"], f"🎉 ZET Mindshare {plan.upper()} Planına Hoş Geldiniz!", html)
+            await send_welcome_email(user_data["email"], plan, billing_cycle, next_renewal)
 
     elif event_name == "subscription_updated":
         ls_status = obj.get("status", "active")
@@ -3719,12 +3815,7 @@ async def lemonsqueezy_webhook(request: Request):
     elif event_name == "subscription_payment_failed":
         ud = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
         if ud:
-            html = f"""<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:24px;background:linear-gradient(135deg,#1a1a2e 0%,#16213e 100%);color:#fff;border-radius:12px;">
-                <h2 style="color:#ef4444;">⚠️ Ödeme Başarısız</h2>
-                <p>ZET Mindshare {plan.upper()} abonelik ödemesi alınamadı. Lütfen ödeme bilgilerinizi güncelleyin.</p>
-                <a href="https://zetmindshare.com" style="display:inline-block;background:#ef4444;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;margin-top:12px;">Ödeme Bilgilerini Güncelle</a>
-            </div>"""
-            await send_email(ud["email"], "⚠️ ZET Mindshare Ödeme Başarısız", html)
+            await send_payment_failed_email(ud["email"], plan)
 
     elif event_name == "order_created":
         credit_pkg_id = custom.get("credit_package_id")
