@@ -278,10 +278,10 @@ const Dashboard = () => {
   const dUnlockedModes = useMemo(() => { try { return JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]'); } catch { return []; } }, []);
   const RARITY_COL = { nadir: '#60a5fa', epik: '#a78bfa', lore: '#f87171' };
   const DASH_MODES_DEF = [
-    { value: 'cheerful',     label: 'Neseli',      rarity: 'nadir', troll: false },
-    { value: 'curious',      label: 'Merakli',     rarity: 'nadir', troll: false },
+    { value: 'cheerful',     label: 'Neşeli',      rarity: 'nadir', troll: false },
+    { value: 'curious',      label: 'Meraklı',     rarity: 'nadir', troll: false },
     { value: 'professional', label: 'Profesyonel', rarity: 'nadir', troll: false },
-    { value: 'custom',       label: 'Ozel',        rarity: 'nadir', troll: false },
+    { value: 'custom',       label: 'Özel',        rarity: 'nadir', troll: false },
     { value: 'agresif',      label: 'Agresif',     rarity: 'epik',  troll: true  },
     { value: 'robot',        label: 'Robot',       rarity: 'nadir', troll: true  },
     { value: 'yorgun',       label: 'Yorgun',      rarity: 'nadir', troll: true  },
@@ -2220,7 +2220,7 @@ MATCHES:[1,3,5]`;
                                 return (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     {cur && <span style={{ width: 8, height: 8, borderRadius: '50%', background: RARITY_COL[cur.rarity], flexShrink: 0, display: 'inline-block' }} />}
-                                    <span>{cur?.label || 'Mod Sec'}</span>
+                                    <span>{cur?.label || 'Mod Seç'}</span>
                                   </div>
                                 );
                               })()}
@@ -4357,14 +4357,14 @@ MATCHES:[1,3,5]`;
       {/* Mood Info Modal */}
       {showMoodInfo && (() => {
         const MOOD_SLIDES = [
-          { title: 'Mod Nedir?', desc: 'Mod secimi Zeta\'nin temel kimligini degistirmez — sadece konusma tonunu ayarlar. Istedigin zaman degistirebilirsin.' },
-          { title: 'Neseli',      rarity: 'nadir', desc: 'Enerjik ve konuskan. Konulara hevesle yaklasir, sohbeti akici tutar.' },
-          { title: 'Merakli',     rarity: 'nadir', desc: 'Derinlestirir ve sorgular. Arastirma ve kesif konusmalari icin idealdir.' },
-          { title: 'Profesyonel', rarity: 'nadir', desc: 'Resmi ve odakli. Is ve akademik konular icin temiz, net yanitlar verir.' },
-          { title: 'Ozel',        rarity: 'nadir', desc: 'Kendi istegini yazabilirsin. Zeta tam olarak belirledigin tonda konusacak.' },
-          { title: 'Agresif',     rarity: 'epik',  badge: 'Kasaya Ozel', warn: true, desc: 'Kisa, sert ve asagilayici bir ton. Uyari: agir dil icerebilir.' },
-          { title: 'Robot',       rarity: 'nadir', badge: 'Kasaya Ozel', desc: 'Tamamen mekanik format: "KOMUT ALINDI / SONUC / BİTTİ"' },
-          { title: 'Yorgun',      rarity: 'nadir', badge: 'Kasaya Ozel', desc: 'Hayattan bezgin, usanmis, uyusuk bir ton. Her seye ugursuz yaklasir.' },
+          { title: 'Mod Nedir?', desc: 'Mod seçimi Zeta\'nın temel kimliğini değiştirmez — sadece konuşma tonunu ayarlar. İstediğin zaman değiştirebilirsin.' },
+          { title: 'Neşeli',      rarity: 'nadir', desc: 'Enerjik ve konuşkan. Konulara hevesle yaklaşır, sohbeti akıcı tutar.' },
+          { title: 'Meraklı',     rarity: 'nadir', desc: 'Derinleştirir ve sorgular. Araştırma ve keşif konuşmaları için idealdir.' },
+          { title: 'Profesyonel', rarity: 'nadir', desc: 'Resmi ve odaklı. İş ve akademik konular için temiz, net yanıtlar verir.' },
+          { title: 'Özel',        rarity: 'nadir', desc: 'Kendi isteğini yazabilirsin. Zeta tam olarak belirlediğin tonda konuşacak.' },
+          { title: 'Agresif',     rarity: 'epik',  badge: 'Kasaya Özel', warn: true, desc: 'Kısa, sert ve aşağılayıcı bir ton. Uyarı: ağır dil içerebilir.' },
+          { title: 'Robot',       rarity: 'nadir', badge: 'Kasaya Özel', desc: 'Tamamen mekanik format: "KOMUT ALINDI / SONUÇ / BİTTİ"' },
+          { title: 'Yorgun',      rarity: 'nadir', badge: 'Kasaya Özel', desc: 'Hayattan bezgin, usanmış, uyuşuk bir ton. Her şeye uğursuz yaklaşır.' },
         ];
         const slide = MOOD_SLIDES[moodInfoSlide];
         const col = slide.rarity ? RARITY_COL[slide.rarity] : '#4ca8ad';
@@ -4372,7 +4372,7 @@ MATCHES:[1,3,5]`;
           <div onClick={() => setShowMoodInfo(false)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
             <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: '1px solid #252545', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 420 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-                <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15 }}>Zeta AI Modlari</span>
+                <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15 }}>Zeta AI Modları</span>
                 <button onClick={() => setShowMoodInfo(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#aaa', width: 28, height: 28, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
               <div style={{ minHeight: 130 }}>
@@ -4385,7 +4385,7 @@ MATCHES:[1,3,5]`;
                 </div>
                 {slide.warn && (
                   <div style={{ background: '#1a0a0a', border: '1px solid #ef4444', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>
-                    <span style={{ color: '#fca5a5', fontSize: 12 }}>Uyari: Bu mod agir dil icerebilir.</span>
+                    <span style={{ color: '#fca5a5', fontSize: 12 }}>Uyarı: Bu mod ağır dil içerebilir.</span>
                   </div>
                 )}
                 <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7 }}>{slide.desc}</p>
@@ -4414,26 +4414,26 @@ MATCHES:[1,3,5]`;
         <div onClick={() => setMoodPending(null)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
           <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: `1px solid ${DASH_TROLL[moodPending].color}40`, borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 380 }}>
             <p style={{ color: DASH_TROLL[moodPending].color, fontWeight: 700, fontSize: 16, marginBottom: 10 }}>
-              {DASH_TROLL[moodPending].label} Modunu Etkinlestir
+              {DASH_TROLL[moodPending].label} Modunu Etkinleştir
             </p>
             {moodPending === 'agresif' && (
               <div style={{ background: '#450a0a', border: '1px solid #ef4444', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
-                <span style={{ color: '#fca5a5', fontSize: 13 }}>Uyari: {DASH_TROLL[moodPending].warn}</span>
+                <span style={{ color: '#fca5a5', fontSize: 13 }}>Uyarı: {DASH_TROLL[moodPending].warn}</span>
               </div>
             )}
             <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
-              Bu mod etkinlestirilince Zeta bu tonda konusacak. Istedigin zaman geri alabilirsin.
+              Bu mod etkinleştirilince Zeta bu tonda konuşacak. İstediğin zaman geri alabilirsin.
             </p>
             <div style={{ display: 'flex', gap: 10 }}>
               <button onClick={() => setMoodPending(null)} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#94a3b8', fontSize: 13, fontWeight: 600, padding: '10px 0', cursor: 'pointer' }}>
-                Vazgec
+                Vazgeç
               </button>
               <button onClick={() => {
                 setZetaMood(moodPending);
                 localStorage.setItem('zet_zeta_mood', moodPending);
                 setMoodPending(null);
               }} style={{ flex: 1, background: DASH_TROLL[moodPending].color, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 0', cursor: 'pointer' }}>
-                Etkinlestir
+                Etkinleştir
               </button>
             </div>
           </div>
@@ -4452,7 +4452,7 @@ MATCHES:[1,3,5]`;
               {DASH_TROLL[moodLocked]?.label || moodLocked} Kilitli
             </p>
             <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
-              Bu mod kasaya ozeldir — kasadan acarak kazanabilirsin.
+              Bu mod kasaya özeldir — kasadan açarak kazanabilirsin.
             </p>
             <button onClick={() => setMoodLocked(null)} style={{ background: 'linear-gradient(135deg, #4ca8ad, #2d7a7e)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 32px', cursor: 'pointer' }}>
               Tamam
