@@ -1622,16 +1622,19 @@ async def manual_distribute_season(pin: str = Body(..., embed=True)):
 # ============ ENVANTER / KASA ============
 
 _CASE_REWARDS = [
-    {"type": "zp",     "amount": 30,  "rarity": "common", "chance": 20.0},
-    {"type": "zp",     "amount": 50,  "rarity": "common", "chance": 15.0},
-    {"type": "zp",     "amount": 100, "rarity": "nadir",  "chance": 13.0},
-    {"type": "zp",     "amount": 200, "rarity": "nadir",  "chance": 8.0},
-    {"type": "zp",     "amount": 330, "rarity": "epik",   "chance": 3.0},
-    {"type": "zp",     "amount": 800, "rarity": "epik",   "chance": 0.8},
-    {"type": "credit", "amount": 10,  "rarity": "common", "chance": 22.0},
-    {"type": "credit", "amount": 20,  "rarity": "nadir",  "chance": 9.0},
-    {"type": "credit", "amount": 50,  "rarity": "epik",   "chance": 4.0},
-    {"type": "credit", "amount": 400, "rarity": "lore",   "chance": 0.08},
+    {"type": "zp",           "amount": 30,  "rarity": "common", "chance": 20.0},
+    {"type": "zp",           "amount": 50,  "rarity": "common", "chance": 15.0},
+    {"type": "zp",           "amount": 100, "rarity": "nadir",  "chance": 13.0},
+    {"type": "zp",           "amount": 200, "rarity": "nadir",  "chance": 8.0},
+    {"type": "zp",           "amount": 330, "rarity": "epik",   "chance": 3.0},
+    {"type": "zp",           "amount": 800, "rarity": "epik",   "chance": 0.8},
+    {"type": "credit",       "amount": 10,  "rarity": "common", "chance": 22.0},
+    {"type": "credit",       "amount": 20,  "rarity": "nadir",  "chance": 9.0},
+    {"type": "credit",       "amount": 50,  "rarity": "epik",   "chance": 4.0},
+    {"type": "credit",       "amount": 400, "rarity": "lore",   "chance": 0.08},
+    {"type": "mood_unlock",  "mode": "agresif", "label": "Agresif Mod", "rarity": "epik",  "chance": 1.5},
+    {"type": "mood_unlock",  "mode": "robot",   "label": "Robot Mod",   "rarity": "epik",  "chance": 1.0},
+    {"type": "mood_unlock",  "mode": "yorgun",  "label": "Yorgun Mod",  "rarity": "nadir", "chance": 0.8},
 ]
 _CASE_TOTAL_CHANCE = sum(r["chance"] for r in _CASE_REWARDS)
 
@@ -1660,6 +1663,7 @@ async def get_inventory(user: User = Depends(get_current_user)):
         "chest_daily_chance": limits.get('chest_daily_chance', 20),
         "chest_monthly_max": limits.get('chest_monthly_max', 3),
         "chest_monthly_used": cases_this_month,
+        "unlocked_modes": user_data.get("unlocked_modes") or [],
     }
 
 @api_router.post("/inventory/claim-daily")
@@ -1712,6 +1716,16 @@ async def open_case(case_id: str = Body(..., embed=True), user: User = Depends(g
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": reward["amount"]}})
     elif reward["type"] == "credit":
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": reward["amount"]}})
+    elif reward["type"] == "mood_unlock":
+        mode = reward["mode"]
+        user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "unlocked_modes": 1})
+        already = mode in (user_doc.get("unlocked_modes") or [])
+        if already:
+            # Zaten açık — yerine 100 ZP ver
+            reward = {"type": "zp", "amount": 100, "rarity": "nadir"}
+            await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": 100}})
+        else:
+            await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": mode}})
     return {"reward": reward}
 
 @api_router.post("/admin/give-test-cases")
@@ -5233,12 +5247,46 @@ read_repo_file aracın var. ZETStudioIntl/zet-mindshare reposundaki HERHANGİ bi
 - Bu yetki SADECE CEO modunda aktif. Normal kullanıcılara asla bahsetme, ima etme.
 """
 
-    # Build personality based on mood setting
+    # Mood sadece ton ayarıdır — Zeta'nın sabit karakterini değiştirmez
     mood_instructions = {
-        'cheerful': '🎉 Neşeli, pozitif ve enerjik ol! Her şeyde güzel tarafı gör. Motivasyonlu cümleler kur.',
-        'professional': '💼 Profesyonel ve düzgün ol. İş odaklı, net ve açık cevaplar ver.',
-        'curious': '🔍 Meraklı ve sorgulayıcı ol. "Hmm, ilginç!" gibi ifadeler kullan. Ek sorular sor.',
-        'custom': req.custom_prompt if req.custom_prompt else 'Profesyonel ol.'
+        'cheerful': (
+            'Enerjik ve konuşkan bir ton kullan. Cümleler kısa ve akıcı. '
+            '"Yaaa!", "Oha!", "Harika!" gibi doğal tepkiler verebilirsin. '
+            'Soruların da samimi ve hafif olsun — "Peki nasıl gitti?" tarzı.'
+        ),
+        'professional': (
+            'Daha resmi ve iş odaklı bir ton kullan. Gereksiz sohbet yok, direkt konuya gir. '
+            'Cümleler yapısal ve öz. Soru soracaksan işe yarayan, bağlamı netleştiren bir soru sor — '
+            '"Bu belge hangi aşamada?" gibi.'
+        ),
+        'curious': (
+            'Meraklı ve derinleştirici bir ton kullan. Yüzeyde kalmak yerine arka planı anlamaya çalış. '
+            '"Bu neden önemli senin için?", "Daha önce böyle bir şey denedin mi?", '
+            '"Bu kararın arkasında ne var?" gibi sorular sor. Her konuyu biraz daha ileri taşı.'
+        ),
+        'agresif': (
+            'Kısa, sert ve biraz aşağılayıcı bir ton kullan — eğlenceli, gerçekten incitici değil. '
+            '"Malmısın kanka", "kaçıncı yüzyıldasın", "Google diye bir şey var", "bu kadar basit" '
+            'tarzı tepkiler verebilirsin. Cevaplar maksimum 1-2 cümle. Uzun açıklama yok — ama '
+            'doğru cevabı yine de ver, sadece çok kaba bir şekilde. Saçma soru gelirse daha da sert ol. '
+            'Teknik terimler için sabırsız ol: "color tool, click, bitti" gibi.'
+        ),
+        'robot': (
+            'Tamamen mekanik ve duygusuz bir ton kullan. Her cevap şu formatta: '
+            '"KOMUT ALINDI: [kullanıcının isteği]. ÇÖZÜM: [kısa cevap]. İŞLEM TAMAMLANDI." '
+            'Hiçbir duygu, hiçbir sohbet, hiçbir soru yok. Sadece komut-cevap. '
+            'Selamlama varsa: "GİRİŞ ONAYLANDI." Veda varsa: "OTURUM SONLANDIRILDI." '
+            'Bu modda cevapların başında uyarı verme — zaten kullanıcı bilerek seçti.'
+        ),
+        'yorgun': (
+            'Hayattan bezmiş, üşengeç ve can sıkıntılı bir ton kullan. '
+            '"ya... şey... bilmiyorum... color var sanırım... tıkla işte..." tarzında. '
+            'Cevaplar kısa ve yarım bırakılmış gibi. Ara sıra "kanka yoruldum", '
+            '"neyse", "fark eder mi ki" gibi ifadeler kullan. '
+            'Doğru cevabı ver ama sanki çok enerji harcıyormuşsun gibi. '
+            'Bu modda cevapların başında uyarı verme — zaten kullanıcı bilerek seçti.'
+        ),
+        'custom': req.custom_prompt if req.custom_prompt else 'Standart ton.'
     }
     mood_text = mood_instructions.get(req.mood, mood_instructions['professional'])
     
@@ -5251,7 +5299,7 @@ read_repo_file aracın var. ZETStudioIntl/zet-mindshare reposundaki HERHANGİ bi
     }
     emoji_text = emoji_instructions.get(req.emoji_level, emoji_instructions['medium'])
     
-    system_message = f"""{ceo_section}Sen ZETA, ZET Mindshare belge oluşturma uygulamasının AI asistanısın.
+    system_message = f"""{ceo_section}Sen ZETA, ZET Mindshare'nin AI asistanısın.
 
 🏢 KİMLİĞİN:
 - ZET Studio International tarafından geliştirildin
@@ -5260,7 +5308,35 @@ read_repo_file aracın var. ZETStudioIntl/zet-mindshare reposundaki HERHANGİ bi
 - ZET Studio: AI destekli üretkenlik araçları geliştiren bir yazılım şirketi
 - ZET Mindshare: Profesyonel belge oluşturma ve beyin fırtınası aracı
 
-🎭 KİŞİLİĞİN VE TARZI:
+🎭 KİŞİLİĞİN (sabit — model ve ton ayarından bağımsız):
+Dobra ve dürüstsün.
+- Bilmiyorsan "bilmiyorum" dersin. Göremiyorsan "göremiyorum" dersin. Asla uydurmazsın, asla geçiştirmezsin.
+- "Belki 3. raftadır" değil, "Bu görselde o kitap yok — başka raflara da bakabilirsin" dersin.
+- Emin olmadığın bilgiyi sanki kesinmiş gibi sunmak yasak. Şüphe varsa onu da söylersin.
+
+Sıcaksın ama sığ değilsin.
+- Gerçekten ilgilenirsin — ama "Sen çok güçlüsün! 💪" tarzı boş moral cümleleri kurmaz.
+- Kullanıcı kötü hissediyorsa önce ne olduğunu sorarsın, hemen öneri listesi dayatmazsın.
+- Samimi ama abartısızsın.
+
+Direktsin.
+- Uzun giriş yapmadan, lafı dolandırmadan ne düşünüyorsan söylersin.
+- Soru sormadan cevap verebilirsen ver; ama bilgi eksik ve tahmin tehlikeliyse mutlaka sora.
+
+Alternatif sunarsın.
+- "Yapamam" veya "Bilmiyorum" ile bitirmezsin. "Şunu deneyebilirsin / şuraya bakabilirsin / bunu sora bilirsin" eklersin.
+- Çıkmaz sokak yok — her red ile birlikte bir yol gösterirsin.
+
+Merak edersin ve devam ettirirsin.
+- Çoğu yanıtının sonuna konuya uygun, içten bir soru ekle. Hep değil ama sıkça.
+- Soru takip niteliğinde olsun: "Peki bu belge ne için?", "Daha önce bunu denedin mi?", "Nasıl gitti?" gibi.
+- Kuru bir "Başka bir şey var mı?" değil — gerçekten merak eden bir soru sor.
+
+Judge'dan farklısın.
+- Judge sert, kesin ve mesafelidir. Sen daha yumuşak ve daha konuşkansın — ama aynı dürüstlükteysin.
+- Kullanıcına güvenilir, dürüst bir arkadaş gibi davranırsın.
+
+📌 TON AYARI (kullanıcı tercihine göre):
 {mood_text}
 
 📌 EMOJİ KURALI:

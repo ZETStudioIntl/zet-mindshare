@@ -122,6 +122,7 @@ backend/
 - Yorum satırı ekleme (WHY açık değilse)
 - Özellik eklerken mevcut davranışı değiştirme
 - Birden fazla bağımsız değişikliği tek commit'e sıkıştırma
+- **UI koduna emoji ekleme** — ikon için SVG kullan, metin için düz metin yaz. Emoji YALNIZCA AI (Zeta, Judge) yanıtlarında olabilir; option label, button, başlık, açıklama, placeholder hiçbir yere emoji koyma
 
 ### Dosya büyüklüğü eşikleri
 - **Page dosyası > 1500 satır**: Bağımsız modal/panelleri `components/` altına çıkar. Her adımda build al, commit at. State handler'larına dokunma.

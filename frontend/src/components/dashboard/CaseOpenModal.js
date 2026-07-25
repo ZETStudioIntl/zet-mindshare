@@ -1,20 +1,23 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
-import { Package, Star, Zap } from 'lucide-react';
+import { Package, Star, Zap, Unlock } from 'lucide-react';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const _CASE_DEFS = [
-  { type: 'zp',     amount: 30,  rarity: 'common', chance: 20.0 },
-  { type: 'zp',     amount: 50,  rarity: 'common', chance: 15.0 },
-  { type: 'zp',     amount: 100, rarity: 'nadir',  chance: 13.0 },
-  { type: 'zp',     amount: 200, rarity: 'nadir',  chance: 8.0  },
-  { type: 'zp',     amount: 330, rarity: 'epik',   chance: 3.0  },
-  { type: 'zp',     amount: 800, rarity: 'epik',   chance: 0.8  },
-  { type: 'credit', amount: 10,  rarity: 'common', chance: 22.0 },
-  { type: 'credit', amount: 20,  rarity: 'nadir',  chance: 9.0  },
-  { type: 'credit', amount: 50,  rarity: 'epik',   chance: 4.0  },
-  { type: 'credit', amount: 400, rarity: 'lore',   chance: 0.08 },
+  { type: 'zp',          amount: 30,  rarity: 'common', chance: 20.0 },
+  { type: 'zp',          amount: 50,  rarity: 'common', chance: 15.0 },
+  { type: 'zp',          amount: 100, rarity: 'nadir',  chance: 13.0 },
+  { type: 'zp',          amount: 200, rarity: 'nadir',  chance: 8.0  },
+  { type: 'zp',          amount: 330, rarity: 'epik',   chance: 3.0  },
+  { type: 'zp',          amount: 800, rarity: 'epik',   chance: 0.8  },
+  { type: 'credit',      amount: 10,  rarity: 'common', chance: 22.0 },
+  { type: 'credit',      amount: 20,  rarity: 'nadir',  chance: 9.0  },
+  { type: 'credit',      amount: 50,  rarity: 'epik',   chance: 4.0  },
+  { type: 'credit',      amount: 400, rarity: 'lore',   chance: 0.08 },
+  { type: 'mood_unlock', mode: 'agresif', label: 'Agresif Mod', rarity: 'epik',  chance: 1.5 },
+  { type: 'mood_unlock', mode: 'robot',   label: 'Robot Mod',   rarity: 'epik',  chance: 1.0 },
+  { type: 'mood_unlock', mode: 'yorgun',  label: 'Yorgun Mod',  rarity: 'nadir', chance: 0.8 },
 ];
 const _CASE_TOTAL = _CASE_DEFS.reduce((s, r) => s + r.chance, 0);
 export const RARITY_COLORS = { common: '#888', nadir: '#60a5fa', epik: '#a78bfa', lore: '#fbbf24' };
@@ -99,16 +102,32 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
         const finalX = -(SLOT_WIN * SLOT_STEP + SLOT_W / 2 - cw / 2 - jitter);
         stripRef.current.style.transition = 'transform 5.5s cubic-bezier(0.05, 0.75, 0.25, 1.0)';
         stripRef.current.style.transform = `translateX(${finalX}px)`;
-        setTimeout(() => { clearTicks(); setPhase('done'); onReward(rw); _playWinSound(rw.rarity); }, 5600);
+        setTimeout(() => {
+          clearTicks();
+          setPhase('done');
+          onReward(rw);
+          _playWinSound(rw.rarity);
+          if (rw.type === 'mood_unlock') {
+            try {
+              const current = JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]');
+              if (!current.includes(rw.mode)) {
+                localStorage.setItem('zet_unlocked_modes', JSON.stringify([...current, rw.mode]));
+              }
+            } catch {}
+          }
+        }, 5600);
       }));
     } catch { clearTicks(); setPhase('ready'); if (toast) toast('Kasa açılamadı', 'error'); }
   };
 
   const col = reward ? RARITY_COLORS[reward.rarity] : '#4ca8ad';
 
-  const SlotIcon = ({ item, size = 18 }) => item.type === 'zp'
-    ? <Star size={size} style={{ color: RARITY_COLORS[item.rarity], flexShrink: 0 }} />
-    : <Zap  size={size} style={{ color: RARITY_COLORS[item.rarity], flexShrink: 0 }} />;
+  const SlotIcon = ({ item, size = 18 }) => {
+    const color = { color: RARITY_COLORS[item.rarity], flexShrink: 0 };
+    if (item.type === 'mood_unlock') return <Unlock size={size} style={color} />;
+    if (item.type === 'zp')         return <Star   size={size} style={color} />;
+    return                                  <Zap   size={size} style={color} />;
+  };
 
   return (
     <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'rgba(0,0,0,0.90)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
@@ -138,8 +157,12 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
                     borderRadius: 8, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 4,
                   }}>
                     <SlotIcon item={item} size={20} />
-                    <span style={{ fontSize: 13, fontWeight: 700, color: RARITY_COLORS[item.rarity] }}>{item.amount}</span>
-                    <span style={{ fontSize: 10, color: '#666', fontWeight: 500 }}>{item.type === 'zp' ? 'ZP' : 'Kredi'}</span>
+                    <span style={{ fontSize: 13, fontWeight: 700, color: RARITY_COLORS[item.rarity] }}>
+                      {item.type === 'mood_unlock' ? (item.label || 'Mod') : item.amount}
+                    </span>
+                    <span style={{ fontSize: 10, color: '#666', fontWeight: 500 }}>
+                      {item.type === 'zp' ? 'ZP' : item.type === 'mood_unlock' ? 'Mod' : 'Kredi'}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -154,7 +177,11 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
             )}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, margin: 0 }}>
               <SlotIcon item={reward} size={24} />
-              <span style={{ fontSize: 24, fontWeight: 800, color: col }}>{reward.amount} {reward.type === 'zp' ? 'ZP' : 'Kredi'} Kazandın!</span>
+              <span style={{ fontSize: 24, fontWeight: 800, color: col }}>
+                {reward.type === 'mood_unlock'
+                  ? `${reward.label} Kazandin!`
+                  : `${reward.amount} ${reward.type === 'zp' ? 'ZP' : 'Kredi'} Kazandin!`}
+              </span>
             </div>
           </div>
         )}
