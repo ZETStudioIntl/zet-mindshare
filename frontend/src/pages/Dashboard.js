@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { A4LoadingScreen, MiniDocLoader } from '../components/LoadingScreens';
 import QuestNotification from '../components/QuestNotification';
 import { useNavigate } from 'react-router-dom';
@@ -268,6 +268,26 @@ const Dashboard = () => {
   const [zetaEmoji, setZetaEmoji] = useState(() => localStorage.getItem('zet_zeta_emoji') || 'medium');
   const [zetaCustomPrompt, setZetaCustomPrompt] = useState(() => localStorage.getItem('zet_zeta_custom') || '');
   const [judgeMood, setJudgeMood] = useState(() => localStorage.getItem('zet_judge_mood') || 'normal');
+
+  // Troll mod popup state
+  const [moodPending, setMoodPending] = useState(null);
+  const [moodLocked,  setMoodLocked]  = useState(null);
+  const [showMoodInfo, setShowMoodInfo] = useState(false);
+  const dUnlockedModes = useMemo(() => { try { return JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]'); } catch { return []; } }, []);
+  const DASH_TROLL = {
+    agresif: { label: 'Agresif', color: '#ef4444', warn: '"Kanka malmısın" düzeyinde davranabilir. Hassas yapılar için önerilmez.', hasWarn: true },
+    robot:   { label: 'Robot',   color: '#6366f1', hasWarn: false },
+    yorgun:  { label: 'Yorgun',  color: '#78716c', hasWarn: false },
+  };
+  const handleDashMoodChange = (val) => {
+    if (DASH_TROLL[val]) {
+      if (!dUnlockedModes.includes(val)) setMoodLocked(val);
+      else setMoodPending(val);
+    } else {
+      setZetaMood(val);
+      localStorage.setItem('zet_zeta_mood', val);
+    }
+  };
 
   // Rank system
   const RANKS = [
@@ -2155,18 +2175,28 @@ MATCHES:[1,3,5]`;
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('aiSettings')}</h2>
                   <div className="space-y-4">
                     <div className="p-4 rounded-xl" style={{ background: 'rgba(76, 168, 173, 0.1)', border: '1px solid rgba(76, 168, 173, 0.3)' }}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
-                        <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Özelleştirme</h3>
+                      <div className="flex items-center gap-2 mb-3" style={{ justifyContent: 'space-between' }}>
+                        <div className="flex items-center gap-2">
+                          <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
+                          <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Ozelleştirme</h3>
+                        </div>
+                        <button onClick={() => setShowMoodInfo(true)} style={{ display:'flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:'50%',border:'1px solid rgba(76,168,173,0.4)',background:'rgba(76,168,173,0.08)',color:'#4ca8ad',cursor:'pointer',flexShrink:0 }} title="Modlar hakkında bilgi">
+                          <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="1" fill="currentColor"/><path d="M8 8v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                        </button>
                       </div>
                       <div className="space-y-3">
                         <div>
                           <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-                          <select value={zetaMood} onChange={e => { setZetaMood(e.target.value); localStorage.setItem('zet_zeta_mood', e.target.value); }} className="zet-input text-sm w-full">
-                            <option value="cheerful">Neşeli</option>
+                          <select value={zetaMood} onChange={e => handleDashMoodChange(e.target.value)} className="zet-input text-sm w-full">
+                            <option value="cheerful">Neseli</option>
                             <option value="professional">Profesyonel</option>
-                            <option value="curious">Meraklı</option>
-                            <option value="custom">Özel</option>
+                            <option value="curious">Merakli</option>
+                            <optgroup label="— Troll Modlar —">
+                              <option value="agresif">{dUnlockedModes.includes('agresif') ? 'Agresif' : 'Agresif (Kilitli)'}</option>
+                              <option value="robot">{dUnlockedModes.includes('robot') ? 'Robot' : 'Robot (Kilitli)'}</option>
+                              <option value="yorgun">{dUnlockedModes.includes('yorgun') ? 'Yorgun' : 'Yorgun (Kilitli)'}</option>
+                            </optgroup>
+                            <option value="custom">Ozel</option>
                           </select>
                         </div>
                         {zetaMood === 'custom' && (
@@ -4283,6 +4313,98 @@ MATCHES:[1,3,5]`;
       {seasonResult && (
         <SeasonEndModal result={seasonResult} onClose={() => setSeasonResult(null)} />
       )}
+
+      {/* Mood Info Modal */}
+      {showMoodInfo && (
+        <div onClick={() => setShowMoodInfo(false)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: '1px solid #252545', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 440 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+              <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15 }}>Zeta AI Modlari</span>
+              <button onClick={() => setShowMoodInfo(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#aaa', width: 28, height: 28, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            </div>
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
+              Mod secimi Zeta'nin temel kimligini degistirmez — sadece konusma tonunu ayarlar.
+            </p>
+            {[
+              { name: 'Neseli', desc: 'Enerjik ve konuşkan. Konulara hevesle yaklasir.' },
+              { name: 'Profesyonel', desc: 'Resmi ve odakli. Is ve akademik konular icin.' },
+              { name: 'Merakli', desc: 'Derinlestirir ve sorgular. Arastirmalar icin.' },
+              { name: 'Ozel', desc: 'Kendi istegini yazabilirsin.' },
+              { name: 'Agresif', color: '#ef4444', badge: 'Kasaya Ozel', desc: 'Kisa, sert, aşağilayici ton. Uyari: agir dil icermektedir.' },
+              { name: 'Robot', color: '#6366f1', badge: 'Kasaya Ozel', desc: 'Tamamen mekanik format: "KOMUT ALINDI / SONUC / BİTTİ"' },
+              { name: 'Yorgun', color: '#78716c', badge: 'Kasaya Ozel', desc: 'Hayattan bezgin, usanmis, uyusuk bir ton.' },
+            ].map((m, i) => (
+              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: i < 6 ? '1px solid #1e293b' : 'none' }}>
+                <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.color || '#4ca8ad', marginTop: 5, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                    <span style={{ color: m.color || '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{m.name}</span>
+                    {m.badge && (
+                      <span style={{ background: '#1e1b4b', border: '1px solid #6366f1', borderRadius: 4, color: '#a5b4fc', fontSize: 10, padding: '1px 6px', fontWeight: 600 }}>
+                        {m.badge}
+                      </span>
+                    )}
+                  </div>
+                  <span style={{ color: '#64748b', fontSize: 12 }}>{m.desc}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Troll Confirm Popup */}
+      {moodPending && DASH_TROLL[moodPending] && (
+        <div onClick={() => setMoodPending(null)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: `1px solid ${DASH_TROLL[moodPending].color}40`, borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 380 }}>
+            <p style={{ color: DASH_TROLL[moodPending].color, fontWeight: 700, fontSize: 16, marginBottom: 10 }}>
+              {DASH_TROLL[moodPending].label} Modunu Etkinlestir
+            </p>
+            {moodPending === 'agresif' && (
+              <div style={{ background: '#450a0a', border: '1px solid #ef4444', borderRadius: 8, padding: '8px 12px', marginBottom: 14 }}>
+                <span style={{ color: '#fca5a5', fontSize: 13 }}>Uyari: {DASH_TROLL[moodPending].warn}</span>
+              </div>
+            )}
+            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 20, lineHeight: 1.6 }}>
+              Bu mod etkinlestirilince Zeta bu tonda konusacak. Istedigin zaman geri alabilirsin.
+            </p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button onClick={() => setMoodPending(null)} style={{ flex: 1, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, color: '#94a3b8', fontSize: 13, fontWeight: 600, padding: '10px 0', cursor: 'pointer' }}>
+                Vazgec
+              </button>
+              <button onClick={() => {
+                setZetaMood(moodPending);
+                localStorage.setItem('zet_zeta_mood', moodPending);
+                setMoodPending(null);
+              }} style={{ flex: 1, background: DASH_TROLL[moodPending].color, border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 0', cursor: 'pointer' }}>
+                Etkinlestir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Locked Mode Popup */}
+      {moodLocked && (
+        <div onClick={() => setMoodLocked(null)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: '1px solid #252545', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 360, textAlign: 'center' }}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 14 }}>
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+            </svg>
+            <p style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
+              {DASH_TROLL[moodLocked]?.label || moodLocked} Kilitli
+            </p>
+            <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
+              Bu mod kasaya ozeldir — kasadan acarak kazanabilirsin.
+            </p>
+            <button onClick={() => setMoodLocked(null)} style={{ background: 'linear-gradient(135deg, #4ca8ad, #2d7a7e)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 32px', cursor: 'pointer' }}>
+              Tamam
+            </button>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };
