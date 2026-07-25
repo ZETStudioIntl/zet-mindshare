@@ -273,16 +273,38 @@ const Dashboard = () => {
   const [moodPending, setMoodPending] = useState(null);
   const [moodLocked,  setMoodLocked]  = useState(null);
   const [showMoodInfo, setShowMoodInfo] = useState(false);
+  const [moodInfoSlide, setMoodInfoSlide] = useState(0);
+  const [showMoodDrop, setShowMoodDrop] = useState(false);
   const dUnlockedModes = useMemo(() => { try { return JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]'); } catch { return []; } }, []);
+  const RARITY_COL = { nadir: '#60a5fa', epik: '#a78bfa', lore: '#f87171' };
+  const DASH_MODES_DEF = [
+    { value: 'cheerful',     label: 'Neseli',      rarity: 'nadir', troll: false },
+    { value: 'curious',      label: 'Merakli',     rarity: 'nadir', troll: false },
+    { value: 'professional', label: 'Profesyonel', rarity: 'nadir', troll: false },
+    { value: 'custom',       label: 'Ozel',        rarity: 'nadir', troll: false },
+    { value: 'agresif',      label: 'Agresif',     rarity: 'epik',  troll: true  },
+    { value: 'robot',        label: 'Robot',       rarity: 'nadir', troll: true  },
+    { value: 'yorgun',       label: 'Yorgun',      rarity: 'nadir', troll: true  },
+  ];
+  const sortedDashModes = useMemo(() => {
+    const withLocked = DASH_MODES_DEF.map(m => ({ ...m, locked: m.troll && !dUnlockedModes.includes(m.value) }));
+    return [
+      ...withLocked.filter(m => !m.locked).sort((a, b) => a.label.localeCompare(b.label, 'tr')),
+      ...withLocked.filter(m => m.locked).sort((a, b) => a.label.localeCompare(b.label, 'tr')),
+    ];
+  }, [dUnlockedModes]);
   const DASH_TROLL = {
-    agresif: { label: 'Agresif', color: '#ef4444', warn: '"Kanka malmısın" düzeyinde davranabilir. Hassas yapılar için önerilmez.', hasWarn: true },
-    robot:   { label: 'Robot',   color: '#6366f1', hasWarn: false },
-    yorgun:  { label: 'Yorgun',  color: '#78716c', hasWarn: false },
+    agresif: { label: 'Agresif', color: '#a78bfa', warn: '"Kanka malmısın" düzeyinde davranabilir. Hassas yapılar için önerilmez.', hasWarn: true },
+    robot:   { label: 'Robot',   color: '#60a5fa', hasWarn: false },
+    yorgun:  { label: 'Yorgun',  color: '#60a5fa', hasWarn: false },
   };
   const handleDashMoodChange = (val) => {
-    if (DASH_TROLL[val]) {
-      if (!dUnlockedModes.includes(val)) setMoodLocked(val);
-      else setMoodPending(val);
+    setShowMoodDrop(false);
+    const mode = DASH_MODES_DEF.find(m => m.value === val);
+    if (mode?.troll && !dUnlockedModes.includes(val)) {
+      setMoodLocked(val);
+    } else if (mode?.troll) {
+      setMoodPending(val);
     } else {
       setZetaMood(val);
       localStorage.setItem('zet_zeta_mood', val);
@@ -2180,24 +2202,58 @@ MATCHES:[1,3,5]`;
                           <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
                           <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Ozelleştirme</h3>
                         </div>
-                        <button onClick={() => setShowMoodInfo(true)} style={{ display:'flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:'50%',border:'1px solid rgba(76,168,173,0.4)',background:'rgba(76,168,173,0.08)',color:'#4ca8ad',cursor:'pointer',flexShrink:0 }} title="Modlar hakkında bilgi">
+                        <button onClick={() => { setShowMoodInfo(true); setMoodInfoSlide(0); }} style={{ display:'flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:'50%',border:'1px solid rgba(76,168,173,0.4)',background:'rgba(76,168,173,0.08)',color:'#4ca8ad',cursor:'pointer',flexShrink:0 }} title="Modlar hakkında bilgi">
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="1" fill="currentColor"/><path d="M8 8v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
                         </button>
                       </div>
                       <div className="space-y-3">
                         <div>
                           <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-                          <select value={zetaMood} onChange={e => handleDashMoodChange(e.target.value)} className="zet-input text-sm w-full">
-                            <option value="cheerful">Neseli</option>
-                            <option value="professional">Profesyonel</option>
-                            <option value="curious">Merakli</option>
-                            <optgroup label="— Troll Modlar —">
-                              <option value="agresif">{dUnlockedModes.includes('agresif') ? 'Agresif' : 'Agresif (Kilitli)'}</option>
-                              <option value="robot">{dUnlockedModes.includes('robot') ? 'Robot' : 'Robot (Kilitli)'}</option>
-                              <option value="yorgun">{dUnlockedModes.includes('yorgun') ? 'Yorgun' : 'Yorgun (Kilitli)'}</option>
-                            </optgroup>
-                            <option value="custom">Ozel</option>
-                          </select>
+                          <div style={{ position: 'relative' }}>
+                            <button
+                              onClick={() => setShowMoodDrop(p => !p)}
+                              className="zet-input text-sm w-full"
+                              style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', cursor: 'pointer', textAlign: 'left', gap: 8 }}
+                            >
+                              {(() => {
+                                const cur = sortedDashModes.find(m => m.value === zetaMood);
+                                return (
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    {cur && <span style={{ width: 8, height: 8, borderRadius: '50%', background: RARITY_COL[cur.rarity], flexShrink: 0, display: 'inline-block' }} />}
+                                    <span>{cur?.label || 'Mod Sec'}</span>
+                                  </div>
+                                );
+                              })()}
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M6 9l6 6 6-6"/></svg>
+                            </button>
+                            {showMoodDrop && (
+                              <>
+                                <div onClick={() => setShowMoodDrop(false)} style={{ position: 'fixed', inset: 0, zIndex: 200 }} />
+                                <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 201, background: '#0d1117', border: '1px solid #252545', borderRadius: 10, marginTop: 4, overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.5)' }}>
+                                  {sortedDashModes.map((m, i) => (
+                                    <React.Fragment key={m.value}>
+                                      {i > 0 && m.locked && !sortedDashModes[i - 1].locked && (
+                                        <div style={{ height: 1, background: '#1e293b' }} />
+                                      )}
+                                      <button
+                                        onClick={() => handleDashMoodChange(m.value)}
+                                        style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 12px', background: zetaMood === m.value ? 'rgba(76,168,173,0.12)' : 'transparent', border: 'none', cursor: 'pointer', color: m.locked ? '#64748b' : '#e2e8f0', fontSize: 13, textAlign: 'left' }}
+                                      >
+                                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: RARITY_COL[m.rarity], flexShrink: 0 }} />
+                                        <span style={{ flex: 1 }}>{m.label}</span>
+                                        {m.locked && (
+                                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                            <rect x="3" y="11" width="18" height="11" rx="2"/>
+                                            <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                                          </svg>
+                                        )}
+                                      </button>
+                                    </React.Fragment>
+                                  ))}
+                                </div>
+                              </>
+                            )}
+                          </div>
                         </div>
                         {zetaMood === 'custom' && (
                           <div>
@@ -2214,22 +2270,6 @@ MATCHES:[1,3,5]`;
                             <option value="high">Çok Kullan</option>
                           </select>
                         </div>
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-xl" style={{ background: 'rgba(200, 0, 90, 0.1)', border: '1px solid rgba(200, 0, 90, 0.3)' }}>
-                      <div className="flex items-center gap-2 mb-3">
-                        <Scale className="h-5 w-5" style={{ color: '#c8005a' }} />
-                        <h3 className="font-semibold" style={{ color: '#c8005a' }}>ZET Judge Mini Özelleştirme</h3>
-                      </div>
-                      <div>
-                        <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Mod</label>
-                        <select value={judgeMood} onChange={e => { setJudgeMood(e.target.value); localStorage.setItem('zet_judge_mood', e.target.value); }} className="zet-input text-sm w-full">
-                          <option value="normal">Normal (Yapıcı eleştiri)</option>
-                          <option value="harsh">Sert (Esprili dalga geçme)</option>
-                        </select>
-                        <p className="text-xs mt-2" style={{ color: 'var(--zet-text-muted)' }}>
-                          {judgeMood === 'harsh' ? 'Judge sizi esprilerle "kavuracak"!' : 'Judge yapıcı ve profesyonel olacak.'}
-                        </p>
                       </div>
                     </div>
 
@@ -4315,43 +4355,59 @@ MATCHES:[1,3,5]`;
       )}
 
       {/* Mood Info Modal */}
-      {showMoodInfo && (
-        <div onClick={() => setShowMoodInfo(false)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: '1px solid #252545', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 440 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-              <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15 }}>Zeta AI Modlari</span>
-              <button onClick={() => setShowMoodInfo(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#aaa', width: 28, height: 28, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
-            </div>
-            <p style={{ color: '#94a3b8', fontSize: 13, marginBottom: 16, lineHeight: 1.6 }}>
-              Mod secimi Zeta'nin temel kimligini degistirmez — sadece konusma tonunu ayarlar.
-            </p>
-            {[
-              { name: 'Neseli', desc: 'Enerjik ve konuşkan. Konulara hevesle yaklasir.' },
-              { name: 'Profesyonel', desc: 'Resmi ve odakli. Is ve akademik konular icin.' },
-              { name: 'Merakli', desc: 'Derinlestirir ve sorgular. Arastirmalar icin.' },
-              { name: 'Ozel', desc: 'Kendi istegini yazabilirsin.' },
-              { name: 'Agresif', color: '#ef4444', badge: 'Kasaya Ozel', desc: 'Kisa, sert, aşağilayici ton. Uyari: agir dil icermektedir.' },
-              { name: 'Robot', color: '#6366f1', badge: 'Kasaya Ozel', desc: 'Tamamen mekanik format: "KOMUT ALINDI / SONUC / BİTTİ"' },
-              { name: 'Yorgun', color: '#78716c', badge: 'Kasaya Ozel', desc: 'Hayattan bezgin, usanmis, uyusuk bir ton.' },
-            ].map((m, i) => (
-              <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 0', borderBottom: i < 6 ? '1px solid #1e293b' : 'none' }}>
-                <div style={{ width: 8, height: 8, borderRadius: '50%', background: m.color || '#4ca8ad', marginTop: 5, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                    <span style={{ color: m.color || '#e2e8f0', fontWeight: 600, fontSize: 13 }}>{m.name}</span>
-                    {m.badge && (
-                      <span style={{ background: '#1e1b4b', border: '1px solid #6366f1', borderRadius: 4, color: '#a5b4fc', fontSize: 10, padding: '1px 6px', fontWeight: 600 }}>
-                        {m.badge}
-                      </span>
-                    )}
-                  </div>
-                  <span style={{ color: '#64748b', fontSize: 12 }}>{m.desc}</span>
-                </div>
+      {showMoodInfo && (() => {
+        const MOOD_SLIDES = [
+          { title: 'Mod Nedir?', desc: 'Mod secimi Zeta\'nin temel kimligini degistirmez — sadece konusma tonunu ayarlar. Istedigin zaman degistirebilirsin.' },
+          { title: 'Neseli',      rarity: 'nadir', desc: 'Enerjik ve konuskan. Konulara hevesle yaklasir, sohbeti akici tutar.' },
+          { title: 'Merakli',     rarity: 'nadir', desc: 'Derinlestirir ve sorgular. Arastirma ve kesif konusmalari icin idealdir.' },
+          { title: 'Profesyonel', rarity: 'nadir', desc: 'Resmi ve odakli. Is ve akademik konular icin temiz, net yanitlar verir.' },
+          { title: 'Ozel',        rarity: 'nadir', desc: 'Kendi istegini yazabilirsin. Zeta tam olarak belirledigin tonda konusacak.' },
+          { title: 'Agresif',     rarity: 'epik',  badge: 'Kasaya Ozel', warn: true, desc: 'Kisa, sert ve asagilayici bir ton. Uyari: agir dil icerebilir.' },
+          { title: 'Robot',       rarity: 'nadir', badge: 'Kasaya Ozel', desc: 'Tamamen mekanik format: "KOMUT ALINDI / SONUC / BİTTİ"' },
+          { title: 'Yorgun',      rarity: 'nadir', badge: 'Kasaya Ozel', desc: 'Hayattan bezgin, usanmis, uyusuk bir ton. Her seye ugursuz yaklasir.' },
+        ];
+        const slide = MOOD_SLIDES[moodInfoSlide];
+        const col = slide.rarity ? RARITY_COL[slide.rarity] : '#4ca8ad';
+        return (
+          <div onClick={() => setShowMoodInfo(false)} style={{ position: 'fixed', inset: 0, zIndex: 10100, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+            <div onClick={e => e.stopPropagation()} style={{ background: '#0d1117', border: '1px solid #252545', borderRadius: 16, padding: '24px 28px', width: '100%', maxWidth: 420 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <span style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 15 }}>Zeta AI Modlari</span>
+                <button onClick={() => setShowMoodInfo(false)} style={{ background: 'rgba(255,255,255,0.08)', border: 'none', borderRadius: 8, color: '#aaa', width: 28, height: 28, cursor: 'pointer', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
               </div>
-            ))}
+              <div style={{ minHeight: 130 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  {slide.rarity && <span style={{ width: 10, height: 10, borderRadius: '50%', background: col, flexShrink: 0 }} />}
+                  <span style={{ color: col, fontWeight: 700, fontSize: 17 }}>{slide.title}</span>
+                  {slide.badge && (
+                    <span style={{ background: '#1e1b4b', border: `1px solid ${col}`, borderRadius: 4, color: col, fontSize: 10, padding: '1px 6px', fontWeight: 600 }}>{slide.badge}</span>
+                  )}
+                </div>
+                {slide.warn && (
+                  <div style={{ background: '#1a0a0a', border: '1px solid #ef4444', borderRadius: 8, padding: '7px 10px', marginBottom: 10 }}>
+                    <span style={{ color: '#fca5a5', fontSize: 12 }}>Uyari: Bu mod agir dil icerebilir.</span>
+                  </div>
+                )}
+                <p style={{ color: '#94a3b8', fontSize: 13, lineHeight: 1.7 }}>{slide.desc}</p>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 20 }}>
+                <button onClick={() => setMoodInfoSlide(p => Math.max(0, p - 1))} disabled={moodInfoSlide === 0} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: moodInfoSlide === 0 ? '#2d3748' : '#94a3b8', width: 32, height: 32, cursor: moodInfoSlide === 0 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+                </button>
+                <div style={{ display: 'flex', gap: 5 }}>
+                  {MOOD_SLIDES.map((_, i) => (
+                    <button key={i} onClick={() => setMoodInfoSlide(i)} style={{ width: i === moodInfoSlide ? 20 : 8, height: 8, borderRadius: 4, background: i === moodInfoSlide ? '#4ca8ad' : '#1e293b', border: 'none', cursor: 'pointer', padding: 0, transition: 'all 0.2s' }} />
+                  ))}
+                </div>
+                <button onClick={() => setMoodInfoSlide(p => Math.min(MOOD_SLIDES.length - 1, p + 1))} disabled={moodInfoSlide === MOOD_SLIDES.length - 1} style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 8, color: moodInfoSlide === MOOD_SLIDES.length - 1 ? '#2d3748' : '#94a3b8', width: 32, height: 32, cursor: moodInfoSlide === MOOD_SLIDES.length - 1 ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round"><path d="M9 18l6-6-6-6"/></svg>
+                </button>
+              </div>
+              <p style={{ color: '#334155', fontSize: 11, textAlign: 'center', marginTop: 8 }}>{moodInfoSlide + 1} / {MOOD_SLIDES.length}</p>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Troll Confirm Popup */}
       {moodPending && DASH_TROLL[moodPending] && (
