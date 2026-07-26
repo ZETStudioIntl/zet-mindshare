@@ -7,6 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
+import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { RARITY_COLORS } from '../components/dashboard/CaseOpenModal';
@@ -746,23 +747,33 @@ const Dashboard = () => {
     }
   };
 
-  const fetchData = async () => {
+  const migrateDocsFromServer = async () => {
+    if (localStorage.getItem('zet_local_migration_done')) return;
     try {
-      docsSkipRef.current = 0;
-      const [docsRes, notesRes] = await Promise.all([
-        axios.get(`${API}/documents?skip=0&limit=20`, { withCredentials: true }),
+      const res = await axios.get(`${API}/documents?skip=0&limit=500`, { withCredentials: true });
+      if (res.data && res.data.length > 0) {
+        for (const doc of res.data) {
+          await saveDoc({ ...doc, updated_at: doc.updated_at || new Date().toISOString() });
+        }
+      }
+      localStorage.setItem('zet_local_migration_done', '1');
+    } catch {}
+  };
+
+  const fetchData = async () => {
+    await migrateDocsFromServer();
+    try {
+      const [localDocs, notesRes] = await Promise.all([
+        getAllDocs(),
         axios.get(`${API}/notes`, { withCredentials: true })
       ]);
-      setDocuments(docsRes.data);
-      docsSkipRef.current = docsRes.data.length;
-      setDocsHasMore(docsRes.data.length === 20);
+      setDocuments(localDocs);
+      setDocsHasMore(false);
       setNotes(notesRes.data);
       try {
-        const docsMeta = docsRes.data.map(({ doc_id, title, subtitle, updated_at, pinned, page_count }) => ({ doc_id, title, subtitle, updated_at, pinned, page_count }));
         const notesMeta = notesRes.data.map(({ note_id, content, updated_at, reminder_time, reminder_sent, notebook_id }) => ({ note_id, content: (content || '').slice(0, 200), updated_at, reminder_time, reminder_sent, notebook_id }));
-        localStorage.setItem('zet_docs_cache', JSON.stringify(docsMeta));
         localStorage.setItem('zet_notes_cache', JSON.stringify(notesMeta));
-      } catch { /* quota aşıldıysa cache atla */ }
+      } catch {}
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -770,7 +781,6 @@ const Dashboard = () => {
     }
     try {
       const notebooksRes = await axios.get(`${API}/notebooks`, { withCredentials: true });
-      // Mark password-protected notebooks (backend returns password_hash field)
       const nbs = notebooksRes.data.map(nb => ({ ...nb, has_password: !!nb.password_hash }));
       setNotebooks(nbs);
     } catch (error) {
@@ -785,18 +795,9 @@ const Dashboard = () => {
   };
 
   const loadMoreDocs = async () => {
-    if (docsLoadingMoreRef.current || !docsHasMore) return;
-    docsLoadingMoreRef.current = true;
-    try {
-      const res = await axios.get(`${API}/documents?skip=${docsSkipRef.current}&limit=20`, { withCredentials: true });
-      setDocuments(prev => [...prev, ...res.data]);
-      docsSkipRef.current += res.data.length;
-      setDocsHasMore(res.data.length === 20);
-    } catch (e) {
-      console.error('loadMoreDocs error', e);
-    } finally {
-      docsLoadingMoreRef.current = false;
-    }
+    // Tüm belgeler IndexedDB'den zaten yüklendi, pagination yok
+    if (docsLoadingMoreRef.current) return;
+    docsLoadingMoreRef.current = false;
   };
 
   const createDocFile = async () => {
@@ -842,14 +843,12 @@ const Dashboard = () => {
     setImportProgress({ current: 0, total: docIdList.length });
 
     try {
-      // Import one by one for real progress
       let completed = 0;
       for (const docId of docIdList) {
-        await axios.post(`${API}/doc-files/${fileId}/import`, { doc_ids: [docId] }, { withCredentials: true });
+        await updateDocField(docId, { file_id: fileId });
         completed++;
         setImportProgress({ current: completed, total: docIdList.length });
       }
-      // Update local state: set file_id on each imported doc
       setDocuments(prev => prev.map(d => selectedDocIds.has(d.doc_id) ? { ...d, file_id: fileId } : d));
       setDocFiles(prev => prev.map(f => {
         if (f.file_id !== fileId) return f;
@@ -1191,11 +1190,26 @@ const Dashboard = () => {
     const title = newDocTitle.trim() || 'İsimsiz Belge';
     setCreatingDoc(true);
     try {
-      const res = await axios.post(`${API}/documents`, {
+      const docId = generateDocId();
+      const now = new Date().toISOString();
+      const newDoc = {
+        doc_id: docId,
+        user_id: user?.user_id || 'local',
         title,
+        subtitle: null,
+        content: null,
+        pages: [{ page_id: 'page_1', elements: [], drawPaths: [] }],
+        settings: null,
+        mindmap: null,
         doc_type: newDocType === 'pdf' ? 'pdf_edit' : 'document',
-      }, { withCredentials: true });
-      const docId = res.data.doc_id;
+        created_at: now,
+        updated_at: now,
+        pinned: false,
+        tags: [],
+        file_id: null,
+      };
+      await saveDoc(newDoc);
+      setDocuments(prev => [newDoc, ...prev]);
 
       // PDF: extract text client-side and save pages before navigating
       if (newDocType === 'pdf' && window.__zetPdfFile) {
@@ -1400,7 +1414,8 @@ const Dashboard = () => {
           }
 
           if (canvasPages.some(p => p.elements.length > 0)) {
-            await axios.put(`${API}/documents/${docId}`, { pages: canvasPages }, { withCredentials: true });
+            await saveDoc({ ...newDoc, pages: canvasPages, updated_at: new Date().toISOString() });
+            setDocuments(prev => prev.map(d => d.doc_id === docId ? { ...d, pages: canvasPages } : d));
           }
         } catch (pdfErr) {
           console.error('PDF extraction failed:', pdfErr);
@@ -1438,11 +1453,9 @@ const Dashboard = () => {
 
   const deleteDocument = async (docId) => {
     try {
-      await axios.delete(`${API}/documents/${docId}`, { withCredentials: true });
+      await deleteDoc(docId);
       setDocuments(docs => docs.filter(d => d.doc_id !== docId));
     } catch (error) {
-      const msg = error.response?.data?.detail;
-      if (msg) showToast(msg, 'error');
       console.error('Error deleting document:', error);
     }
   };
@@ -1481,7 +1494,7 @@ const Dashboard = () => {
   const renameDocument = async (docId, newTitle) => {
     if (!newTitle.trim()) return;
     try {
-      await axios.put(`${API}/documents/${docId}`, { title: newTitle.trim() }, { withCredentials: true });
+      await updateDocField(docId, { title: newTitle.trim() });
       setDocuments(docs => docs.map(d => d.doc_id === docId ? { ...d, title: newTitle.trim() } : d));
       setRenamingDocId(null);
       setRenamingDocTitle('');
@@ -1493,7 +1506,7 @@ const Dashboard = () => {
   const pinDocument = async (doc) => {
     const newPinned = !doc.pinned;
     try {
-      await axios.put(`${API}/documents/${doc.doc_id}`, { pinned: newPinned }, { withCredentials: true });
+      await updateDocField(doc.doc_id, { pinned: newPinned });
       setDocuments(prev => {
         const updated = prev.map(d => d.doc_id === doc.doc_id ? { ...d, pinned: newPinned } : d);
         return [...updated].sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0));

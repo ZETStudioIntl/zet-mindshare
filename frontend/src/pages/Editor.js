@@ -10,6 +10,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM, SCRIPT_ELEMENT_TYPES, SCREENPLAY_PX_PER_CM } from '../lib/editorConstants';
 import { savePreference } from '../lib/preferences';
+import { saveDoc, getDoc, updateDocField } from '../lib/localDocDB';
 import { Toolbox, SHAPE_LIST, PUNCTUATION_LIST } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
@@ -153,14 +154,6 @@ const Editor = () => {
     };
   }, []);
 
-  // Bağlantı geri gelince pending sync varsa otomatik gönder
-  useEffect(() => {
-    if (!isOnline || !docId) return;
-    try {
-      const local = JSON.parse(localStorage.getItem(`zet_offline_doc_${docId}`) || 'null');
-      if (local?.pending_sync) saveDocument(true);
-    } catch {}
-  }, [isOnline]); // eslint-disable-line
 
   // Mobile panels
   const [mobilePanel, setMobilePanel] = useState(null); // 'pages' | 'zeta' | null
@@ -1192,45 +1185,23 @@ const Editor = () => {
   };
 
   const fetchDocument = async () => {
-    const localSettings = (() => {
-      try { return JSON.parse(localStorage.getItem(`zet_doc_settings_${docId}`) || 'null'); } catch { return null; }
-    })();
     try {
+      const local = await getDoc(docId);
+      if (!isMountedRef.current) return;
+      if (local) {
+        applyDocSettings(local.settings || null);
+        setDocument(local);
+        return;
+      }
+      // Belgeler IndexedDB'de yok — sunucudan migration dene
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
       if (!isMountedRef.current) return;
-      // Önce server settings'i uygula, yoksa localStorage'dakini kullan
-      applyDocSettings(res.data.settings || localSettings);
-      // Local backup varsa timestamp karşılaştır — hangisi daha yeniyse onu kullan
-      const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
-      if (offlineDoc) {
-        try {
-          const local = JSON.parse(offlineDoc);
-          const localSavedAt = local.savedAt || 0;
-          const serverUpdatedAt = res.data.updated_at ? new Date(res.data.updated_at).getTime() : 0;
-          if (localSavedAt > serverUpdatedAt) {
-            // Bu cihazın kaydedilmemiş değişiklikleri daha yeni → server'a push et ve göster
-            const localPages = (local.pages && local.pages.length > 0) ? local.pages : res.data.pages;
-            await axios.put(`${API}/documents/${docId}`, { title: local.title || res.data.title, subtitle: local.subtitle || null, content: res.data.content, pages: localPages, settings: res.data.settings || localSettings }, { withCredentials: true });
-            if (!isMountedRef.current) return;
-            localStorage.removeItem(`zet_offline_doc_${docId}`);
-            setDocument({ ...res.data, pages: localPages });
-            return;
-          }
-          // Server daha yeni (başka cihazdan kayıt var) → local'i sil, server'ı kullan
-          localStorage.removeItem(`zet_offline_doc_${docId}`);
-        } catch {
-          localStorage.removeItem(`zet_offline_doc_${docId}`);
-        }
-      }
+      applyDocSettings(res.data.settings || null);
+      await saveDoc({ ...res.data, updated_at: res.data.updated_at || new Date().toISOString() });
       setDocument(res.data);
     } catch {
       if (!isMountedRef.current) return;
-      applyDocSettings(localSettings);
-      // Try loading from offline cache
-      const offlineDoc = localStorage.getItem(`zet_offline_doc_${docId}`);
-      if (offlineDoc) {
-        try { setDocument(JSON.parse(offlineDoc)); } catch { navigate('/dashboard'); }
-      } else { navigate('/dashboard'); }
+      navigate('/dashboard');
     }
   };
 
@@ -1302,20 +1273,6 @@ const Editor = () => {
         }
       } catch {}
     }
-    const pagesToCache = userPlan !== 'free'
-      ? updatedPages
-      : updatedPages.map(p => ({ ...p, elements: (p.elements || []).filter(el => el.type === 'text'), drawPaths: [] }));
-    try {
-      localStorage.setItem(`zet_offline_doc_${docId}`, JSON.stringify({
-        title: document.title, subtitle: document.subtitle || null,
-        pages: pagesToCache, savedAt: Date.now(), pending_sync: true
-      }));
-    } catch {}
-    if (!navigator.onLine) {
-      setSaveStatus('unsaved');
-      if (!silent) setSaving(false);
-      return;
-    }
     const docSettings = {
       marginLeft, marginRight, marginTop, marginBottom,
       pageBackground, currentFont, currentFontSize, currentColor,
@@ -1325,13 +1282,15 @@ const Editor = () => {
       pageSize, screenplayMode, rulerVisible,
     };
     try {
-      localStorage.setItem(`zet_doc_settings_${docId}`, JSON.stringify(docSettings));
-    } catch {}
-    try {
-      await axios.put(`${API}/documents/${docId}`, { title: document.title, subtitle: document.subtitle || null, content: document.content, pages: updatedPages, settings: docSettings, mindmap: document.mindmap || null }, { withCredentials: true });
+      const now = new Date().toISOString();
+      await saveDoc({
+        ...document,
+        pages: updatedPages,
+        settings: docSettings,
+        updated_at: now,
+      });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
-      localStorage.removeItem(`zet_offline_doc_${docId}`);
     } catch { setSaveStatus('error'); } finally { if (!silent) setSaving(false); }
   }
   saveDocumentRef.current = saveDocument;
@@ -1341,7 +1300,7 @@ const Editor = () => {
     if (!docId || isReadOnly) return;
     if (autoSave30Ref.current) clearInterval(autoSave30Ref.current);
     autoSave30Ref.current = setInterval(() => {
-      if (navigator.onLine) saveDocumentRef.current?.(true);
+      saveDocumentRef.current?.(true);
     }, 30000);
     return () => { if (autoSave30Ref.current) clearInterval(autoSave30Ref.current); };
   }, [docId, isReadOnly]);
