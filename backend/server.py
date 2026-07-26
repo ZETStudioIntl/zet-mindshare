@@ -1447,12 +1447,12 @@ _SEASON_RANK_XP = [
     (0,     "iron"),
 ]
 _SEASON_RANK_REWARDS = {
-    "iron":    {"credits": 30,   "xp": 50},
-    "silver":  {"credits": 200,  "xp": 400},
-    "gold":    {"credits": 500,  "xp": 1000},
-    "diamond": {"credits": 800,  "xp": 1600},
-    "emerald": {"credits": 1000, "xp": 2400},
-    "endless": {"credits": 2000, "xp": 3000},
+    "iron":    {"credits": 30,   "zp": 50,   "wheels": 2},
+    "silver":  {"credits": 200,  "zp": 400,  "cases": 2,  "wheels": 2},
+    "gold":    {"credits": 500,  "zp": 1000, "cases": 4,  "wheels": 2},
+    "diamond": {"credits": 800,  "zp": 1600, "cases": 7,  "wheels": 4},
+    "emerald": {"credits": 1000, "zp": 2400, "cases": 10, "wheels": 5},
+    "endless": {"credits": 2000, "zp": 3000, "cases": 20, "wheels": 7, "pack": 1},
 }
 
 def _xp_to_rank(xp: int) -> str:
@@ -1463,7 +1463,7 @@ def _xp_to_rank(xp: int) -> str:
 
 # Saat bazlı rank — sezon dağıtımında kullanılır
 _SEASON_RANK_HOURS = [
-    (500, "endless"),
+    (400, "endless"),
     (230, "emerald"),
     (130, "diamond"),
     (75,  "gold"),
@@ -1497,34 +1497,66 @@ async def distribute_season_rewards_and_reset():
     except Exception:
         duration_days = 0
 
+    ALL_MOODS = {"robot", "yorgun", "agresif"}
+    now_iso = datetime.now(timezone.utc).isoformat()
+
     users = await db.users.find(
-        {}, {"_id": 0, "user_id": 1, "mindshare_xp": 1, "active_time_seconds": 1}
+        {}, {"_id": 0, "user_id": 1, "mindshare_xp": 1, "active_time_seconds": 1, "unlocked_modes": 1}
     ).to_list(length=200000)
     count = 0
     for u in users:
         active_secs = u.get("active_time_seconds", 0) or 0
         rank   = _hours_to_rank(active_secs)
         reward = _SEASON_RANK_REWARDS[rank]
-        # Sezon sonuç kaydı — popup için
+
+        # Envanter öğeleri oluştur (kasalar + çarklar)
+        inv_items = []
+        for i in range(reward.get("cases", 0)):
+            inv_items.append({"id": f"rc_{u['user_id']}_{season_id}_{i}", "item_type": "rank_case", "created_at": now_iso})
+        for i in range(reward.get("wheels", 0)):
+            inv_items.append({"id": f"rw_{u['user_id']}_{season_id}_{i}", "item_type": "rank_wheel", "created_at": now_iso})
+
+        # Endless paketi: eksik Zeta modlarını aç; hepsi varsa 1 kasa
+        pack_given = None
+        extra_case = 0
+        if reward.get("pack"):
+            user_modes = set(u.get("unlocked_modes") or [])
+            missing = ALL_MOODS - user_modes
+            if missing:
+                await db.users.update_one(
+                    {"user_id": u["user_id"]},
+                    {"$addToSet": {"unlocked_modes": {"$each": list(missing)}}},
+                )
+                pack_given = list(missing)
+            else:
+                extra_case = 1
+                inv_items.append({"id": f"rc_pack_{u['user_id']}_{season_id}", "item_type": "rank_case", "created_at": now_iso})
+
+        # Sezon sonuç kaydı
         await db.season_results.insert_one({
             "user_id":             u["user_id"],
             "season_id":           season_id,
             "final_rank":          rank,
             "credits_earned":      reward["credits"],
+            "zp_earned":           reward["zp"],
+            "cases_earned":        reward.get("cases", 0) + extra_case,
+            "wheels_earned":       reward.get("wheels", 0),
+            "pack_given":          pack_given,
             "duration_days":       duration_days,
             "active_time_seconds": active_secs,
             "season_start":        season_start,
             "season_end":          season_end,
             "shown":               False,
-            "created_at":          datetime.now(timezone.utc).isoformat(),
+            "created_at":          now_iso,
         })
-        await db.users.update_one(
-            {"user_id": u["user_id"]},
-            {
-                "$inc": {"bonus_credits": reward["credits"]},
-                "$set": {"mindshare_xp": 0, "mindshare_rank": "iron", "active_time_seconds": 0},
-            },
-        )
+
+        update_ops = {
+            "$inc": {"bonus_credits": reward["credits"], "quest_xp": reward["zp"]},
+            "$set": {"mindshare_xp": 0, "mindshare_rank": "iron", "active_time_seconds": 0},
+        }
+        if inv_items:
+            update_ops["$push"] = {"inventory": {"$each": inv_items}}
+        await db.users.update_one({"user_id": u["user_id"]}, update_ops)
         count += 1
     await db.seasons.update_one(
         {"status": "ending"},

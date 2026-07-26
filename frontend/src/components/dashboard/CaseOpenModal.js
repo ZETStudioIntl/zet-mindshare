@@ -92,13 +92,13 @@ function _playWinSound(rarity) {
   } catch {}
 }
 
-const ZPIcon = ({ color, size = 16 }) => (
+export const ZPIcon = ({ color, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
     <circle cx="8" cy="8" r="7" stroke={color} strokeWidth="1.5" fill={`${color}18`} />
     <path d="M5 10.5l6-5M5 5.5h6M5 10.5h6" stroke={color} strokeWidth="1.4" strokeLinecap="round" />
   </svg>
 );
-const CreditIcon = ({ color, size = 16 }) => (
+export const CreditIcon = ({ color, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
     <polygon points="8,2 10,6 14.5,6 11,9.5 12.5,14 8,11.5 3.5,14 5,9.5 1.5,6 6,6" stroke={color} strokeWidth="1.3" fill={`${color}18`} strokeLinejoin="round" />
   </svg>
@@ -215,10 +215,10 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
                   return (
                     <div key={i} style={{
                       flexShrink: 0, width: SLOT_W, height: 80,
-                      background: item.isWinner ? `radial-gradient(ellipse at center, ${RARITY_GLOW[item.rarity]} 0%, #050510 70%)` : 'rgba(255,255,255,0.02)',
-                      border: `1px solid ${item.isWinner ? c : '#1a1a32'}`,
+                      background: (item.isWinner && phase === 'done') ? `radial-gradient(ellipse at center, ${RARITY_GLOW[item.rarity]} 0%, #050510 70%)` : 'rgba(255,255,255,0.02)',
+                      border: `1px solid ${(item.isWinner && phase === 'done') ? c : '#1a1a32'}`,
                       borderRadius: 10, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 5,
-                      boxShadow: item.isWinner ? `0 0 20px ${RARITY_GLOW[item.rarity]}` : 'none',
+                      boxShadow: (item.isWinner && phase === 'done') ? `0 0 20px ${RARITY_GLOW[item.rarity]}` : 'none',
                     }}>
                       <ItemIcon item={item} size={20} />
                       <span style={{ fontSize: 12, fontWeight: 700, color: c, letterSpacing: -0.2 }}>{itemLabel(item)}</span>

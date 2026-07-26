@@ -10,7 +10,7 @@ import { savePreference } from '../lib/preferences';
 import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
-import CaseOpenModal from '../components/dashboard/CaseOpenModal';
+import CaseOpenModal, { ZPIcon, CreditIcon } from '../components/dashboard/CaseOpenModal';
 import WheelModal from '../components/dashboard/WheelModal';
 import OnboardingModal from '../components/dashboard/OnboardingModal';
 import AISettingsModal from '../components/dashboard/AISettingsModal';
@@ -325,7 +325,7 @@ const Dashboard = () => {
     { name: 'Altın',  xp: 75,  color: '#ecca66', level: 3, next: 130 },
     { name: 'Elmas',  xp: 130, color: '#250b62', level: 4, next: 230 },
     { name: 'Zümrüt', xp: 230, color: '#065a10', level: 5, next: 500 },
-    { name: 'Endless', xp: 500, color: '#ef4444', level: 6, next: null },
+    { name: 'Endless', xp: 400, color: '#ef4444', level: 6, next: null },
   ];
   const getCurrentRank = (hours) => {
     let rank = RANKS[0];
@@ -2417,15 +2417,15 @@ MATCHES:[1,3,5]`;
                   'Altın':  { hours: 75  },
                   'Elmas':  { hours: 130 },
                   'Zümrüt': { hours: 230 },
-                  'Endless':{ hours: 500 },
+                  'Endless':{ hours: 400 },
                 };
                 const RANK_REWARDS = {
-                  'Demir':   { credits: 30,   sp: 50   },
-                  'Gümüş':   { credits: 200,  sp: 400  },
-                  'Altın':   { credits: 500,  sp: 1000 },
-                  'Elmas':   { credits: 800,  sp: 1600 },
-                  'Zümrüt':  { credits: 1000, sp: 2400 },
-                  'Endless': { credits: 2000, sp: 3000 },
+                  'Demir':   { credits: 30,   zp: 50,   wheels: 2 },
+                  'Gümüş':   { credits: 200,  zp: 400,  cases: 2,  wheels: 2 },
+                  'Altın':   { credits: 500,  zp: 1000, cases: 4,  wheels: 2 },
+                  'Elmas':   { credits: 800,  zp: 1600, cases: 7,  wheels: 4 },
+                  'Zümrüt':  { credits: 1000, zp: 2400, cases: 10, wheels: 5 },
+                  'Endless': { credits: 2000, zp: 3000, cases: 20, wheels: 7, pack: 1 },
                 };
                 const totalActiveSeconds = activeTimeSeconds + sessionSeconds;
                 const activeHours = totalActiveSeconds / 3600;
@@ -2597,14 +2597,22 @@ MATCHES:[1,3,5]`;
                             <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
                             {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                           </div>
-                          <div className="flex items-center gap-3 text-sm">
-                            <span className="flex items-center gap-1" style={{ color: '#fbbf24' }}>
-                              <Zap className="h-3.5 w-3.5" />{reward.credits} kredi
-                            </span>
-                            <span style={{ color: 'var(--zet-text-muted)' }}>+</span>
-                            <span className="flex items-center gap-1" style={{ color: '#f59e0b' }}>
-                              <Star className="h-3.5 w-3.5" />{reward.sp.toLocaleString()} ZP
-                            </span>
+                          <div className="flex flex-col items-end gap-1 text-xs">
+                            <div className="flex items-center gap-2">
+                              <span className="flex items-center gap-0.5" style={{ color: '#fbbf24' }}>
+                                <CreditIcon color="#fbbf24" size={12} /> {reward.credits} kr
+                              </span>
+                              <span className="flex items-center gap-0.5" style={{ color: '#f59e0b' }}>
+                                <ZPIcon color="#f59e0b" size={12} /> {reward.zp.toLocaleString()} ZP
+                              </span>
+                            </div>
+                            {(reward.cases || reward.wheels || reward.pack) && (
+                              <div className="flex items-center gap-2" style={{ color: 'var(--zet-text-muted)' }}>
+                                {reward.cases && <span style={{ color: '#60a5fa' }}>{reward.cases} kasa</span>}
+                                {reward.wheels && <span style={{ color: '#a78bfa' }}>{reward.wheels} çark</span>}
+                                {reward.pack && <span style={{ color: '#fbbf24' }}>+Zeta paketi</span>}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );})}
@@ -2629,7 +2637,7 @@ MATCHES:[1,3,5]`;
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('subscription')}</h2>
                   <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
-                    <Star className="h-4 w-4" style={{ color: '#fbbf24' }} />
+                    <ZPIcon color="#fbbf24" size={16} />
                     <span className="text-sm font-bold" style={{ color: '#fbbf24' }}>{userZP.toLocaleString()} ZP</span>
                     <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>- ZP ile de plan alabilirsiniz</span>
                   </div>
@@ -2746,18 +2754,23 @@ MATCHES:[1,3,5]`;
                 const tier = CREDIT_TIERS[currentCreditIndex] || CREDIT_TIERS[0];
                 const priceDiff = pkg.discounted_price !== pkg.price;
                 const hasDiscount = priceDiff;
-                const fmtCredits = pkg.credits >= 1000000
-                  ? `${(pkg.credits / 1000000).toFixed(0)}M`
-                  : `${(pkg.credits / 1000).toFixed(0)}K`;
+                const fmtCredits = pkg.credits.toLocaleString();
                 return (
                   <div style={{ maxWidth: 400 }}>
                     <div className="flex items-center gap-2 mb-1">
-                      <Zap className="h-4 w-4" style={{ color: '#f59e0b' }} />
+                      <CreditIcon color="#f59e0b" size={16} />
                       <h2 className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>Kredi Satın Al</h2>
                     </div>
                     <p className="text-xs mb-5" style={{ color: 'var(--zet-text-muted)' }}>Krediler AI özellikleri için kullanılır.</p>
 
-                    {/* Carousel card */}
+                    {/* Carousel card with arrows */}
+                    <div className="relative">
+                      <button onClick={() => setCurrentCreditIndex(Math.max(0, currentCreditIndex - 1))} disabled={currentCreditIndex === 0} className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30" style={{ background: 'var(--zet-bg-card)' }}>
+                        <ChevronLeft className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                      </button>
+                      <button onClick={() => setCurrentCreditIndex(Math.min(creditPackages.length - 1, currentCreditIndex + 1))} disabled={currentCreditIndex === creditPackages.length - 1} className="absolute right-0 top-1/2 -translate-y-1/2 translate-x-4 z-10 w-8 h-8 rounded-full flex items-center justify-center transition-all disabled:opacity-30" style={{ background: 'var(--zet-bg-card)' }}>
+                        <ChevronRight className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
+                      </button>
                     <div
                       key={currentCreditIndex}
                       className="animate-fadeIn rounded-3xl p-8 mb-4 flex flex-col items-center text-center"
@@ -2777,7 +2790,7 @@ MATCHES:[1,3,5]`;
                       {/* Icon */}
                       <div className="rounded-2xl flex items-center justify-center mb-4"
                         style={{ width: 64, height: 64, background: tier.glow }}>
-                        <Zap style={{ width: 32, height: 32, color: tier.color }} />
+                        <CreditIcon color={tier.color} size={32} />
                       </div>
 
                       {/* Credits */}
@@ -2807,6 +2820,7 @@ MATCHES:[1,3,5]`;
                         {buyingCredits ? '...' : 'Satın Al'}
                       </button>
                     </div>
+                    </div>{/* /carousel wrapper */}
 
                     {/* Dots */}
                     <div className="flex justify-center gap-2 mb-3">
@@ -2830,7 +2844,7 @@ MATCHES:[1,3,5]`;
 
                     {hasDiscount && (
                       <div className="px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 mt-1" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
-                        <Zap className="h-3 w-3" style={{ color: '#10b981' }} />
+                        <CreditIcon color="#10b981" size={12} />
                         <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>Abone indirimi aktif — %10 indirim uygulandı</span>
                       </div>
                     )}
@@ -3233,7 +3247,7 @@ MATCHES:[1,3,5]`;
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
                       {inventory.map((c) => {
-                        const isWheel = c.item_type === 'daily_wheel';
+                        const isWheel = c.item_type === 'daily_wheel' || c.item_type === 'rank_wheel';
                         const accentColor = isWheel ? '#a78bfa' : '#60a5fa';
                         const borderColor = isWheel ? '#3b2a5a' : '#2a2a5a';
                         const bgGradient = isWheel ? 'linear-gradient(135deg, #12082a, #1a1040)' : 'linear-gradient(135deg, #0f0f2a, #1a1a3a)';
