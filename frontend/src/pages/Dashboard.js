@@ -1065,7 +1065,10 @@ const Dashboard = () => {
       setZetaMemories(prev => [res.data, ...prev]);
       setNewMemoryInput('');
       showToast('Bellek eklendi', 'success');
-    } catch { showToast('Bellek eklenemedi', 'error'); }
+    } catch (err) {
+      const msg = err?.response?.data?.detail;
+      showToast(msg || 'Bellek eklenemedi', 'error');
+    }
   };
 
   const pinNote = async (note) => {

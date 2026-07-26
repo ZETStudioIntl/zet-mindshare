@@ -38,6 +38,13 @@ const PLAN_SLIDES = {
       bg: 'linear-gradient(135deg, #12172e 0%, #0f172a 100%)',
       accent: '#6b7280',
     },
+    {
+      title: '25 Zeta Belleği',
+      desc: 'Zeta sizi tanısın. Tercihlerinizi ve önemli bilgileri hatırlasın — her konuşmada sıfırdan başlamasın.',
+      visual: 'memory',
+      bg: 'linear-gradient(135deg, #1a2035 0%, #0f172a 100%)',
+      accent: '#6b7280',
+    },
   ],
   plus: [
     {
@@ -73,6 +80,13 @@ const PLAN_SLIDES = {
       desc: 'Metinlerinizi gerçekçi seslerle dinleyin. Çalışırken, dinlenirken — notlarınız her an kulağınızda.',
       visual: 'support',
       bg: 'linear-gradient(135deg, #0a2540 0%, #0f172a 100%)',
+      accent: '#06b6d4',
+    },
+    {
+      title: '75 Zeta Belleği',
+      desc: 'Daha derin bir asistan deneyimi. Zeta projelerinizi, hedeflerinizi ve çalışma tarzınızı öğrenir.',
+      visual: 'memory',
+      bg: 'linear-gradient(135deg, #0c3547 0%, #0f172a 100%)',
       accent: '#06b6d4',
     },
   ],
@@ -112,6 +126,13 @@ const PLAN_SLIDES = {
       bg: 'linear-gradient(135deg, #2d1b69 0%, #0f172a 100%)',
       accent: '#7c3aed',
     },
+    {
+      title: '200 Zeta Belleği',
+      desc: 'Kapsamlı bir AI hafızası. Her tercih, her bağlam, her proje detayı — Zeta hiçbir şeyi unutmaz.',
+      visual: 'memory',
+      bg: 'linear-gradient(135deg, #2d1b69 0%, #0f172a 100%)',
+      accent: '#a78bfa',
+    },
   ],
   creative_station: [
     {
@@ -148,6 +169,13 @@ const PLAN_SLIDES = {
       visual: 'ai',
       bg: 'linear-gradient(135deg, #5c2a06 0%, #0f172a 100%)',
       accent: '#f59e0b',
+    },
+    {
+      title: 'Sınırsız Zeta Belleği',
+      desc: 'Hiçbir sınır yok. Zeta sizinle büyür — her konuşmayla daha kişisel, daha zeki, daha sizin.',
+      visual: 'memory',
+      bg: 'linear-gradient(135deg, #422006 0%, #0f172a 100%)',
+      accent: '#fb923c',
     },
   ],
 };
@@ -303,6 +331,24 @@ const VISUAL_ICONS = {
       <path d="M28 28 C28 20 52 20 52 32 C52 40 40 40 40 48" stroke={color} strokeWidth="2.5" strokeLinecap="round" fill="none" />
       <circle cx="40" cy="55" r="3" fill={color} opacity="0.8" />
       <path d="M16 62 Q40 72 64 62" stroke={color} strokeWidth="1.5" strokeLinecap="round" fill="none" opacity="0.4" />
+    </svg>
+  ),
+  memory: (color) => (
+    <svg viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" style={{ width: 80, height: 80 }}>
+      <circle cx="40" cy="40" r="18" fill={color + '20'} stroke={color} strokeWidth="2" />
+      <circle cx="40" cy="40" r="6" fill={color} opacity="0.85" />
+      <circle cx="40" cy="16" r="4" fill={color + '40'} stroke={color} strokeWidth="1.5" />
+      <circle cx="40" cy="64" r="4" fill={color + '40'} stroke={color} strokeWidth="1.5" />
+      <circle cx="19" cy="28" r="4" fill={color + '40'} stroke={color} strokeWidth="1.5" />
+      <circle cx="61" cy="28" r="4" fill={color + '40'} stroke={color} strokeWidth="1.5" />
+      <circle cx="19" cy="52" r="4" fill={color + '40'} stroke={color} strokeWidth="1.5" />
+      <circle cx="61" cy="52" r="4" fill={color + '40'} stroke={color} strokeWidth="1.5" />
+      <line x1="40" y1="34" x2="40" y2="20" stroke={color} strokeWidth="1.5" opacity="0.45" />
+      <line x1="40" y1="46" x2="40" y2="60" stroke={color} strokeWidth="1.5" opacity="0.45" />
+      <line x1="34" y1="37" x2="23" y2="30" stroke={color} strokeWidth="1.5" opacity="0.45" />
+      <line x1="46" y1="37" x2="57" y2="30" stroke={color} strokeWidth="1.5" opacity="0.45" />
+      <line x1="34" y1="43" x2="23" y2="50" stroke={color} strokeWidth="1.5" opacity="0.45" />
+      <line x1="46" y1="43" x2="57" y2="50" stroke={color} strokeWidth="1.5" opacity="0.45" />
     </svg>
   ),
 };

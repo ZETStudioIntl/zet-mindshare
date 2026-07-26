@@ -4284,8 +4284,18 @@ async def get_zeta_memories(user: User = Depends(get_current_user)):
     memories = await db.zeta_memories.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(50)
     return memories
 
+ZETA_MEMORY_LIMITS = {"free": 25, "plus": 75, "pro": 200, "creative_station": None}
+
 @api_router.post("/zeta/memory")
 async def save_zeta_memory(content: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
+    sub = _normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
+    plan = sub.get("plan", "free")
+    limit = ZETA_MEMORY_LIMITS.get(plan, 25)
+    if limit is not None:
+        count = await db.zeta_memories.count_documents({"user_id": user.user_id})
+        if count >= limit:
+            raise HTTPException(status_code=429, detail=f"Bellek limitine ulaştınız ({limit}/{limit}). Planınızı yükselterek daha fazla bellek ekleyebilirsiniz.")
     memory_id = f"mem_{uuid.uuid4().hex[:12]}"
     now = datetime.now(timezone.utc)
     doc = {"memory_id": memory_id, "user_id": user.user_id, "content": content, "created_at": now.isoformat()}
