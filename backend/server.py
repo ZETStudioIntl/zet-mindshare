@@ -5720,7 +5720,7 @@ The user may ask questions about this document. Use this content to provide rele
 
         if req.is_ceo:
             # CEO modu: repo okuma aracıyla agentic loop
-            tools = [genai_types.Tool(google_search=genai_types.GoogleSearch()), _REPO_READER_TOOL]
+            tools = [_REPO_READER_TOOL]
             cur = list(contents)
             for _iter in range(7):
                 resp = await gemini_generate(
@@ -7230,7 +7230,7 @@ async def get_most_active_users(limit: int = 10) -> list:
         {"$addFields": {"post_count": {"$size": "$posts"}}},
         {"$sort": {"post_count": -1}},
         {"$limit": limit},
-        {"$project": {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "post_count": 1, "followers_count": 1}},
+        {"$project": {"_id": 0, "user_id": 1, "email": 1, "name": 1, "username": 1, "post_count": 1, "followers_count": 1, "mindshare_rank": 1}},
     ]
     return await db.users.aggregate(pipeline).to_list(length=limit)
 
@@ -7470,6 +7470,164 @@ async def normalize_all_subscriptions(user: User = Depends(get_current_user)):
     return {"fixed_users": fixed, "total": len(all_users),
             "message": f"{fixed} kullanıcının subscription alanı normalize edildi."}
 
+def _rank_label(rank: str) -> str:
+    return {"iron": "Demir", "bronze": "Bronz", "silver": "Gümüş", "gold": "Altın", "platinum": "Platin", "diamond": "Elmas"}.get(rank or "", "Demir")
+
+def _rank_color(rank: str) -> str:
+    return {"iron": "#94a3b8", "bronze": "#d97706", "silver": "#cbd5e1", "gold": "#fbbf24", "platinum": "#22d3ee", "diamond": "#a78bfa"}.get(rank or "", "#94a3b8")
+
+def _rank_bg(rank: str) -> str:
+    return {"iron": "rgba(148,163,184,0.12)", "bronze": "rgba(217,119,6,0.12)", "silver": "rgba(203,213,225,0.1)", "gold": "rgba(251,191,36,0.12)", "platinum": "rgba(34,211,238,0.12)", "diamond": "rgba(167,139,250,0.12)"}.get(rank or "", "rgba(148,163,184,0.12)")
+
+def _user_initials(name: str) -> str:
+    parts = (name or "?").split()
+    if len(parts) >= 2:
+        return (parts[0][0] + parts[-1][0]).upper()
+    return (name or "?")[:2].upper()
+
+async def get_rank_distribution() -> dict:
+    pipeline = [{"$group": {"_id": "$mindshare_rank", "count": {"$sum": 1}}}]
+    results = await db.users.aggregate(pipeline).to_list(length=20)
+    return {(r["_id"] or "iron"): r["count"] for r in results}
+
+def _weekly_report_html(a: dict, last7_users: int, last7_posts: int, last7_docs: int, rank_dist: dict, report_date: str) -> str:
+    users = a.get("most_active_users", [])
+    trending = a.get("trending_words", [])[:5]
+    total_users = a.get("total_users", 0)
+    total_docs = a.get("total_documents", 0)
+    total_posts = a.get("total_posts", 0)
+    total_comments = a.get("total_comments", 0)
+
+    rank_order = ["diamond", "platinum", "gold", "silver", "bronze", "iron"]
+    max_rc = max((rank_dist.get(r, 0) for r in rank_order), default=1) or 1
+
+    max_posts = (users[0].get("post_count", 1) if users else 1) or 1
+    user_rows = ""
+    for i, u in enumerate(users, 1):
+        name = u.get("name") or u.get("username") or "?"
+        email = u.get("email", "")
+        pc = u.get("post_count", 0)
+        rank = u.get("mindshare_rank") or "iron"
+        init = _user_initials(name)
+        rc = _rank_color(rank)
+        rb = _rank_bg(rank)
+        rl = _rank_label(rank)
+        bar = int(pc / max_posts * 100) if pc > 0 else 0
+        dim = "opacity:0.35;" if pc == 0 else ""
+        pc_color = "#4ca8ad" if pc > 0 else "rgba(255,255,255,0.2)"
+        pc_str = str(pc) if pc > 0 else "—"
+        user_rows += (
+            f'<tr style="border-bottom:1px solid rgba(255,255,255,0.05);{dim}">'
+            f'<td style="padding:10px 4px;width:18px;font-size:10px;color:rgba(255,255,255,0.2);font-weight:700;vertical-align:middle">{i}</td>'
+            f'<td style="padding:10px 6px;width:38px;vertical-align:middle">'
+            f'<div style="width:34px;height:34px;border-radius:9px;background:rgba(76,168,173,0.1);border:1px solid rgba(76,168,173,0.2);text-align:center;line-height:34px;font-size:12px;font-weight:800;color:#4ca8ad">{init}</div>'
+            f'</td>'
+            f'<td style="padding:10px 6px;vertical-align:middle">'
+            f'<div style="font-size:13px;font-weight:600;color:#e2e8f0;max-width:220px">{name}</div>'
+            f'<div style="display:flex;align-items:center;gap:6px;margin-top:2px">'
+            f'<span style="font-size:10px;color:rgba(255,255,255,0.25)">{email}</span>'
+            f'<span style="font-size:9px;font-weight:700;padding:1px 6px;border-radius:100px;background:{rb};color:{rc};border:1px solid {rc}40">{rl}</span>'
+            f'</div></td>'
+            f'<td style="padding:10px 0;width:70px;vertical-align:middle">'
+            f'<div style="height:4px;background:rgba(255,255,255,0.06);border-radius:2px">'
+            f'<div style="height:100%;width:{bar}%;background:linear-gradient(90deg,#4ca8ad,#2dd4bf);border-radius:2px"></div>'
+            f'</div></td>'
+            f'<td style="padding:10px 0 10px 8px;width:32px;text-align:right;font-size:14px;font-weight:800;color:{pc_color};vertical-align:middle">{pc_str}</td>'
+            f'</tr>'
+        )
+
+    rank_rows = ""
+    for rank in rank_order:
+        count = rank_dist.get(rank, 0)
+        if count == 0:
+            continue
+        rc = _rank_color(rank)
+        rb = _rank_bg(rank)
+        rl = _rank_label(rank)
+        bar = int(count / max_rc * 100)
+        rank_rows += (
+            f'<tr>'
+            f'<td style="padding:7px 0;width:80px;white-space:nowrap">'
+            f'<span style="display:inline-block;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:700;background:{rb};color:{rc};border:1px solid {rc}40">{rl}</span>'
+            f'</td>'
+            f'<td style="padding:7px 8px">'
+            f'<div style="height:6px;background:rgba(255,255,255,0.06);border-radius:3px">'
+            f'<div style="height:100%;width:{bar}%;background:{rc};border-radius:3px;opacity:0.75"></div>'
+            f'</div></td>'
+            f'<td style="padding:7px 0;width:28px;text-align:right;font-size:12px;font-weight:700;color:{rc}">{count}</td>'
+            f'</tr>'
+        )
+
+    tag_html = ""
+    for i, t in enumerate(trending):
+        color = "#4ca8ad" if i == 0 else ("rgba(255,255,255,0.5)" if i < 3 else "rgba(255,255,255,0.28)")
+        border = "rgba(76,168,173,0.4)" if i == 0 else "rgba(255,255,255,0.1)"
+        weight = "600" if i == 0 else "400"
+        tag_html += (
+            f'<span style="display:inline-block;background:rgba(255,255,255,0.04);border:1px solid {border};'
+            f'border-radius:100px;padding:5px 14px;font-size:12px;color:{color};font-weight:{weight};margin:3px">'
+            f'{t["word"]}</span>'
+        )
+    if not tag_html:
+        tag_html = '<span style="font-size:12px;color:rgba(255,255,255,0.2)">Bu hafta yeterli veri yok</span>'
+
+    delta_u = f"+{last7_users}" if last7_users else "0"
+    delta_p = f"+{last7_posts}" if last7_posts else "0"
+    delta_d = f"+{last7_docs}" if last7_docs else "0"
+
+    return (
+        '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        '<title>Zet Mindshare Haftalık Rapor</title></head>'
+        '<body style="margin:0;padding:0;background:#030711;font-family:-apple-system,BlinkMacSystemFont,Segoe UI,system-ui,sans-serif;color:#e2e8f0">'
+        '<div style="max-width:640px;margin:0 auto;padding:32px 16px 48px">'
+        '<div style="height:1px;background:linear-gradient(90deg,transparent,rgba(76,168,173,0.7) 30%,rgba(139,92,246,0.6) 70%,transparent);margin-bottom:0"></div>'
+        '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-top:none;border-radius:0 0 18px 18px;padding:24px 24px 22px;margin-bottom:16px">'
+        '<table width="100%" cellpadding="0" cellspacing="0"><tr>'
+        '<td><span style="display:inline-block;background:rgba(76,168,173,0.12);border:1px solid rgba(76,168,173,0.25);border-radius:100px;padding:4px 12px;font-size:10px;font-weight:700;color:#4ca8ad;letter-spacing:1.5px;text-transform:uppercase">Zet Analytics</span></td>'
+        f'<td style="text-align:right"><div style="font-size:11px;color:rgba(255,255,255,0.3)">{report_date}</div><div style="font-size:10px;color:rgba(255,255,255,0.2);margin-top:2px">Otomatik haftalık rapor</div></td>'
+        '</tr></table>'
+        '<div style="font-size:28px;font-weight:900;color:#fff;letter-spacing:-1px;line-height:1.15;margin-top:14px">Platform Haftalık<br>'
+        '<span style="color:#4ca8ad">Özeti</span></div>'
+        '<div style="font-size:12px;color:rgba(255,255,255,0.35);margin-top:6px">Son 7 günlük platform analizi</div>'
+        '</div>'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:rgba(255,255,255,0.2);margin:0 0 8px 2px">Genel Metrikler</div>'
+        '<table width="100%" cellpadding="0" cellspacing="0" style="border-spacing:10px;border-collapse:separate;margin-bottom:8px"><tr>'
+        f'<td style="background:rgba(76,168,173,0.1);border:1px solid rgba(76,168,173,0.2);border-radius:14px;padding:16px 14px;width:25%">'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#4ca8ad;margin-bottom:7px">Kullanıcı</div>'
+        f'<div style="font-size:32px;font-weight:900;color:#4ca8ad;line-height:1;font-variant-numeric:tabular-nums">{total_users}</div>'
+        f'<div style="font-size:10px;color:rgba(76,168,173,0.5);margin-top:4px">{delta_u} yeni bu hafta</div></td>'
+        f'<td style="background:rgba(96,165,250,0.1);border:1px solid rgba(96,165,250,0.2);border-radius:14px;padding:16px 14px;width:25%">'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#60a5fa;margin-bottom:7px">Belge</div>'
+        f'<div style="font-size:32px;font-weight:900;color:#60a5fa;line-height:1;font-variant-numeric:tabular-nums">{total_docs}</div>'
+        f'<div style="font-size:10px;color:rgba(96,165,250,0.5);margin-top:4px">{delta_d} yeni bu hafta</div></td>'
+        f'<td style="background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.2);border-radius:14px;padding:16px 14px;width:25%">'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#a78bfa;margin-bottom:7px">Gönderi</div>'
+        f'<div style="font-size:32px;font-weight:900;color:#a78bfa;line-height:1;font-variant-numeric:tabular-nums">{total_posts}</div>'
+        f'<div style="font-size:10px;color:rgba(167,139,250,0.5);margin-top:4px">{delta_p} yeni bu hafta</div></td>'
+        f'<td style="background:rgba(251,113,133,0.1);border:1px solid rgba(251,113,133,0.2);border-radius:14px;padding:16px 14px;width:25%">'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#fb7185;margin-bottom:7px">Yorum</div>'
+        f'<div style="font-size:32px;font-weight:900;color:#fb7185;line-height:1;font-variant-numeric:tabular-nums">{total_comments}</div>'
+        '<div style="font-size:10px;color:rgba(251,113,133,0.3);margin-top:4px">&nbsp;</div></td>'
+        '</tr></table>'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:rgba(255,255,255,0.2);margin:16px 0 8px 2px">Rank Dağılımı</div>'
+        '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:18px 20px;margin-bottom:16px">'
+        f'<table width="100%" cellpadding="0" cellspacing="0">{rank_rows}</table>'
+        '</div>'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:rgba(255,255,255,0.2);margin:0 0 8px 2px">Tüm Kullanıcılar</div>'
+        '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:18px 20px;margin-bottom:16px">'
+        f'<table width="100%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">{user_rows}</table>'
+        '</div>'
+        '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:3px;color:rgba(255,255,255,0.2);margin:0 0 8px 2px">Trend Kelimeler</div>'
+        '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);border-radius:16px;padding:16px 20px;margin-bottom:16px">'
+        f'{tag_html}'
+        '</div>'
+        '<div style="text-align:center;margin-top:24px;padding-top:20px;border-top:1px solid rgba(255,255,255,0.06)">'
+        '<div style="font-size:15px;font-weight:900;letter-spacing:2px;color:#4ca8ad">ZET STUDIO</div>'
+        '<div style="font-size:11px;color:rgba(255,255,255,0.2);margin-top:5px">zetstudiointl.com &nbsp;·&nbsp; Otomatik haftalık rapor</div>'
+        '</div>'
+        '</div></body></html>'
+    )
+
 async def send_weekly_report():
     """Her Pazartesi 09:00 UTC'de haftalık rapor gönder."""
     while True:
@@ -7479,9 +7637,26 @@ async def send_weekly_report():
         wait_seconds = (next_monday - now).total_seconds()
         await asyncio.sleep(wait_seconds)
         try:
-            payload = await build_export_payload("analytics")
-            payload["last7"] = await build_export_payload("last7")
-            await send_export_email("weekly_report", payload)
+            analytics = await build_export_payload("analytics")
+            last7 = await build_export_payload("last7")
+            rank_dist = await get_rank_distribution()
+            report_date = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+            html = _weekly_report_html(
+                a=analytics.get("analytics", {}),
+                last7_users=len(last7.get("users", [])),
+                last7_posts=len(last7.get("posts", [])),
+                last7_docs=len(last7.get("documents", [])),
+                rank_dist=rank_dist,
+                report_date=report_date,
+            )
+            resend.api_key = os.environ.get("RESEND_API_KEY", "")
+            sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
+            resend.Emails.send({
+                "from": sender,
+                "to": [CEO_EMAIL],
+                "subject": f"Zet Mindshare — Haftalık Rapor ({report_date})",
+                "html": html,
+            })
             await db.export_logs.insert_one({
                 "requested_by": "system",
                 "type": "weekly_report",

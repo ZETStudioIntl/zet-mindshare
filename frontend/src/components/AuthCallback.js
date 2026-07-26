@@ -62,8 +62,19 @@ const AuthCallback = () => {
         const token = tokenMatch[1];
         try {
           const res = await axios.post(`${API}/auth/exchange`, { token });
-          localStorage.setItem('session_token', token);
-          localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
+          try {
+            localStorage.setItem('session_token', token);
+            localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
+          } catch (e) {
+            // localStorage dolu — eski offline doc cache'lerini temizle ve tekrar dene
+            Object.keys(localStorage)
+              .filter(k => k.startsWith('zet_offline_doc_'))
+              .forEach(k => localStorage.removeItem(k));
+            try {
+              localStorage.setItem('session_token', token);
+              localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
+            } catch {}
+          }
           setUser(res.data);
           loadPreferences();
           try {
