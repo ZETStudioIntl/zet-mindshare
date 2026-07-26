@@ -100,7 +100,7 @@ export const ZPIcon = ({ color, size = 16 }) => (
 );
 export const CreditIcon = ({ color, size = 16 }) => (
   <svg width={size} height={size} viewBox="0 0 16 16" fill="none">
-    <polygon points="8,2 10,6 14.5,6 11,9.5 12.5,14 8,11.5 3.5,14 5,9.5 1.5,6 6,6" stroke={color} strokeWidth="1.3" fill={`${color}18`} strokeLinejoin="round" />
+    <path d="M9.5 2L4 9h5.5L6.5 14l6.5-7H7.5L9.5 2Z" stroke={color} strokeWidth="1.3" fill={`${color}18`} strokeLinejoin="round" strokeLinecap="round" />
   </svg>
 );
 const MoodIcon = ({ color, size = 16 }) => (
