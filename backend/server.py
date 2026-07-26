@@ -1622,21 +1622,32 @@ async def manual_distribute_season(pin: str = Body(..., embed=True)):
 # ============ ENVANTER / KASA ============
 
 _CASE_REWARDS = [
-    {"type": "zp",           "amount": 30,  "rarity": "common", "chance": 20.0},
-    {"type": "zp",           "amount": 50,  "rarity": "common", "chance": 15.0},
-    {"type": "zp",           "amount": 100, "rarity": "nadir",  "chance": 13.0},
-    {"type": "zp",           "amount": 200, "rarity": "nadir",  "chance": 8.0},
-    {"type": "zp",           "amount": 330, "rarity": "epik",   "chance": 3.0},
-    {"type": "zp",           "amount": 800, "rarity": "epik",   "chance": 0.8},
-    {"type": "credit",       "amount": 10,  "rarity": "common", "chance": 22.0},
-    {"type": "credit",       "amount": 20,  "rarity": "nadir",  "chance": 9.0},
-    {"type": "credit",       "amount": 50,  "rarity": "epik",   "chance": 4.0},
-    {"type": "credit",       "amount": 400, "rarity": "lore",   "chance": 0.08},
-    {"type": "mood_unlock",  "mode": "agresif", "label": "Agresif Mod", "rarity": "epik",  "chance": 1.5},
-    {"type": "mood_unlock",  "mode": "robot",   "label": "Robot Mod",   "rarity": "epik",  "chance": 1.0},
-    {"type": "mood_unlock",  "mode": "yorgun",  "label": "Yorgun Mod",  "rarity": "nadir", "chance": 0.8},
+    {"type": "zp",          "amount": 10,  "rarity": "nadir", "chance": 70.0},
+    {"type": "credit",      "amount": 10,  "rarity": "nadir", "chance": 60.0},
+    {"type": "zp",          "amount": 30,  "rarity": "nadir", "chance": 50.0},
+    {"type": "zp",          "amount": 40,  "rarity": "nadir", "chance": 45.0},
+    {"type": "mood_unlock", "mode": "robot",   "label": "Robot Zeta",   "rarity": "nadir", "chance": 40.0},
+    {"type": "credit",      "amount": 25,  "rarity": "nadir", "chance": 35.0},
+    {"type": "zp",          "amount": 120, "rarity": "epik",  "chance": 30.0},
+    {"type": "mood_unlock", "mode": "yorgun",  "label": "Yorgun Zeta",  "rarity": "epik",  "chance": 20.0},
+    {"type": "mood_unlock", "mode": "agresif", "label": "Agresif Zeta", "rarity": "epik",  "chance": 7.0},
+    {"type": "credit",      "amount": 50,  "rarity": "epik",  "chance": 3.0},
+    {"type": "zp",          "amount": 300, "rarity": "lore",  "chance": 1.0},
+    {"type": "zp",          "amount": 340, "rarity": "lore",  "chance": 0.8},
+    {"type": "credit",      "amount": 70,  "rarity": "lore",  "chance": 0.2},
+    {"type": "credit",      "amount": 200, "rarity": "lore",  "chance": 0.09},
 ]
 _CASE_TOTAL_CHANCE = sum(r["chance"] for r in _CASE_REWARDS)
+
+_WHEEL_REWARDS = [
+    {"type": "zp",     "amount": 10, "rarity": "nadir", "chance": 70.0},
+    {"type": "zp",     "amount": 20, "rarity": "nadir", "chance": 65.0},
+    {"type": "credit", "amount": 10, "rarity": "nadir", "chance": 60.0},
+    {"type": "zp",     "amount": 30, "rarity": "nadir", "chance": 50.0},
+    {"type": "zp",     "amount": 40, "rarity": "nadir", "chance": 45.0},
+    {"type": "zp",     "amount": 50, "rarity": "nadir", "chance": 40.0},
+]
+_WHEEL_TOTAL_CHANCE = sum(r["chance"] for r in _WHEEL_REWARDS)
 
 def _roll_case_reward() -> dict:
     rng = random.random() * _CASE_TOTAL_CHANCE
@@ -1646,6 +1657,15 @@ def _roll_case_reward() -> dict:
         if rng <= cumulative:
             return dict(reward)
     return dict(_CASE_REWARDS[-1])
+
+def _roll_wheel_reward() -> dict:
+    rng = random.random() * _WHEEL_TOTAL_CHANCE
+    cumulative = 0.0
+    for reward in _WHEEL_REWARDS:
+        cumulative += reward["chance"]
+        if rng <= cumulative:
+            return dict(reward)
+    return dict(_WHEEL_REWARDS[-1])
 
 @api_router.get("/inventory")
 async def get_inventory(user: User = Depends(get_current_user)):
@@ -1695,7 +1715,10 @@ async def claim_daily_case(user: User = Depends(get_current_user)):
     if not won:
         return {"claimed": False, "reason": "no_luck", "chance": chest_chance}
 
-    case_obj = {"id": f"case_{uuid.uuid4().hex[:12]}", "type": "daily_case", "acquired_at": now.isoformat()}
+    # %40 kasa, %60 çark
+    item_type = "daily_case" if random.random() < 0.4 else "daily_wheel"
+    prefix = "case" if item_type == "daily_case" else "wheel"
+    case_obj = {"id": f"{prefix}_{uuid.uuid4().hex[:12]}", "type": item_type, "acquired_at": now.isoformat()}
     await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": case_obj}})
     await db.chest_usage.update_one(
         {"user_id": user.user_id, "month": this_month},
@@ -1728,12 +1751,30 @@ async def open_case(case_id: str = Body(..., embed=True), user: User = Depends(g
             await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": mode}})
     return {"reward": reward}
 
+@api_router.post("/inventory/open-wheel")
+async def open_wheel(case_id: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1})
+    inventory = doc.get("inventory") or []
+    if not any(c.get("id") == case_id for c in inventory):
+        raise HTTPException(status_code=404, detail="Çark bulunamadı")
+    reward = _roll_wheel_reward()
+    await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": case_id}}})
+    if reward["type"] == "zp":
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": reward["amount"]}})
+    elif reward["type"] == "credit":
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": reward["amount"]}})
+    return {"reward": reward}
+
 @api_router.post("/admin/give-test-cases")
 async def give_test_cases(count: int = Body(30, embed=True), user: User = Depends(get_current_user)):
     if not is_privileged(user.email):
         raise HTTPException(status_code=403, detail="Unauthorized")
     now = datetime.now(timezone.utc).isoformat()
-    cases = [{"id": f"case_{uuid.uuid4().hex[:12]}", "type": "daily_case", "acquired_at": now} for _ in range(count)]
+    cases = []
+    for i in range(count):
+        t = "daily_case" if i % 5 != 0 else "daily_wheel"
+        prefix = "case" if t == "daily_case" else "wheel"
+        cases.append({"id": f"{prefix}_{uuid.uuid4().hex[:12]}", "type": t, "acquired_at": now})
     await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": {"$each": cases}}})
     return {"added": count}
 
@@ -2849,6 +2890,69 @@ async def upload_image_to_r2(body: R2UploadRequest, user: User = Depends(get_cur
     except Exception as e:
         logging.error(f"R2 upload error: {e}")
         raise HTTPException(status_code=503, detail="Görsel yükleme başarısız")
+
+# ============ PRIME DRIVE ============
+
+DRIVE_QUOTA_BYTES = {
+    "free":             1  * 1024**3,
+    "plus":             20 * 1024**3,
+    "pro":              50 * 1024**3,
+    "creative_station": 1024 * 1024**3,
+}
+
+@api_router.get("/drive/files")
+async def list_drive_files(user: User = Depends(get_current_user)):
+    files = await db.drive_files.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(1000)
+    used = sum(f.get("size", 0) for f in files)
+    return {"files": files, "used_bytes": used}
+
+@api_router.post("/drive/upload")
+async def upload_drive_file(file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
+    sub = _normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
+    plan = sub.get("plan", "free")
+    quota = DRIVE_QUOTA_BYTES.get(plan, DRIVE_QUOTA_BYTES["free"])
+    agg = await db.drive_files.aggregate([
+        {"$match": {"user_id": user.user_id}},
+        {"$group": {"_id": None, "total": {"$sum": "$size"}}}
+    ]).to_list(1)
+    used = agg[0]["total"] if agg else 0
+    content = await file.read()
+    file_size = len(content)
+    if used + file_size > quota:
+        raise HTTPException(status_code=413, detail="Depolama kotanız doldu. Planınızı yükseltin.")
+    file_id = f"file_{uuid.uuid4().hex[:14]}"
+    fname = file.filename or file_id
+    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "bin"
+    key = f"drive/{user.user_id}/{file_id}.{ext}"
+    r2 = _get_r2()
+    await asyncio.to_thread(r2.put_object, Bucket=R2_BUCKET, Key=key, Body=content, ContentType=file.content_type or "application/octet-stream")
+    now = datetime.now(timezone.utc).isoformat()
+    doc = {"file_id": file_id, "user_id": user.user_id, "name": fname, "size": file_size, "content_type": file.content_type or "application/octet-stream", "r2_key": key, "created_at": now}
+    await db.drive_files.insert_one(doc)
+    return {k: v for k, v in doc.items() if k != "_id"}
+
+@api_router.delete("/drive/files/{file_id}")
+async def delete_drive_file(file_id: str, user: User = Depends(get_current_user)):
+    f = await db.drive_files.find_one({"file_id": file_id, "user_id": user.user_id})
+    if not f:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+    try:
+        r2 = _get_r2()
+        await asyncio.to_thread(r2.delete_object, Bucket=R2_BUCKET, Key=f["r2_key"])
+    except Exception:
+        pass
+    await db.drive_files.delete_one({"file_id": file_id, "user_id": user.user_id})
+    return {"deleted": True}
+
+@api_router.get("/drive/files/{file_id}/url")
+async def get_drive_file_url(file_id: str, user: User = Depends(get_current_user)):
+    f = await db.drive_files.find_one({"file_id": file_id, "user_id": user.user_id}, {"_id": 0})
+    if not f:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+    r2 = _get_r2()
+    url = await asyncio.to_thread(r2.generate_presigned_url, "get_object", Params={"Bucket": R2_BUCKET, "Key": f["r2_key"]}, ExpiresIn=3600)
+    return {"url": url, "name": f["name"], "content_type": f["content_type"]}
 
 @api_router.post("/documents")
 async def create_document(doc: DocumentCreate, user: User = Depends(get_current_user)):
@@ -4022,8 +4126,8 @@ PLAN_LIMITS = {
         'docs_per_file': 10,
         'fastselect_limit': 3,
         'prime_drive_gb': 1,
-        'chest_daily_chance': 20,
-        'chest_monthly_max': 3,
+        'chest_daily_chance': 0,
+        'chest_monthly_max': 0,
         'elevenlabs_daily': 1,
         'judge_aziz': False,
         'nano_pro': False,

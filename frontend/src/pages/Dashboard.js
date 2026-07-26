@@ -10,7 +10,8 @@ import { savePreference } from '../lib/preferences';
 import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
-import CaseOpenModal, { RARITY_COLORS } from '../components/dashboard/CaseOpenModal';
+import CaseOpenModal from '../components/dashboard/CaseOpenModal';
+import WheelModal from '../components/dashboard/WheelModal';
 import OnboardingModal from '../components/dashboard/OnboardingModal';
 import AISettingsModal from '../components/dashboard/AISettingsModal';
 import CreditsModal from '../components/dashboard/CreditsModal';
@@ -188,6 +189,7 @@ const Dashboard = () => {
   const [showMissions, setShowMissions] = useState(false);
   const [inventory, setInventory] = useState([]);
   const [openingCaseId, setOpeningCaseId] = useState(null);
+  const [openingWheelId, setOpeningWheelId] = useState(null);
   const [seasonData, setSeasonData] = useState(null);
   const [seasonForm, setSeasonForm] = useState({ start: '', end: '', loading: false });
   const [seasonResult, setSeasonResult] = useState(null);
@@ -483,7 +485,13 @@ const Dashboard = () => {
     axios.get(`${API}/inventory`, { withCredentials: true })
       .then(res => setInventory(res.data.cases || [])).catch(() => {});
     axios.post(`${API}/inventory/claim-daily`, {}, { withCredentials: true })
-      .then(res => { if (res.data.claimed) { setInventory(prev => [...prev, res.data.case]); showToast('📦 Günlük kasanız hazır!', 'success'); } }).catch(() => {});
+      .then(res => {
+        if (res.data.claimed) {
+          setInventory(prev => [...prev, res.data.case]);
+          const isWheel = res.data.case?.type === 'daily_wheel';
+          showToast(isWheel ? 'Şans Çarkı hazır!' : 'Günlük Kasa hazır!', 'success');
+        }
+      }).catch(() => {});
     // Check if redirected from Drive OAuth
     const params = new URLSearchParams(window.location.search);
     if (params.get('drive_connected') === 'true') {
@@ -602,7 +610,7 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (showSettings && settingsTab === 'credits' && creditPackages.length === 0) {
+    if (showSettings && (settingsTab === 'credits' || settingsTab === 'magaza') && creditPackages.length === 0) {
       fetchCreditPackages();
     }
     if (showSettings && settingsTab === 'ai') {
@@ -1952,8 +1960,7 @@ MATCHES:[1,3,5]`;
                 { id: 'primedrive',   icon: <HardDrive className="h-4 w-4" />,  label: 'Prime Drive',      color: '#6366f1' },
                 { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
                 { id: 'quests',       icon: <span className="relative inline-flex"><Map className="h-4 w-4" />{hasPendingQuests && <span style={{ position:'absolute', top:-3, right:-3, width:7, height:7, borderRadius:'50%', background:'#ef4444', border:'1.5px solid var(--zet-bg-card)' }} />}</span>, label: t('questMap'), color: '#4ca8ad' },
-                { id: 'subscription', icon: <CreditCard className="h-4 w-4" />, label: t('subscription'),  color: 'var(--zet-primary-light)' },
-                { id: 'credits',      icon: <Zap className="h-4 w-4" />,        label: t('buyCredits'),    color: '#fbbf24' },
+                { id: 'magaza',       icon: <CreditCard className="h-4 w-4" />, label: 'Mağaza',           color: '#a78bfa' },
                 { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: 'Envanter',         color: '#60a5fa' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
@@ -2618,7 +2625,7 @@ MATCHES:[1,3,5]`;
                 );
               })()}
 
-              {settingsTab === 'subscription' && (
+              {settingsTab === 'magaza' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('subscription')}</h2>
                   <div className="flex items-center justify-center gap-2 mb-4 px-4 py-2 rounded-xl" style={{ background: 'rgba(251,191,36,0.08)', border: '1px solid rgba(251,191,36,0.2)' }}>
@@ -2724,7 +2731,9 @@ MATCHES:[1,3,5]`;
                 </div>
               )}
 
-              {settingsTab === 'credits' && (() => {
+              {settingsTab === 'magaza' && <div style={{ margin: '8px 0 24px', borderTop: '1px solid rgba(255,255,255,0.06)' }} />}
+
+              {settingsTab === 'magaza' && (() => {
                 const CREDIT_TIERS = [
                   { id: 'pack_50k',  color: '#10b981', glow: 'rgba(16,185,129,0.18)', label: 'Başlangıç' },
                   { id: 'pack_230k', color: '#3b82f6', glow: 'rgba(59,130,246,0.18)', label: 'Standart'  },
@@ -3215,27 +3224,37 @@ MATCHES:[1,3,5]`;
                       </button>
                     )}
                   </div>
-                  <p className="text-sm mb-5" style={{ color: 'var(--zet-text-muted)' }}>Her gün ücretsiz bir kasa alırsın. Kasaları açarak ZP ve kredi kazanabilirsin.</p>
+                  <p className="text-sm mb-5" style={{ color: 'var(--zet-text-muted)' }}>Her gün ücretsiz bir kasa veya çark alırsın. Açarak ZP ve kredi kazanabilirsin.</p>
                   {inventory.length === 0 ? (
                     <div className="text-center py-12" style={{ color: 'var(--zet-text-muted)' }}>
-                      <p style={{ fontSize: 44, marginBottom: 10 }}>📭</p>
-                      <p className="text-sm">Envanteriniz boş. Yarın tekrar deneyin!</p>
+                      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ margin: '0 auto 10px' }}><rect x="6" y="16" width="32" height="22" rx="4" stroke="#334155" strokeWidth="1.5"/><path d="M6 22h32" stroke="#334155" strokeWidth="1.5"/><path d="M22 8v8M16 10l6 6 6-6" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                      <p className="text-sm">Envanter boş. Yarın tekrar deneyin!</p>
                     </div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
-                      {inventory.map((c) => (
-                        <button
-                          key={c.id}
-                          onClick={() => setOpeningCaseId(c.id)}
-                          style={{ background: 'linear-gradient(135deg, #0f0f2a, #1a1a3a)', border: '1px solid #2a2a5a', borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
-                          onMouseEnter={e => { e.currentTarget.style.border = '1px solid #60a5fa'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                          onMouseLeave={e => { e.currentTarget.style.border = '1px solid #2a2a5a'; e.currentTarget.style.transform = 'translateY(0)'; }}
-                        >
-                          <span style={{ fontSize: 38 }}>📦</span>
-                          <span style={{ fontSize: 12, color: '#60a5fa', fontWeight: 600 }}>Günlük Kasa</span>
-                          <span style={{ fontSize: 10, color: '#555', background: 'rgba(96,165,250,0.1)', borderRadius: 20, padding: '2px 10px' }}>Açmak için tıkla</span>
-                        </button>
-                      ))}
+                      {inventory.map((c) => {
+                        const isWheel = c.item_type === 'daily_wheel';
+                        const accentColor = isWheel ? '#a78bfa' : '#60a5fa';
+                        const borderColor = isWheel ? '#3b2a5a' : '#2a2a5a';
+                        const bgGradient = isWheel ? 'linear-gradient(135deg, #12082a, #1a1040)' : 'linear-gradient(135deg, #0f0f2a, #1a1a3a)';
+                        return (
+                          <button
+                            key={c.id}
+                            onClick={() => isWheel ? setOpeningWheelId(c.id) : setOpeningCaseId(c.id)}
+                            style={{ background: bgGradient, border: `1px solid ${borderColor}`, borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                            onMouseEnter={e => { e.currentTarget.style.border = `1px solid ${accentColor}`; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                            onMouseLeave={e => { e.currentTarget.style.border = `1px solid ${borderColor}`; e.currentTarget.style.transform = 'translateY(0)'; }}
+                          >
+                            {isWheel ? (
+                              <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.08)"/><circle cx="19" cy="19" r="3.5" fill="#a78bfa"/><path d="M19 3v5M19 30v5M3 19h5M30 19h5M7.1 7.1l3.5 3.5M27.4 27.4l3.5 3.5M7.1 30.9l3.5-3.5M27.4 10.6l3.5-3.5" stroke="#a78bfa" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                            ) : (
+                              <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><rect x="5" y="15" width="28" height="18" rx="3" stroke="#60a5fa" strokeWidth="1.5" fill="rgba(96,165,250,0.08)"/><path d="M5 21h28" stroke="#60a5fa" strokeWidth="1.5"/><path d="M19 7v8M13 9l6 6 6-6" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                            )}
+                            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? 'Şans Çarkı' : 'Günlük Kasa'}</span>
+                            <span style={{ fontSize: 10, color: '#555', background: `rgba(${isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>Açmak için tıkla</span>
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -4430,6 +4449,19 @@ MATCHES:[1,3,5]`;
           onClose={() => setOpeningCaseId(null)}
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingCaseId));
+            if (r.type === 'zp') setUserZP(prev => prev + r.amount);
+          }}
+        />
+      )}
+
+      {/* Çark Modalı */}
+      {openingWheelId && (
+        <WheelModal
+          caseId={openingWheelId}
+          showToast={showToast}
+          onClose={() => setOpeningWheelId(null)}
+          onReward={(r) => {
+            setInventory(prev => prev.filter(c => c.id !== openingWheelId));
             if (r.type === 'zp') setUserZP(prev => prev + r.amount);
           }}
         />
