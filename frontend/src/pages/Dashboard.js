@@ -205,6 +205,10 @@ const Dashboard = () => {
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState(null);
   const [openMenuDocId, setOpenMenuDocId] = useState(null);
   const [primeDriveDocs, setPrimeDriveDocs] = useState(() => JSON.parse(localStorage.getItem('prime_drive_docs') || '[]'));
+  const [driveFiles, setDriveFiles] = useState([]);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveUploading, setDriveUploading] = useState(false);
+  const [driveUsed, setDriveUsed] = useState(0);
   const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
   const [confirmDeleteNotebookId, setConfirmDeleteNotebookId] = useState(null);
@@ -602,6 +606,9 @@ const Dashboard = () => {
     }
     if (showSettings && settingsTab === 'ai') {
       loadZetaMemories();
+    }
+    if (showSettings && settingsTab === 'primedrive') {
+      loadDriveFiles();
     }
     if (showSettings && settingsTab === 'users' && isPrivileged && adminUsers.length === 0) {
       setAdminUsersLoading(true);
@@ -1069,6 +1076,53 @@ const Dashboard = () => {
       const msg = err?.response?.data?.detail;
       showToast(msg || 'Bellek eklenemedi', 'error');
     }
+  };
+
+  const loadDriveFiles = async () => {
+    setDriveLoading(true);
+    try {
+      const res = await axios.get(`${API}/drive/files`, { withCredentials: true });
+      setDriveFiles(res.data.files || []);
+      setDriveUsed(res.data.used_bytes || 0);
+    } catch {}
+    setDriveLoading(false);
+  };
+
+  const uploadDriveFile = async (file) => {
+    setDriveUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
+      setDriveFiles(prev => [res.data, ...prev]);
+      setDriveUsed(prev => prev + res.data.size);
+      showToast(`${file.name} yüklendi`, 'success');
+    } catch (err) {
+      showToast(err?.response?.data?.detail || 'Yükleme başarısız', 'error');
+    }
+    setDriveUploading(false);
+  };
+
+  const deleteDriveFile = async (fileId, size) => {
+    try {
+      await axios.delete(`${API}/drive/files/${fileId}`, { withCredentials: true });
+      setDriveFiles(prev => prev.filter(f => f.file_id !== fileId));
+      setDriveUsed(prev => Math.max(0, prev - size));
+      showToast('Dosya silindi', 'success');
+    } catch { showToast('Silinemedi', 'error'); }
+  };
+
+  const downloadDriveFile = async (fileId, name) => {
+    try {
+      const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
+      const a = document.createElement('a');
+      a.href = res.data.url;
+      a.download = name;
+      a.target = '_blank';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch { showToast('İndirme başarısız', 'error'); }
   };
 
   const pinNote = async (note) => {
@@ -2766,69 +2820,89 @@ MATCHES:[1,3,5]`;
               })()}
 
               {settingsTab === 'primedrive' && (() => {
-                const QUOTA_MAP = { free: 1, plus: 10, pro: 30, creative_station: 1024 };
+                const QUOTA_MAP = { free: 1, plus: 20, pro: 50, creative_station: 1024 };
                 const quotaGB = QUOTA_MAP[userSubscription] || 1;
-                const usedBytes = primeDriveDocs.reduce((sum, d) => sum + (d.size || 0), 0);
-                const usedGB = usedBytes / (1024 * 1024 * 1024);
+                const usedGB = driveUsed / (1024 * 1024 * 1024);
                 const usedPct = Math.min(100, (usedGB / quotaGB) * 100);
-                const fmtSize = (bytes) => bytes < 1024 * 1024 ? `${(bytes / 1024).toFixed(1)} KB` : `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+                const fmtSize = (b) => b >= 1024**3 ? `${(b/1024**3).toFixed(2)} GB` : b >= 1024**2 ? `${(b/1024**2).toFixed(1)} MB` : `${(b/1024).toFixed(0)} KB`;
+                const fileIcon = (ct) => {
+                  if (ct?.startsWith('image/')) return (
+                    <svg viewBox="0 0 20 20" fill="none" style={{width:18,height:18}}><rect x="2" y="4" width="16" height="12" rx="2" stroke="#6366f1" strokeWidth="1.5"/><circle cx="7" cy="8.5" r="1.5" fill="#6366f1" opacity="0.7"/><path d="M2 13l4-4 3 3 3-3 4 4" stroke="#6366f1" strokeWidth="1.5" strokeLinejoin="round"/></svg>
+                  );
+                  if (ct === 'application/pdf') return (
+                    <svg viewBox="0 0 20 20" fill="none" style={{width:18,height:18}}><rect x="3" y="2" width="14" height="16" rx="2" stroke="#ef4444" strokeWidth="1.5"/><text x="5" y="13" fill="#ef4444" fontSize="6" fontWeight="bold">PDF</text></svg>
+                  );
+                  if (ct?.startsWith('video/')) return (
+                    <svg viewBox="0 0 20 20" fill="none" style={{width:18,height:18}}><rect x="2" y="5" width="12" height="10" rx="2" stroke="#a78bfa" strokeWidth="1.5"/><path d="M14 8l4-2v8l-4-2V8z" stroke="#a78bfa" strokeWidth="1.5" strokeLinejoin="round"/></svg>
+                  );
+                  if (ct?.startsWith('audio/')) return (
+                    <svg viewBox="0 0 20 20" fill="none" style={{width:18,height:18}}><circle cx="10" cy="10" r="7" stroke="#22d3ee" strokeWidth="1.5"/><path d="M8 7.5v5l5-2.5-5-2.5z" fill="#22d3ee" opacity="0.8"/></svg>
+                  );
+                  return <FileText className="h-4 w-4" style={{color:'#6366f1'}}/>;
+                };
                 return (
                   <div className="max-w-lg">
-                    <div className="flex items-center gap-3 mb-6">
-                      <HardDrive className="h-6 w-6" style={{ color: '#6366f1' }} />
-                      <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Prime Drive</h2>
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center gap-3">
+                        <HardDrive className="h-6 w-6" style={{ color: '#6366f1' }} />
+                        <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Prime Drive</h2>
+                      </div>
+                      <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer text-sm font-medium transition-all" style={{ background: driveUploading ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)', opacity: driveUploading ? 0.6 : 1, pointerEvents: driveUploading ? 'none' : 'auto' }}>
+                        {driveUploading ? (
+                          <svg className="animate-spin" viewBox="0 0 20 20" style={{width:14,height:14}}><circle cx="10" cy="10" r="7" stroke="#6366f1" strokeWidth="2.5" strokeDasharray="30" strokeDashoffset="10" fill="none"/></svg>
+                        ) : (
+                          <svg viewBox="0 0 20 20" fill="none" style={{width:14,height:14}}><path d="M10 3v10M6 7l4-4 4 4" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 15h14" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                        )}
+                        {driveUploading ? 'Yükleniyor...' : 'Dosya Yükle'}
+                        <input type="file" multiple className="hidden" onChange={e => { Array.from(e.target.files || []).forEach(f => uploadDriveFile(f)); e.target.value = ''; }} />
+                      </label>
                     </div>
-                    {/* Quota bar */}
                     <div className="p-5 rounded-2xl mb-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
                       <div className="flex items-center justify-between mb-3">
                         <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>Depolama Alanı</span>
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}>
-                          {userSubscription === 'creative_station' ? '1 TB — Creative Station' : userSubscription === 'pro' ? '30 GB — Pro' : userSubscription === 'plus' ? '10 GB — Plus' : '1 GB — Free'}
+                          {userSubscription === 'creative_station' ? '1 TB' : userSubscription === 'pro' ? '50 GB' : userSubscription === 'plus' ? '20 GB' : '1 GB'} — {userSubscription === 'creative_station' ? 'Creative Station' : userSubscription === 'pro' ? 'Pro' : userSubscription === 'plus' ? 'Plus' : 'Free'}
                         </span>
                       </div>
                       <div className="w-full h-3 rounded-full overflow-hidden mb-2" style={{ background: 'rgba(255,255,255,0.08)' }}>
                         <div className="h-full rounded-full transition-all" style={{ width: `${usedPct}%`, background: usedPct > 80 ? '#ef4444' : '#6366f1' }} />
                       </div>
                       <div className="flex justify-between text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                        <span>{usedGB < 0.001 ? '0 MB' : `${(usedGB * 1024).toFixed(1)} MB`} kullanıldı</span>
+                        <span>{fmtSize(driveUsed)} kullanıldı</span>
                         <span>{quotaGB < 1024 ? `${quotaGB} GB` : '1 TB'} toplam</span>
                       </div>
                     </div>
-                    {/* Shared pool badge for Creative Station */}
                     {userSubscription === 'creative_station' && (
                       <div className="flex items-center gap-2 px-4 py-2.5 rounded-xl mb-4" style={{ background: 'rgba(245,158,11,0.1)', border: '1px solid rgba(245,158,11,0.25)' }}>
-                        <span style={{ color: '#f59e0b', fontSize: 13 }}>✦</span>
+                        <svg viewBox="0 0 16 16" fill="none" style={{width:13,height:13,flexShrink:0}}><path d="M8 1l1.8 3.6L14 5.3l-3 2.9.7 4.1L8 10.4l-3.7 1.9.7-4.1-3-2.9 4.2-.7L8 1z" fill="#f59e0b"/></svg>
                         <span className="text-sm" style={{ color: '#f59e0b' }}>ZET Mindshare ve ZET Judge için ortak 1 TB havuz</span>
                       </div>
                     )}
-                    {/* Files list */}
-                    <div className="mb-3">
-                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--zet-text-muted)' }}>Dosyalar ({primeDriveDocs.length})</span>
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--zet-text-muted)' }}>Dosyalar ({driveFiles.length})</span>
+                      {driveLoading && <svg className="animate-spin" viewBox="0 0 20 20" style={{width:14,height:14}}><circle cx="10" cy="10" r="7" stroke="#6366f1" strokeWidth="2.5" strokeDasharray="30" strokeDashoffset="10" fill="none"/></svg>}
                     </div>
-                    {primeDriveDocs.length === 0 ? (
+                    {driveFiles.length === 0 && !driveLoading ? (
                       <div className="text-center py-12 rounded-2xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
                         <HardDrive className="h-10 w-10 mx-auto mb-3 opacity-30" style={{ color: '#6366f1' }} />
-                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Henüz Prime Drive'a dosya eklenmedi.</p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Belgelerin üç nokta menüsünden ekleyebilirsin.</p>
+                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Henüz dosya yüklenmedi.</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Yukarıdaki butona tıklayarak dosya ekleyebilirsin.</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {primeDriveDocs.map(item => (
-                          <div key={item.id} className="flex items-center justify-between p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-                            <div className="flex items-center gap-3">
-                              <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: item.type === 'session' ? 'rgba(200,0,90,0.15)' : 'rgba(99,102,241,0.15)' }}>
-                                {item.type === 'session' ? <Scale className="h-4 w-4" style={{ color: '#c8005a' }} /> : <FileText className="h-4 w-4" style={{ color: '#6366f1' }} />}
-                              </div>
-                              <div>
-                                <p className="text-sm font-medium truncate max-w-[200px]" style={{ color: 'var(--zet-text)' }}>{item.title}</p>
-                                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{fmtSize(item.size || 0)} · {new Date(item.addedAt).toLocaleDateString('tr-TR')}</p>
-                              </div>
+                        {driveFiles.map(item => (
+                          <div key={item.file_id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(99,102,241,0.1)' }}>
+                              {fileIcon(item.content_type)}
                             </div>
-                            <button onClick={() => {
-                              const updated = primeDriveDocs.filter(d => d.id !== item.id);
-                              setPrimeDriveDocs(updated);
-                              localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
-                            }} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: 'rgba(255,255,255,0.3)' }}>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{item.name}</p>
+                              <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{fmtSize(item.size)} · {new Date(item.created_at).toLocaleDateString('tr-TR')}</p>
+                            </div>
+                            <button onClick={() => downloadDriveFile(item.file_id, item.name)} className="p-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#6366f1' }} title="İndir">
+                              <svg viewBox="0 0 20 20" fill="none" style={{width:15,height:15}}><path d="M10 3v10M6 9l4 4 4-4" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 15h14" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                            </button>
+                            <button onClick={() => deleteDriveFile(item.file_id, item.size)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: 'rgba(255,255,255,0.3)' }} title="Sil">
                               <X className="h-4 w-4" />
                             </button>
                           </div>
@@ -2837,7 +2911,7 @@ MATCHES:[1,3,5]`;
                     )}
                     {userSubscription === 'free' && (
                       <p className="text-xs text-center mt-4" style={{ color: 'var(--zet-text-muted)' }}>
-                        Plus planına geçerek 10 GB, Pro ile 30 GB, Creative Station ile 1 TB alana sahip olun.
+                        Plus ile 20 GB, Pro ile 50 GB, Creative Station ile 1 TB alana sahip ol.
                       </p>
                     )}
                   </div>
