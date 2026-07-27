@@ -26,7 +26,7 @@ const APPS = [
     hoverBg: '#0d0f2a',
     route: '/dashboard',
     Icon: MindshareIcon,
-    version: 'v26.07.25',
+    version: 'v26.07.27',
     features: ['Belge editörü & sayfa sistemi', 'Zeta AI yazma asistanı', 'ZET Media sosyal feed', 'Quest haritası & XP sistemi'],
   },
   {
@@ -39,7 +39,7 @@ const APPS = [
     hoverBg: '#160310',
     route: '/judge',
     Icon: JudgeIcon,
-    version: 'v26.07.25',
+    version: 'v26.07.27',
     features: ['İş planı analizi', 'Risk & başarı skoru', 'Derin araştırma modu', 'Geçmiş analizler'],
   },
   {
@@ -52,7 +52,7 @@ const APPS = [
     hoverBg: '#050505',
     route: '/media',
     Icon: MediaIcon,
-    version: 'v26.07.25 beta',
+    version: 'v26.07.27 beta',
     features: ['Akış & Keşfet', 'Gönderi paylaşımı', 'Mesajlaşma (DM)', 'Bildirimler & profil'],
   },
 ];

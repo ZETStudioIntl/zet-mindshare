@@ -132,6 +132,31 @@ backend/
 
 ---
 
+## Lokalizasyon Kuralı
+
+**Her yeni UI metni (buton, label, başlık, placeholder, hata mesajı vb.) `frontend/src/contexts/LanguageContext.js` içindeki tüm 10 dile eklenmelidir.**
+
+Desteklenen diller (sırasıyla):
+| Kod | Dil |
+|-----|-----|
+| `en` | İngilizce |
+| `tr` | Türkçe |
+| `de` | Almanca |
+| `fr` | Fransızca |
+| `es` | İspanyolca |
+| `ar` | Arapça |
+| `ru` | Rusça |
+| `ja` | Japonca |
+| `ko` | Korece |
+| `zh` | Çince |
+
+- Hiçbir dil atlanamaz — 10'u da eklenecek
+- Çeviri kalitesi kusursuz olmalı (native düzey)
+- Anahtar ismi diğer key'lerle tutarlı olmalı (camelCase)
+- `tr` anahtarını baz alarak diğer dillere çevir
+
+---
+
 ## Canvas Araçları (TOOLS)
 `lib/editorConstants.js` içinde tanımlı. Araç ekleme/değiştirme bu dosyadan yapılır.  
 CanvasArea.js içindeki render/davranış mantığı ayrıdır — ikisine aynı anda dokunmak gerekiyorsa önce söyle.
