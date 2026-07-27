@@ -167,6 +167,7 @@ const GradientAnimEffect = () => {
 
 const GlobalHeartbeat = () => {
   const { user } = useAuth();
+  const { pathname } = useLocation();
   const lastActivityRef = useRef(Date.now());
 
   useEffect(() => {
@@ -182,6 +183,7 @@ const GlobalHeartbeat = () => {
     document.addEventListener('scroll', onActivity, { passive: true });
 
     const sendHeartbeat = () => {
+      if (!pathname.startsWith('/editor')) return;
       if (document.hidden) return;
       const isActive = Date.now() - lastActivityRef.current < INACTIVE_LIMIT;
       if (!isActive) return;
