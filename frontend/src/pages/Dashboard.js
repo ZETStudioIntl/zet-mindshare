@@ -288,13 +288,13 @@ const Dashboard = () => {
   const dUnlockedModes = useMemo(() => { try { return JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]'); } catch { return []; } }, []);
   const RARITY_COL = { nadir: '#60a5fa', epik: '#a78bfa', lore: '#f87171' };
   const DASH_MODES_DEF = [
-    { value: 'cheerful',     label: 'Neşeli',      rarity: 'nadir', troll: false },
-    { value: 'curious',      label: 'Meraklı',     rarity: 'nadir', troll: false },
-    { value: 'professional', label: 'Profesyonel', rarity: 'nadir', troll: false },
-    { value: 'custom',       label: 'Özel',        rarity: 'nadir', troll: false },
-    { value: 'agresif',      label: 'Agresif',     rarity: 'epik',  troll: true  },
-    { value: 'robot',        label: 'Robot',       rarity: 'nadir', troll: true  },
-    { value: 'yorgun',       label: 'Yorgun',      rarity: 'nadir', troll: true  },
+    { value: 'cheerful',     label: 'Neşeli',      labelKey: 'modeCheerful',     rarity: 'nadir', troll: false },
+    { value: 'curious',      label: 'Meraklı',     labelKey: 'modeCurious',      rarity: 'nadir', troll: false },
+    { value: 'professional', label: 'Profesyonel', labelKey: 'modeProfessional', rarity: 'nadir', troll: false },
+    { value: 'custom',       label: 'Özel',        labelKey: 'modeCustom',       rarity: 'nadir', troll: false },
+    { value: 'agresif',      label: 'Agresif',     labelKey: 'modeAgresif',      rarity: 'epik',  troll: true  },
+    { value: 'robot',        label: 'Robot',       labelKey: 'modeRobot',        rarity: 'nadir', troll: true  },
+    { value: 'yorgun',       label: 'Yorgun',      labelKey: 'modeYorgun',       rarity: 'nadir', troll: true  },
   ];
   const sortedDashModes = useMemo(() => {
     const withLocked = DASH_MODES_DEF.map(m => ({ ...m, locked: m.troll && !dUnlockedModes.includes(m.value) }));
@@ -392,15 +392,15 @@ const Dashboard = () => {
       yearlyPrice: 99,
       zpCost: 10000,
       scope: 'mindshare',
-      scopeLabel: 'Sadece ZET Mindshare',
+      scopeLabel: 'scopeOnlyMindshare',
       features: [
-        '250 Kredi/gün',
-        '480K Token/gün (Zeta + Judge)',
-        'Tüm araçlar açık (Katmanlar, Gradyan, Şablonlar...)',
-        '10 Defter, 5 Fast Select',
-        'Judge Aziz modeli',
-        '20GB Prime Drive',
-        'Günde %40 sandık, aylık maks 10',
+        'feat250Credits',
+        'feat480kToken',
+        'featAllToolsOpen',
+        'feat10nb5fs',
+        'featJudgeAzizModel',
+        'feat20GBDrive',
+        'feat40pctCase10',
       ],
       color: '#3b82f6',
       recommended: false
@@ -412,15 +412,15 @@ const Dashboard = () => {
       yearlyPrice: 199,
       zpCost: 30000,
       scope: 'mindshare',
-      scopeLabel: 'Sadece ZET Mindshare',
+      scopeLabel: 'scopeOnlyMindshare',
       features: [
-        '500 Kredi/gün',
-        '1.3M Token/gün (Zeta + Judge)',
-        'Nano Banana Pro görsel üretimi',
-        '8 Fast Select, 50GB Prime Drive',
-        'Filigransız Auto-Write',
-        'Günde %60 sandık, aylık maks 20',
-        'Öncelikli Destek',
+        'feat500Credits',
+        'feat1300kToken',
+        'featNanoBananaPro',
+        'feat8fs50GBDrive',
+        'featNoWatermark',
+        'feat60pctCase20',
+        'featPrioritySupport',
       ],
       color: '#8b5cf6',
       recommended: true
@@ -432,13 +432,13 @@ const Dashboard = () => {
       yearlyPrice: 490,
       zpCost: 50000,
       scope: 'both',
-      scopeLabel: 'Tam Kapsamlı',
+      scopeLabel: 'scopeFullCoverage',
       features: [
-        '4000 Ortak Kredi/gün',
-        '4.8M Token/gün',
-        '1TB Prime Drive',
-        'Garantili Günlük Sandık (maks 30/ay)',
-        'Öncelikli Destek',
+        'feat4000Credits',
+        'feat4800kToken',
+        'feat1TBDrive',
+        'featGuaranteedCase30',
+        'featPrioritySupport',
       ],
       color: '#f59e0b',
       recommended: false
@@ -492,7 +492,7 @@ const Dashboard = () => {
         if (res.data.claimed) {
           setInventory(prev => [...prev, res.data.case]);
           const isWheel = res.data.case?.type === 'daily_wheel';
-          showToast(isWheel ? 'Şans Çarkı hazır!' : 'Günlük Kasa hazır!', 'success');
+          showToast(isWheel ? t('wheelReady') : t('caseReady'), 'success');
         }
       }).catch(() => {});
     // Check if redirected from Drive OAuth
@@ -688,7 +688,7 @@ const Dashboard = () => {
       return;
     }
     showConfirm(
-      'ZP ile Satın Al',
+      t('zpBuyTitle'),
       `${plan.zpCost.toLocaleString()} ZP harcayarak ${plan.name} planına yükselmek istiyor musunuz?\n\nMevcut ZP: ${userZP.toLocaleString()}\nKalan ZP: ${(userZP - plan.zpCost).toLocaleString()}`,
       async () => {
         setSubscribing(true);
@@ -712,22 +712,22 @@ const Dashboard = () => {
 
   const handleCancelSubscription = async () => {
     const currentPlan = SUBSCRIPTION_PLANS.find(p => p.id === userSubscription);
-    const featuresList = currentPlan ? currentPlan.features.slice(0, 4).join(', ') : '';
+    const featuresList = currentPlan ? currentPlan.features.slice(0, 4).map(f => t(f)).join(', ') : '';
     showConfirm(
-      'Abonelik İptali',
-      `${currentPlan?.name || userSubscription.toUpperCase()} planını iptal etmek istediğinizden emin misiniz?\n\nKaybedecekleriniz: ${featuresList}\n\nOnayladığınızda e-posta adresinize iptal onay linki gönderilecektir.`,
+      t('cancelPlanTitle'),
+      t('cancelPlanMsg').replace('{plan}', currentPlan?.name || userSubscription.toUpperCase()).replace('{features}', featuresList),
       async () => {
         setSubscribing(true);
         try {
           const res = await axios.post(`${API}/subscription`, { plan: 'free', action: 'cancel' }, { withCredentials: true });
           if (res.data.cancel_pending) {
-            showToast('İptal onay e-postası gönderildi. E-postanızdaki linke tıklayın.', 'info');
+            showToast(t('cancelEmailSent'), 'info');
           } else {
             setUserSubscription('free');
             const newTools = fastSelectTools.slice(0, 3);
             setFastSelectTools(newTools);
             savePreference('zet_fast_select', JSON.stringify(newTools));
-            showToast('Aboneliğiniz iptal edildi.', 'info');
+            showToast(t('subscriptionCancelled'), 'info');
           }
         } catch {
           showToast('İptal başarısız', 'error');
@@ -1067,11 +1067,11 @@ const Dashboard = () => {
   };
 
   const deleteAllZetaMemories = async () => {
-    showConfirm('Tüm Bellekleri Sil', 'Zeta\'nın tüm belleklerini silmek istediğinizden emin misiniz?', async () => {
+    showConfirm(t('clearMemoriesTitle'), t('clearMemoriesMsg'), async () => {
       try {
         await Promise.all(zetaMemories.map(m => axios.delete(`${API}/zeta/memory/${m.memory_id}`, { withCredentials: true })));
         setZetaMemories([]);
-        showToast('Tüm bellekler silindi', 'success');
+        showToast(t('memoriesCleared'), 'success');
       } catch { showToast('Hata oluştu', 'error'); }
     }, true);
   };
@@ -1708,7 +1708,7 @@ MATCHES:[1,3,5]`;
   }, [searchQuery, activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLogout = () => {
-    showConfirm('Çıkış Yap', 'Oturumu kapatmak istediğinizden emin misiniz?', async () => {
+    showConfirm(t('signOutTitle'), t('signOutMsg'), async () => {
       await logout();
       navigate('/login');
     });
@@ -1716,12 +1716,12 @@ MATCHES:[1,3,5]`;
 
   const handleDeleteAccount = () => {
     showConfirm(
-      'Hesabı Sil',
-      'Hesabınızı silmek istediğinizden emin misiniz?\n\nBu işlem geri alınamaz. Tüm notlarınız ve verileriniz kalıcı olarak silinecektir.',
+      t('deleteAccount'),
+      t('deleteAccountMsg'),
       async () => {
         try {
           await axios.post(`${API}/auth/delete-account/request`, {}, { withCredentials: true });
-          showToast('Onay e-postası gönderildi. E-postanızdaki bağlantıya tıklayın.', 'info');
+          showToast(t('cancelEmailSent'), 'info');
         } catch {
           showToast('Bir hata oluştu. Lütfen tekrar deneyin.', 'error');
         }
@@ -1743,12 +1743,12 @@ MATCHES:[1,3,5]`;
     const isLast = posInGroup === group.length - 1;
     const hasPassword = !!(nb.password_hash || nb.has_password);
     return [
-      { icon: <ArrowUp className="h-4 w-4" />, label: 'Yukarı Taşı', disabled: isFirst, action: () => moveNotebook(nb.notebook_id, 'up') },
-      { icon: <ArrowDown className="h-4 w-4" />, label: 'Aşağı Taşı', disabled: isLast, action: () => moveNotebook(nb.notebook_id, 'down') },
-      { icon: <Pin className="h-4 w-4" style={{ color: isPinned ? '#f59e0b' : 'inherit' }} />, label: isPinned ? 'Sabitlemeyi Kaldır' : 'Sabitle', action: () => pinNotebook(nb) },
-      { icon: <FileEdit className="h-4 w-4" />, label: 'İsim Değiştir', action: () => { setRenamingNotebookId(nb.notebook_id); setRenamingNotebookName(nb.name); setOpenMenuNotebookId(null); } },
-      { icon: <Lock className="h-4 w-4" />, label: hasPassword ? 'Şifre Kaldır' : 'Şifre Koy', action: () => { setNotebookPasswordModal({ mode: hasPassword ? 'remove' : 'set', notebookId: nb.notebook_id, notebookName: nb.name }); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); setOpenMenuNotebookId(null); } },
-      { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { setConfirmDeleteNotebookId(nb.notebook_id); setOpenMenuNotebookId(null); } },
+      { icon: <ArrowUp className="h-4 w-4" />, label: t('moveUp'), disabled: isFirst, action: () => moveNotebook(nb.notebook_id, 'up') },
+      { icon: <ArrowDown className="h-4 w-4" />, label: t('moveDown'), disabled: isLast, action: () => moveNotebook(nb.notebook_id, 'down') },
+      { icon: <Pin className="h-4 w-4" style={{ color: isPinned ? '#f59e0b' : 'inherit' }} />, label: isPinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => pinNotebook(nb) },
+      { icon: <FileEdit className="h-4 w-4" />, label: t('renameItem'), action: () => { setRenamingNotebookId(nb.notebook_id); setRenamingNotebookName(nb.name); setOpenMenuNotebookId(null); } },
+      { icon: <Lock className="h-4 w-4" />, label: hasPassword ? t('removePassword') : t('addPassword'), action: () => { setNotebookPasswordModal({ mode: hasPassword ? 'remove' : 'set', notebookId: nb.notebook_id, notebookName: nb.name }); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); setOpenMenuNotebookId(null); } },
+      { icon: <Trash2 className="h-4 w-4" />, label: t('deleteItem'), color: '#ef4444', action: () => { setConfirmDeleteNotebookId(nb.notebook_id); setOpenMenuNotebookId(null); } },
     ];
   };
 
@@ -1886,8 +1886,8 @@ MATCHES:[1,3,5]`;
           style={{ background: isFreeOffline ? '#ef4444' : '#f59e0b', color: '#fff' }}>
           <span>📴</span>
           {isFreeOffline
-            ? 'Çevrimdışısın — ücretsiz hesapla yeni belge veya not oluşturamazsın'
-            : 'Çevrimdışı — bazı özellikler kullanılamayabilir'}
+            ? t('offlineFreePlan')
+            : t('offlineWarning')}
         </div>
       )}
       {/* Onboarding Modal — zorunlu, kapatılamaz */}
@@ -1961,15 +1961,15 @@ MATCHES:[1,3,5]`;
                 { id: 'general',      icon: <User className="h-4 w-4" />,       label: t('general') },
                 { id: 'profile',      icon: <UserCheck className="h-4 w-4" />,  label: t('profile') },
                 { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
-                { id: 'primedrive',   icon: <HardDrive className="h-4 w-4" />,  label: 'Prime Drive',      color: '#6366f1' },
+                { id: 'primedrive',   icon: <HardDrive className="h-4 w-4" />,  label: 'Prime Drive',     color: '#6366f1' },
                 { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
                 { id: 'quests',       icon: <span className="relative inline-flex"><Map className="h-4 w-4" />{hasPendingQuests && <span style={{ position:'absolute', top:-3, right:-3, width:7, height:7, borderRadius:'50%', background:'#ef4444', border:'1.5px solid var(--zet-bg-card)' }} />}</span>, label: t('questMap'), color: '#4ca8ad' },
-                { id: 'magaza',       icon: <CreditCard className="h-4 w-4" />, label: 'Mağaza',           color: '#a78bfa' },
-                { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: 'Envanter',         color: '#60a5fa' },
+                { id: 'magaza',       icon: <CreditCard className="h-4 w-4" />, label: t('store'),         color: '#a78bfa' },
+                { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: t('inventory'),     color: '#60a5fa' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
-                { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: 'Fast Select' },
-                { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: 'Uygulama Seçici' },
-                ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: 'Kullanıcılar', color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
+                { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: t('fastSelect') },
+                { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: t('appSwitcher') },
+                ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: t('users'), color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
@@ -1991,13 +1991,13 @@ MATCHES:[1,3,5]`;
                   <LogOut className="h-4 w-4" /> {t('logoutBtn')}
                 </button>
                 <button onClick={handleDeleteAccount} className="flex items-center gap-3 w-full px-3 py-2.5 rounded-lg text-sm text-red-600 hover:bg-red-500/10 transition-all mt-0.5">
-                  <Trash2 className="h-4 w-4" /> Hesabı Sil
+                  <Trash2 className="h-4 w-4" /> {t('deleteAccount')}
                 </button>
               </div>
 
               {/* Versiyon */}
               <div className="mt-auto pt-4 px-3">
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.07.25</span>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.07.27</span>
               </div>
             </div>
 
@@ -2086,10 +2086,10 @@ MATCHES:[1,3,5]`;
                   {/* Görsel Efektler */}
                   {userSubscription !== 'free' && (
                     <div className="mb-8">
-                      <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>Görsel Efektler</p>
+                      <p className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--zet-text-muted)' }}>{t('visualEffects')}</p>
                       <div className="p-4 rounded-xl" style={{ background: 'var(--zet-bg-card)' }}>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm" style={{ color: 'var(--zet-text)' }}>Hover gradient animasyonu</span>
+                          <span className="text-sm" style={{ color: 'var(--zet-text)' }}>{t('hoverGradientAnim')}</span>
                           <button
                             onClick={() => { const v = !gradientAnimEnabled; setGradientAnimEnabled(v); localStorage.setItem('zet_gradient_anim', v); localStorage.setItem('zet_gradient_anim_plan', userSubscription); }}
                             className="relative w-10 h-5 rounded-full transition-colors"
@@ -2108,7 +2108,7 @@ MATCHES:[1,3,5]`;
                     <div className="p-4 rounded-xl flex items-center justify-between" style={{ background: 'var(--zet-bg-card)' }}>
                       <span style={{ color: 'var(--zet-text)' }}>{t('currentPlan')}</span>
                       <span className="font-bold text-lg" style={{ color: userSubscription === 'creative_station' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : userSubscription === 'plus' ? '#3b82f6' : 'var(--zet-text-muted)' }}>
-                        {userSubscription === 'creative_station' ? 'ZET Creative Station' : userSubscription === 'free' ? 'Ücretsiz' : userSubscription.charAt(0).toUpperCase() + userSubscription.slice(1)}
+                        {userSubscription === 'creative_station' ? 'ZET Creative Station' : userSubscription === 'free' ? t('freePrice') : userSubscription.charAt(0).toUpperCase() + userSubscription.slice(1)}
                       </span>
                     </div>
                     {userSubscription !== 'free' && (
@@ -2118,7 +2118,7 @@ MATCHES:[1,3,5]`;
                           className="mt-2 w-full py-2 rounded-lg text-sm font-semibold transition-all hover:opacity-80"
                           style={{ background: userSubscription === 'creative_station' ? 'rgba(245,158,11,0.1)' : userSubscription === 'pro' ? 'rgba(139,92,246,0.1)' : 'rgba(59,130,246,0.1)', color: userSubscription === 'creative_station' ? '#f59e0b' : userSubscription === 'pro' ? '#8b5cf6' : '#3b82f6', border: '1px solid currentColor', borderColor: userSubscription === 'creative_station' ? 'rgba(245,158,11,0.25)' : userSubscription === 'pro' ? 'rgba(139,92,246,0.25)' : 'rgba(59,130,246,0.25)' }}
                         >
-                          Nelerden Faydalanıyorum?
+                          {t('whatDoIGet')}
                         </button>
                         <button onClick={handleCancelSubscription} disabled={subscribing} className="mt-1 text-sm text-red-400 hover:text-red-300 w-full text-center py-2">
                           {t('cancelSubscription')}
@@ -2158,22 +2158,22 @@ MATCHES:[1,3,5]`;
                           />
                         </label>
                       </div>
-                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Fotoğrafı değiştirmek için tıklayın</span>
+                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('changePhoto')}</span>
                     </div>
                     {/* Görünen İsim */}
                     <div>
-                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Görünen İsim</label>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>{t('displayName')}</label>
                       <input
                         type="text"
                         value={editName}
                         onChange={e => setEditName(e.target.value)}
                         className="zet-input w-full"
-                        placeholder="Adınız"
+                        placeholder={t('namePlaceholder')}
                       />
                     </div>
                     {/* Kullanıcı Adı */}
                     <div>
-                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Kullanıcı Adı</label>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>{t('username')}</label>
                       <div className="flex items-center rounded-xl px-3 py-2.5" style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)' }}>
                         <span className="text-sm mr-1" style={{ color: 'var(--zet-text-muted)' }}>@</span>
                         <input
@@ -2185,17 +2185,17 @@ MATCHES:[1,3,5]`;
                           placeholder="kullanici_adi"
                         />
                       </div>
-                      <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>30 günde bir değiştirilebilir · 3-20 karakter</p>
+                      <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{t('usernameHint')}</p>
                     </div>
                     {/* Bio */}
                     <div>
-                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Biyografi</label>
+                      <label className="text-sm block mb-1" style={{ color: 'var(--zet-text-muted)' }}>{t('bio')}</label>
                       <textarea
                         value={editBio}
                         onChange={e => setEditBio(e.target.value.slice(0, 200))}
                         className="zet-input w-full resize-none"
                         rows={3}
-                        placeholder="Kendinizi kısaca tanıtın..."
+                        placeholder={t('bioPlaceholder')}
                       />
                       <p className="text-xs mt-1 text-right" style={{ color: 'var(--zet-text-muted)' }}>{editBio.length}/200</p>
                     </div>
@@ -2206,7 +2206,7 @@ MATCHES:[1,3,5]`;
                         <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(76,168,173,0.15)', color: '#4ca8ad' }}>Mevcut: {user?.email}</span>
                       </div>
                       {emailSent ? (
-                        <p className="text-sm text-green-400">Onay e-postası gönderildi. Gelen kutunuzu kontrol edin.</p>
+                        <p className="text-sm text-green-400">{t('emailConfirmSent')}</p>
                       ) : (
                         <>
                           <input
@@ -2231,7 +2231,7 @@ MATCHES:[1,3,5]`;
                             className="w-full py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-40"
                             style={{ background: 'var(--zet-primary)', color: '#fff' }}
                           >
-                            {emailSending ? 'Gönderiliyor...' : 'Onay E-postası Gönder'}
+                            {emailSending ? t('sending') : t('sendConfirmEmail')}
                           </button>
                         </>
                       )}
@@ -2257,7 +2257,7 @@ MATCHES:[1,3,5]`;
                           if (updateUser) updateUser({ ...user, name: editName, username: editUsername, bio: editBio, picture: pictureUrl });
                           setProfilePhoto(null);
                           setProfilePhotoPreview(null);
-                          showToast('Profil güncellendi!', 'success');
+                          showToast(t('profileUpdated'), 'success');
                         } catch (err) {
                           const msg = err?.response?.data?.detail || 'Güncelleme başarısız';
                           showToast(msg, 'error');
@@ -2267,7 +2267,7 @@ MATCHES:[1,3,5]`;
                       className="w-full py-3 rounded-xl font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
                       style={{ background: 'var(--zet-primary)' }}
                     >
-                      {uploadingPhoto ? 'Kaydediliyor...' : 'Kaydet'}
+                      {uploadingPhoto ? t('saving') : t('save')}
                     </button>
                   </div>
                 </div>
@@ -2281,7 +2281,7 @@ MATCHES:[1,3,5]`;
                       <div className="flex items-center gap-2 mb-3" style={{ justifyContent: 'space-between' }}>
                         <div className="flex items-center gap-2">
                           <Sparkles className="h-5 w-5" style={{ color: '#4ca8ad' }} />
-                          <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>ZETA Ozelleştirme</h3>
+                          <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>{t('zetaCustomize')}</h3>
                         </div>
                         <button onClick={() => { setShowMoodInfo(true); setMoodInfoSlide(0); }} style={{ display:'flex',alignItems:'center',justifyContent:'center',width:22,height:22,borderRadius:'50%',border:'1px solid rgba(76,168,173,0.4)',background:'rgba(76,168,173,0.08)',color:'#4ca8ad',cursor:'pointer',flexShrink:0 }} title="Modlar hakkında bilgi">
                           <svg width="13" height="13" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/><circle cx="8" cy="5.5" r="1" fill="currentColor"/><path d="M8 8v4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
@@ -2301,7 +2301,7 @@ MATCHES:[1,3,5]`;
                                 return (
                                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                                     {cur && <span style={{ width: 8, height: 8, borderRadius: '50%', background: RARITY_COL[cur.rarity], flexShrink: 0, display: 'inline-block' }} />}
-                                    <span>{cur?.label || 'Mod Seç'}</span>
+                                    <span>{cur ? t(cur.labelKey) : t('selectMode')}</span>
                                   </div>
                                 );
                               })()}
@@ -2321,7 +2321,7 @@ MATCHES:[1,3,5]`;
                                         style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 12px', background: zetaMood === m.value ? 'rgba(76,168,173,0.12)' : 'transparent', border: 'none', cursor: 'pointer', color: m.locked ? '#64748b' : '#e2e8f0', fontSize: 13, textAlign: 'left' }}
                                       >
                                         <span style={{ width: 8, height: 8, borderRadius: '50%', background: RARITY_COL[m.rarity], flexShrink: 0 }} />
-                                        <span style={{ flex: 1 }}>{m.label}</span>
+                                        <span style={{ flex: 1 }}>{t(m.labelKey)}</span>
                                         {m.locked && (
                                           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#64748b" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                             <rect x="3" y="11" width="18" height="11" rx="2"/>
@@ -2338,17 +2338,17 @@ MATCHES:[1,3,5]`;
                         </div>
                         {zetaMood === 'custom' && (
                           <div>
-                            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Özel Prompt</label>
-                            <textarea value={zetaCustomPrompt} onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }} placeholder="ZETA nasıl davransın?" className="zet-input text-sm w-full h-20 resize-none" />
+                            <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>{t('customPromptLabel')}</label>
+                            <textarea value={zetaCustomPrompt} onChange={e => { setZetaCustomPrompt(e.target.value); localStorage.setItem('zet_zeta_custom', e.target.value); }} placeholder={t('customPromptPlaceholder')} className="zet-input text-sm w-full h-20 resize-none" />
                           </div>
                         )}
                         <div>
-                          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>Emoji Kullanımı</label>
+                          <label className="text-xs block mb-1" style={{ color: 'var(--zet-text-muted)' }}>{t('emojiUsage')}</label>
                           <select value={zetaEmoji} onChange={e => { setZetaEmoji(e.target.value); localStorage.setItem('zet_zeta_emoji', e.target.value); }} className="zet-input text-sm w-full">
-                            <option value="none">Kullanma</option>
-                            <option value="low">Az Kullan</option>
-                            <option value="medium">Orta</option>
-                            <option value="high">Çok Kullan</option>
+                            <option value="none">{t('emojiNone')}</option>
+                            <option value="low">{t('emojiLow')}</option>
+                            <option value="medium">{t('emojiMedium')}</option>
+                            <option value="high">{t('emojiHigh')}</option>
                           </select>
                         </div>
                       </div>
@@ -2359,16 +2359,16 @@ MATCHES:[1,3,5]`;
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <Brain className="h-5 w-5" style={{ color: '#4ca8ad' }} />
-                          <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>Zeta Bellekleri</h3>
+                          <h3 className="font-semibold" style={{ color: '#4ca8ad' }}>{t('zetaMemoriesTitle')}</h3>
                           <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(76,168,173,0.2)', color: '#4ca8ad' }}>{zetaMemories.length}</span>
                         </div>
                         <div className="flex items-center gap-2">
                           <button onClick={loadZetaMemories} className="text-xs px-2 py-1 rounded-lg hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }}>
-                            Yenile
+                            {t('refresh')}
                           </button>
                           {zetaMemories.length > 0 && (
                             <button onClick={deleteAllZetaMemories} className="text-xs px-2 py-1 rounded-lg transition-all" style={{ color: '#ef4444', background: 'rgba(239,68,68,0.1)' }}>
-                              Tümünü Sil
+                              {t('clearMemoriesTitle')}
                             </button>
                           )}
                         </div>
@@ -2393,10 +2393,10 @@ MATCHES:[1,3,5]`;
                         </button>
                       </div>
                       {memoriesLoading ? (
-                        <p className="text-xs text-center py-4" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</p>
+                        <p className="text-xs text-center py-4" style={{ color: 'var(--zet-text-muted)' }}>{t('loading')}</p>
                       ) : zetaMemories.length === 0 ? (
                         <p className="text-xs py-2" style={{ color: 'var(--zet-text-muted)' }}>
-                          Henüz bellek yok. Yukarıdan ekleyebilir veya sohbette "bunu hatırla: ..." yazabilirsin.
+                          {t('noMemories')}
                         </p>
                       ) : (
                         <div className="space-y-2 max-h-52 overflow-y-auto">
@@ -2454,7 +2454,7 @@ MATCHES:[1,3,5]`;
                       style={{ background: showRankBadge ? `${currentRank.color}20` : 'rgba(255,255,255,0.06)', color: showRankBadge ? currentRank.color : 'var(--zet-text-muted)', border: `1px solid ${showRankBadge ? currentRank.color + '40' : 'transparent'}` }}
                     >
                       <RankIcon rank={currentRank} size={12} />
-                      {showRankBadge ? 'Profilde göster' : 'Profilde gizle'}
+                      {showRankBadge ? t('rankShowInProfile') : t('rankHideInProfile')}
                     </button>
                   </div>
 
@@ -2550,7 +2550,7 @@ MATCHES:[1,3,5]`;
                           border: rankTab === tab ? 'none' : '1px solid var(--zet-border)',
                         }}
                       >
-                        {tab === 'requirements' ? 'Gereksinimler' : 'Ödüller'}
+                        {tab === 'requirements' ? t('rankRequirements') : t('rankRewards')}
                       </button>
                     ))}
                   </div>
@@ -2581,7 +2581,7 @@ MATCHES:[1,3,5]`;
                               </div>
                             </div>
                           ) : (
-                            <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Başlangıç rankı — gereksinim yok</p>
+                            <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{t('rankNoReq')}</p>
                           )}
                         </div>
                       );})}
@@ -2652,7 +2652,7 @@ MATCHES:[1,3,5]`;
                     </div>
                   </div>
                   {(() => {
-                    const FREE_PLAN_ITEM = { id: 'free', name: 'Free', monthlyPrice: 0, yearlyPrice: 0, color: '#6b7280', zpCost: 0, recommended: false, scope: null, scopeLabel: null, features: ['80 Kredi/gün', '100K Token/gün (Zeta + Judge)', '1 Defter, 3 Fast Select', 'Temel editör araçları', 'Judge AI sohbet'] };
+                    const FREE_PLAN_ITEM = { id: 'free', name: 'Free', monthlyPrice: 0, yearlyPrice: 0, color: '#6b7280', zpCost: 0, recommended: false, scope: null, scopeLabel: null, features: ['feat80Credits', 'feat100kToken', 'feat1nb3fs', 'featBasicTools', 'featJudgeChat'] };
                     const allPlansDisplay = [FREE_PLAN_ITEM, ...SUBSCRIPTION_PLANS];
                     const isFreeUser = !userSubscription || userSubscription === 'free';
                     return (
@@ -2674,29 +2674,29 @@ MATCHES:[1,3,5]`;
                           return (
                             <div key={plan.id} className="w-full flex-shrink-0 px-2">
                               <div className={`relative rounded-2xl p-6 transition-all ${plan.recommended ? 'ring-2' : ''}`} style={{ background: `linear-gradient(135deg, ${plan.color}15 0%, ${plan.color}05 100%)`, border: isCurrent ? `2px solid ${plan.color}` : `1px solid ${plan.color}30` }}>
-                                {isCurrent && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>MEVCUT PLAN</div>}
+                                {isCurrent && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>{t('currentPlanBadge')}</div>}
                                 {plan.recommended && !isCurrent && <div className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-xs font-bold text-white" style={{ background: plan.color }}>{t('recommended')}</div>}
                                 <div className="text-center mb-6 pt-2">
                                   <h3 className="text-2xl font-bold mb-1" style={{ color: plan.color }}>{plan.name}</h3>
                                   {plan.scopeLabel && (
                                     <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full mb-2" style={{ background: plan.scope === 'both' ? 'rgba(245,158,11,0.15)' : 'rgba(255,255,255,0.06)', color: plan.scope === 'both' ? '#f59e0b' : 'var(--zet-text-muted)', border: plan.scope === 'both' ? '1px solid rgba(245,158,11,0.3)' : '1px solid rgba(255,255,255,0.1)' }}>
-                                      {plan.scope === 'both' ? '✦ ' : ''}{plan.scopeLabel}
+                                      {plan.scope === 'both' ? '✦ ' : ''}{t(plan.scopeLabel)}
                                     </span>
                                   )}
                                   {plan.id === 'free' ? (
-                                    <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>Ücretsiz</span></div>
+                                    <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>{t('freePrice')}</span></div>
                                   ) : isYearly ? (
                                     <div className="flex flex-col items-center gap-0.5">
                                       <span className="text-sm line-through" style={{ color: 'var(--zet-text-muted)' }}>${fullYearlyPrice}/yr</span>
                                       <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>/yr</span></div>
-                                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">%{Math.round((1 - price / fullYearlyPrice) * 100)} tasarruf</span>
+                                      <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 font-medium">%{Math.round((1 - price / fullYearlyPrice) * 100)} {t('savingsLabel')}</span>
                                     </div>
                                   ) : (
                                     <div><span className="text-4xl font-bold" style={{ color: 'var(--zet-text)' }}>${price}</span><span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>/mo</span></div>
                                   )}
                                 </div>
                                 <ul className="space-y-3 mb-4">
-                                  {plan.features.map((feature, fidx) => (<li key={fidx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}><Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />{feature}</li>))}
+                                  {plan.features.map((feature, fidx) => (<li key={fidx} className="flex items-center gap-2 text-sm" style={{ color: 'var(--zet-text)' }}><Check className="h-4 w-4 flex-shrink-0" style={{ color: plan.color }} />{t(feature)}</li>))}
                                 </ul>
                                 <div className="space-y-2">
                                   <button
@@ -2704,12 +2704,12 @@ MATCHES:[1,3,5]`;
                                     className="w-full py-2.5 rounded-xl font-semibold transition-all hover:scale-105 flex items-center justify-center gap-1.5 text-sm"
                                     style={{ background: 'transparent', color: plan.color, border: `1px solid ${plan.color}40` }}
                                   >
-                                    Paket Hakkında Herşey
+                                    {t('aboutPackage')}
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
                                   </button>
                                   {plan.id !== 'free' && (
                                     <button onClick={() => handleSubscribe(plan.id)} disabled={subscribing || isCurrent} className="w-full py-3 rounded-xl font-semibold transition-all hover:scale-105 disabled:opacity-50" style={{ background: isCurrent ? 'var(--zet-bg)' : plan.color, color: isCurrent ? plan.color : 'white', border: isCurrent ? `2px solid ${plan.color}` : 'none' }} data-testid={`select-plan-${plan.id}`}>
-                                      {isCurrent ? t('currentPlan') : `$${price}${period} ile Al`}
+                                      {isCurrent ? t('currentPlan') : `$${price}${period} ${t('buyPlanBtn')}`}
                                     </button>
                                   )}
                                   {isCurrent && plan.id !== 'free' && (
@@ -2718,7 +2718,7 @@ MATCHES:[1,3,5]`;
                                       className="w-full py-2.5 rounded-xl font-semibold transition-all hover:opacity-80 text-sm"
                                       style={{ background: `${plan.color}12`, color: plan.color, border: `1px solid ${plan.color}35` }}
                                     >
-                                      Nelerden Faydalanıyorum?
+                                      {t('whatDoIGet')}
                                     </button>
                                   )}
                                   {plan.id !== 'free' && plan.id !== 'creative_station' && !isYearly && !isCurrent && (
@@ -2747,10 +2747,10 @@ MATCHES:[1,3,5]`;
 
               {settingsTab === 'magaza' && (() => {
                 const CREDIT_TIERS = [
-                  { id: 'pack_50k',  color: '#10b981', glow: 'rgba(16,185,129,0.18)', label: 'Başlangıç' },
-                  { id: 'pack_230k', color: '#3b82f6', glow: 'rgba(59,130,246,0.18)', label: 'Standart'  },
-                  { id: 'pack_700k', color: '#8b5cf6', glow: 'rgba(139,92,246,0.2)',  label: 'Popüler'   },
-                  { id: 'pack_950k', color: '#f59e0b', glow: 'rgba(245,158,11,0.2)',  label: 'En Avantajlı' },
+                  { id: 'pack_50k',  color: '#10b981', glow: 'rgba(16,185,129,0.18)', label: t('packStarter') },
+                  { id: 'pack_230k', color: '#3b82f6', glow: 'rgba(59,130,246,0.18)', label: t('packStandard') },
+                  { id: 'pack_700k', color: '#8b5cf6', glow: 'rgba(139,92,246,0.2)',  label: t('packPopular')  },
+                  { id: 'pack_950k', color: '#f59e0b', glow: 'rgba(245,158,11,0.2)',  label: t('packBestValue') },
                 ];
                 const BAR_WIDTHS = [18, 42, 72, 100];
                 if (creditPackages.length === 0) return <MiniDocLoader />;
@@ -2763,9 +2763,9 @@ MATCHES:[1,3,5]`;
                   <div style={{ maxWidth: 400 }}>
                     <div className="flex items-center gap-2 mb-1">
                       <CreditIcon color="#f59e0b" size={16} />
-                      <h2 className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>Kredi Satın Al</h2>
+                      <h2 className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>{t('buyCreditsTitle')}</h2>
                     </div>
-                    <p className="text-xs mb-5" style={{ color: 'var(--zet-text-muted)' }}>Krediler AI özellikleri için kullanılır.</p>
+                    <p className="text-xs mb-5" style={{ color: 'var(--zet-text-muted)' }}>{t('creditsUsedFor')}</p>
 
                     {/* Carousel card with arrows */}
                     <div className="relative">
@@ -2800,7 +2800,7 @@ MATCHES:[1,3,5]`;
                       {/* Credits */}
                       <div className="flex items-baseline gap-1.5 mb-1">
                         <span className="font-black" style={{ fontSize: 42, lineHeight: 1, color: tier.color }}>{fmtCredits}</span>
-                        <span className="text-sm font-medium" style={{ color: 'var(--zet-text-muted)' }}>kredi</span>
+                        <span className="text-sm font-medium" style={{ color: 'var(--zet-text-muted)' }}>{t('creditsUnit')}</span>
                       </div>
 
                       {/* Bar */}
@@ -2821,7 +2821,7 @@ MATCHES:[1,3,5]`;
                         style={{ background: tier.color, color: '#fff' }}
                         data-testid={`buy-credit-${pkg.credits}`}
                       >
-                        {buyingCredits ? '...' : 'Satın Al'}
+                        {buyingCredits ? '...' : t('buyPlanBtn')}
                       </button>
                     </div>
                     </div>{/* /carousel wrapper */}
@@ -2849,11 +2849,11 @@ MATCHES:[1,3,5]`;
                     {hasDiscount && (
                       <div className="px-3 py-2 rounded-xl flex items-center justify-center gap-1.5 mt-1" style={{ background: 'rgba(16,185,129,0.08)', border: '1px solid rgba(16,185,129,0.2)' }}>
                         <CreditIcon color="#10b981" size={12} />
-                        <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>Abone indirimi aktif — %10 indirim uygulandı</span>
+                        <span className="text-[11px] font-semibold" style={{ color: '#10b981' }}>{t('subscriptionDiscount')}</span>
                       </div>
                     )}
                     <p className="text-[10px] text-center mt-3" style={{ color: 'var(--zet-text-muted)' }}>
-                      Ödeme LemonSqueezy üzerinden güvenli işlenir.
+                      {t('paymentSecure')}
                     </p>
                   </div>
                 );
@@ -2893,13 +2893,13 @@ MATCHES:[1,3,5]`;
                         ) : (
                           <svg viewBox="0 0 20 20" fill="none" style={{width:14,height:14}}><path d="M10 3v10M6 7l4-4 4 4" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 15h14" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
                         )}
-                        {driveUploading ? 'Yükleniyor...' : 'Dosya Yükle'}
+                        {driveUploading ? t('uploading') : t('uploadFile')}
                         <input type="file" multiple className="hidden" onChange={e => { Array.from(e.target.files || []).forEach(f => uploadDriveFile(f)); e.target.value = ''; }} />
                       </label>
                     </div>
                     <div className="p-5 rounded-2xl mb-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
                       <div className="flex items-center justify-between mb-3">
-                        <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>Depolama Alanı</span>
+                        <span className="text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>{t('storageSpace')}</span>
                         <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: 'rgba(99,102,241,0.15)', color: '#6366f1' }}>
                           {userSubscription === 'creative_station' ? '1 TB' : userSubscription === 'pro' ? '50 GB' : userSubscription === 'plus' ? '20 GB' : '1 GB'} — {userSubscription === 'creative_station' ? 'Creative Station' : userSubscription === 'pro' ? 'Pro' : userSubscription === 'plus' ? 'Plus' : 'Free'}
                         </span>
@@ -2908,7 +2908,7 @@ MATCHES:[1,3,5]`;
                         <div className="h-full rounded-full transition-all" style={{ width: `${usedPct}%`, background: usedPct > 80 ? '#ef4444' : '#6366f1' }} />
                       </div>
                       <div className="flex justify-between text-xs" style={{ color: 'var(--zet-text-muted)' }}>
-                        <span>{fmtSize(driveUsed)} kullanıldı</span>
+                        <span>{fmtSize(driveUsed)} {t('used')}</span>
                         <span>{quotaGB < 1024 ? `${quotaGB} GB` : '1 TB'} toplam</span>
                       </div>
                     </div>
@@ -2925,8 +2925,8 @@ MATCHES:[1,3,5]`;
                     {driveFiles.length === 0 && !driveLoading ? (
                       <div className="text-center py-12 rounded-2xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
                         <HardDrive className="h-10 w-10 mx-auto mb-3 opacity-30" style={{ color: '#6366f1' }} />
-                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Henüz dosya yüklenmedi.</p>
-                        <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>Yukarıdaki butona tıklayarak dosya ekleyebilirsin.</p>
+                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('driveEmpty')}</p>
+                        <p className="text-xs mt-1" style={{ color: 'var(--zet-text-muted)' }}>{t('driveEmptyHint')}</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
@@ -3162,7 +3162,7 @@ MATCHES:[1,3,5]`;
                                     try {
                                       await axios.patch(`${API}/admin/users/${u.user_id}`, { subscription_plan: val }, { withCredentials: true });
                                       setAdminUsers(prev => prev.map((x, j) => j === i ? { ...x, subscription: val === 'free' ? 'free' : { plan: val, status: 'active' } } : x));
-                                      showToast('Abonelik güncellendi', 'success');
+                                      showToast(t('subscriptionUpdated'), 'success');
                                     } catch (err) { showToast(err.response?.data?.detail || 'Hata', 'error'); }
                                   }}
                                   className="flex-1 text-xs rounded-lg px-2 py-1.5 outline-none"
@@ -3242,11 +3242,11 @@ MATCHES:[1,3,5]`;
                       </button>
                     )}
                   </div>
-                  <p className="text-sm mb-5" style={{ color: 'var(--zet-text-muted)' }}>Her gün ücretsiz bir kasa veya çark alırsın. Açarak ZP ve kredi kazanabilirsin.</p>
+                  <p className="text-sm mb-5" style={{ color: 'var(--zet-text-muted)' }}>{t('inventoryDesc')}</p>
                   {inventory.length === 0 ? (
                     <div className="text-center py-12" style={{ color: 'var(--zet-text-muted)' }}>
                       <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ margin: '0 auto 10px' }}><rect x="6" y="16" width="32" height="22" rx="4" stroke="#334155" strokeWidth="1.5"/><path d="M6 22h32" stroke="#334155" strokeWidth="1.5"/><path d="M22 8v8M16 10l6 6 6-6" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      <p className="text-sm">Envanter boş. Yarın tekrar deneyin!</p>
+                      <p className="text-sm">{t('inventoryEmpty')}</p>
                     </div>
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
@@ -3268,8 +3268,8 @@ MATCHES:[1,3,5]`;
                             ) : (
                               <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><rect x="5" y="15" width="28" height="18" rx="3" stroke="#60a5fa" strokeWidth="1.5" fill="rgba(96,165,250,0.08)"/><path d="M5 21h28" stroke="#60a5fa" strokeWidth="1.5"/><path d="M19 7v8M13 9l6 6 6-6" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             )}
-                            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? 'Şans Çarkı' : 'Günlük Kasa'}</span>
-                            <span style={{ fontSize: 10, color: '#555', background: `rgba(${isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>Açmak için tıkla</span>
+                            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? t('luckyWheel') : t('dailyCase')}</span>
+                            <span style={{ fontSize: 10, color: '#555', background: `rgba(${isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>{t('openToClick')}</span>
                           </button>
                         );
                       })}
@@ -3385,7 +3385,7 @@ MATCHES:[1,3,5]`;
           {!zetaSearch && docSearchLoading && activeTab === 'documents' && searchQuery && (
             <div className="flex items-center gap-2 text-xs mb-2" style={{ color: 'var(--zet-text-muted)' }}>
               <div className="w-3 h-3 border-2 border-t-transparent rounded-full animate-spin flex-shrink-0" style={{ borderColor: '#4ca8ad', borderTopColor: 'transparent' }} />
-              Belge içerikleri taranıyor...
+              {t('scanningContent')}
             </div>
           )}
         </div>
@@ -3395,7 +3395,7 @@ MATCHES:[1,3,5]`;
           <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', paddingBottom: 80 }}>
           <div className="flex justify-end mb-3">
             <button onClick={() => { setShowTrash(true); fetchTrash(); }} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg hover:bg-white/5 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>
-              <Trash2 className="h-3.5 w-3.5" /> Çöp Kutusu
+              <Trash2 className="h-3.5 w-3.5" /> {t('recyclebin')}
             </button>
           </div>
 
@@ -3404,8 +3404,8 @@ MATCHES:[1,3,5]`;
             <div className="mb-5">
               <div className="flex items-center gap-2 mb-2">
                 <Folder className="h-4 w-4" style={{ color: 'var(--zet-primary-light)' }} />
-                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--zet-text-muted)' }}>Dosyalar</span>
-                <button onClick={() => setShowNewFile(v => !v)} className="ml-auto p-1 rounded hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }} title="Yeni Dosya">
+                <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: 'var(--zet-text-muted)' }}>{t('folders')}</span>
+                <button onClick={() => setShowNewFile(v => !v)} className="ml-auto p-1 rounded hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }} title={t('newFolder')}>
                   <Plus className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -3413,13 +3413,13 @@ MATCHES:[1,3,5]`;
                 <div className="flex gap-2 mb-3">
                   <input
                     className="zet-input flex-1 text-sm"
-                    placeholder="Dosya adı..."
+                    placeholder={t('fileNamePlaceholder')}
                     value={newFileName}
                     onChange={e => setNewFileName(e.target.value)}
                     onKeyDown={e => { if (e.key === 'Enter') createDocFile(); if (e.key === 'Escape') { setShowNewFile(false); setNewFileName(''); } }}
                     autoFocus
                   />
-                  <button onClick={createDocFile} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>Oluştur</button>
+                  <button onClick={createDocFile} className="px-3 py-1.5 rounded-lg text-sm font-medium" style={{ background: 'var(--zet-primary)', color: 'var(--zet-text)' }}>{t('create')}</button>
                   <button onClick={() => { setShowNewFile(false); setNewFileName(''); }} className="p-1.5 rounded-lg hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
                 </div>
               )}
@@ -3456,7 +3456,7 @@ MATCHES:[1,3,5]`;
                       ) : (
                         <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{file.name}</p>
                       )}
-                      <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{docCount} belge</p>
+                      <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{docCount} {t('docCountUnit')}</p>
                     </div>
                   );
                 })}
@@ -3470,9 +3470,9 @@ MATCHES:[1,3,5]`;
                   onClick={e => e.stopPropagation()}
                 >
                   {[
-                    { icon: <FolderInput className="h-4 w-4" />, label: 'Belge Aktar', action: () => { setImportMode({ fileId: openMenuFileId, selectedDocIds: new Set() }); setOpenMenuFileId(null); } },
-                    { icon: <FileEdit className="h-4 w-4" />, label: 'Yeniden Adlandır', action: () => { const f = docFiles.find(f => f.file_id === openMenuFileId); if (f) { setRenamingFileId(f.file_id); setRenamingFileName(f.name); } setOpenMenuFileId(null); } },
-                    { icon: <Trash2 className="h-4 w-4" />, label: 'Sil', color: '#ef4444', action: () => { const fid = openMenuFileId; setOpenMenuFileId(null); showConfirm('Dosyayı Sil', 'Bu dosyayı silmek istediğinizden emin misiniz? İçindeki belgeler silinmez, sadece dosyadan çıkarılır.', () => deleteDocFile(fid), true); } },
+                    { icon: <FolderInput className="h-4 w-4" />, label: t('importDoc'), action: () => { setImportMode({ fileId: openMenuFileId, selectedDocIds: new Set() }); setOpenMenuFileId(null); } },
+                    { icon: <FileEdit className="h-4 w-4" />, label: t('renameFile'), action: () => { const f = docFiles.find(f => f.file_id === openMenuFileId); if (f) { setRenamingFileId(f.file_id); setRenamingFileName(f.name); } setOpenMenuFileId(null); } },
+                    { icon: <Trash2 className="h-4 w-4" />, label: t('deleteItem'), color: '#ef4444', action: () => { const fid = openMenuFileId; setOpenMenuFileId(null); showConfirm(t('deleteFolderTitle'), t('deleteFolderMsg'), () => deleteDocFile(fid), true); } },
                   ].map(item => (
                     <button key={item.label} onClick={item.action} className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5" style={{ color: item.color || 'var(--zet-text)' }}>
                       {item.icon}{item.label}
@@ -3484,7 +3484,7 @@ MATCHES:[1,3,5]`;
           )}
           {!docFiles.length && !showNewFile && !searchQuery && (
             <button onClick={() => setShowNewFile(true)} className="flex items-center gap-2 text-xs px-3 py-2 rounded-lg mb-4 hover:bg-white/5 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px dashed var(--zet-border)' }}>
-              <Folder className="h-3.5 w-3.5" /> Yeni Dosya Oluştur
+              <Folder className="h-3.5 w-3.5" /> {t('newFolder')}
             </button>
           )}
 
@@ -3495,7 +3495,7 @@ MATCHES:[1,3,5]`;
                 <button onClick={() => setActiveDocFile(null)} className="p-1 rounded hover:bg-white/10"><ChevronLeft className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
                 <FolderOpen className="h-4 w-4" style={{ color: '#f59e0b' }} />
                 <span className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{activeDocFile.name}</span>
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>({(activeDocFile.document_ids || []).length} belge)</span>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>({(activeDocFile.document_ids || []).length} {t('docCountUnit')})</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-4">
                 {documents.filter(d => d.file_id === activeDocFile.file_id).map(doc => (
@@ -3515,7 +3515,7 @@ MATCHES:[1,3,5]`;
                   </div>
                 ))}
                 {documents.filter(d => d.file_id === activeDocFile.file_id).length === 0 && (
-                  <div className="col-span-full text-center py-6 text-sm" style={{ color: 'var(--zet-text-muted)' }}>Bu dosya henüz boş. Belge aktarmak için dosya menüsünü kullanın.</div>
+                  <div className="col-span-full text-center py-6 text-sm" style={{ color: 'var(--zet-text-muted)' }}>{t('emptyFolder')}</div>
                 )}
               </div>
               {/* Folder doc three-dot menu portal */}
@@ -3523,12 +3523,12 @@ MATCHES:[1,3,5]`;
                 const doc = documents.find(d => d.doc_id === openFolderDocMenuId);
                 const inDrive = primeDriveDocs.some(d => d.id === openFolderDocMenuId);
                 const items = [
-                  { icon: <ExternalLink className="h-4 w-4" />, label: 'Belgeyi Aç', action: () => { navigate(`/editor/${openFolderDocMenuId}`); setOpenFolderDocMenuId(null); } },
+                  { icon: <ExternalLink className="h-4 w-4" />, label: t('openDocument'), action: () => { navigate(`/editor/${openFolderDocMenuId}`); setOpenFolderDocMenuId(null); } },
                   { icon: <Pin className="h-4 w-4" style={{ color: doc?.pinned ? '#f59e0b' : 'inherit' }} />, label: doc?.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { if (doc) { pinDocument(doc); setOpenFolderDocMenuId(null); } } },
                   { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) { analyzeDocWithZeta(doc); setOpenFolderDocMenuId(null); } } },
                   ...(userSubscription === 'creative_station' || isCEO ? [{
                     icon: <Scale className="h-4 w-4" style={{ color: '#c8005a' }} />,
-                    label: "Judge'a Gönder",
+                    label: t('judgeShare'),
                     color: '#c8005a',
                     action: async () => {
                       if (!doc) return;
@@ -3547,17 +3547,17 @@ MATCHES:[1,3,5]`;
                       } catch { showToast('Belge yüklenemedi', 'error'); }
                     }
                   }] : []),
-                  { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? "Prime Drive'da" : "Prime Drive'a At", color: inDrive ? '#6366f1' : undefined, action: () => {
+                  { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveIn') : t('primeDriveAdd'), color: inDrive ? '#6366f1' : undefined, action: () => {
                     if (!inDrive && doc) {
                       const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);
                       const updated = [...primeDriveDocs, { id: doc.doc_id, title: doc.title, size, addedAt: Date.now(), type: 'document' }];
                       setPrimeDriveDocs(updated);
                       localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
-                      showToast("Prime Drive'a eklendi", 'success');
+                      showToast(t('primeDriveAdded'), 'success');
                     }
                     setOpenFolderDocMenuId(null);
                   }},
-                  { icon: <X className="h-4 w-4" />, label: 'Klasörden Kaldır', color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm('Dosyadan Çıkar', 'Bu belgeyi dosyadan çıkarmak istiyor musunuz?', () => removeDocFromFile(id, activeDocFile.file_id)); } },
+                  { icon: <X className="h-4 w-4" />, label: t('removeFromFolder'), color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm(t('removeFromFolderTitle'), t('removeFromFolderMsg'), () => removeDocFromFile(id, activeDocFile.file_id)); } },
                 ];
                 return (
                   <>
@@ -3581,13 +3581,13 @@ MATCHES:[1,3,5]`;
               <div onClick={() => setFolderFileSheet(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
               <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1001, background: 'var(--zet-bg-card)', borderTop: '1px solid var(--zet-border)', borderRadius: '16px 16px 0 0', padding: '20px 16px 32px' }}>
                 <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'var(--zet-border)' }} />
-                <p className="text-sm font-semibold mb-4 px-1" style={{ color: 'var(--zet-text)' }}>{folderFileSheet.name} klasörüne ekle</p>
+                <p className="text-sm font-semibold mb-4 px-1" style={{ color: 'var(--zet-text)' }}>{folderFileSheet.name} {t('addToFolderSuffix')}</p>
                 {[
-                  { label: 'Fotoğraf Seç', accept: 'image/*', capture: undefined,
+                  { label: t('selectPhoto'), accept: 'image/*', capture: undefined,
                     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:20,height:20}}><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 11v6M9 14l3-3 3 3"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> },
-                  { label: 'Dosya Seç', accept: '*/*', capture: undefined,
+                  { label: t('selectFile'), accept: '*/*', capture: undefined,
                     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:20,height:20}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
-                  { label: 'Fotoğraf Çek', accept: 'image/*', capture: 'environment',
+                  { label: t('takePhoto'), accept: 'image/*', capture: 'environment',
                     icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:20,height:20}}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> },
                 ].map(opt => (
                   <label key={opt.label} className="flex items-center gap-4 w-full px-4 py-3.5 rounded-xl mb-2 cursor-pointer hover:bg-white/5 transition-all" style={{ border: '1px solid var(--zet-border)' }}>
@@ -3597,7 +3597,7 @@ MATCHES:[1,3,5]`;
                   </label>
                 ))}
                 <button onClick={() => setFolderFileSheet(null)} className="w-full py-3 rounded-xl text-sm font-medium mt-2" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--zet-text-muted)' }}>
-                  Vazgeç
+                  {t('cancel')}
                 </button>
               </div>
             </>
@@ -3607,8 +3607,8 @@ MATCHES:[1,3,5]`;
           {importMode && (
             <div className="mb-3 px-3 py-2 rounded-lg flex items-center gap-2 text-sm" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)', color: '#4ca8ad' }}>
               <FolderInput className="h-4 w-4 flex-shrink-0" />
-              <span>Aktarılacak belgeleri seçin</span>
-              <span className="ml-auto font-semibold">{importMode.selectedDocIds.size} seçili</span>
+              <span>{t('selectToImport')}</span>
+              <span className="ml-auto font-semibold">{importMode.selectedDocIds.size} {t('selected')}</span>
             </div>
           )}
 
@@ -3727,7 +3727,7 @@ MATCHES:[1,3,5]`;
                     { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) analyzeDocWithZeta(doc); } },
                     ...(userSubscription === 'creative_station' || isCEO ? [{
                       icon: <Scale className="h-4 w-4" style={{ color: '#c8005a' }} />,
-                      label: "Judge'a Gönder",
+                      label: t('judgeShare'),
                       color: '#c8005a',
                       action: async () => {
                         if (!doc) return;
@@ -3746,13 +3746,13 @@ MATCHES:[1,3,5]`;
                         } catch { showToast('Belge yüklenemedi', 'error'); }
                       }
                     }] : []),
-                    { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? 'Prime Drive\'da' : 'Prime Drive\'a At', color: inDrive ? '#6366f1' : undefined, action: () => {
+                    { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveIn') : t('primeDriveAdd'), color: inDrive ? '#6366f1' : undefined, action: () => {
                       if (!inDrive && doc) {
                         const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);
                         const updated = [...primeDriveDocs, { id: doc.doc_id, title: doc.title, size, addedAt: Date.now(), type: 'document' }];
                         setPrimeDriveDocs(updated);
                         localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
-                        showToast('Prime Drive\'a eklendi', 'success');
+                        showToast(t('primeDriveAdded'), 'success');
                       }
                       setOpenMenuDocId(null);
                     }},
@@ -3777,9 +3777,9 @@ MATCHES:[1,3,5]`;
           {/* Import mode bottom bar */}
           {importMode && !importProgress && (
             <div className="fixed bottom-0 left-0 right-0 z-50 flex items-center gap-3 px-4 py-3" style={{ background: 'var(--zet-bg-card)', borderTop: '1px solid var(--zet-border)', boxShadow: '0 -4px 20px rgba(0,0,0,0.3)' }}>
-              <span className="text-sm flex-1" style={{ color: 'var(--zet-text-muted)' }}>{importMode.selectedDocIds.size} belge seçildi</span>
-              <button onClick={() => setImportMode(null)} className="px-4 py-2 rounded-lg text-sm hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>İptal</button>
-              <button onClick={executeImport} disabled={importMode.selectedDocIds.size === 0} className="px-4 py-2 rounded-lg text-sm font-medium transition-all" style={{ background: importMode.selectedDocIds.size > 0 ? 'var(--zet-primary)' : 'var(--zet-border)', color: 'var(--zet-text)', opacity: importMode.selectedDocIds.size === 0 ? 0.5 : 1 }}>Tamamla</button>
+              <span className="text-sm flex-1" style={{ color: 'var(--zet-text-muted)' }}>{importMode.selectedDocIds.size} {t('docCountUnit')} {t('selected')}</span>
+              <button onClick={() => setImportMode(null)} className="px-4 py-2 rounded-lg text-sm hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)', border: '1px solid var(--zet-border)' }}>{t('cancel')}</button>
+              <button onClick={executeImport} disabled={importMode.selectedDocIds.size === 0} className="px-4 py-2 rounded-lg text-sm font-medium transition-all" style={{ background: importMode.selectedDocIds.size > 0 ? 'var(--zet-primary)' : 'var(--zet-border)', color: 'var(--zet-text)', opacity: importMode.selectedDocIds.size === 0 ? 0.5 : 1 }}>{t('importComplete')}</button>
             </div>
           )}
 
@@ -3788,12 +3788,12 @@ MATCHES:[1,3,5]`;
             <div className="fixed inset-0 z-50 flex flex-col items-center justify-center" style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}>
               <div className="rounded-2xl p-8 flex flex-col items-center gap-5 w-72" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
                 <FolderInput className="h-10 w-10" style={{ color: '#4ca8ad' }} />
-                <p className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>Belgeler aktarılıyor...</p>
+                <p className="text-base font-semibold" style={{ color: 'var(--zet-text)' }}>{t('importing')}</p>
                 <div className="w-full rounded-full overflow-hidden h-3" style={{ background: 'var(--zet-border)' }}>
                   <div className="h-3 rounded-full transition-all duration-300" style={{ width: `${Math.round((importProgress.current / importProgress.total) * 100)}%`, background: 'linear-gradient(90deg, #4ca8ad, var(--zet-primary-light))' }} />
                 </div>
                 <p className="text-2xl font-bold" style={{ color: '#4ca8ad' }}>{Math.round((importProgress.current / importProgress.total) * 100)}%</p>
-                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{importProgress.current} / {importProgress.total} belge</p>
+                <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{importProgress.current} / {importProgress.total} {t('docCountUnit')}</p>
               </div>
             </div>
           )}
@@ -4094,10 +4094,10 @@ MATCHES:[1,3,5]`;
       {/* Delete Document Confirmation */}
       {confirmDeleteDocId && (
         <DeleteConfirmModal
-          title="Çöp Kutusuna Taşı" subtitle="Belge çöp kutusuna taşınacak. İstersen geri alabilirsin."
+          title={t('trashMoveTitle')} subtitle={t('trashMoveMsg')}
           onConfirm={() => { deleteDocument(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
           onCancel={() => setConfirmDeleteDocId(null)}
-          cancelLabel={t('cancel')} confirmLabel="Taşı"
+          cancelLabel={t('cancel')} confirmLabel={t('moveBtn')}
         />
       )}
 
@@ -4108,20 +4108,20 @@ MATCHES:[1,3,5]`;
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
                 <Trash2 className="h-5 w-5" style={{ color: '#ef4444' }} />
-                <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Çöp Kutusu</h2>
+                <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>{t('recyclebin')}</h2>
                 <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>{trashDocs.length}</span>
               </div>
               <div className="flex items-center gap-2">
                 {trashDocs.length > 0 && (
-                  <button onClick={emptyTrash} className="text-xs px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Tümünü Sil</button>
+                  <button onClick={emptyTrash} className="text-xs px-3 py-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>{t('deleteAll')}</button>
                 )}
                 <button onClick={() => setShowTrash(false)} className="p-1.5 rounded-lg hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
               </div>
             </div>
             {trashLoading ? (
-              <p className="text-sm text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</p>
+              <p className="text-sm text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>{t('loading')}</p>
             ) : trashDocs.length === 0 ? (
-              <p className="text-sm text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>Çöp kutusu boş</p>
+              <p className="text-sm text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>{t('trashEmpty')}</p>
             ) : (
               <div className="flex flex-col gap-2 max-h-96 overflow-y-auto">
                 {trashDocs.map(doc => (
@@ -4129,12 +4129,12 @@ MATCHES:[1,3,5]`;
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</p>
                       <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>
-                        {formatTime(doc.deleted_at)} · <span style={{ color: '#f59e0b' }}>{trashDaysRemaining(doc.deleted_at)} gün kaldı</span>
+                        {formatTime(doc.deleted_at)} · <span style={{ color: '#f59e0b' }}>{trashDaysRemaining(doc.deleted_at)} {t('daysLeft')}</span>
                       </p>
                     </div>
                     <div className="flex items-center gap-2 ml-3">
-                      <button onClick={() => restoreDocument(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>Geri Al</button>
-                      <button onClick={() => permanentDelete(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>Kalıcı Sil</button>
+                      <button onClick={() => restoreDocument(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>{t('restore')}</button>
+                      <button onClick={() => permanentDelete(doc.doc_id)} className="text-xs px-2.5 py-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: '#ef4444', border: '1px solid rgba(239,68,68,0.3)' }}>{t('permanentDelete')}</button>
                     </div>
                   </div>
                 ))}

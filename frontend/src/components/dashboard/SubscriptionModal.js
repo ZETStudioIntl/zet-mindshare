@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { X, Star, Check, ChevronLeft, ChevronRight, ArrowRight } from 'lucide-react';
+import { useLanguage } from '../../contexts/LanguageContext';
 
 const PLAN_SLIDES = {
   free: [
@@ -359,12 +360,13 @@ const SubscriptionModal = ({
   handleSubscribe, handleBuyWithSP,
   initialSlide = null,
 }) => {
+  const { t } = useLanguage();
   // null = plans grid, { planId, idx } = inline slideshow
   const [slideView, setSlideView] = useState(initialSlide);
 
   const FREE_PLAN = {
     id: 'free', name: 'Free', monthlyPrice: 0, yearlyPrice: 0,
-    color: '#6b7280', zpCost: 0, features: ['80 Kredi/gün', '100K Token/gün', '1 Defter', '3 Fast Select', 'Temel araçlar'],
+    color: '#6b7280', zpCost: 0, features: ['feat80Credits', 'feat100kToken', 'feat1nb3fs', 'featBasicTools', 'featJudgeChat'],
   };
 
   const allPlans = [FREE_PLAN, ...SUBSCRIPTION_PLANS];
@@ -393,7 +395,7 @@ const SubscriptionModal = ({
               cursor: 'pointer', fontSize: 12, fontWeight: 600, padding: '0 0 16px',
             }}
           >
-            <ChevronLeft size={15} /> Planlara Dön
+            <ChevronLeft size={15} /> {t('backToPlans')}
           </button>
           <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.3)', cursor: 'pointer', padding: '0 0 16px' }}>
             <X size={18} />
@@ -493,8 +495,8 @@ const SubscriptionModal = ({
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
-          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0 }}>Planını Seç</h2>
-          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '4px 0 0' }}>İhtiyacına uygun paketi bul</p>
+          <h2 style={{ color: '#fff', fontSize: 20, fontWeight: 800, margin: 0 }}>{t('planSelectTitle')}</h2>
+          <p style={{ color: 'rgba(255,255,255,0.4)', fontSize: 12, margin: '4px 0 0' }}>{t('planSelectDesc')}</p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           {userZP > 0 && (
@@ -519,7 +521,7 @@ const SubscriptionModal = ({
                   fontSize: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4,
                 }}
               >
-                {cycle === 'monthly' ? 'Aylık' : 'Yıllık'}
+                {cycle === 'monthly' ? t('monthly') : t('yearly')}
                 {cycle === 'yearly' && (
                   <span style={{ background: '#22c55e', color: '#fff', fontSize: 9, borderRadius: 4, padding: '1px 4px' }}>-17%</span>
                 )}
@@ -564,7 +566,7 @@ const SubscriptionModal = ({
                   background: plan.color, color: '#fff', fontSize: 9, fontWeight: 700,
                   padding: '2px 10px', borderRadius: 99, whiteSpace: 'nowrap',
                 }}>
-                  MEVCUT PLAN
+                  {t('currentPlan').toUpperCase()}
                 </div>
               )}
               {plan.id === 'pro' && !isCurrent && (
@@ -573,7 +575,7 @@ const SubscriptionModal = ({
                   background: plan.color, color: '#fff', fontSize: 9, fontWeight: 700,
                   padding: '2px 10px', borderRadius: 99, whiteSpace: 'nowrap',
                 }}>
-                  ÖNERİLEN
+                  {t('recommended')}
                 </div>
               )}
 
@@ -582,11 +584,11 @@ const SubscriptionModal = ({
                 <div style={{ color: plan.color, fontSize: 14, fontWeight: 700, marginBottom: 6 }}>{plan.name}</div>
                 <div>
                   <span style={{ color: '#fff', fontSize: 22, fontWeight: 800 }}>
-                    {price === 0 ? 'Ücretsiz' : `$${price}`}
+                    {price === 0 ? t('freePrice') : `$${price}`}
                   </span>
                   {price > 0 && (
                     <span style={{ color: 'rgba(255,255,255,0.35)', fontSize: 11 }}>
-                      /{billingCycle === 'monthly' ? 'ay' : 'yıl'}
+                      {billingCycle === 'monthly' ? t('perMonth') : t('perYear')}
                     </span>
                   )}
                 </div>
@@ -597,7 +599,7 @@ const SubscriptionModal = ({
                 {plan.features.slice(0, 5).map((f, i) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 6, marginBottom: 6 }}>
                     <Check size={11} color={plan.color} style={{ flexShrink: 0, marginTop: 3 }} />
-                    <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, lineHeight: 1.4 }}>{f}</span>
+                    <span style={{ color: 'rgba(255,255,255,0.7)', fontSize: 11, lineHeight: 1.4 }}>{t(f)}</span>
                   </div>
                 ))}
                 {/* ZP bonus feature line */}
@@ -622,7 +624,7 @@ const SubscriptionModal = ({
                     display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
                   }}
                 >
-                  Paket Hakkında Herşey
+                  {t('packageDetails')}
                   <ArrowRight size={11} />
                 </button>
               )}
@@ -640,7 +642,7 @@ const SubscriptionModal = ({
                     opacity: subscribing ? 0.6 : 1,
                   }}
                 >
-                  {isCurrent ? 'Mevcut Plan' : 'Satın Al'}
+                  {isCurrent ? t('currentPlan') : t('buyNow')}
                 </button>
               )}
 
@@ -658,7 +660,7 @@ const SubscriptionModal = ({
                   }}
                 >
                   <Star size={11} />
-                  {plan.zpCost.toLocaleString()} ZP ile Al
+                  {plan.zpCost.toLocaleString()} {t('buyWithZPLabel')}
                 </button>
               )}
             </div>
@@ -667,7 +669,7 @@ const SubscriptionModal = ({
       </div>
 
       <p style={{ textAlign: 'center', color: 'rgba(255,255,255,0.2)', fontSize: 10, marginTop: 16 }}>
-        Abonelik aynı takvim günü her ay yenilenir · İptal etmek istersen her zaman iptal edebilirsin
+        {t('subscriptionRenewal')}
       </p>
     </>
   );
