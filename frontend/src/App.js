@@ -174,7 +174,7 @@ const GlobalHeartbeat = () => {
     if (!user) return;
 
     const INTERVAL = 30000;
-    const INACTIVE_LIMIT = 5 * 60 * 1000;
+    const INACTIVE_LIMIT = 3 * 60 * 1000;
 
     const onActivity = () => { lastActivityRef.current = Date.now(); };
     document.addEventListener('mousemove', onActivity, { passive: true });

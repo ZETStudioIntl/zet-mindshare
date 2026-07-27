@@ -7033,10 +7033,14 @@ async def get_quest_progress(user: User = Depends(get_current_user)):
 ISTANBUL_TZ_OFFSET = 3  # UTC+3
 
 @api_router.post("/users/heartbeat")
-async def user_heartbeat(user: User = Depends(get_current_user)):
+async def user_heartbeat(request: Request, user: User = Depends(get_current_user)):
     # Sunucu saatini kullan (İstanbul UTC+3) — client saatine güvenme
     now_utc = datetime.now(timezone.utc)
     now_istanbul = now_utc + timedelta(hours=ISTANBUL_TZ_OFFSET)
+    ip = request.headers.get("X-Forwarded-For", request.client.host if request.client else "").split(",")[0].strip()
+
+    # Hafızz: IP başına dakikada max 5 heartbeat (normal = 2/dk)
+    await hafizz.check_ip_rate_limit(db, ip, "heartbeat", limit=5, window_seconds=60)
 
     last_hb = user.last_heartbeat
 
@@ -7046,6 +7050,8 @@ async def user_heartbeat(user: User = Depends(get_current_user)):
             last_dt = datetime.fromisoformat(last_hb.replace("Z", "+00:00"))
             elapsed = (now_utc - last_dt).total_seconds()
             if elapsed < 25:
+                # Hafızz: 25 sn kuralını ihlal eden istek → anomaly
+                asyncio.create_task(hafizz.add_anomaly_score(db, user.user_id, 5, f"heartbeat_too_soon:{round(elapsed)}s"))
                 return {"ok": False, "reason": "too_soon", "elapsed": round(elapsed)}
         except Exception:
             pass
@@ -7062,7 +7068,21 @@ async def user_heartbeat(user: User = Depends(get_current_user)):
     except Exception as e:
         logging.error(f"heartbeat DB error: {e}")
         return {"ok": False, "reason": "db_error"}
+
+    # Hafızz: anomaly score yüksekse uyar (background)
+    asyncio.create_task(_hafizz_check_heartbeat(db, user.user_id))
+
     return {"ok": True, "server_time_istanbul": now_istanbul.strftime("%H:%M:%S")}
+
+
+async def _hafizz_check_heartbeat(db, user_id: str):
+    """Anomaly score 60+ ise heartbeat'i durdur ve kullanıcıyı bilgilendir."""
+    try:
+        score = await hafizz.get_anomaly_score(db, user_id)
+        if score >= 80:
+            asyncio.create_task(hafizz.notify_suspicious(db, user_id, f"Yüksek anomali skoru ({score}) — heartbeat durduruldu"))
+    except Exception as e:
+        logging.warning(f"Hafızz heartbeat check hatası: {e}")
 
 @api_router.post("/user/time-spent")
 async def update_time_spent(data: dict = Body(...), user: User = Depends(get_current_user)):
