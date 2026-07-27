@@ -3519,21 +3519,59 @@ MATCHES:[1,3,5]`;
                 )}
               </div>
               {/* Folder doc three-dot menu portal */}
-              {openFolderDocMenuId && (
-                <>
-                  <div onClick={() => setOpenFolderDocMenuId(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
-                  <div className="fixed py-1 rounded-xl min-w-[160px] animate-fadeIn" style={{ top: folderDocMenuPos.top, right: folderDocMenuPos.right, zIndex: 999, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()}>
-                    {[
-                      { icon: <ExternalLink className="h-4 w-4" />, label: 'Belgeyi Aç', action: () => { navigate(`/editor/${openFolderDocMenuId}`); setOpenFolderDocMenuId(null); } },
-                      { icon: <X className="h-4 w-4" />, label: 'Klasörden Kaldır', color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm('Dosyadan Çıkar', 'Bu belgeyi dosyadan çıkarmak istiyor musunuz?', () => removeDocFromFile(id, activeDocFile.file_id)); } },
-                    ].map(item => (
-                      <button key={item.label} onClick={item.action} className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5" style={{ color: item.color || 'var(--zet-text)' }}>
-                        {item.icon}{item.label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
+              {openFolderDocMenuId && (() => {
+                const doc = documents.find(d => d.doc_id === openFolderDocMenuId);
+                const inDrive = primeDriveDocs.some(d => d.id === openFolderDocMenuId);
+                const items = [
+                  { icon: <ExternalLink className="h-4 w-4" />, label: 'Belgeyi Aç', action: () => { navigate(`/editor/${openFolderDocMenuId}`); setOpenFolderDocMenuId(null); } },
+                  { icon: <Pin className="h-4 w-4" style={{ color: doc?.pinned ? '#f59e0b' : 'inherit' }} />, label: doc?.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { if (doc) { pinDocument(doc); setOpenFolderDocMenuId(null); } } },
+                  { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => { if (doc) { analyzeDocWithZeta(doc); setOpenFolderDocMenuId(null); } } },
+                  ...(userSubscription === 'creative_station' || isCEO ? [{
+                    icon: <Scale className="h-4 w-4" style={{ color: '#c8005a' }} />,
+                    label: "Judge'a Gönder",
+                    color: '#c8005a',
+                    action: async () => {
+                      if (!doc) return;
+                      setOpenFolderDocMenuId(null);
+                      try {
+                        const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
+                        const pages = res.data.pages || [];
+                        const text = pages.map(p => {
+                          const quillText = (p.content?.ops || []).map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
+                          if (quillText.trim()) return quillText;
+                          if (p.pageText) return p.pageText;
+                          return (p.elements || []).filter(el => el.type === 'text').map(el => el.content || '').join('\n');
+                        }).join('\n').trim();
+                        localStorage.setItem('judge_pending_doc', JSON.stringify({ title: doc.title, text: text.slice(0, 8000) }));
+                        navigate('/judge');
+                      } catch { showToast('Belge yüklenemedi', 'error'); }
+                    }
+                  }] : []),
+                  { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? "Prime Drive'da" : "Prime Drive'a At", color: inDrive ? '#6366f1' : undefined, action: () => {
+                    if (!inDrive && doc) {
+                      const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);
+                      const updated = [...primeDriveDocs, { id: doc.doc_id, title: doc.title, size, addedAt: Date.now(), type: 'document' }];
+                      setPrimeDriveDocs(updated);
+                      localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
+                      showToast("Prime Drive'a eklendi", 'success');
+                    }
+                    setOpenFolderDocMenuId(null);
+                  }},
+                  { icon: <X className="h-4 w-4" />, label: 'Klasörden Kaldır', color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm('Dosyadan Çıkar', 'Bu belgeyi dosyadan çıkarmak istiyor musunuz?', () => removeDocFromFile(id, activeDocFile.file_id)); } },
+                ];
+                return (
+                  <>
+                    <div onClick={() => setOpenFolderDocMenuId(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                    <div className="fixed py-1 rounded-xl min-w-[180px] animate-fadeIn" style={{ top: folderDocMenuPos.top, right: folderDocMenuPos.right, zIndex: 999, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()}>
+                      {items.map(item => (
+                        <button key={item.label} onClick={item.action} className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5" style={{ color: item.color || 'var(--zet-text)' }}>
+                          {item.icon}{item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                );
+              })()}
             </div>
           )}
 
