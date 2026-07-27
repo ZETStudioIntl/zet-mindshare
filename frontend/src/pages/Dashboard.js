@@ -3229,9 +3229,8 @@ MATCHES:[1,3,5]`;
                       <button
                         onClick={async () => {
                           try {
-                            await axios.post(`${API}/admin/give-test-cases`, {}, { withCredentials: true });
-                            const r2 = await axios.get(`${API}/inventory`, { withCredentials: true });
-                            setInventory(r2.data.cases || []);
+                            const res = await axios.post(`${API}/admin/give-test-cases`, {}, { withCredentials: true });
+                            setInventory(prev => [...prev, ...(res.data.items || [])]);
                             showToast('10 test item eklendi (3 kasa, 3 paket, 4 çark)', 'success');
                           } catch { showToast('Hata', 'error'); }
                         }}

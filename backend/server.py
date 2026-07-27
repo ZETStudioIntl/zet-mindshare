@@ -1830,7 +1830,7 @@ async def give_test_cases(user: User = Depends(get_current_user)):
     for _ in range(4):
         items.append({"id": f"wheel_{uuid.uuid4().hex[:12]}", "item_type": "daily_wheel", "acquired_at": now})
     await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": {"$each": items}}})
-    return {"added": 10}
+    return {"added": 10, "items": items}
 
 # ============ SOCIAL — USERS / FOLLOW ============
 
