@@ -3427,7 +3427,7 @@ MATCHES:[1,3,5]`;
                   const docCount = (file.document_ids || []).length;
                   const isOpen = activeDocFile?.file_id === file.file_id;
                   return (
-                    <div key={file.file_id} className="zet-card p-3 cursor-pointer group relative" onClick={() => { const isMobile = navigator.maxTouchPoints > 0 || 'ontouchstart' in window; if (isMobile && !isOpen) { setFolderFileSheet(file); } else { setActiveDocFile(isOpen ? null : file); } }}>
+                    <div key={file.file_id} className="zet-card p-3 cursor-pointer group relative" onClick={() => { setActiveDocFile(isOpen ? null : file); }}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f59e0b44, #f59e0b22)' }}>
                           {isOpen ? <FolderOpen className="h-5 w-5" style={{ color: '#f59e0b' }} /> : <Folder className="h-5 w-5" style={{ color: '#f59e0b' }} />}
