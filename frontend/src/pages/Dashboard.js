@@ -12,6 +12,7 @@ import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { ZPIcon, CreditIcon } from '../components/dashboard/CaseOpenModal';
 import WheelModal from '../components/dashboard/WheelModal';
+import PackOpenModal from '../components/dashboard/PackOpenModal';
 import OnboardingModal from '../components/dashboard/OnboardingModal';
 import AISettingsModal from '../components/dashboard/AISettingsModal';
 import CreditsModal from '../components/dashboard/CreditsModal';
@@ -190,6 +191,7 @@ const Dashboard = () => {
   const [inventory, setInventory] = useState([]);
   const [openingCaseId, setOpeningCaseId] = useState(null);
   const [openingWheelId, setOpeningWheelId] = useState(null);
+  const [openingPackId, setOpeningPackId] = useState(null);
   const [seasonData, setSeasonData] = useState(null);
   const [seasonForm, setSeasonForm] = useState({ start: '', end: '', loading: false });
   const [seasonResult, setSeasonResult] = useState(null);
@@ -295,6 +297,8 @@ const Dashboard = () => {
     { value: 'agresif',      label: 'Agresif',     labelKey: 'modeAgresif',      rarity: 'epik',  troll: true  },
     { value: 'robot',        label: 'Robot',       labelKey: 'modeRobot',        rarity: 'nadir', troll: true  },
     { value: 'yorgun',       label: 'Yorgun',      labelKey: 'modeYorgun',       rarity: 'nadir', troll: true  },
+    { value: 'dedektif',     label: 'Dedektif',    labelKey: 'modeDedektif',     rarity: 'epik',  troll: true  },
+    { value: 'felsefi',      label: 'Felsefi',     labelKey: 'modeFelsefi',      rarity: 'epik',  troll: true  },
   ];
   const sortedDashModes = useMemo(() => {
     const withLocked = DASH_MODES_DEF.map(m => ({ ...m, locked: m.troll && !dUnlockedModes.includes(m.value) }));
@@ -3250,25 +3254,39 @@ MATCHES:[1,3,5]`;
                   ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
                       {inventory.map((c) => {
-                        const isWheel = c.item_type === 'daily_wheel' || c.item_type === 'rank_wheel';
-                        const accentColor = isWheel ? '#a78bfa' : '#60a5fa';
-                        const borderColor = isWheel ? '#3b2a5a' : '#2a2a5a';
-                        const bgGradient = isWheel ? 'linear-gradient(135deg, #12082a, #1a1040)' : 'linear-gradient(135deg, #0f0f2a, #1a1a3a)';
+                        const isPack  = c.item_type === 'rank_case';
+                        const isWheel = !isPack && (c.item_type === 'daily_wheel' || c.item_type === 'rank_wheel' || c.type === 'daily_wheel');
+                        const accentColor = isPack ? '#c084fc' : isWheel ? '#a78bfa' : '#60a5fa';
+                        const borderColor = isPack ? '#3a1a5a' : isWheel ? '#3b2a5a' : '#2a2a5a';
+                        const bgGradient  = isPack
+                          ? 'linear-gradient(160deg, #1a0a2e, #2d1054, #1a0a2e)'
+                          : isWheel ? 'linear-gradient(135deg, #12082a, #1a1040)' : 'linear-gradient(135deg, #0f0f2a, #1a1a3a)';
+                        const handleClick = () => isPack ? setOpeningPackId(c.id) : isWheel ? setOpeningWheelId(c.id) : setOpeningCaseId(c.id);
                         return (
                           <button
                             key={c.id}
-                            onClick={() => isWheel ? setOpeningWheelId(c.id) : setOpeningCaseId(c.id)}
-                            style={{ background: bgGradient, border: `1px solid ${borderColor}`, borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                            onClick={handleClick}
+                            style={{ background: bgGradient, border: `1px solid ${borderColor}`, borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, position: 'relative', overflow: 'hidden' }}
                             onMouseEnter={e => { e.currentTarget.style.border = `1px solid ${accentColor}`; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                             onMouseLeave={e => { e.currentTarget.style.border = `1px solid ${borderColor}`; e.currentTarget.style.transform = 'translateY(0)'; }}
                           >
-                            {isWheel ? (
+                            {isPack ? (
+                              <>
+                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28, background: 'linear-gradient(90deg, #2d1054, #3b1470, #2d1054)', borderRadius: '14px 14px 0 0', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 8px' }}>
+                                  {[5, 11, 17].map(t => <div key={t} style={{ height: 1.5, background: 'linear-gradient(90deg, transparent, rgba(251,191,36,0.6), transparent)', borderRadius: 1 }} />)}
+                                </div>
+                                <div style={{ marginTop: 22 }}>
+                                  <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#c084fc" strokeWidth="1" strokeDasharray="3 2" fill="rgba(192,132,252,0.06)"/><text x="19" y="25" textAnchor="middle" fill="#c084fc" fontSize="18" fontWeight="700" fontFamily="sans-serif">Z</text></svg>
+                                </div>
+                                <span style={{ fontSize: 11, color: '#c084fc', fontWeight: 700, letterSpacing: 1 }}>PAKET</span>
+                              </>
+                            ) : isWheel ? (
                               <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.08)"/><circle cx="19" cy="19" r="3.5" fill="#a78bfa"/><path d="M19 3v5M19 30v5M3 19h5M30 19h5M7.1 7.1l3.5 3.5M27.4 27.4l3.5 3.5M7.1 30.9l3.5-3.5M27.4 10.6l3.5-3.5" stroke="#a78bfa" strokeWidth="1.4" strokeLinecap="round"/></svg>
                             ) : (
                               <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><rect x="5" y="15" width="28" height="18" rx="3" stroke="#60a5fa" strokeWidth="1.5" fill="rgba(96,165,250,0.08)"/><path d="M5 21h28" stroke="#60a5fa" strokeWidth="1.5"/><path d="M19 7v8M13 9l6 6 6-6" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
                             )}
-                            <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? t('luckyWheel') : t('dailyCase')}</span>
-                            <span style={{ fontSize: 10, color: '#555', background: `rgba(${isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>{t('openToClick')}</span>
+                            {!isPack && <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? t('luckyWheel') : t('dailyCase')}</span>}
+                            <span style={{ fontSize: 10, color: '#555', background: `rgba(${isPack ? '192,132,252' : isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>{t('openToClick')}</span>
                           </button>
                         );
                       })}
@@ -4562,6 +4580,19 @@ MATCHES:[1,3,5]`;
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingWheelId));
             if (r.type === 'zp') setUserZP(prev => prev + r.amount);
+          }}
+        />
+      )}
+
+      {/* Paket Modalı */}
+      {openingPackId && (
+        <PackOpenModal
+          packId={openingPackId}
+          showToast={showToast}
+          onClose={() => setOpeningPackId(null)}
+          onReward={(r) => {
+            setInventory(prev => prev.filter(c => c.id !== openingPackId));
+            if (r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);
           }}
         />
       )}

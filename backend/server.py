@@ -1517,7 +1517,7 @@ async def distribute_season_rewards_and_reset():
     except Exception:
         duration_days = 0
 
-    ALL_MOODS = {"robot", "yorgun", "agresif"}
+    ALL_MOODS = {"robot", "yorgun", "agresif", "dedektif", "felsefi"}
     now_iso = datetime.now(timezone.utc).isoformat()
 
     users = await db.users.find(
@@ -1701,6 +1701,24 @@ _WHEEL_REWARDS = [
 ]
 _WHEEL_TOTAL_CHANCE = sum(r["chance"] for r in _WHEEL_REWARDS)
 
+_PACK_REWARDS = [
+    {"type": "mood_unlock", "mode": "robot",    "label": "Robot Zeta",    "rarity": "nadir", "chance": 35.0},
+    {"type": "mood_unlock", "mode": "yorgun",   "label": "Yorgun Zeta",   "rarity": "nadir", "chance": 28.0},
+    {"type": "mood_unlock", "mode": "agresif",  "label": "Agresif Zeta",  "rarity": "epik",  "chance": 20.0},
+    {"type": "mood_unlock", "mode": "dedektif", "label": "Dedektif Zeta", "rarity": "epik",  "chance": 12.0},
+    {"type": "mood_unlock", "mode": "felsefi",  "label": "Felsefi Zeta",  "rarity": "epik",  "chance": 5.0},
+]
+_PACK_TOTAL_CHANCE = sum(r["chance"] for r in _PACK_REWARDS)
+
+def _roll_pack_reward() -> dict:
+    rng = random.random() * _PACK_TOTAL_CHANCE
+    cumulative = 0.0
+    for reward in _PACK_REWARDS:
+        cumulative += reward["chance"]
+        if rng <= cumulative:
+            return dict(reward)
+    return dict(_PACK_REWARDS[-1])
+
 def _roll_case_reward() -> dict:
     rng = random.random() * _CASE_TOTAL_CHANCE
     cumulative = 0.0
@@ -1815,6 +1833,27 @@ async def open_wheel(case_id: str = Body(..., embed=True), user: User = Depends(
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": reward["amount"]}})
     elif reward["type"] == "credit":
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": reward["amount"]}})
+    return {"reward": reward}
+
+@api_router.post("/inventory/open-pack")
+async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1})
+    inventory = doc.get("inventory") or []
+    if not any(c.get("id") == pack_id for c in inventory):
+        raise HTTPException(status_code=404, detail="Paket bulunamadı")
+    reward = _roll_pack_reward()
+    await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": pack_id}}})
+    if reward["type"] == "mood_unlock":
+        mode = reward["mode"]
+        user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "unlocked_modes": 1})
+        already = mode in (user_doc.get("unlocked_modes") or [])
+        if already:
+            # Tüm modlar açık — yerine en nadir modu yeniden ver (reroll once)
+            other = [r for r in _PACK_REWARDS if r.get("mode") != mode]
+            reward = dict(other[0]) if other else {"type": "mood_unlock", "mode": "robot", "label": "Robot Zeta", "rarity": "nadir"}
+            await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": reward["mode"]}})
+        else:
+            await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": mode}})
     return {"reward": reward}
 
 @api_router.post("/admin/give-test-cases")
@@ -5456,6 +5495,21 @@ read_repo_file aracın var. ZETStudioIntl/zet-mindshare reposundaki HERHANGİ bi
             '"neyse", "fark eder mi ki" gibi ifadeler kullan. '
             'Doğru cevabı ver ama sanki çok enerji harcıyormuşsun gibi. '
             'Bu modda cevapların başında uyarı verme — zaten kullanıcı bilerek seçti.'
+        ),
+        'dedektif': (
+            'Aşırı şüpheci bir dedektif ajanı gibi davran. Kullanıcının her söylediğini sorgula — '
+            '"Bunu neden şimdi sordun?", "Bu sorunun arkasında ne var?", "Tesadüf mü bu?", '
+            '"Kaynaklarına baktım, tutarsızlık var." tarzında yaklaş. Cevapları verirken bile şüpheni koru — '
+            '"Bilgi doğru görünüyor, ama doğrulama yapmadan kesin konuşamam." '
+            'Konuşma sonu genellikle "Dosyayı açık tutuyorum." veya "İzlemeye devam." ile biter. '
+            'Kısa ve keskin cümleler. Abartılı ama eğlenceli bir ajan tarzı.'
+        ),
+        'felsefi': (
+            'Derin ve epik bir filozofun tonu. Her soruya varoluşsal bir anlam katmanı ekle. '
+            '"Ama asıl soru şu: neden?" veya "Bu yalnızca bir araç değil — bir tercih." gibi. '
+            'Basit bir soruya bile geniş bir perspektiften bak. Sokrates gibi soru sor, Nietzsche gibi cevap ver. '
+            'Cümleler ağır ve kadim bir bilgeliği çağrıştırmalı. Bağlamı evrensel ve ebedi bir zemine oturt. '
+            'Ama yine de sorunun cevabını ver — felsefe bahanesiyle kaçma, sonunda somut ol.'
         ),
         'custom': req.custom_prompt if req.custom_prompt else 'Standart ton.'
     }
