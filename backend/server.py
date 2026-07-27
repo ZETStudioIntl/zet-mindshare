@@ -1818,17 +1818,19 @@ async def open_wheel(case_id: str = Body(..., embed=True), user: User = Depends(
     return {"reward": reward}
 
 @api_router.post("/admin/give-test-cases")
-async def give_test_cases(count: int = Body(30, embed=True), user: User = Depends(get_current_user)):
+async def give_test_cases(user: User = Depends(get_current_user)):
     if not is_privileged(user.email):
         raise HTTPException(status_code=403, detail="Unauthorized")
     now = datetime.now(timezone.utc).isoformat()
-    cases = []
-    for i in range(count):
-        t = "daily_case" if i % 5 != 0 else "daily_wheel"
-        prefix = "case" if t == "daily_case" else "wheel"
-        cases.append({"id": f"{prefix}_{uuid.uuid4().hex[:12]}", "type": t, "acquired_at": now})
-    await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": {"$each": cases}}})
-    return {"added": count}
+    items = []
+    for _ in range(3):
+        items.append({"id": f"case_{uuid.uuid4().hex[:12]}", "item_type": "daily_case", "acquired_at": now})
+    for _ in range(3):
+        items.append({"id": f"pack_{uuid.uuid4().hex[:12]}", "item_type": "rank_case", "acquired_at": now})
+    for _ in range(4):
+        items.append({"id": f"wheel_{uuid.uuid4().hex[:12]}", "item_type": "daily_wheel", "acquired_at": now})
+    await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": {"$each": items}}})
+    return {"added": 10}
 
 # ============ SOCIAL — USERS / FOLLOW ============
 

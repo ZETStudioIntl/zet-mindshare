@@ -1104,7 +1104,7 @@ const Dashboard = () => {
     try {
       const formData = new FormData();
       formData.append('file', file);
-      const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true, headers: { 'Content-Type': 'multipart/form-data' } });
+      const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true });
       setDriveFiles(prev => [res.data, ...prev]);
       setDriveUsed(prev => prev + res.data.size);
       showToast(`${file.name} yüklendi`, 'success');
@@ -3229,16 +3229,16 @@ MATCHES:[1,3,5]`;
                       <button
                         onClick={async () => {
                           try {
-                            await axios.post(`${API}/admin/give-test-cases`, { count: 30 }, { withCredentials: true });
+                            await axios.post(`${API}/admin/give-test-cases`, {}, { withCredentials: true });
                             const r2 = await axios.get(`${API}/inventory`, { withCredentials: true });
                             setInventory(r2.data.cases || []);
-                            showToast('30 test kasası eklendi', 'success');
+                            showToast('10 test item eklendi (3 kasa, 3 paket, 4 çark)', 'success');
                           } catch { showToast('Hata', 'error'); }
                         }}
                         className="text-xs px-3 py-1.5 rounded-lg"
                         style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)', cursor: 'pointer' }}
                       >
-                        Test: 30 Kasa Ekle
+                        Test: 10 Item Ekle
                       </button>
                     )}
                   </div>
@@ -4087,8 +4087,8 @@ MATCHES:[1,3,5]`;
       )}
 
       {/* Backdrop to close floating menus */}
-      {(openMenuNoteId || openMenuDocId || openMenuNotebookId) && (
-        <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuNoteId(null); setOpenMenuDocId(null); setOpenMenuNotebookId(null); }} />
+      {(openMenuNoteId || openMenuDocId || openMenuNotebookId || openMenuFileId) && (
+        <div className="fixed inset-0 z-40" onClick={() => { setOpenMenuNoteId(null); setOpenMenuDocId(null); setOpenMenuNotebookId(null); setOpenMenuFileId(null); }} />
       )}
 
       {/* Delete Document Confirmation */}
