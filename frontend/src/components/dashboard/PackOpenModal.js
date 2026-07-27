@@ -2,7 +2,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-const TEAR_THRESHOLD = 65;
+const TEAR_THRESHOLD = 45;
 
 const RARITY = {
   nadir:  { label: 'Nadir',  color: '#60a5fa', glow: 'rgba(96,165,250,0.55)'  },
@@ -65,8 +65,8 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
       setReward(res.data.reward);
       if (onReward) onReward(res.data.reward);
     } catch {
-      showToast('Paket açılamadı', 'error');
-      onClose();
+      showToast('Paket açılamadı — tekrar dene', 'error');
+      fetched.current = false;
     }
   }, [packId, onClose, onReward, showToast]);
 
@@ -82,7 +82,8 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
 
   const onMove = useCallback((e) => {
     if (!isDragging.current) return;
-    const cx = e.clientX ?? e.touches?.[0]?.clientX ?? startX.current;
+    if (e.cancelable) e.preventDefault();
+    const cx = e.touches ? (e.touches[0]?.clientX ?? startX.current) : e.clientX;
     const dx = cx - startX.current;
     setDragX(dx);
     if (Math.abs(dx) > TEAR_THRESHOLD) triggerTear(dx > 0 ? 1 : -1);
@@ -95,7 +96,7 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
   useEffect(() => {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
-    window.addEventListener('touchmove', onMove, { passive: true });
+    window.addEventListener('touchmove', onMove, { passive: false });
     window.addEventListener('touchend', onUp);
     return () => {
       window.removeEventListener('mousemove', onMove);
@@ -156,7 +157,7 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
         ×
       </button>
 
-      <div style={{ position: 'relative', width: 200, userSelect: 'none' }}>
+      <div style={{ position: 'relative', width: 200, userSelect: 'none', touchAction: 'none' }}>
 
         {/* ── CARD (behind pack, rises up) ── */}
         <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 1, ...cardTf }}>
@@ -216,8 +217,8 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
           {/* ── TOP FLAP ── */}
           <div
             onMouseDown={e => onDragStart(e.clientX)}
-            onTouchStart={e => onDragStart(e.touches[0].clientX)}
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '37%', transformOrigin: 'center top', zIndex: 10, cursor: phase === 'idle' || phase === 'dragging' ? 'grab' : 'default', ...flapTf }}
+            onTouchStart={e => { e.stopPropagation(); onDragStart(e.touches[0]?.clientX ?? 0); }}
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '37%', transformOrigin: 'center top', zIndex: 10, cursor: phase === 'idle' || phase === 'dragging' ? 'grab' : 'default', touchAction: 'none', WebkitUserSelect: 'none', ...flapTf }}
           >
             <div style={{ width: '100%', height: '100%', borderRadius: '14px 14px 0 0', background: 'linear-gradient(160deg, #240c4a 0%, #3d1878 50%, #240c4a 100%)', clipPath: torn ? 'none' : TORN_CLIP, position: 'relative', overflow: 'hidden' }}>
               {/* Gold foil lines */}
