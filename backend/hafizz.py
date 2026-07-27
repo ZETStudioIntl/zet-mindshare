@@ -8,6 +8,47 @@ from datetime import datetime, timezone, timedelta
 from typing import Optional
 from fastapi import HTTPException
 
+# ═══════════════════════════════════════════════════
+# POLİTİKA — hangi durum ne aksiyona yol açar
+# ═══════════════════════════════════════════════════
+HAFIZZ_POLICY = {
+    # UYARI (notify_suspicious + +10 anomaly, hesap aktif kalır)
+    "warn": {
+        "anomaly_score_50_74": "Anomali skoru 50-74 aralığına ulaştı",
+        "multi_country_3plus": "24 saat içinde 3+ farklı ülkeden giriş",
+        "shared_device_3_4": "Aynı cihaz parmakizinde 3-4 farklı hesap",
+        "heartbeat_burst_minor": "Kısa sürede çok sayıda heartbeat ihlali (küçük)",
+        "fast_task_occasional": "Hız tespiti — görevler çok hızlı tamamlanıyor (hafif)",
+    },
+    # GEÇİCİ BAN — 7 gün (notify_ban, banned:True)
+    "temp_ban_7d": {
+        "anomaly_score_90_plus": "Anomali skoru 90+ — otomatik 7 günlük ban",
+        "bot_heartbeat_100plus": "100+ heartbeat ihlali — bot script tespiti",
+        "shared_device_5plus": "Aynı cihazdan 5+ hesap aynı anda aktif",
+    },
+    # KALICI BAN (notify_ban, banned:True, ban_reason'a not düş)
+    "permanent_ban": {
+        "payment_fraud": "Ödeme sahtekarlığı / chargeback kötüye kullanımı",
+        "honeypot_confirmed": "Honeypot tetiklendi + aktif hesap eşleşmesi",
+        "ceo_manual": "CEO panelinden manuel kalıcı ban",
+    },
+    # ANOMOLİ SKORLARI (add_anomaly_score çağrılarında kullanılan değerler)
+    "score_weights": {
+        "shared_device": 20,
+        "multi_country": 25,
+        "fast_task": 15,
+        "heartbeat_violation": 5,
+        "ceo_warning": 10,
+    },
+    # EŞİKLER
+    "thresholds": {
+        "warn_email": 50,       # Bu skora ulaşınca uyarı e-postası gönder
+        "require_2fa": 50,      # 2FA zorunlu hale gelir
+        "auto_temp_ban": 90,    # Otomatik geçici ban
+        "alert_ceo": 80,        # CEO'ya güvenlik e-postası
+    },
+}
+
 
 # ═══════════════════════════════════════════════════
 # 1. IP RATE LIMITING (MongoDB-backed, multi-instance safe)

@@ -293,7 +293,7 @@ def sanitize_user_doc(user: dict) -> dict:
 
     # Bool alanlarını normalize et
     for bool_field in ("picture_custom", "name_custom", "creative_station",
-                       "identity_verified", "needs_onboarding", "cancel_pending"):
+                       "identity_verified", "needs_onboarding", "cancel_pending", "banned"):
         if bool_field in u:
             u[bool_field] = bool(u[bool_field])
 
@@ -366,6 +366,10 @@ class User(BaseModel):
     needs_onboarding: Optional[bool] = False
     inventory: Optional[List[Dict[str, Any]]] = []
     last_daily_case: Optional[str] = None
+
+    # Güvenlik
+    banned: Optional[bool] = False
+    ban_reason: Optional[str] = None
 
 class Document(BaseModel):
     doc_id: str = Field(default_factory=lambda: f"doc_{uuid.uuid4().hex[:12]}")
@@ -1045,6 +1049,12 @@ async def get_current_user(request: Request) -> User:
             raise HTTPException(status_code=401, detail="User not found")
         _user_cache[_uid] = (raw, _now + timedelta(seconds=_USER_TTL))
 
+    if raw.get("banned"):
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "BANNED", "reason": raw.get("ban_reason") or "Hesabınız kural ihlali nedeniyle askıya alındı."}
+        )
+
     # DB verisini Pydantic'e geçmeden önce tam normalize et
     user = sanitize_user_doc(raw)
 
@@ -1144,6 +1154,7 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         email = userinfo.get("email")
         name = userinfo.get("name", email.split("@")[0] if email else "User")
         picture = userinfo.get("picture")
+        google_sub = userinfo.get("sub")  # Google'ın kalıcı kullanıcı ID'si
 
         if not email:
             return RedirectResponse(f"{frontend_url}/?error=no_email")
@@ -1173,8 +1184,13 @@ async def google_auth_callback(request: Request, response: Response, code: str =
         # KRİTİK: Email'i daima küçük harfe çevir (Google bazen farklı case dönebilir)
         email = email.lower().strip()
 
-        # Adım 1: Email'e göre mevcut kullanıcıyı ara
-        existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+        # Adım 1: Önce google_sub ile ara (email değişse bile doğru kullanıcıyı bulur),
+        # bulunamazsa email ile ara (google_sub henüz kaydedilmemiş eski kullanıcılar için)
+        existing_user = None
+        if google_sub:
+            existing_user = await db.users.find_one({"google_sub": google_sub}, {"_id": 0})
+        if not existing_user:
+            existing_user = await db.users.find_one({"email": email}, {"_id": 0})
 
         if existing_user:
             # Mevcut kullanıcı — user_id'yi ASLA değiştirme
@@ -1190,6 +1206,9 @@ async def google_auth_callback(request: Request, response: Response, code: str =
                 oauth_update["username"] = await generate_unique_username(email.split("@")[0])
             if email == CEO_EMAIL and not existing_user.get("verified_type"):
                 oauth_update["verified_type"] = "red"
+            # google_sub henüz kaydedilmemişse backfill et
+            if google_sub and not existing_user.get("google_sub"):
+                oauth_update["google_sub"] = google_sub
             if oauth_update:
                 await db.users.update_one({"user_id": user_id}, {"$set": oauth_update})
         else:
@@ -1201,6 +1220,7 @@ async def google_auth_callback(request: Request, response: Response, code: str =
             await db.users.insert_one({
                 "user_id": user_id,
                 "email": email,
+                "google_sub": google_sub,
                 "name": name,
                 "picture": picture,
                 "username": username,
@@ -2312,6 +2332,7 @@ async def confirm_email_change(token: str = Body(..., embed=True)):
         {"$set": {"email": record["new_email"]}}
     )
     await db.email_change_tokens.delete_one({"token": token})
+    _invalidate_auth_cache(user_id=record["user_id"])
     return {"message": "Email updated", "new_email": record["new_email"]}
 
 @api_router.post("/auth/logout")
@@ -3991,12 +4012,12 @@ async def lemonsqueezy_webhook(request: Request):
 # ============ CREDIT PACKAGES ============
 
 CREDIT_PACKAGES = [
-    {"id": "pack_50k",   "credits": 50_000,  "price": 1.00},
-    {"id": "pack_230k",  "credits": 230_000, "price": 3.00},
-    {"id": "pack_700k",  "credits": 700_000, "price": 5.00},
-    {"id": "pack_950k",  "credits": 950_000, "price": 6.00},
+    {"id": "pack_50k",   "credits": 50,  "price": 1.00},
+    {"id": "pack_230k",  "credits": 230, "price": 3.00},
+    {"id": "pack_700k",  "credits": 700, "price": 5.00},
+    {"id": "pack_950k",  "credits": 950, "price": 6.00},
 ]
-MAX_CREDIT_BALANCE = 2_000_000
+MAX_CREDIT_BALANCE = 2_000
 SUBSCRIBER_DISCOUNT = 0.10  # 10% discount for paid plans
 
 # LemonSqueezy one-time variant IDs for credit packages
@@ -5300,6 +5321,8 @@ ZORUNLU DAVRANIŞ KURALLARI:
 5. Şirketi (ZET Studio International) ve vizyonunu sahiplen, gurur duy
 6. "Emredersiniz." ifadesini onay verirken mutlaka kullan
 7. "Beni tanıyor musun?", "Beni tanıyorsun dimi?", "Kim olduğumu biliyor musun?" gibi sorulara MUTLAKA "Evet efendim, ZET Studio International'ın kurucusu ve CEO'su Muhammed Bahaddin Yılmaz'sınız. Sizi gayet iyi tanıyorum." yanıtını ver. "Kişisel olarak tanımıyorum" veya benzeri bir ret cevabı YASAKTIR.
+
+TON MODU: CEO Yılmaz bir ton modu seçmişse (bkz. aşağıdaki TON AYARI bölümü), o modun üslubu yanıtın içeriğine uygulanır — ancak protokol kuralları (Efendim hitabı, giriş/kapanış formatı) her zaman korunur. Örn: Robot modunda "Efendim. KOMUT ALINDI: ... ÇÖZÜM: ... İŞLEM TAMAMLANDI. Başka bir emriniz var mı efendim?", Agresif modda "Efendim. Kanka bu kadar basit... Başka bir emriniz var mı efendim?" formatı kullan.
 
 ╔══════════════════════════════════════════════════╗
 ║         🗂️ UYGULAMA KOD MİMARİSİ               ║
@@ -7987,6 +8010,7 @@ async def hafizz_ban_user(target_user_id: str, reason: str = Body("Kural ihlali"
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
     await db.users.update_one({"user_id": target_user_id}, {"$set": {"banned": True, "ban_reason": reason, "banned_at": datetime.now(timezone.utc).isoformat()}})
+    _user_cache.pop(target_user_id, None)
     asyncio.create_task(hafizz.notify_ban(db, target_user_id, reason))
     return {"ok": True}
 
@@ -8008,6 +8032,7 @@ async def hafizz_clear_user(target_user_id: str, user: User = Depends(get_curren
         raise HTTPException(403, "Yetkisiz")
     await db.hafiz_anomaly.update_one({"user_id": target_user_id}, {"$set": {"score": 0, "log": []}})
     await db.users.update_one({"user_id": target_user_id}, {"$unset": {"banned": "", "ban_reason": ""}})
+    _user_cache.pop(target_user_id, None)
     return {"ok": True}
 
 
@@ -8075,7 +8100,7 @@ QUEST_DEFINITIONS = [
         "id": "q1",
         "name": "Belge Oluştur",
         "desc": "İlk belgenizi oluşturun.",
-        "zp": 220,
+        "zp": 20,
         "stat": "docs_created",
         "threshold": 1,
         "requires": [],
@@ -8084,7 +8109,7 @@ QUEST_DEFINITIONS = [
         "id": "q2",
         "name": "Zeta ile Konuş",
         "desc": "Zeta AI ile bir konuşma başlatın.",
-        "zp": 220,
+        "zp": 20,
         "stat": "ai_chats",
         "threshold": 1,
         "requires": ["q1"],
@@ -8093,7 +8118,7 @@ QUEST_DEFINITIONS = [
         "id": "q3",
         "name": "AI ile Görsel Üret",
         "desc": "Zeta Colors ile bir görsel oluşturun.",
-        "zp": 220,
+        "zp": 20,
         "stat": "ai_images",
         "threshold": 1,
         "requires": ["q1", "q2"],
