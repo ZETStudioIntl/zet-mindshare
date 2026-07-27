@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import "@/index.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
@@ -20,6 +20,35 @@ import JudgeDashboard from "./pages/JudgeDashboard";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import MediaApp from "./apps/media/App";
 import axios from "axios";
+
+const BanScreen = ({ reason }) => (
+  <div style={{
+    position: 'fixed', inset: 0, zIndex: 999999,
+    background: 'linear-gradient(160deg, #0a0a1e 0%, #060612 100%)',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: 20, padding: 32, fontFamily: 'system-ui, sans-serif',
+  }}>
+    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+      <circle cx="32" cy="32" r="30" stroke="#ef4444" strokeWidth="3" fill="#ef444414" />
+      <path d="M20 20L44 44M44 20L20 44" stroke="#ef4444" strokeWidth="3.5" strokeLinecap="round" />
+    </svg>
+    <div style={{ color: '#f1f5f9', fontSize: 22, fontWeight: 700, textAlign: 'center' }}>
+      Hesabınız Askıya Alındı
+    </div>
+    <div style={{
+      color: '#94a3b8', fontSize: 14, textAlign: 'center', maxWidth: 420, lineHeight: 1.6,
+      background: '#ffffff0a', border: '1px solid #ef444430', borderRadius: 12, padding: '14px 20px',
+    }}>
+      {reason || "Kural ihlali nedeniyle hesabınıza erişim engellendi."}
+    </div>
+    <div style={{ color: '#64748b', fontSize: 13, marginTop: 8 }}>
+      İtiraz için{' '}
+      <a href="mailto:support@zetstudiointl.com" style={{ color: '#6366f1', textDecoration: 'none' }}>
+        support@zetstudiointl.com
+      </a>
+    </div>
+  </div>
+);
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -260,6 +289,24 @@ const AppRouter = () => {
 };
 
 function App() {
+  const [banInfo, setBanInfo] = useState(null);
+
+  useEffect(() => {
+    const interceptorId = axios.interceptors.response.use(
+      (res) => res,
+      (err) => {
+        if (err?.response?.status === 403) {
+          const detail = err.response.data?.detail;
+          if (detail?.code === 'BANNED') {
+            setBanInfo({ reason: detail.reason });
+          }
+        }
+        return Promise.reject(err);
+      }
+    );
+    return () => axios.interceptors.response.eject(interceptorId);
+  }, []);
+
   useEffect(() => {
     const pub = process.env.PUBLIC_URL || '';
     const s = document.createElement('style');
@@ -272,6 +319,8 @@ function App() {
     document.head.appendChild(s);
     return () => document.getElementById('__zet-cursors')?.remove();
   }, []);
+
+  if (banInfo) return <BanScreen reason={banInfo.reason} />;
 
   return (
     <LanguageProvider>

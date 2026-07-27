@@ -241,6 +241,9 @@ const Dashboard = () => {
   const [showNewFile, setShowNewFile] = useState(false);
   const [openMenuFileId, setOpenMenuFileId] = useState(null);
   const [fileMenuPos, setFileMenuPos] = useState({ top: 0, right: 0 });
+  const [openFolderDocMenuId, setOpenFolderDocMenuId] = useState(null);
+  const [folderDocMenuPos, setFolderDocMenuPos] = useState({ top: 0, right: 0 });
+  const [folderFileSheet, setFolderFileSheet] = useState(null);
   const [renamingFileId, setRenamingFileId] = useState(null);
   const [renamingFileName, setRenamingFileName] = useState('');
   const [importMode, setImportMode] = useState(null); // { fileId, selectedDocIds: Set }
@@ -761,7 +764,8 @@ const Dashboard = () => {
       const res = await axios.get(`${API}/documents?skip=0&limit=500`, { withCredentials: true });
       if (res.data && res.data.length > 0) {
         for (const doc of res.data) {
-          await saveDoc({ ...doc, updated_at: doc.updated_at || new Date().toISOString() });
+          // Liste endpoint'i pages'i döndürmüyor — sadece metadata kaydet, pages'e dokunma
+          await saveDoc({ ...doc, pages: undefined, updated_at: doc.updated_at || new Date().toISOString() });
         }
       }
       localStorage.setItem('zet_local_migration_done', '1');
@@ -3424,7 +3428,7 @@ MATCHES:[1,3,5]`;
                   const docCount = (file.document_ids || []).length;
                   const isOpen = activeDocFile?.file_id === file.file_id;
                   return (
-                    <div key={file.file_id} className="zet-card p-3 cursor-pointer group relative" onClick={() => setActiveDocFile(isOpen ? null : file)}>
+                    <div key={file.file_id} className="zet-card p-3 cursor-pointer group relative" onClick={() => { const isMobile = navigator.maxTouchPoints > 0 || 'ontouchstart' in window; if (isMobile && !isOpen) { setFolderFileSheet(file); } else { setActiveDocFile(isOpen ? null : file); } }}>
                       <div className="flex items-start justify-between mb-2">
                         <div className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, #f59e0b44, #f59e0b22)' }}>
                           {isOpen ? <FolderOpen className="h-5 w-5" style={{ color: '#f59e0b' }} /> : <Folder className="h-5 w-5" style={{ color: '#f59e0b' }} />}
@@ -3500,8 +3504,8 @@ MATCHES:[1,3,5]`;
                       <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: 'linear-gradient(135deg, var(--zet-primary), var(--zet-primary-light))' }}>
                         <FileText className="h-5 w-5" style={{ color: 'var(--zet-text)' }} />
                       </div>
-                      <button onClick={e => { e.stopPropagation(); showConfirm('Dosyadan Çıkar', `"${doc.title}" belgesini dosyadan çıkarmak istiyor musunuz?`, () => removeDocFromFile(doc.doc_id, activeDocFile.file_id)); }} className="p-1 rounded hover:bg-white/10 transition-all opacity-0 group-hover:opacity-100" style={{ color: 'var(--zet-text-muted)' }} title="Dosyadan çıkar">
-                        <X className="h-4 w-4" />
+                      <button onClick={e => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setFolderDocMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenFolderDocMenuId(openFolderDocMenuId === doc.doc_id ? null : doc.doc_id); }} className="p-1 rounded hover:bg-white/10 transition-all" style={{ color: 'var(--zet-text-muted)' }}>
+                        <MoreVertical className="h-4 w-4" />
                       </button>
                     </div>
                     <h3 className="font-medium mb-1 truncate text-sm" style={{ color: 'var(--zet-text)' }}>{doc.title}</h3>
@@ -3514,7 +3518,51 @@ MATCHES:[1,3,5]`;
                   <div className="col-span-full text-center py-6 text-sm" style={{ color: 'var(--zet-text-muted)' }}>Bu dosya henüz boş. Belge aktarmak için dosya menüsünü kullanın.</div>
                 )}
               </div>
+              {/* Folder doc three-dot menu portal */}
+              {openFolderDocMenuId && (
+                <>
+                  <div onClick={() => setOpenFolderDocMenuId(null)} style={{ position: 'fixed', inset: 0, zIndex: 998 }} />
+                  <div className="fixed py-1 rounded-xl min-w-[160px] animate-fadeIn" style={{ top: folderDocMenuPos.top, right: folderDocMenuPos.right, zIndex: 999, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }} onClick={e => e.stopPropagation()}>
+                    {[
+                      { icon: <ExternalLink className="h-4 w-4" />, label: 'Belgeyi Aç', action: () => { navigate(`/editor/${openFolderDocMenuId}`); setOpenFolderDocMenuId(null); } },
+                      { icon: <X className="h-4 w-4" />, label: 'Klasörden Kaldır', color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm('Dosyadan Çıkar', 'Bu belgeyi dosyadan çıkarmak istiyor musunuz?', () => removeDocFromFile(id, activeDocFile.file_id)); } },
+                    ].map(item => (
+                      <button key={item.label} onClick={item.action} className="flex items-center gap-2 w-full px-3 py-2 text-sm transition-all text-left hover:bg-white/5" style={{ color: item.color || 'var(--zet-text)' }}>
+                        {item.icon}{item.label}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
+          )}
+
+          {/* Mobile folder file action sheet */}
+          {folderFileSheet && (
+            <>
+              <div onClick={() => setFolderFileSheet(null)} style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} />
+              <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 1001, background: 'var(--zet-bg-card)', borderTop: '1px solid var(--zet-border)', borderRadius: '16px 16px 0 0', padding: '20px 16px 32px' }}>
+                <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'var(--zet-border)' }} />
+                <p className="text-sm font-semibold mb-4 px-1" style={{ color: 'var(--zet-text)' }}>{folderFileSheet.name} klasörüne ekle</p>
+                {[
+                  { label: 'Fotoğraf Seç', accept: 'image/*', capture: undefined,
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:20,height:20}}><rect x="3" y="8" width="18" height="13" rx="2"/><path d="M12 11v6M9 14l3-3 3 3"/><path d="M8 8V6a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg> },
+                  { label: 'Dosya Seç', accept: '*/*', capture: undefined,
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:20,height:20}}><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> },
+                  { label: 'Fotoğraf Çek', accept: 'image/*', capture: 'environment',
+                    icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{width:20,height:20}}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg> },
+                ].map(opt => (
+                  <label key={opt.label} className="flex items-center gap-4 w-full px-4 py-3.5 rounded-xl mb-2 cursor-pointer hover:bg-white/5 transition-all" style={{ border: '1px solid var(--zet-border)' }}>
+                    <span style={{ color: 'var(--zet-primary-light)' }}>{opt.icon}</span>
+                    <span className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{opt.label}</span>
+                    <input type="file" accept={opt.accept} capture={opt.capture} className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) { uploadDriveFile(f); setFolderFileSheet(null); } e.target.value = ''; }} />
+                  </label>
+                ))}
+                <button onClick={() => setFolderFileSheet(null)} className="w-full py-3 rounded-xl text-sm font-medium mt-2" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--zet-text-muted)' }}>
+                  Vazgeç
+                </button>
+              </div>
+            </>
           )}
 
           {/* Import mode header */}

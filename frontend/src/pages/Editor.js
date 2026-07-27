@@ -1188,17 +1188,23 @@ const Editor = () => {
     try {
       const local = await getDoc(docId);
       if (!isMountedRef.current) return;
-      if (local) {
+      // Local belgede pages varsa kullan; yoksa server'dan tam veriyi çek
+      if (local && local.pages && local.pages.length > 0) {
         applyDocSettings(local.settings || null);
         setDocument(local);
         return;
       }
-      // Belgeler IndexedDB'de yok — sunucudan migration dene
+      // IndexedDB'de yok veya pages eksik (migration bug) — sunucudan tam belgeyi çek
       const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
       if (!isMountedRef.current) return;
       applyDocSettings(res.data.settings || null);
-      await saveDoc({ ...res.data, updated_at: res.data.updated_at || new Date().toISOString() });
-      setDocument(res.data);
+      const serverDoc = { ...res.data, updated_at: res.data.updated_at || new Date().toISOString() };
+      // pages hala yoksa (sunucuda da yeni belge) → başlangıç sayfası ekle
+      if (!serverDoc.pages || serverDoc.pages.length === 0) {
+        serverDoc.pages = [{ page_id: 'page_1', elements: [], drawPaths: [] }];
+      }
+      await saveDoc(serverDoc);
+      setDocument(serverDoc);
     } catch {
       if (!isMountedRef.current) return;
       navigate('/dashboard');
