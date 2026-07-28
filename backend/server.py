@@ -3075,7 +3075,7 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
     return doc
 
 _version_throttle: dict = {}  # doc_id → last saved unix timestamp
-_VERSION_INTERVAL = 300  # 5 dakika
+_VERSION_INTERVAL = 120  # 2 dakika
 
 async def _save_document_version(doc_id: str, user_id: str):
     import time

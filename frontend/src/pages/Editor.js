@@ -751,6 +751,7 @@ const Editor = () => {
   }, [canvasElements, spellCheckEnabled, checkSpelling]);
 
   const autoSaveTimerRef = useRef(null);
+  const docHadContentRef = useRef(false); // belge bu session'da gerçek içerik yüklediyse true
   const autoSave30Ref = useRef(null);
   const saveDocumentRef = useRef(null);
   const latestSaveDataRef = useRef(null);
@@ -1192,6 +1193,7 @@ const Editor = () => {
       const forceServer = new URLSearchParams(window.location.search).has('fresh');
       if (!forceServer && local && local.pages && local.pages.length > 0) {
         applyDocSettings(local.settings || null);
+        if (local.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
         setDocument(local);
         return;
       }
@@ -1204,6 +1206,7 @@ const Editor = () => {
       if (!serverDoc.pages || serverDoc.pages.length === 0) {
         serverDoc.pages = [{ page_id: 'page_1', elements: [], drawPaths: [] }];
       }
+      if (serverDoc.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
       await saveDoc(serverDoc);
       setDocument(serverDoc);
     } catch {
@@ -1271,6 +1274,13 @@ const Editor = () => {
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
     }
+    // Otomatik kayıtta tüm sayfalar boşsa ve belge daha önce içerik yüklediyse kaydetme — race condition koruması
+    if (silent && docHadContentRef.current) {
+      const allEmpty = updatedPages.every(p => !p.elements?.length && !p.drawPaths?.length);
+      if (allEmpty) { setSaveStatus('saved'); if (!silent) setSaving(false); return; }
+    }
+    // İçerik varsa ref'i güncelle
+    if (updatedPages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
     if (navigator.onLine) {
       try {
         const { pages: r2Pages, anyUploaded } = await uploadImagesToR2(updatedPages);
