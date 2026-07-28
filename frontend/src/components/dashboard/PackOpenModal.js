@@ -5,10 +5,10 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const TEAR_THRESHOLD = 45;
 
 const RARITY = {
-  nadir:  { label: 'Nadir',  color: '#60a5fa', glow: 'rgba(96,165,250,0.55)'  },
-  epik:   { label: 'Epik',   color: '#c084fc', glow: 'rgba(192,132,252,0.55)' },
-  lore:   { label: 'Lore',   color: '#fbbf24', glow: 'rgba(251,191,36,0.65)'  },
-  efsane: { label: 'Efsane', color: '#f43f5e', glow: 'rgba(244,63,94,0.65)'   },
+  nadir:  { label: 'Nadir',  color: '#60a5fa', glow: 'rgba(96,165,250,0.6)'  },
+  epik:   { label: 'Epik',   color: '#c084fc', glow: 'rgba(192,132,252,0.6)' },
+  lore:   { label: 'Lore',   color: '#fbbf24', glow: 'rgba(251,191,36,0.7)'  },
+  efsane: { label: 'Efsane', color: '#f43f5e', glow: 'rgba(244,63,94,0.7)'   },
 };
 
 let _actx = null;
@@ -42,11 +42,8 @@ function playReveal() {
   } catch (_) {}
 }
 
-// Yırtık kenar için clip-path (flap alt kısmı)
-const TORN_CLIP = 'polygon(0 0,100% 0,100% 72%,97% 80%,94% 71%,91% 79%,88% 70%,85% 78%,82% 71%,79% 79%,76% 70%,73% 78%,70% 70%,67% 79%,64% 70%,61% 78%,58% 71%,55% 79%,52% 70%,49% 78%,46% 71%,43% 79%,40% 70%,37% 78%,34% 71%,31% 79%,28% 70%,25% 78%,22% 71%,19% 79%,16% 70%,13% 78%,10% 71%,7% 79%,4% 71%,1% 78%,0 71%)';
-
+// idle → dragging → snapping → gone → card-appear → ready → flipping → done
 export default function PackOpenModal({ packId, onClose, onReward, showToast }) {
-  // idle → dragging → tearing → card-rise → ready → flipping → done
   const [phase, setPhase] = useState('idle');
   const [dragX, setDragX] = useState(0);
   const [tearDir, setTearDir] = useState(1);
@@ -68,16 +65,17 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
       showToast('Paket açılamadı — tekrar dene', 'error');
       fetched.current = false;
     }
-  }, [packId, onClose, onReward, showToast]);
+  }, [packId, onReward, showToast]);
 
   const triggerTear = useCallback((dir) => {
     isDragging.current = false;
     setTearDir(dir);
-    setPhase('tearing');
+    setPhase('snapping');
     playTear();
     fetchReward();
-    setTimeout(() => setPhase('card-rise'), 320);
-    setTimeout(() => setPhase('ready'), 750);
+    setTimeout(() => setPhase('gone'), 430);
+    setTimeout(() => setPhase('card-appear'), 490);
+    setTimeout(() => setPhase('ready'), 970);
   }, [fetchReward]);
 
   const onMove = useCallback((e) => {
@@ -121,133 +119,179 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
     setTimeout(() => setPhase('done'), 650);
   };
 
-  // --- Computed styles ---
-  const flapTf = (() => {
-    if (phase === 'dragging') return { transform: `translateX(${dragX}px) rotate(${dragX * 0.1}deg)`, transition: 'none' };
-    if (phase === 'tearing' || phase === 'card-rise' || phase === 'ready' || phase === 'flipping' || phase === 'done')
-      return { transform: `translateX(${tearDir * 520}px) rotate(${tearDir * 38}deg)`, opacity: 0, transition: 'all 0.32s cubic-bezier(0.55,0,1,0.45)' };
-    return {};
-  })();
-
-  const packBodyTf = (() => {
-    if (phase === 'card-rise') return { transform: 'translateY(55px)', opacity: 0.35, transition: 'all 0.5s ease' };
-    if (phase === 'ready' || phase === 'flipping' || phase === 'done') return { transform: 'translateY(80px)', opacity: 0, transition: 'all 0.4s ease', pointerEvents: 'none' };
-    return { transition: 'all 0.3s ease' };
-  })();
-
-  const cardTf = (() => {
-    if (phase === 'idle' || phase === 'dragging' || phase === 'tearing') return { transform: 'translateX(-50%) translateY(50px)', opacity: 0, transition: 'none' };
-    if (phase === 'card-rise') return { transform: 'translateX(-50%) translateY(-20px)', opacity: 1, transition: 'all 0.48s cubic-bezier(0.34,1.56,0.64,1)' };
-    return { transform: 'translateX(-50%) translateY(0)', opacity: 1, transition: 'all 0.3s ease' };
-  })();
-
   const rc = reward ? (RARITY[reward.rarity] || RARITY.nadir) : RARITY.nadir;
-  const torn = phase !== 'idle' && phase !== 'dragging';
+
+  const isIdle     = phase === 'idle';
+  const isDrag     = phase === 'dragging';
+  const isSnap     = phase === 'snapping';
+  const isGone     = phase === 'gone';
+  const isAppear   = phase === 'card-appear';
+  const isReady    = phase === 'ready';
+  const isFlipping = phase === 'flipping';
+  const isDone     = phase === 'done';
+  const packGone   = isGone || isAppear || isReady || isFlipping || isDone;
+
+  // ---------- Pack outer frame ----------
+  const frameStyle = {
+    position: 'absolute', inset: 0, borderRadius: 14, zIndex: 5, pointerEvents: 'none',
+    border: '1.5px solid rgba(190,155,60,0.4)',
+    boxShadow: '0 0 0 1px rgba(0,0,0,0.5), 0 20px 70px rgba(0,0,0,0.85)',
+    opacity: packGone ? 0 : 1,
+    transition: isSnap ? 'opacity 0.38s ease' : 'none',
+  };
+
+  // ---------- Pack body (below band) ----------
+  const bodyStyle = {
+    position: 'absolute', top: 65, left: 0, right: 0, bottom: 0,
+    background: 'linear-gradient(180deg, #0d0d11 0%, #101014 100%)',
+    borderRadius: '0 0 14px 14px',
+    overflow: 'hidden',
+    transform: isDrag
+      ? `skewX(${dragX * 0.022}deg)`
+      : isSnap ? 'translateY(270px)' : 'none',
+    opacity: packGone ? 0 : 1,
+    transition: isSnap
+      ? 'transform 0.42s cubic-bezier(0.4,0,1,0.6), opacity 0.3s 0.08s ease'
+      : isDrag ? 'none' : 'all 0.18s ease',
+  };
+
+  // ---------- Top tear band ----------
+  const bandStyle = {
+    position: 'absolute', top: 0, left: 0, right: 0, height: 67,
+    background: 'linear-gradient(135deg, #3d1c00 0%, #9c4d06 28%, #d4800c 50%, #9c4d06 72%, #3d1c00 100%)',
+    borderRadius: '14px 14px 0 0',
+    overflow: 'hidden',
+    cursor: isIdle || isDrag ? 'grab' : 'default',
+    touchAction: 'none',
+    WebkitUserSelect: 'none',
+    zIndex: 10,
+    transform: isDrag
+      ? `translateX(${dragX}px) rotate(${dragX * 0.13}deg)`
+      : isSnap
+        ? `translateX(${tearDir * 580}px) translateY(-95px) rotate(${tearDir * 52}deg)`
+        : 'none',
+    opacity: packGone ? 0 : 1,
+    transition: isSnap
+      ? 'transform 0.37s cubic-bezier(0.6,0,1,0.5), opacity 0.08s 0.29s'
+      : isDrag ? 'none' : 'all 0.18s ease',
+  };
+
+  // ---------- Card ----------
+  const cardAnimStyle = (() => {
+    if (isAppear) return { transform: 'translateX(-50%) scale(1)', opacity: 1, transition: 'opacity 0.5s ease, transform 0.52s cubic-bezier(0.34,1.56,0.64,1)' };
+    if (isReady || isFlipping || isDone) return { transform: 'translateX(-50%) scale(1)', opacity: 1, transition: 'all 0.25s ease' };
+    return { transform: 'translateX(-50%) scale(0.62)', opacity: 0, transition: 'none' };
+  })();
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.82)', backdropFilter: 'blur(10px)' }}
-      onClick={phase === 'done' ? onClose : undefined}
+      style={{ position: 'fixed', inset: 0, zIndex: 1200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.91)', backdropFilter: 'blur(14px)' }}
+      onClick={isDone ? onClose : undefined}
     >
-      {/* Close */}
       <button
         onClick={e => { e.stopPropagation(); onClose(); }}
-        style={{ position: 'absolute', top: 20, right: 20, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.08)', color: 'rgba(255,255,255,0.5)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+        style={{ position: 'absolute', top: 20, right: 20, width: 36, height: 36, borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.06)', color: 'rgba(255,255,255,0.35)', fontSize: 20, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
       >
         ×
       </button>
 
-      <div style={{ position: 'relative', width: 200, userSelect: 'none', touchAction: 'none' }}>
+      <div style={{ position: 'relative', width: 180, height: 280, userSelect: 'none', touchAction: 'none' }}>
 
-        {/* ── CARD (behind pack, rises up) ── */}
-        <div style={{ position: 'absolute', top: 0, left: '50%', zIndex: 1, ...cardTf }}>
+        {/* Outer border frame */}
+        <div style={frameStyle} />
+
+        {/* Pack body */}
+        <div style={bodyStyle}>
+          {/* Vertical holographic lines */}
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(90deg, transparent 0px, transparent 21px, rgba(195,160,55,0.06) 21px, rgba(195,160,55,0.06) 22.5px)', pointerEvents: 'none' }} />
+          {/* Z watermark */}
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="110" height="110" viewBox="0 0 110 110" fill="none">
+              <text x="55" y="83" textAnchor="middle" fill="rgba(195,160,55,0.07)" fontSize="96" fontWeight="900" fontFamily="DM Sans,Arial,sans-serif">Z</text>
+            </svg>
+          </div>
+          <div style={{ position: 'absolute', bottom: 14, left: 0, right: 0, textAlign: 'center', color: 'rgba(195,160,55,0.16)', fontSize: 7, fontWeight: 800, letterSpacing: 5.5 }}>ZET PAKET</div>
+        </div>
+
+        {/* Perforated line between band and body */}
+        {(isIdle || isDrag) && (
+          <div style={{ position: 'absolute', top: 64, left: 0, right: 0, height: 2, zIndex: 8, backgroundImage: 'repeating-linear-gradient(90deg, rgba(215,170,55,0.55) 0px, rgba(215,170,55,0.55) 4px, transparent 4px, transparent 9px)', pointerEvents: 'none' }} />
+        )}
+
+        {/* Top tear band — the draggable part */}
+        <div
+          onMouseDown={e => onDragStart(e.clientX)}
+          onTouchStart={e => { e.stopPropagation(); onDragStart(e.touches[0]?.clientX ?? 0); }}
+          style={bandStyle}
+        >
+          {/* Cross-hatch texture */}
+          <div style={{ position: 'absolute', inset: 0, backgroundImage: 'repeating-linear-gradient(135deg, transparent 0px, transparent 5px, rgba(255,255,255,0.03) 5px, rgba(255,255,255,0.03) 6px)', pointerEvents: 'none' }} />
+          {/* Moving sheen */}
+          <div style={{ position: 'absolute', top: 0, left: '-20%', width: '45%', height: '100%', background: 'linear-gradient(90deg, transparent, rgba(255,225,120,0.09), transparent)', transform: 'skewX(-18deg)', pointerEvents: 'none' }} />
+          <div style={{ position: 'relative', zIndex: 1, textAlign: 'center' }}>
+            <div style={{ color: 'rgba(255,225,95,0.82)', fontSize: 9, fontWeight: 800, letterSpacing: 2.5 }}>
+              {isDrag ? '← YIRT →' : '← YIRT →'}
+            </div>
+          </div>
+        </div>
+
+        {/* Card — always in DOM, animated via style */}
+        <div style={{ position: 'absolute', top: 0, left: '50%', bottom: 0, width: 162, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: (isReady || isFlipping || isDone) ? 'auto' : 'none', ...cardAnimStyle }}>
           <div
-            style={{ width: 178, height: 256, borderRadius: 16, cursor: phase === 'ready' ? 'pointer' : 'default', perspective: 700 }}
+            style={{ width: 162, height: 242, borderRadius: 14, cursor: isReady && reward ? 'pointer' : 'default', perspective: 820 }}
             onClick={handleCardClick}
           >
-            {/* 3D flip container */}
             <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>
 
-              {/* Front — before flip */}
-              <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 16, background: 'linear-gradient(160deg, #1a0a2e, #2d1054, #1a0a2e)', border: '1px solid rgba(192,132,252,0.35)', boxShadow: phase === 'ready' ? '0 0 40px rgba(192,132,252,0.3), 0 12px 40px rgba(0,0,0,0.5)' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                <svg width="52" height="52" viewBox="0 0 52 52" fill="none"><circle cx="26" cy="26" r="22" stroke="rgba(192,132,252,0.3)" strokeWidth="1" strokeDasharray="4 3"/><circle cx="26" cy="26" r="16" stroke="rgba(192,132,252,0.15)" strokeWidth="0.8"/><text x="26" y="33" textAnchor="middle" fill="#c084fc" fontSize="24" fontWeight="700" fontFamily="DM Sans,sans-serif" opacity="0.8">Z</text></svg>
-                {phase === 'ready' && reward && (
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ color: '#c084fc', fontSize: 10, fontWeight: 700, letterSpacing: 1.5 }}>AÇMAK İÇİN</div>
-                    <div style={{ color: 'rgba(192,132,252,0.5)', fontSize: 9, marginTop: 2 }}>tıkla</div>
-                  </div>
-                )}
-                {phase === 'ready' && !reward && (
-                  <div style={{ color: 'rgba(192,132,252,0.4)', fontSize: 9, letterSpacing: 1 }}>yükleniyor...</div>
-                )}
+              {/* Front face */}
+              <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 14, background: 'linear-gradient(160deg, #0d0d10, #12121a)', border: '1.5px solid rgba(195,160,55,0.38)', boxShadow: isReady && reward ? '0 0 30px rgba(195,160,55,0.16), 0 14px 44px rgba(0,0,0,0.75)' : '0 10px 34px rgba(0,0,0,0.65)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+                <div style={{ position: 'absolute', inset: 0, borderRadius: 14, backgroundImage: 'repeating-linear-gradient(90deg, transparent 0px, transparent 17px, rgba(195,160,55,0.04) 17px, rgba(195,160,55,0.04) 18.5px)', pointerEvents: 'none' }} />
+                <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style={{ position: 'relative', zIndex: 1 }}>
+                  <circle cx="28" cy="28" r="23" stroke="rgba(195,160,55,0.22)" strokeWidth="1" strokeDasharray="5 4"/>
+                  <text x="28" y="37" textAnchor="middle" fill="rgba(195,160,55,0.62)" fontSize="26" fontWeight="800" fontFamily="DM Sans,Arial,sans-serif">Z</text>
+                </svg>
+                <div style={{ position: 'relative', zIndex: 1, textAlign: 'center', minHeight: 30 }}>
+                  {isReady && reward && (
+                    <>
+                      <div style={{ color: 'rgba(195,160,55,0.72)', fontSize: 9, fontWeight: 700, letterSpacing: 1.5 }}>AÇMAK İÇİN</div>
+                      <div style={{ color: 'rgba(195,160,55,0.35)', fontSize: 8, marginTop: 4 }}>tıkla</div>
+                    </>
+                  )}
+                  {isReady && !reward && (
+                    <div style={{ color: 'rgba(195,160,55,0.32)', fontSize: 8, letterSpacing: 1 }}>yükleniyor...</div>
+                  )}
+                </div>
               </div>
 
-              {/* Back — reward reveal */}
-              <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)', borderRadius: 16, background: `linear-gradient(160deg, #0a0514, rgba(${rc.color === '#c084fc' ? '192,132,252' : rc.color === '#fbbf24' ? '251,191,36' : '96,165,250'},0.12), #0a0514)`, border: `1px solid ${rc.color}44`, boxShadow: `0 0 60px ${rc.glow}, 0 16px 50px rgba(0,0,0,0.6)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 16 }}>
+              {/* Back face — reward */}
+              <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', transform: 'rotateY(180deg)', borderRadius: 14, background: `linear-gradient(160deg, #070610, ${rc.color}14, #070610)`, border: `1.5px solid ${rc.color}48`, boxShadow: `0 0 55px ${rc.glow}, 0 18px 55px rgba(0,0,0,0.85)`, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10, padding: 18 }}>
                 {reward && (
                   <>
-                    <div style={{ background: `${rc.color}18`, border: `1px solid ${rc.color}44`, borderRadius: 20, padding: '3px 14px', fontSize: 9, fontWeight: 700, color: rc.color, letterSpacing: 2 }}>
+                    <div style={{ background: `${rc.color}14`, border: `1px solid ${rc.color}3a`, borderRadius: 20, padding: '3px 14px', fontSize: 9, fontWeight: 700, color: rc.color, letterSpacing: 2 }}>
                       {rc.label.toUpperCase()}
                     </div>
-                    <div style={{ width: 56, height: 56, borderRadius: '50%', background: `${rc.color}15`, border: `1.5px solid ${rc.color}55`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="30" height="30" viewBox="0 0 30 30" fill="none"><circle cx="15" cy="15" r="12" stroke={rc.color} strokeWidth="1.2" fill="none"/><path d="M15 5v3M15 22v3M5 15h3M22 15h3M8.2 8.2l2.1 2.1M19.7 19.7l2.1 2.1M8.2 21.8l2.1-2.1M19.7 10.3l2.1-2.1" stroke={rc.color} strokeWidth="1.2" strokeLinecap="round"/></svg>
+                    <div style={{ width: 52, height: 52, borderRadius: '50%', background: `${rc.color}0e`, border: `1.5px solid ${rc.color}42`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+                        <circle cx="14" cy="14" r="11" stroke={rc.color} strokeWidth="1.2" fill="none"/>
+                        <path d="M14 4v2.5M14 21.5V24M4 14h2.5M21.5 14H24M6.9 6.9l1.8 1.8M19.3 19.3l1.8 1.8M6.9 21.1l1.8-1.8M19.3 8.7l1.8-1.8" stroke={rc.color} strokeWidth="1.2" strokeLinecap="round"/>
+                      </svg>
                     </div>
-                    <div style={{ color: rc.color, fontSize: 15, fontWeight: 800, textAlign: 'center', lineHeight: 1.2, textShadow: `0 0 16px ${rc.glow}` }}>
+                    <div style={{ color: rc.color, fontSize: 16, fontWeight: 800, textAlign: 'center', lineHeight: 1.2, textShadow: `0 0 22px ${rc.glow}` }}>
                       {reward.label || reward.mode}
                     </div>
-                    <div style={{ color: 'rgba(255,255,255,0.45)', fontSize: 10, textAlign: 'center', lineHeight: 1.4 }}>
+                    <div style={{ color: 'rgba(255,255,255,0.32)', fontSize: 9, textAlign: 'center' }}>
                       Zeta modu açıldı
                     </div>
                   </>
                 )}
               </div>
+
             </div>
           </div>
         </div>
 
-        {/* ── PACK BODY ── */}
-        <div style={{ position: 'relative', zIndex: 2, ...packBodyTf }}>
-          <div style={{ width: 200, height: 300, borderRadius: 14, overflow: 'hidden', background: 'linear-gradient(160deg, #1a0a2e 0%, #2d1054 50%, #1a0a2e 100%)', border: '1px solid rgba(192,132,252,0.25)', boxShadow: '0 8px 50px rgba(0,0,0,0.7), inset 0 0 60px rgba(192,132,252,0.04)', position: 'relative' }}>
-            {/* Diagonal shimmer */}
-            <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(108deg, transparent 0px, transparent 7px, rgba(192,132,252,0.025) 7px, rgba(192,132,252,0.025) 8px)', pointerEvents: 'none' }} />
-            {/* Body content */}
-            <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, top: '36%', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6 }}>
-              <svg width="40" height="40" viewBox="0 0 40 40" fill="none"><circle cx="20" cy="20" r="16" stroke="rgba(192,132,252,0.2)" strokeWidth="1"/><text x="20" y="27" textAnchor="middle" fill="rgba(192,132,252,0.35)" fontSize="20" fontWeight="700" fontFamily="DM Sans,sans-serif">Z</text></svg>
-              <div style={{ color: 'rgba(192,132,252,0.3)', fontSize: 9, fontWeight: 700, letterSpacing: 3 }}>PAKET</div>
-            </div>
-          </div>
-
-          {/* ── TOP FLAP ── */}
-          <div
-            onMouseDown={e => onDragStart(e.clientX)}
-            onTouchStart={e => { e.stopPropagation(); onDragStart(e.touches[0]?.clientX ?? 0); }}
-            style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '37%', transformOrigin: 'center top', zIndex: 10, cursor: phase === 'idle' || phase === 'dragging' ? 'grab' : 'default', touchAction: 'none', WebkitUserSelect: 'none', ...flapTf }}
-          >
-            <div style={{ width: '100%', height: '100%', borderRadius: '14px 14px 0 0', background: 'linear-gradient(160deg, #240c4a 0%, #3d1878 50%, #240c4a 100%)', clipPath: torn ? 'none' : TORN_CLIP, position: 'relative', overflow: 'hidden' }}>
-              {/* Gold foil lines */}
-              {[7, 13, 19, 25].map(top => (
-                <div key={top} style={{ position: 'absolute', left: 10, right: 10, top, height: 2, background: 'linear-gradient(90deg, transparent, rgba(251,191,36,0.45), rgba(251,191,36,0.7), rgba(251,191,36,0.45), transparent)', borderRadius: 1 }} />
-              ))}
-              {/* Shimmer */}
-              <div style={{ position: 'absolute', inset: 0, background: 'repeating-linear-gradient(108deg, transparent 0px, transparent 7px, rgba(251,191,36,0.03) 7px, rgba(251,191,36,0.03) 8px)', pointerEvents: 'none' }} />
-              {/* Drag hint */}
-              {phase === 'idle' && (
-                <div style={{ position: 'absolute', bottom: 22, left: 0, right: 0, textAlign: 'center', color: 'rgba(251,191,36,0.6)', fontSize: 9, fontWeight: 700, letterSpacing: 1.5 }}>
-                  ← SÜRÜKLE →
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Dashed perforated line */}
-          {(phase === 'idle' || phase === 'dragging') && (
-            <div style={{ position: 'absolute', top: 'calc(37% - 1px)', left: 0, right: 0, height: 1, background: 'repeating-linear-gradient(90deg, rgba(251,191,36,0.45) 0px, rgba(251,191,36,0.45) 5px, transparent 5px, transparent 11px)', zIndex: 11 }} />
-          )}
-        </div>
-
-        {/* Done hint */}
-        {phase === 'done' && (
-          <div style={{ position: 'absolute', bottom: -52, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.3)', fontSize: 11, textAlign: 'center' }}>
+        {isDone && (
+          <div style={{ position: 'absolute', bottom: -46, left: '50%', transform: 'translateX(-50%)', whiteSpace: 'nowrap', color: 'rgba(255,255,255,0.2)', fontSize: 11 }}>
             Kapatmak için tıkla
           </div>
         )}
