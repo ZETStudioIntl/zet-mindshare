@@ -3114,7 +3114,27 @@ async def update_document(doc_id: str, update: DocumentUpdate, user: User = Depe
     update_data["updated_at"] = datetime.now(timezone.utc).isoformat()
 
     if "pages" in update_data:
-        asyncio.create_task(_save_document_version(doc_id, user.user_id))
+        new_pages = update_data["pages"] or []
+        incoming_empty = all(
+            not p.get("elements") and not p.get("drawPaths")
+            for p in new_pages
+        )
+        # Eski içeriği update'ten ÖNCE oku — hem version snapshot için hem boş-yazma koruması için
+        current = await db.documents.find_one(
+            {"doc_id": doc_id, "user_id": user.user_id}, {"_id": 0, "pages": 1}
+        )
+        current_has_content = any(
+            p.get("elements") or p.get("drawPaths")
+            for p in (current or {}).get("pages") or []
+        )
+        # Boş gönderim + mevcut içerik varsa reddet (race condition / yanlışlıkla silme koruması)
+        if incoming_empty and current_has_content:
+            logging.warning(f"[ContentGuard] Blocked empty overwrite for doc {doc_id}")
+            return {"ok": True, "updated_at": update_data["updated_at"], "skipped": "empty_guard"}
+        # Version snapshot: eski içeriği kaydet (create_task update_one'dan sonra çalışır,
+        # bu yüzden eski pages'i direkt geçiriyoruz)
+        if current and current.get("pages"):
+            asyncio.create_task(_save_document_version(doc_id, user.user_id))
 
     try:
         result = await db.documents.update_one(
