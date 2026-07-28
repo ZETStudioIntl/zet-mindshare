@@ -1873,8 +1873,15 @@ async def give_test_cases(user: User = Depends(get_current_user)):
         items.append({"id": f"pack_{uuid.uuid4().hex[:12]}", "item_type": "rank_case", "acquired_at": now})
     for _ in range(4):
         items.append({"id": f"wheel_{uuid.uuid4().hex[:12]}", "item_type": "daily_wheel", "acquired_at": now})
-    await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": {"$each": items}}})
-    return {"added": 10, "items": items}
+    result = await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$push": {"inventory": {"$each": items}}},
+        upsert=False
+    )
+    logging.info(f"[give-test-cases] user={user.user_id} matched={result.matched_count} modified={result.modified_count}")
+    if result.matched_count == 0:
+        raise HTTPException(status_code=500, detail=f"Kullanıcı MongoDB'de bulunamadı (user_id={user.user_id!r})")
+    return {"added": 10, "items": items, "matched": result.matched_count, "modified": result.modified_count}
 
 # ============ SOCIAL — USERS / FOLLOW ============
 
