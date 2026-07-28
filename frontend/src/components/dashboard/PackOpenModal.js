@@ -86,6 +86,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
   const fetchReward = useCallback(async () => {
     if (fetched.current) return;
     fetched.current = true;
+    console.log('[open-pack] gönderilen pack_id:', packId);
     try {
       const res = await axios.post(`${API}/inventory/open-pack`, { pack_id: packId }, { withCredentials: true });
       const rw = res.data.reward;

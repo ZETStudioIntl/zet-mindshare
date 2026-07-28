@@ -3234,9 +3234,11 @@ MATCHES:[1,3,5]`;
                         onClick={async () => {
                           try {
                             const res = await axios.post(`${API}/admin/give-test-cases`, {}, { withCredentials: true });
-                            setInventory(prev => [...prev, ...(res.data.items || [])]);
-                            showToast('10 test item eklendi (3 kasa, 3 paket, 4 çark)', 'success');
-                          } catch { showToast('Hata', 'error'); }
+                            const items = res.data.items || [];
+                            console.log('[give-test-cases] matched:', res.data.matched, 'modified:', res.data.modified, 'items:', items.map(i => i.id));
+                            setInventory(prev => [...prev, ...items]);
+                            showToast(`10 item eklendi — matched:${res.data.matched} modified:${res.data.modified}`, 'success');
+                          } catch (e) { showToast(e?.response?.data?.detail || 'Hata', 'error'); }
                         }}
                         className="text-xs px-3 py-1.5 rounded-lg"
                         style={{ background: 'rgba(251,191,36,0.1)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)', cursor: 'pointer' }}
