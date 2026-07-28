@@ -1845,7 +1845,7 @@ async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(g
     logging.info(f"[open-pack] user={user.user_id} requested={pack_id!r} mevcut_paketler={pack_ids}")
     if not any(c.get("id") == pack_id for c in inventory):
         logging.warning(f"[open-pack] BULUNAMADI: {pack_id!r} | toplam={len(inventory)} | paket_sayisi={len(pack_ids)}")
-        raise HTTPException(status_code=404, detail=f"Paket bulunamadı (envanter={len(inventory)}, paket={len(pack_ids)})")
+        raise HTTPException(status_code=404, detail=f"Paket bulunamadı (user={user.user_id}, envanter={len(inventory)}, paket={len(pack_ids)})")
     reward = _roll_pack_reward()
     await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": pack_id}}})
     if reward["type"] == "mood_unlock":
@@ -1896,7 +1896,7 @@ async def give_test_cases(user: User = Depends(get_current_user)):
     logging.info(f"[give-test-cases] user={user.user_id} matched={result.matched_count} modified={result.modified_count}")
     if result.matched_count == 0:
         raise HTTPException(status_code=500, detail=f"Kullanıcı MongoDB'de bulunamadı (user_id={user.user_id!r})")
-    return {"added": 10, "items": items, "matched": result.matched_count, "modified": result.modified_count}
+    return {"added": 10, "items": items, "matched": result.matched_count, "modified": result.modified_count, "user_id": user.user_id}
 
 # ============ SOCIAL — USERS / FOLLOW ============
 

@@ -287,7 +287,7 @@ const Dashboard = () => {
   const [showMoodInfo, setShowMoodInfo] = useState(false);
   const [moodInfoSlide, setMoodInfoSlide] = useState(0);
   const [showMoodDrop, setShowMoodDrop] = useState(false);
-  const dUnlockedModes = useMemo(() => { try { return JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]'); } catch { return []; } }, []);
+  const [dUnlockedModes, setDUnlockedModes] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]'); } catch { return []; } });
   const RARITY_COL = { nadir: '#60a5fa', epik: '#a78bfa', lore: '#f87171' };
   const DASH_MODES_DEF = [
     { value: 'cheerful',     label: 'Neşeli',      labelKey: 'modeCheerful',     rarity: 'nadir', troll: false },
@@ -3235,7 +3235,7 @@ MATCHES:[1,3,5]`;
                           try {
                             const res = await axios.post(`${API}/admin/give-test-cases`, {}, { withCredentials: true });
                             const items = res.data.items || [];
-                            console.log('[give-test-cases] matched:', res.data.matched, 'modified:', res.data.modified, 'items:', items.map(i => i.id));
+                            console.log('[give-test-cases] user_id:', res.data.user_id, 'matched:', res.data.matched, 'modified:', res.data.modified, 'items:', items.map(i => i.id));
                             setInventory(prev => [...prev, ...items]);
                             showToast(`10 item eklendi — matched:${res.data.matched} modified:${res.data.modified}`, 'success');
                           } catch (e) { showToast(e?.response?.data?.detail || 'Hata', 'error'); }
