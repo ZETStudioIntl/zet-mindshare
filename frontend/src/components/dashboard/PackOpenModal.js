@@ -19,22 +19,30 @@ function getCtx() {
 // Plastik ambalaj yırtılması — yüksek frekans, kısa, sessiz
 // frontend/public/sounds/pack_tear.mp3 varsa onu kullan (Epidemic Sound: Cling Film Rip)
 const _TEAR_FILES = [
-  '/sounds/pack_tear.mp3',
   '/sounds/freesound_community-tear-paper-103161.mp3',
-  '/sounds/freesound_community-tear-paper-103161.wav',
+  '/sounds/pack_tear.mp3',
 ];
-function playTear() {
-  let idx = 0;
+// Modül yüklenince preload et — tıklamada gecikme olmasın
+let _tearAudio = null;
+(function preload() {
+  let i = 0;
   const tryNext = () => {
-    if (idx >= _TEAR_FILES.length) { _playTearFallback(); return; }
-    try {
-      const a = new Audio(_TEAR_FILES[idx++]);
-      a.volume = 0.55;
-      const p = a.play();
-      if (p) p.catch(tryNext); else tryNext();
-    } catch (_) { tryNext(); }
+    if (i >= _TEAR_FILES.length) return;
+    const a = new Audio(_TEAR_FILES[i++]);
+    a.preload = 'auto';
+    a.volume = 0.55;
+    a.addEventListener('canplaythrough', () => { _tearAudio = a; }, { once: true });
+    a.addEventListener('error', tryNext, { once: true });
   };
   tryNext();
+})();
+function playTear() {
+  if (_tearAudio) {
+    _tearAudio.currentTime = 0;
+    _tearAudio.play().catch(_playTearFallback);
+  } else {
+    _playTearFallback();
+  }
 }
 function _playTearFallback() {
   try {
