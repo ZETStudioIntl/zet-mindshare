@@ -1,651 +1,594 @@
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Search, ZoomIn, ZoomOut, Maximize2, X, Star, Trophy } from 'lucide-react';
-import { generateQuestMap } from '../lib/questMapData';
-import axios from 'axios';
+import { ArrowLeft, Info, X, RefreshCw, Star } from 'lucide-react';
 
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
-
-const SHAPE_COLORS = {
-  circle: { fill: '#0c2240', stroke: '#38bdf8', glow: 'rgba(56,189,248,0.55)' },
-  square: { fill: '#121545', stroke: '#818cf8', glow: 'rgba(129,140,248,0.5)' },
-  triangle: { fill: '#2d1050', stroke: '#c084fc', glow: 'rgba(192,132,252,0.55)' },
-  star: { fill: '#422006', stroke: '#fbbf24', glow: 'rgba(251,191,36,0.6)' },
+// ─── Şekil meta ──────────────────────────────────────────────────────────────
+const SHAPE_META = {
+  circle:   { stroke: '#38bdf8', rgb: '56,189,248',  glow: 'rgba(56,189,248,0.45)',  zp: 50,  label: 'Daire'  },
+  square:   { stroke: '#818cf8', rgb: '129,140,248', glow: 'rgba(129,140,248,0.45)', zp: 120, label: 'Kare'   },
+  triangle: { stroke: '#c084fc', rgb: '192,132,252', glow: 'rgba(192,132,252,0.45)', zp: 200, label: 'Üçgen'  },
+  star:     { stroke: '#fbbf24', rgb: '251,191,36',  glow: 'rgba(251,191,36,0.5)',   zp: 460, label: 'Yıldız' },
 };
-const DONE_C = { fill: '#052e16', stroke: '#4ade80', glow: 'rgba(74,222,128,0.6)' };
-const PENDING_C = { fill: '#2d1f00', stroke: '#fbbf24', glow: 'rgba(251,191,36,0.75)' };
-const BG = '#050810';
-const R = 20;
 
-function drawBorder(ctx, md) {
-  if (!md.mapMinX) return;
-  const { mapMinX: x1, mapMinY: y1, mapMaxX: x2, mapMaxY: y2 } = md;
-  const w = x2 - x1, h = y2 - y1;
-  const STEP = 55;
+const SHAPES  = ['circle', 'square', 'triangle', 'star'];
+const WEIGHTS = [50, 40, 25, 10];
+const W_TOTAL = 125;
 
-  ctx.strokeStyle = 'rgba(56,189,248,0.22)';
-  ctx.lineWidth = 1.5;
-  ctx.setLineDash([]);
-  ctx.strokeRect(x1, y1, w, h);
+// Normalized oranlar (bilgi paneli için)
+const NORM_PCT = WEIGHTS.map(w => Math.round(w / W_TOTAL * 100));
 
-  const PAD = 16;
-  ctx.strokeStyle = 'rgba(56,189,248,0.10)';
-  ctx.lineWidth = 0.8;
-  ctx.strokeRect(x1 + PAD, y1 + PAD, w - PAD * 2, h - PAD * 2);
+// ─── Görev havuzu ─────────────────────────────────────────────────────────────
+const QUEST_POOL = [
+  { id: 'q_write500',    name: '500 Kelime Yaz',        desc: 'Belgelerinde toplam 500 kelime yaz.',          tier: 0 },
+  { id: 'q_new_doc',     name: 'Yeni Belge Oluştur',    desc: 'Sıfırdan yeni bir belge aç.',                  tier: 0 },
+  { id: 'q_open_app',    name: 'Uygulamayı Aç',         desc: "Zet Mindshare'e giriş yap.",                   tier: 0 },
+  { id: 'q_add_page',    name: 'Sayfa Ekle',            desc: 'Bir belgeye yeni sayfa ekle.',                  tier: 0 },
+  { id: 'q_change_font', name: 'Font Değiştir',         desc: 'Bir metnin fontunu değiştir.',                  tier: 0 },
+  { id: 'q_add_note',    name: 'Not Al',                desc: 'Not defterine bir kayıt ekle.',                 tier: 0 },
+  { id: 'q_add_table',   name: 'Tablo Ekle',            desc: 'Bir belgeye tablo ekle.',                       tier: 1 },
+  { id: 'q_add_image',   name: 'Görsel Ekle',           desc: 'Belgeye bir resim ekle.',                       tier: 1 },
+  { id: 'q_signature',   name: 'İmza At',               desc: 'Dijital imzanı bir belgeye ekle.',              tier: 1 },
+  { id: 'q_zeta_chat',   name: 'Zeta ile Konuş',        desc: 'Zeta AI ile bir konuşma başlat.',               tier: 1 },
+  { id: 'q_draw',        name: 'Çizim Yap',             desc: 'Kalem aracıyla serbest çizim yap.',             tier: 1 },
+  { id: 'q_color',       name: 'Renk Değiştir',         desc: 'Bir metin veya şeklin rengini değiştir.',       tier: 1 },
+  { id: 'q_export_pdf',  name: 'PDF Aktar',             desc: 'Bir belgeyi PDF olarak dışa aktar.',            tier: 2 },
+  { id: 'q_qr_code',     name: 'QR Kod Oluştur',        desc: 'Bir belgeye QR kod ekle.',                      tier: 2 },
+  { id: 'q_template',    name: 'Şablon Kullan',         desc: 'Bir şablon uygula veya kaydet.',                tier: 2 },
+  { id: 'q_chart',       name: 'Grafik Ekle',           desc: 'Bir grafik oluştur.',                           tier: 2 },
+  { id: 'q_watermark',   name: 'Filigran Ekle',         desc: 'Belgeye filigran uygula.',                      tier: 2 },
+  { id: 'q_share',       name: 'Belgeyi Paylaş',        desc: 'Bir belgeyi paylaşıma aç.',                    tier: 2 },
+  { id: 'q_ai_image',    name: 'AI ile Görsel Üret',    desc: 'Zeta Colors ile görsel üret.',                  tier: 3 },
+  { id: 'q_write2000',   name: '2000 Kelime Yaz',       desc: 'Tek oturumda 2000 kelime yaz.',                 tier: 3 },
+  { id: 'q_10docs',      name: '10 Belgeyi Ziyaret Et', desc: 'Bugün 10 farklı belgeyi aç.',                   tier: 3 },
+  { id: 'q_judge',       name: 'Judge ile Analiz Et',   desc: 'Judge AI ile derinlemesine bir analiz yap.',    tier: 3 },
+];
 
-  const drawBorderShape = (bx, by, idx) => {
-    const shapes = ['circle', 'square', 'diamond', 'circle', 'square'];
-    const s = shapes[idx % shapes.length];
-    const r = 4;
-    ctx.fillStyle = 'rgba(56,189,248,0.28)';
-    ctx.strokeStyle = 'rgba(56,189,248,0.45)';
-    ctx.lineWidth = 0.8;
-    ctx.beginPath();
-    if (s === 'circle') {
-      ctx.arc(bx, by, r, 0, Math.PI * 2);
-    } else if (s === 'square') {
-      ctx.rect(bx - r, by - r, r * 2, r * 2);
-    } else {
-      ctx.moveTo(bx, by - r * 1.3);
-      ctx.lineTo(bx + r * 1.3, by);
-      ctx.lineTo(bx, by + r * 1.3);
-      ctx.lineTo(bx - r * 1.3, by);
-      ctx.closePath();
-    }
-    ctx.fill();
-    ctx.stroke();
+// ─── Deterministik PRNG ───────────────────────────────────────────────────────
+function seededRng(seed) {
+  let s = seed >>> 0;
+  return () => {
+    s = Math.imul(1664525, s) + 1013904223 >>> 0;
+    return s / 0x100000000;
   };
-
-  let idx = 0;
-  for (let bx = x1 + STEP; bx < x2 - STEP / 2; bx += STEP) {
-    drawBorderShape(bx, y1, idx++);
-    drawBorderShape(bx, y2, idx++);
+}
+function dateSeed() {
+  const d = new Date();
+  return (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) >>> 0;
+}
+function rollShape(rng) {
+  const roll = rng() * W_TOTAL;
+  let acc = 0;
+  for (let i = 0; i < WEIGHTS.length; i++) {
+    acc += WEIGHTS[i];
+    if (roll < acc) return SHAPES[i];
   }
-  for (let by = y1 + STEP; by < y2 - STEP / 2; by += STEP) {
-    drawBorderShape(x1, by, idx++);
-    drawBorderShape(x2, by, idx++);
-  }
-
-  const drawCornerStar = (cx, cy) => {
-    const r = 10, ir = 4;
-    ctx.fillStyle = 'rgba(251,191,36,0.7)';
-    ctx.strokeStyle = 'rgba(251,191,36,0.9)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const a1 = (i * 72 - 90) * Math.PI / 180;
-      const a2 = ((i * 72) + 36 - 90) * Math.PI / 180;
-      if (i === 0) ctx.moveTo(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
-      else ctx.lineTo(cx + r * Math.cos(a1), cy + r * Math.sin(a1));
-      ctx.lineTo(cx + ir * Math.cos(a2), cy + ir * Math.sin(a2));
-    }
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-  };
-  drawCornerStar(x1, y1);
-  drawCornerStar(x2, y1);
-  drawCornerStar(x1, y2);
-  drawCornerStar(x2, y2);
+  return 'circle';
 }
 
-function drawNode(ctx, shape, x, y, r, c, hover) {
-  if (c.glow !== 'none') { ctx.shadowColor = c.glow; ctx.shadowBlur = hover ? 24 : 10; }
-  ctx.fillStyle = c.fill; ctx.strokeStyle = c.stroke; ctx.lineWidth = hover ? 3 : 1.8;
-  ctx.beginPath();
-  if (shape === 'circle') { ctx.arc(x, y, r, 0, Math.PI * 2); }
-  else if (shape === 'square') {
-    const s = r * 0.75, rr = 3;
-    ctx.moveTo(x - s + rr, y - s); ctx.lineTo(x + s - rr, y - s);
-    ctx.quadraticCurveTo(x + s, y - s, x + s, y - s + rr); ctx.lineTo(x + s, y + s - rr);
-    ctx.quadraticCurveTo(x + s, y + s, x + s - rr, y + s); ctx.lineTo(x - s + rr, y + s);
-    ctx.quadraticCurveTo(x - s, y + s, x - s, y + s - rr); ctx.lineTo(x - s, y - s + rr);
-    ctx.quadraticCurveTo(x - s, y - s, x - s + rr, y - s);
-  } else if (shape === 'triangle') {
-    ctx.moveTo(x, y - r); ctx.lineTo(x + r * 0.87, y + r * 0.6); ctx.lineTo(x - r * 0.87, y + r * 0.6); ctx.closePath();
-  } else if (shape === 'star') {
-    for (let i = 0; i < 5; i++) {
-      const a1 = (i * 72 - 90) * Math.PI / 180, a2 = ((i * 72) + 36 - 90) * Math.PI / 180;
-      if (i === 0) ctx.moveTo(x + r * Math.cos(a1), y + r * Math.sin(a1));
-      else ctx.lineTo(x + r * Math.cos(a1), y + r * Math.sin(a1));
-      ctx.lineTo(x + r * 0.4 * Math.cos(a2), y + r * 0.4 * Math.sin(a2));
-    }
-    ctx.closePath();
+function buildDailyQuests(rerollOffset = 0, forceFriday = false) {
+  const rng       = seededRng(dateSeed() + rerollOffset * 7919);
+  const isFriday  = forceFriday || new Date().getDay() === 5;
+  const slotCount = isFriday ? 5 : 3;
+  const used      = new Set();
+  const slots     = [];
+
+  for (let i = 0; i < slotCount; i++) {
+    const shape = (isFriday && i === 0) ? 'star' : rollShape(rng);
+
+    const specialChance = isFriday ? 0.025 : 0.009;
+    const isSpecial     = rng() < specialChance;
+    const specialType   = rng() < 0.5 ? 'case' : 'wheel';
+
+    const tier   = SHAPES.indexOf(shape);
+    const pool   = QUEST_POOL.filter(q => q.tier === tier && !used.has(q.id));
+    const picked = pool[Math.floor(rng() * (pool.length || 1))] || QUEST_POOL.find(q => !used.has(q.id)) || QUEST_POOL[0];
+    used.add(picked.id);
+    slots.push({ id: `slot_${i}_${rerollOffset}`, quest: picked, shape, isSpecial, specialType });
   }
-  ctx.fill(); ctx.stroke(); ctx.shadowBlur = 0;
+  return { slots, isFriday };
 }
 
-function drawCheck(ctx, x, y) {
-  ctx.strokeStyle = '#4ade80'; ctx.lineWidth = 2.5; ctx.lineCap = 'round';
-  ctx.beginPath(); ctx.moveTo(x - 5, y); ctx.lineTo(x - 1, y + 4); ctx.lineTo(x + 6, y - 4); ctx.stroke();
-  ctx.lineCap = 'butt';
+// ─── Şekil SVG'leri ──────────────────────────────────────────────────────────
+function starPoints(cx, cy, r, ir, n = 5) {
+  const pts = [];
+  for (let i = 0; i < n * 2; i++) {
+    const a   = (i * Math.PI / n) - Math.PI / 2;
+    const rad = i % 2 === 0 ? r : ir;
+    pts.push(`${cx + rad * Math.cos(a)},${cy + rad * Math.sin(a)}`);
+  }
+  return pts.join(' ');
 }
 
+function ShapeIcon({ shape, size = 44, color, glow, done }) {
+  const c = done ? '#4ade80' : color;
+  const g = done ? 'rgba(74,222,128,0.5)' : glow;
+  const f = `drop-shadow(0 0 6px ${g})`;
+  if (shape === 'circle') return (
+    <svg width={size} height={size} viewBox="0 0 32 32">
+      <circle cx="16" cy="16" r="11" fill="none" stroke={c} strokeWidth="2.5" style={{ filter: f }} />
+      <circle cx="16" cy="16" r="5"  fill={c} opacity="0.2" />
+    </svg>
+  );
+  if (shape === 'square') return (
+    <svg width={size} height={size} viewBox="0 0 32 32">
+      <rect x="5" y="5" width="22" height="22" rx="3" fill="none" stroke={c} strokeWidth="2.5" style={{ filter: f }} />
+      <rect x="10" y="10" width="12" height="12" rx="2" fill={c} opacity="0.2" />
+    </svg>
+  );
+  if (shape === 'triangle') return (
+    <svg width={size} height={size} viewBox="0 0 32 32">
+      <polygon points="16,4 29,27 3,27" fill="none" stroke={c} strokeWidth="2.5" strokeLinejoin="round" style={{ filter: f }} />
+      <polygon points="16,12 23,24 9,24" fill={c} opacity="0.2" />
+    </svg>
+  );
+  if (shape === 'star') return (
+    <svg width={size} height={size} viewBox="0 0 32 32">
+      <polygon points={starPoints(16,16,13,6)} fill="none" stroke={c} strokeWidth="2" style={{ filter: `drop-shadow(0 0 8px ${g})` }} />
+      <polygon points={starPoints(16,16,6,3)}  fill={c} opacity="0.35" />
+    </svg>
+  );
+  return null;
+}
+
+function CaseIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <rect x="2" y="7" width="20" height="14" rx="2" stroke="#fbbf24" strokeWidth="1.8"/>
+      <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" stroke="#fbbf24" strokeWidth="1.8"/>
+      <line x1="12" y1="12" x2="12" y2="16" stroke="#fbbf24" strokeWidth="1.8"/>
+      <line x1="10" y1="14" x2="14" y2="14" stroke="#fbbf24" strokeWidth="1.8"/>
+    </svg>
+  );
+}
+function WheelIcon({ size = 14 }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <circle cx="12" cy="12" r="9" stroke="#c084fc" strokeWidth="1.8"/>
+      <circle cx="12" cy="12" r="3" fill="#c084fc" opacity="0.4"/>
+      <line x1="12" y1="3"  x2="12" y2="7"  stroke="#c084fc" strokeWidth="1.8"/>
+      <line x1="12" y1="17" x2="12" y2="21" stroke="#c084fc" strokeWidth="1.8"/>
+      <line x1="3"  y1="12" x2="7"  y2="12" stroke="#c084fc" strokeWidth="1.8"/>
+      <line x1="17" y1="12" x2="21" y2="12" stroke="#c084fc" strokeWidth="1.8"/>
+    </svg>
+  );
+}
+
+// ─── Haftalık ilerleme ────────────────────────────────────────────────────────
+const DAYS = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+function WeekProgress() {
+  const today = new Date().getDay();
+  return (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+      {DAYS.map((label, i) => {
+        const isToday = i === today;
+        const isPast  = i < today;
+        const isFri   = i === 5;
+        return (
+          <div key={label} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <div style={{
+              width: isFri ? 32 : 26, height: isFri ? 32 : 26,
+              borderRadius: isFri ? 7 : '50%',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: isToday ? 'rgba(251,191,36,0.15)' : isPast ? 'rgba(74,222,128,0.1)' : 'rgba(255,255,255,0.03)',
+              border: `1.5px solid ${isToday ? '#fbbf24' : isPast ? '#4ade80' : 'rgba(255,255,255,0.07)'}`,
+              transition: 'all 0.2s',
+            }}>
+              {isPast ? (
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M2 6l3 3 5-5" stroke="#4ade80" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              ) : isFri ? (
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                  <polygon points={starPoints(7,7,6,2.5)} fill={isToday ? '#fbbf24' : 'rgba(251,191,36,0.35)'}/>
+                </svg>
+              ) : null}
+            </div>
+            <span style={{ fontSize: 9, color: isToday ? '#fbbf24' : '#334155', fontWeight: isToday ? 700 : 400 }}>{label}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// ─── Bilgi Paneli ─────────────────────────────────────────────────────────────
+function InfoPanel({ onClose }) {
+  const EXPECTED_PER_SLOT = WEIGHTS.reduce((sum, w, i) => sum + (w / W_TOTAL) * [50,120,200,460][i], 0);
+  const rows = [
+    { shape: 'circle',   pct: NORM_PCT[0], zp: 50  },
+    { shape: 'square',   pct: NORM_PCT[1], zp: 120 },
+    { shape: 'triangle', pct: NORM_PCT[2], zp: 200 },
+    { shape: 'star',     pct: NORM_PCT[3], zp: 460 },
+  ];
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 520,
+          background: '#0b1120', borderRadius: '20px 20px 0 0',
+          border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none',
+          padding: '24px 20px 40px',
+          animation: 'slide-up 0.28s cubic-bezier(0.32,0.72,0,1)',
+        }}
+      >
+        {/* Başlık */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
+          <span style={{ fontWeight: 700, fontSize: 16 }}>Görev Sistemi</span>
+          <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}>
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Açıklama */}
+        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 20, lineHeight: 1.6 }}>
+          Her gün 3 görev rastgele seçilir. Her slot bağımsız olarak aşağıdaki ağırlıklarla çekilir. Cuma günü 5 slot gelir ve ilk slot garanti yıldızdır.
+        </p>
+
+        {/* Oranlar tablosu */}
+        <div style={{ marginBottom: 22 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', letterSpacing: '0.08em', marginBottom: 10, textTransform: 'uppercase' }}>
+            Slot Oranları
+          </div>
+          {rows.map(row => {
+            const meta = SHAPE_META[row.shape];
+            return (
+              <div key={row.shape} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
+                <ShapeIcon shape={row.shape} size={28} color={meta.stroke} glow={meta.glow} done={false} />
+                <span style={{ width: 44, fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>{meta.label}</span>
+                {/* Bar */}
+                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${row.pct * 2.5}%`, background: meta.stroke, borderRadius: 3, opacity: 0.7 }} />
+                </div>
+                <span style={{ width: 32, fontSize: 12, fontWeight: 700, color: meta.stroke, textAlign: 'right' }}>%{row.pct}</span>
+                <span style={{ width: 52, fontSize: 11, color: '#475569', textAlign: 'right' }}>+{row.zp} ZP</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Sandık / Çark şansı */}
+        <div style={{ marginBottom: 22, padding: '12px 14px', borderRadius: 10, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.12)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#92740a', letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
+            Sandık / Çark Şansı (slot başına)
+          </div>
+          <div style={{ display: 'flex', gap: 20 }}>
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Normal gün</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>%0.9</div>
+            </div>
+            <div>
+              <div style={{ fontSize: 11, color: '#64748b' }}>Cuma</div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: '#fbbf24' }}>%2.5</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Beklenen kazanç */}
+        <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(56,189,248,0.04)', border: '1px solid rgba(56,189,248,0.1)' }}>
+          <div style={{ fontSize: 10, fontWeight: 700, color: '#155e75', letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
+            Beklenen Kazanç
+          </div>
+          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
+            {[
+              { label: 'Slot başına', val: `~${Math.round(EXPECTED_PER_SLOT)} ZP` },
+              { label: 'Normal gün', val: `~${Math.round(EXPECTED_PER_SLOT * 3)} ZP` },
+              { label: 'Cuma', val: `~${Math.round(460 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
+              { label: 'Haftalık', val: `~${Math.round(EXPECTED_PER_SLOT * 3 * 6 + 460 + EXPECTED_PER_SLOT * 4)} ZP` },
+            ].map(item => (
+              <div key={item.label}>
+                <div style={{ fontSize: 11, color: '#64748b' }}>{item.label}</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: item.gold ? '#fbbf24' : '#e2e8f0' }}>{item.val}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Ana bileşen ──────────────────────────────────────────────────────────────
 const QuestMap = () => {
-  const canvasRef = useRef(null);
-  const navigate = useNavigate();
-  const animRef = useRef(0);
-  const zpBadgeRef = useRef(null);
+  const navigate    = useNavigate();
+  const isCEO       = localStorage.getItem('zet_ceo_mode') === 'true';
 
-  const [mapData, setMapData] = useState(null);
-  const [pendingSet, setPendingSet] = useState(new Set());
-  const [collectedSet, setCollectedSet] = useState(new Set());
-  const [zp, setZp] = useState(0);
-  const [vp, setVp] = useState({ x: 0, y: 0, z: 0.55 });
-  const [drag, setDrag] = useState(false);
-  const [dragO, setDragO] = useState({ x: 0, y: 0 });
-  const [selected, setSelected] = useState(null);
-  const [search, setSearch] = useState('');
-  const [hovered, setHovered] = useState(null);
-  const [zpFly, setZpFly] = useState(null); // { x, y, zp, key }
-  const [collecting, setCollecting] = useState(false);
+  const [rerollOffset, setRerollOffset] = useState(0);
+  const [forceFriday,  setForceFriday]  = useState(false);
+  const [showInfo,     setShowInfo]      = useState(false);
+  const [collected,    setCollected]     = useState(new Set());
+  const [zpFly,        setZpFly]         = useState(null);
+  const [rerolling,    setRerolling]     = useState(false);
 
-  const vpR = useRef(vp); vpR.current = vp;
-  const mdR = useRef(mapData); mdR.current = mapData;
-  const pendR = useRef(pendingSet); pendR.current = pendingSet;
-  const collR = useRef(collectedSet); collR.current = collectedSet;
-  const hovR = useRef(hovered); hovR.current = hovered;
-  const selR = useRef(selected); selR.current = selected;
-  const searchR = useRef(search); searchR.current = search;
+  const { slots, isFriday } = useMemo(
+    () => buildDailyQuests(rerollOffset, forceFriday),
+    [rerollOffset, forceFriday]
+  );
 
-  useEffect(() => {
-    const d = generateQuestMap();
-    setMapData(d);
+  const realFriday = new Date().getDay() === 5;
 
-    const initVp = () => {
-      const cvs2 = canvasRef.current;
-      const cw = (cvs2 && cvs2.offsetWidth > 0) ? cvs2.offsetWidth : window.innerWidth;
-      const ch = (cvs2 && cvs2.offsetHeight > 0) ? cvs2.offsetHeight : window.innerHeight - 120;
-      // Başlangıç: alt-orta görünsün, tüm harita yaklaşık sığsın
-      const z = Math.max(0.18, Math.min(0.55, (cw - 100) / (d.mapMaxX - d.mapMinX)));
-      const x = cw / 2 - d.startX * z;
-      const y = ch - 120 - d.startY * z;
-      setVp({ z, x, y });
-    };
-    setTimeout(initVp, 100);
+  // CEO yenile
+  const handleReroll = useCallback(() => {
+    if (!isCEO || rerolling) return;
+    setRerolling(true);
+    setCollected(new Set());
+    setTimeout(() => {
+      setRerollOffset(n => n + 1);
+      setRerolling(false);
+    }, 400);
+  }, [isCEO, rerolling]);
 
-    // auto-check first so any accumulated stat progress is captured
-    axios.post(`${API}/quests/auto-check`, {}, { withCredentials: true })
-      .catch(() => {})
-      .finally(() => {
-        axios.get(`${API}/quests/status`, { withCredentials: true })
-          .then(r => {
-            const qs = r.data.quests || [];
-            const pend = new Set(qs.filter(q => q.status === 'pending').map(q => q.id));
-            const coll = new Set(qs.filter(q => q.status === 'collected').map(q => q.id));
-            setPendingSet(pend);
-            setCollectedSet(coll);
-          })
-          .catch(() => {});
-      });
-
-    axios.get(`${API}/users/me`, { withCredentials: true })
-      .then(r => setZp(r.data.zp || 0))
-      .catch(() => {});
-  }, []);
-
-  const isUnlocked = useCallback((qid) => {
-    const q = mdR.current?.quests.find(q => q.id === qid);
-    if (!q) return false;
-    // pending VEYA collected — toplanmasa bile bir sonraki kilit açılır
-    return q.requires.every(r => collR.current.has(r) || pendR.current.has(r));
-  }, []);
-
-  const findAt = useCallback((sx, sy) => {
-    const md = mdR.current; if (!md) return null;
-    const v = vpR.current;
-    const wx = (sx - v.x) / v.z, wy = (sy - v.y) / v.z;
-    for (let i = md.quests.length - 1; i >= 0; i--) {
-      const q = md.quests[i];
-      if ((q.x - wx) ** 2 + (q.y - wy) ** 2 < (R + 12) ** 2) return q;
-    }
-    return null;
-  }, []);
-
-  const render = useCallback(() => {
-    const cvs = canvasRef.current; if (!cvs || !mdR.current) return;
-    const ctx = cvs.getContext('2d');
-    const dpr = window.devicePixelRatio || 1;
-    const w = cvs.clientWidth, h = cvs.clientHeight;
-    if (cvs.width !== w * dpr || cvs.height !== h * dpr) { cvs.width = w * dpr; cvs.height = h * dpr; }
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-    const v = vpR.current, md = mdR.current;
-    const pend = pendR.current, coll = collR.current;
-    const hov = hovR.current, sel = selR.current;
-    const sq = searchR.current.toLowerCase().trim();
-    const tick = animRef.current;
-
-    ctx.fillStyle = BG; ctx.fillRect(0, 0, w, h);
-
-    const scx = md.centerX * v.z + v.x;
-    const scy = md.centerY * v.z + v.y;
-    const grad = ctx.createRadialGradient(scx, scy, 0, scx, scy, Math.max(w, h));
-    grad.addColorStop(0, 'rgba(30,40,100,0.08)');
-    grad.addColorStop(0.5, 'rgba(15,20,50,0.04)');
-    grad.addColorStop(1, 'rgba(5,8,16,0)');
-    ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
-
-    ctx.save(); ctx.translate(v.x, v.y); ctx.scale(v.z, v.z);
-
-    drawBorder(ctx, md);
-
-    // Connections
-    md.connections.forEach(cn => {
-      const f = md.quests[cn.from], tt = md.quests[cn.to];
-      if (!f || !tt) return;
-      const bothDone = coll.has(f.id) && coll.has(tt.id);
-      const anyDone = coll.has(f.id) || coll.has(tt.id);
-
-      if (bothDone) {
-        ctx.strokeStyle = 'rgba(74,222,128,0.6)'; ctx.lineWidth = 2; ctx.globalAlpha = 0.85;
-      } else if (anyDone) {
-        ctx.strokeStyle = 'rgba(56,189,248,0.45)'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.6;
-      } else {
-        ctx.strokeStyle = 'rgba(56,80,180,0.32)'; ctx.lineWidth = 1; ctx.globalAlpha = 0.6;
-      }
-      ctx.beginPath();
-      ctx.moveTo(f.x, f.y);
-      if (Math.abs(f.y - tt.y) < 4) {
-        ctx.lineTo(tt.x, tt.y);
-      } else {
-        ctx.lineTo(tt.x, f.y); ctx.lineTo(tt.x, tt.y);
-      }
-      ctx.stroke(); ctx.globalAlpha = 1;
+  // Topla
+  const handleCollect = useCallback((slot, e) => {
+    if (collected.has(slot.id)) return;
+    setCollected(prev => new Set([...prev, slot.id]));
+    const rect   = e.currentTarget.getBoundingClientRect();
+    const badge  = document.getElementById('daily-zp-badge');
+    const toRect = badge?.getBoundingClientRect();
+    setZpFly({
+      key:   Date.now(),
+      fromX: rect.left + rect.width / 2,
+      fromY: rect.top  + rect.height / 2,
+      toX:   toRect ? toRect.left + toRect.width / 2 : window.innerWidth / 2,
+      toY:   toRect ? toRect.top  : 60,
+      label: slot.isSpecial
+        ? (slot.specialType === 'case' ? 'Sandık!' : 'Çark!')
+        : `+${SHAPE_META[slot.shape].zp} ZP`,
     });
-
-    const searchSet = new Set();
-    if (sq) md.quests.forEach(q => { if (q.name.toLowerCase().includes(sq) || q.desc.toLowerCase().includes(sq)) searchSet.add(q.id); });
-
-    md.quests.forEach(q => {
-      const isCollected = coll.has(q.id);
-      const isPending = pend.has(q.id);
-      const unlocked = isCollected || isPending || isUnlocked(q.id);
-      const isHov = hov === q.id;
-      const isSel = sel && sel.id === q.id;
-      const isMatch = searchSet.size > 0 && searchSet.has(q.id);
-      const nr = (isHov || isSel) ? R + 4 : R;
-
-      if (searchSet.size > 0 && !isMatch) ctx.globalAlpha = 0.06;
-
-      if (!unlocked) {
-        const lockedC = { fill: '#0d1120', stroke: '#2a3050', glow: 'none' };
-        drawNode(ctx, q.shape, q.x, q.y, nr, lockedC, false);
-        ctx.fillStyle = '#4a5580';
-        ctx.font = `bold ${Math.round(nr * 0.9)}px sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('?', q.x, q.y); ctx.textBaseline = 'alphabetic';
-        if (isHov || isSel) {
-          const tip = 'Bu görev henüz açılmadı';
-          ctx.font = '9px "DM Sans",sans-serif';
-          const tw = ctx.measureText(tip).width + 12;
-          ctx.fillStyle = 'rgba(10,14,30,0.92)'; ctx.strokeStyle = 'rgba(74,85,128,0.6)'; ctx.lineWidth = 0.8;
-          const tx = q.x - tw / 2, ty = q.y - nr - 24;
-          ctx.beginPath(); ctx.roundRect(tx, ty, tw, 16, 4); ctx.fill(); ctx.stroke();
-          ctx.fillStyle = '#94a3b8'; ctx.textAlign = 'center'; ctx.fillText(tip, q.x, ty + 11);
-        }
-      } else if (isPending) {
-        // Pending: amber/gold glow, pulsing
-        const pulse = 0.7 + 0.3 * Math.sin(tick * 0.06);
-        const pc = { ...PENDING_C, glow: `rgba(251,191,36,${0.4 + 0.35 * pulse})` };
-        ctx.shadowColor = pc.glow; ctx.shadowBlur = (isHov || isSel) ? 30 : 14 + 8 * pulse;
-        drawNode(ctx, q.shape, q.x, q.y, nr, pc, isHov || isSel);
-        // Star icon inside
-        ctx.fillStyle = '#fbbf24';
-        ctx.font = `bold ${Math.round(nr * 0.75)}px sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('★', q.x, q.y + 1); ctx.textBaseline = 'alphabetic';
-        if (v.z > 0.3) {
-          ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
-          ctx.fillStyle = '#fbbf24';
-          ctx.fillText(q.name, q.x, q.y + R + 13);
-        }
-        if (isHov || isSel) {
-          ctx.strokeStyle = 'rgba(251,191,36,0.3)'; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.arc(q.x, q.y, nr + 8, 0, Math.PI * 2); ctx.stroke();
-        }
-      } else if (isCollected) {
-        drawNode(ctx, q.shape, q.x, q.y, nr, DONE_C, isHov || isSel);
-        drawCheck(ctx, q.x, q.y - 2);
-        if (v.z > 0.3) {
-          ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
-          ctx.fillStyle = '#86efac';
-          ctx.fillText(q.name, q.x, q.y + R + 13);
-        }
-      } else {
-        const c = SHAPE_COLORS[q.shape] || SHAPE_COLORS.circle;
-        drawNode(ctx, q.shape, q.x, q.y, nr, c, isHov || isSel);
-        ctx.fillStyle = c.stroke; ctx.font = 'bold 8px "DM Sans",sans-serif';
-        ctx.textAlign = 'center'; ctx.fillText(`${q.zp}`, q.x, q.y + 3);
-        if (v.z > 0.3) {
-          ctx.font = '8px "DM Sans",sans-serif'; ctx.textAlign = 'center';
-          ctx.fillStyle = '#94a3b8';
-          ctx.fillText(q.name, q.x, q.y + R + 13);
-        }
-        if (isHov || isSel) {
-          ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1;
-          ctx.beginPath(); ctx.arc(q.x, q.y, nr + 8, 0, Math.PI * 2); ctx.stroke();
-        }
-      }
-
-      if (isMatch) {
-        ctx.strokeStyle = '#fbbf24'; ctx.lineWidth = 2;
-        ctx.setLineDash([4, 3]); ctx.beginPath(); ctx.arc(q.x, q.y, nr + 10, 0, Math.PI * 2); ctx.stroke(); ctx.setLineDash([]);
-      }
-      ctx.globalAlpha = 1;
-    });
-
-    ctx.restore();
-    animRef.current++;
-  }, [isUnlocked]);
-
-  useEffect(() => {
-    let af;
-    const loop = () => { render(); af = requestAnimationFrame(loop); };
-    af = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(af);
-  }, [render]);
-
-  const playHoverSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(900, ctx.currentTime);
-      osc.frequency.linearRampToValueAtTime(1500, ctx.currentTime + 0.07);
-      gain.gain.setValueAtTime(0.07, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.11);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(ctx.currentTime); osc.stop(ctx.currentTime + 0.11);
-    } catch (_) {}
-  }, []);
-
-  // Mouse events
-  const onDown = useCallback((e) => {
-    if (e.button === 0) { setDrag(true); setDragO({ x: e.clientX - vpR.current.x, y: e.clientY - vpR.current.y }); }
-  }, []);
-  const onMove = useCallback((e) => {
-    const cvs = canvasRef.current; if (!cvs) return;
-    if (drag) {
-      setVp(v => ({ ...v, x: e.clientX - dragO.x, y: e.clientY - dragO.y }));
-    } else {
-      const rect = cvs.getBoundingClientRect();
-      const q = findAt(e.clientX - rect.left, e.clientY - rect.top);
-      const newId = q ? q.id : null;
-      if (newId && newId !== hovR.current) playHoverSound();
-      setHovered(newId);
-      cvs.style.cursor = q ? 'pointer' : 'grab';
-    }
-  }, [drag, dragO, findAt, playHoverSound]);
-  const onUp = useCallback((e) => {
-    if (drag) {
-      setDrag(false);
-      if (Math.abs(e.clientX - (dragO.x + vpR.current.x)) < 5 && Math.abs(e.clientY - (dragO.y + vpR.current.y)) < 5) {
-        const cvs = canvasRef.current; if (!cvs) return;
-        const rect = cvs.getBoundingClientRect();
-        setSelected(findAt(e.clientX - rect.left, e.clientY - rect.top) || null);
-      }
-    }
-  }, [drag, dragO, findAt]);
-  const onWheel = useCallback((e) => {
-    e.preventDefault(); const cvs = canvasRef.current; if (!cvs) return;
-    const rect = cvs.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const f = e.deltaY < 0 ? 1.12 : 0.88;
-    setVp(v => {
-      const nz = Math.max(0.18, Math.min(2.5, v.z * f));
-      const s = nz / v.z;
-      return { z: nz, x: mx - (mx - v.x) * s, y: my - (my - v.y) * s };
-    });
-  }, []);
-  useEffect(() => {
-    const c = canvasRef.current; if (!c) return;
-    c.addEventListener('wheel', onWheel, { passive: false });
-    return () => c.removeEventListener('wheel', onWheel);
-  }, [onWheel]);
-
-  const touchR2 = useRef({ dist: 0 });
-  const onTS = useCallback((e) => {
-    if (e.touches.length === 1) { setDrag(true); setDragO({ x: e.touches[0].clientX - vpR.current.x, y: e.touches[0].clientY - vpR.current.y }); }
-    else if (e.touches.length === 2) { touchR2.current.dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }
-  }, []);
-  const onTM = useCallback((e) => {
-    e.preventDefault();
-    if (e.touches.length === 1 && drag) setVp(v => ({ ...v, x: e.touches[0].clientX - dragO.x, y: e.touches[0].clientY - dragO.y }));
-    else if (e.touches.length === 2) {
-      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
-      if (touchR2.current.dist > 0) {
-        const cx = (e.touches[0].clientX + e.touches[1].clientX) / 2;
-        const cy = (e.touches[0].clientY + e.touches[1].clientY) / 2;
-        const f = d / touchR2.current.dist;
-        setVp(v => { const nz = Math.max(0.08, Math.min(3, v.z * f)); const s = nz / v.z; return { z: nz, x: cx - (cx - v.x) * s, y: cy - (cy - v.y) * s }; });
-      }
-      touchR2.current.dist = d;
-    }
-  }, [drag, dragO]);
-  const onTE = useCallback(() => { setDrag(false); touchR2.current.dist = 0; }, []);
-
-  const zoomIn = () => setVp(v => ({ ...v, z: Math.min(2.5, v.z * 1.3) }));
-  const zoomOut = () => setVp(v => ({ ...v, z: Math.max(0.18, v.z * 0.7) }));
-  const resetView = () => {
-    if (!mapData) return;
-    const cvs = canvasRef.current;
-    const cw = cvs ? cvs.clientWidth : 960;
-    const ch = cvs ? cvs.clientHeight : 600;
-    const z = Math.max(0.18, Math.min(0.55, (cw - 100) / (mapData.mapMaxX - mapData.mapMinX)));
-    setVp({ z, x: cw / 2 - mapData.startX * z, y: ch - 120 - mapData.startY * z });
-  };
-
-  const playCollectSound = useCallback(() => {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const notes = [523.25, 659.25, 783.99, 1046.50];
-      notes.forEach((freq, i) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0, ctx.currentTime + i * 0.1);
-        gain.gain.linearRampToValueAtTime(0.15, ctx.currentTime + i * 0.1 + 0.03);
-        gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.1 + 0.5);
-        osc.connect(gain); gain.connect(ctx.destination);
-        osc.start(ctx.currentTime + i * 0.1); osc.stop(ctx.currentTime + i * 0.1 + 0.5);
-      });
-      const shimmer = ctx.createOscillator();
-      const sGain = ctx.createGain();
-      shimmer.type = 'triangle'; shimmer.frequency.value = 1568;
-      sGain.gain.setValueAtTime(0, ctx.currentTime + 0.35);
-      sGain.gain.linearRampToValueAtTime(0.06, ctx.currentTime + 0.4);
-      sGain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.9);
-      shimmer.connect(sGain); sGain.connect(ctx.destination);
-      shimmer.start(ctx.currentTime + 0.35); shimmer.stop(ctx.currentTime + 0.9);
-    } catch (_) {}
-  }, []);
-
-  const doCollectRef = useRef(null);
-
-  const doCollect = useCallback(async (q) => {
-    if (!pendingSet.has(q.id) || collecting) return;
-    setCollecting(true);
-    try {
-      const r = await axios.post(`${API}/quests/${q.id}/collect`, {}, { withCredentials: true });
-      setZp(r.data.zp_total || 0);
-      setPendingSet(prev => { const n = new Set(prev); n.delete(q.id); return n; });
-      setCollectedSet(prev => new Set([...prev, q.id]));
-      playCollectSound();
-
-      // ZP flying animation — from panel bottom-center to ZP badge
-      const panel = document.querySelector('[data-quest-panel]');
-      const badge = zpBadgeRef.current;
-      if (panel && badge) {
-        const pRect = panel.getBoundingClientRect();
-        const bRect = badge.getBoundingClientRect();
-        setZpFly({
-          key: Date.now(),
-          fromX: pRect.left + pRect.width / 2,
-          fromY: pRect.top,
-          toX: bRect.left + bRect.width / 2,
-          toY: bRect.top + bRect.height / 2,
-          zp: r.data.zp_earned,
-        });
-        setTimeout(() => setZpFly(null), 1100);
-      }
-      setSelected(null);
-    } catch (_) {}
-    setCollecting(false);
-  }, [pendingSet, collecting, playCollectSound]);
-
-  doCollectRef.current = doCollect;
-
-  // Space tuşu ile toplama
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.code === 'Space') {
-        e.preventDefault();
-        const sel = selR.current;
-        if (sel && pendR.current.has(sel.id)) doCollectRef.current?.(sel);
-      }
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, []);
-
-  const total = mapData ? mapData.quests.length : 0;
-  const done = collectedSet.size;
-  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+    setTimeout(() => setZpFly(null), 1100);
+  }, [collected]);
 
   return (
     <>
-    <div className="fixed inset-0 flex flex-col" style={{ background: BG }} data-testid="quest-map-page">
-      {/* Header */}
-      <header className="flex items-center justify-between px-4 py-2 border-b" style={{ borderColor: 'rgba(40,50,120,0.25)', background: 'rgba(5,8,16,0.97)', zIndex: 20 }}>
-        <div className="flex items-center gap-3">
-          <button onClick={() => navigate('/dashboard')} className="p-1.5 rounded-lg hover:bg-white/5 transition-colors" data-testid="quest-back-btn">
-            <ArrowLeft className="h-5 w-5" style={{ color: '#38bdf8' }} />
-          </button>
-          <div>
-            <h1 className="text-sm font-bold tracking-wide" style={{ color: '#e2e8f0' }}>Görev Haritası</h1>
-            <p className="text-[10px]" style={{ color: '#64748b' }}>{done}/{total} Tamamlandı</p>
-          </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <div ref={zpBadgeRef} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(251,191,36,0.1)', border: '1px solid rgba(251,191,36,0.2)' }}>
-            <Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} />
-            <span className="text-xs font-bold" style={{ color: '#fbbf24' }} data-testid="quest-sp-badge">{zp} ZP</span>
-          </div>
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.08)', border: '1px solid rgba(74,222,128,0.15)' }}>
-            <Trophy className="h-3.5 w-3.5" style={{ color: '#4ade80' }} />
-            <span className="text-xs font-bold" style={{ color: '#4ade80' }}>%{pct}</span>
-          </div>
-        </div>
-      </header>
+    <div style={{ minHeight: '100vh', background: '#050810', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-3 py-1.5 border-b" style={{ borderColor: 'rgba(40,50,120,0.15)', background: 'rgba(5,8,16,0.95)', zIndex: 20 }}>
-        <div className="flex items-center gap-2 flex-1 max-w-[200px] px-2 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}>
-          <Search className="h-3.5 w-3.5" style={{ color: '#64748b' }} />
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Görev ara..." className="bg-transparent outline-none text-xs flex-1" style={{ color: '#e2e8f0' }} data-testid="quest-search-input" />
-          {search && <button onClick={() => setSearch('')}><X className="h-3 w-3" style={{ color: '#64748b' }} /></button>}
-        </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-0.5">
-          <button onClick={zoomOut} className="p-1 rounded hover:bg-white/5" data-testid="quest-zoom-out"><ZoomOut className="h-4 w-4" style={{ color: '#64748b' }} /></button>
-          <span className="text-[10px] px-1 min-w-[32px] text-center" style={{ color: '#475569' }}>{Math.round(vp.z * 100)}%</span>
-          <button onClick={zoomIn} className="p-1 rounded hover:bg-white/5" data-testid="quest-zoom-in"><ZoomIn className="h-4 w-4" style={{ color: '#64748b' }} /></button>
-          <button onClick={resetView} className="p-1 rounded hover:bg-white/5" data-testid="quest-reset-view"><Maximize2 className="h-4 w-4" style={{ color: '#64748b' }} /></button>
-        </div>
-        <div className="hidden lg:flex items-center gap-3 ml-2 pl-2 border-l text-[10px]" style={{ borderColor: 'rgba(255,255,255,0.06)', color: '#475569' }}>
-          <span style={{ color: '#38bdf8' }}>● Aktif</span>
-          <span style={{ color: '#fbbf24' }}>★ Topla</span>
-          <span style={{ color: '#4ade80' }}>✓ Tamamlandı</span>
-          <span style={{ color: '#2a3050' }}>? Kilitli</span>
+      {/* Top bar */}
+      <div style={{
+        position: 'sticky', top: 0, zIndex: 50,
+        display: 'flex', alignItems: 'center', gap: 10,
+        padding: '14px 16px',
+        background: 'rgba(5,8,16,0.92)', backdropFilter: 'blur(14px)',
+        borderBottom: '1px solid rgba(255,255,255,0.06)',
+      }}>
+        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', display: 'flex', padding: 4 }}>
+          <ArrowLeft size={20} />
+        </button>
+
+        <span style={{ fontWeight: 700, fontSize: 16, letterSpacing: '-0.01em', flex: 1 }}>Günlük Görevler</span>
+
+        {isFriday && !realFriday && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)' }}>
+            CUMA AKTİF
+          </span>
+        )}
+        {realFriday && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 99, background: 'rgba(251,191,36,0.12)', color: '#fbbf24', border: '1px solid rgba(251,191,36,0.25)' }}>
+            CUMA BONUSU
+          </span>
+        )}
+
+        {/* CEO yenile */}
+        {isCEO && (
+          <button
+            onClick={handleReroll}
+            title="CEO: Görevleri Yenile"
+            style={{
+              background: rerolling ? 'rgba(245,158,11,0.05)' : 'rgba(245,158,11,0.1)',
+              border: '1px solid rgba(245,158,11,0.3)',
+              borderRadius: 8, cursor: 'pointer', color: '#f59e0b',
+              display: 'flex', alignItems: 'center', gap: 5,
+              padding: '6px 10px', fontSize: 11, fontWeight: 700,
+              transition: 'all 0.2s',
+            }}
+          >
+            <RefreshCw size={13} style={{ animation: rerolling ? 'spin 0.4s linear' : 'none' }} />
+            Yenile
+          </button>
+        )}
+
+        {/* Bilgi */}
+        <button
+          onClick={() => setShowInfo(true)}
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#334155', display: 'flex', padding: 4 }}
+        >
+          <Info size={18} />
+        </button>
+
+        {/* ZP göstergesi */}
+        <div id="daily-zp-badge" style={{ display: 'flex', alignItems: 'center', gap: 5, marginLeft: 2 }}>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <circle cx="7" cy="7" r="6" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" strokeWidth="1.2"/>
+            <text x="7" y="10.5" textAnchor="middle" fill="#fbbf24" fontSize="5.5" fontWeight="800">ZP</text>
+          </svg>
+          <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 700 }}>4 820</span>
         </div>
       </div>
 
-      {/* Canvas */}
-      <div className="flex-1 relative overflow-hidden">
-        <canvas ref={canvasRef} className="w-full h-full" style={{ touchAction: 'none' }}
-          onMouseDown={onDown} onMouseMove={onMove} onMouseUp={onUp}
-          onMouseLeave={() => { setDrag(false); setHovered(null); }}
-          onTouchStart={onTS} onTouchMove={onTM} onTouchEnd={onTE}
-          data-testid="quest-map-canvas" />
+      {/* İçerik */}
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: '28px 16px 80px' }}>
 
-        {/* Quest Detail Panel */}
-        {selected && (
-          <div data-quest-panel className="absolute bottom-3 left-3 sm:left-1/2 sm:-translate-x-1/2 rounded-xl shadow-2xl p-4 max-w-xs w-[calc(100%-1.5rem)] sm:w-auto sm:min-w-[280px]" style={{ background: 'rgba(10,14,30,0.97)', border: `1px solid ${pendingSet.has(selected.id) ? 'rgba(251,191,36,0.4)' : 'rgba(40,50,120,0.4)'}`, backdropFilter: 'blur(20px)', zIndex: 25 }} data-testid="quest-detail-panel">
-            <div className="flex items-start justify-between mb-2">
-              <div className="flex items-center gap-2">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: collectedSet.has(selected.id) ? 'rgba(74,222,128,0.12)' : pendingSet.has(selected.id) ? 'rgba(251,191,36,0.12)' : 'rgba(56,189,248,0.08)' }}>
-                  <span className="text-sm font-bold" style={{ color: collectedSet.has(selected.id) ? '#4ade80' : pendingSet.has(selected.id) ? '#fbbf24' : '#38bdf8' }}>
-                    {collectedSet.has(selected.id) ? '✓' : pendingSet.has(selected.id) ? '★' : '●'}
-                  </span>
+        <WeekProgress />
+
+        {/* Görev kartları */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
+          {slots.map((slot, idx) => {
+            const meta = SHAPE_META[slot.shape];
+            const done = collected.has(slot.id);
+            const rgb  = meta.rgb;
+            return (
+              <div
+                key={slot.id}
+                style={{
+                  borderRadius: 16,
+                  background: done ? 'rgba(74,222,128,0.04)' : `rgba(${rgb},0.06)`,
+                  border: `1px solid ${done ? 'rgba(74,222,128,0.25)' : `rgba(${rgb},0.22)`}`,
+                  padding: '16px 16px 16px 18px',
+                  display: 'flex', alignItems: 'center', gap: 14,
+                  opacity: done ? 0.55 : 1,
+                  transition: 'opacity 0.3s',
+                  position: 'relative', overflow: 'hidden',
+                }}
+              >
+                <div style={{
+                  position: 'absolute', inset: 0, borderRadius: 16, pointerEvents: 'none',
+                  background: done
+                    ? 'radial-gradient(circle at 15% 50%, rgba(74,222,128,0.05) 0%, transparent 55%)'
+                    : `radial-gradient(circle at 15% 50%, rgba(${rgb},0.07) 0%, transparent 55%)`,
+                }} />
+
+                <ShapeIcon shape={slot.shape} size={44} color={meta.stroke} glow={meta.glow} done={done} />
+
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#4ade80' : '#e2e8f0', marginBottom: 3 }}>
+                    {slot.quest.name}
+                  </div>
+                  <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.4 }}>{slot.quest.desc}</div>
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    {slot.isSpecial ? (
+                      <span style={{
+                        display: 'flex', alignItems: 'center', gap: 4,
+                        fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 99,
+                        background: slot.specialType === 'case' ? 'rgba(251,191,36,0.1)' : 'rgba(192,132,252,0.1)',
+                        color:      slot.specialType === 'case' ? '#fbbf24' : '#c084fc',
+                        border:     `1px solid ${slot.specialType === 'case' ? 'rgba(251,191,36,0.22)' : 'rgba(192,132,252,0.22)'}`,
+                      }}>
+                        {slot.specialType === 'case' ? <CaseIcon /> : <WheelIcon />}
+                        {slot.specialType === 'case' ? 'Sandık' : 'Çark'}
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: 11, fontWeight: 800, padding: '3px 10px', borderRadius: 99,
+                        background: `rgba(${rgb},0.1)`, color: meta.stroke,
+                        border: `1px solid rgba(${rgb},0.22)`,
+                      }}>
+                        +{meta.zp} ZP
+                      </span>
+                    )}
+                    <span style={{ fontSize: 10, color: '#1e293b', fontWeight: 600 }}>{meta.label}</span>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-sm font-bold" style={{ color: '#e2e8f0' }}>{selected.name}</h3>
-                  <span className="text-[10px]" style={{ color: '#64748b' }}>
-                    {collectedSet.has(selected.id) ? 'Tamamlandı' : pendingSet.has(selected.id) ? 'Toplanmayı Bekliyor' : isUnlocked(selected.id) ? 'Aktif' : 'Kilitli'}
-                  </span>
-                </div>
-              </div>
-              <button onClick={() => setSelected(null)} className="p-1 rounded hover:bg-white/10"><X className="h-4 w-4" style={{ color: '#64748b' }} /></button>
-            </div>
-            <p className="text-xs mb-3" style={{ color: '#94a3b8' }}>{selected.desc}</p>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1">
-                <Star className="h-3.5 w-3.5" style={{ color: '#fbbf24' }} />
-                <span className="text-xs font-bold" style={{ color: '#fbbf24' }}>+{selected.zp} ZP</span>
-              </div>
-              {collectedSet.has(selected.id) ? (
-                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(74,222,128,0.12)', color: '#4ade80' }}>Tamamlandı</span>
-              ) : pendingSet.has(selected.id) ? (
+
                 <button
-                  onClick={() => doCollect(selected)}
-                  disabled={collecting}
-                  className="text-xs px-4 py-1.5 rounded-full font-bold hover:opacity-90 transition-opacity"
-                  style={{ background: 'linear-gradient(135deg, #92400e, #fbbf24)', color: '#0a0f2e', opacity: collecting ? 0.6 : 1 }}
-                  data-testid="quest-collect-btn"
+                  onClick={(e) => handleCollect(slot, e)}
+                  disabled={done}
+                  style={{
+                    flexShrink: 0, padding: '9px 18px', borderRadius: 10,
+                    border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : `rgba(${rgb},0.28)`}`,
+                    cursor: done ? 'default' : 'pointer',
+                    background: done ? 'rgba(74,222,128,0.08)' : `rgba(${rgb},0.1)`,
+                    color: done ? '#4ade80' : meta.stroke,
+                    fontSize: 12, fontWeight: 700, transition: 'all 0.2s', lineHeight: 1,
+                  }}
                 >
-                  {collecting ? '...' : 'Topla'}
+                  {done ? (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M3 8l4 4 6-6" stroke="#4ade80" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  ) : 'Topla'}
                 </button>
-              ) : isUnlocked(selected.id) ? (
-                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(56,189,248,0.08)', color: '#38bdf8' }}>Devam Ediyor</span>
+
+                <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 10, color: '#1a2035', fontWeight: 700 }}>#{idx + 1}</span>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* ── Cuma Slot Butonu ── */}
+        {!isFriday && (
+          <div style={{
+            borderRadius: 14,
+            background: 'rgba(251,191,36,0.04)',
+            border: `1px solid ${isCEO ? 'rgba(251,191,36,0.28)' : 'rgba(255,255,255,0.06)'}`,
+            padding: '14px 18px',
+            display: 'flex', alignItems: 'center', gap: 12,
+          }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: isCEO ? 'rgba(251,191,36,0.1)' : 'rgba(255,255,255,0.03)',
+              border: `1px solid ${isCEO ? 'rgba(251,191,36,0.25)' : 'rgba(255,255,255,0.06)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+            }}>
+              {isCEO ? (
+                <Star size={18} fill="rgba(251,191,36,0.3)" stroke="#fbbf24" strokeWidth={1.5} />
               ) : (
-                <span className="text-xs px-3 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.03)', color: '#2a2e42' }}>Kilitli</span>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                  <rect x="3" y="11" width="18" height="11" rx="2" stroke="#334155" strokeWidth="1.8"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="#334155" strokeWidth="1.8"/>
+                </svg>
               )}
             </div>
+
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: isCEO ? '#fbbf24' : '#334155', marginBottom: 2 }}>
+                Cuma Bonusu — 5 Slot
+              </div>
+              <div style={{ fontSize: 11, color: isCEO ? '#92740a' : '#1e293b' }}>
+                {isCEO ? '+2 ek slot · garanti yıldız · %2.5 sandık şansı' : 'Cuma günü otomatik açılır'}
+              </div>
+            </div>
+
+            {isCEO && (
+              <button
+                onClick={() => { setForceFriday(true); setCollected(new Set()); }}
+                style={{
+                  flexShrink: 0, padding: '8px 14px', borderRadius: 9,
+                  background: 'rgba(251,191,36,0.12)',
+                  border: '1px solid rgba(251,191,36,0.35)',
+                  color: '#fbbf24', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                Etkinleştir
+              </button>
+            )}
           </div>
         )}
+
+        {/* Sıfırlanma notu */}
+        <p style={{ marginTop: 20, textAlign: 'center', fontSize: 11, color: '#1e293b' }}>
+          Görevler her gece 00:00'da yenilenir
+        </p>
       </div>
     </div>
 
-    {/* ZP Flying Animation */}
+    {/* Bilgi paneli */}
+    {showInfo && <InfoPanel onClose={() => setShowInfo(false)} />}
+
+    {/* ZP animasyonu */}
     {zpFly && (
       <div
         key={zpFly.key}
         style={{
-          position: 'fixed',
-          left: zpFly.fromX,
-          top: zpFly.fromY,
-          transform: 'translate(-50%, -50%)',
-          zIndex: 9999,
-          pointerEvents: 'none',
-          animation: 'zp-fly 1s cubic-bezier(0.4,0,0.2,1) forwards',
+          position: 'fixed', left: zpFly.fromX, top: zpFly.fromY,
+          transform: 'translate(-50%, -50%)', zIndex: 9999, pointerEvents: 'none',
+          animation: 'daily-zp-fly 1s cubic-bezier(0.4,0,0.2,1) forwards',
           '--tx': `${zpFly.toX - zpFly.fromX}px`,
           '--ty': `${zpFly.toY - zpFly.fromY}px`,
         }}
       >
-        <span style={{ fontSize: 13, fontWeight: 800, color: '#fbbf24', textShadow: '0 0 8px rgba(251,191,36,0.8)', whiteSpace: 'nowrap' }}>
-          +{zpFly.zp} ZP
+        <span style={{ fontSize: 14, fontWeight: 800, color: '#fbbf24', textShadow: '0 0 8px rgba(251,191,36,0.8)', whiteSpace: 'nowrap' }}>
+          {zpFly.label}
         </span>
       </div>
     )}
 
     <style>{`
-      @keyframes zp-fly {
-        0%   { opacity: 1; transform: translate(-50%, -50%) scale(1.2); }
+      @keyframes daily-zp-fly {
+        0%   { opacity: 1; transform: translate(-50%,-50%) scale(1.2); }
         60%  { opacity: 1; }
         100% { opacity: 0; transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(0.6); }
+      }
+      @keyframes slide-up {
+        from { transform: translateY(100%); }
+        to   { transform: translateY(0); }
+      }
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to   { transform: rotate(360deg); }
       }
     `}</style>
     </>

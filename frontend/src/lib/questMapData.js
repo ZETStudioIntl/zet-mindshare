@@ -1,8 +1,22 @@
 // ─── Gerçek görev tanımları (backend ile eşleşmeli) ──────────────────────────
 export const QUEST_DEFINITIONS = [
-  { id: 'q1', name: 'Belge Oluştur',      desc: 'İlk belgenizi oluşturun.',          shape: 'circle', zp: 220, requires: [] },
-  { id: 'q2', name: 'Zeta ile Konuş',     desc: 'Zeta AI ile bir konuşma başlatın.', shape: 'circle', zp: 220, requires: ['q1'] },
-  { id: 'q3', name: 'AI ile Görsel Üret', desc: 'Zeta Colors ile görsel üretin.',    shape: 'circle', zp: 220, requires: ['q1', 'q2'] },
+  { id: 'q1',        name: 'Belge Oluştur',      desc: 'İlk belgenizi oluşturun.',           shape: 'circle',   zp: 220,  requires: [] },
+  { id: 'q2',        name: 'Zeta ile Konuş',     desc: 'Zeta AI ile bir konuşma başlatın.',  shape: 'circle',   zp: 220,  requires: ['q1'] },
+  { id: 'q3',        name: 'AI ile Görsel Üret', desc: 'Zeta Colors ile görsel üretin.',     shape: 'circle',   zp: 220,  requires: ['q1', 'q2'] },
+  // Zeta sohbet zinciri
+  { id: 'zeta_100',  name: 'Kankacık',           desc: 'Zeta ile 100 kez sohbet et.',        shape: 'circle',   zp: 400,  requires: ['q2'] },
+  { id: 'zeta_1000', name: 'Ezeli Dost',         desc: 'Zeta ile 1000 kez sohbet et.',       shape: 'square',   zp: 1200, requires: ['zeta_100'] },
+  { id: 'zeta_2300', name: 'Bro',                desc: 'Zeta ile 2300 kez sohbet et.',       shape: 'star',     zp: 5000, requires: ['zeta_1000'] },
+  // Belge oluşturma zinciri
+  { id: 'doc_10',    name: '10 Belge',           desc: '10 belge oluştur.',                  shape: 'circle',   zp: 350,  requires: ['q1'] },
+  { id: 'doc_100',   name: '100 Belge',          desc: '100 belge oluştur.',                 shape: 'square',   zp: 900,  requires: ['doc_10'] },
+  { id: 'doc_300',   name: '300 Belge',          desc: '300 belge oluştur.',                 shape: 'triangle', zp: 1800, requires: ['doc_100'] },
+  { id: 'doc_700',   name: '700 Belge',          desc: '700 belge oluştur.',                 shape: 'star',     zp: 4000, requires: ['doc_300'] },
+  // Not oluşturma zinciri
+  { id: 'note_1',    name: '1 Not',              desc: 'İlk notunu oluştur.',                shape: 'circle',   zp: 150,  requires: [] },
+  { id: 'note_10',   name: '10 Not',             desc: '10 not oluştur.',                    shape: 'circle',   zp: 350,  requires: ['note_1'] },
+  { id: 'note_130',  name: '130 Not',            desc: '130 not oluştur.',                   shape: 'square',   zp: 1000, requires: ['note_10'] },
+  { id: 'note_400',  name: '400 Not',            desc: '400 not oluştur.',                   shape: 'triangle', zp: 2200, requires: ['note_130'] },
 ];
 
 // ─── Harita üretici ───────────────────────────────────────────────────────────
@@ -41,6 +55,23 @@ export function generateQuestMap() {
   addQ('q1', 'Belge Oluştur',      'İlk belgenizi oluşturun.',          'circle', 220, [],           START_COL,     START_ROW);
   addQ('q2', 'Zeta ile Konuş',     'Zeta AI ile bir konuşma başlatın.', 'circle', 220, ['q1'],       START_COL + 1, START_ROW);
   addQ('q3', 'AI ile Görsel Üret', 'Zeta Colors ile görsel üretin.',    'circle', 220, ['q1', 'q2'], START_COL + 2, START_ROW);
+
+  // ── Zeta sohbet zinciri (haritaya dağılmış) ───────────────────────────────
+  addQ('zeta_100',  'Kankacık',   'Zeta ile 100 kez sohbet et.',  'circle',   400,  ['q2'],          40, 20);
+  addQ('zeta_1000', 'Ezeli Dost', 'Zeta ile 1000 kez sohbet et.', 'square',   1200, ['zeta_100'],     5, 11);
+  addQ('zeta_2300', 'Bro',        'Zeta ile 2300 kez sohbet et.', 'star',     5000, ['zeta_1000'],   33,  4);
+
+  // ── Belge oluşturma zinciri ────────────────────────────────────────────────
+  addQ('doc_10',  '10 Belge',  '10 belge oluştur.',   'circle',   350,  ['q1'],      8, 19);
+  addQ('doc_100', '100 Belge', '100 belge oluştur.',  'square',   900,  ['doc_10'],  15, 17);
+  addQ('doc_300', '300 Belge', '300 belge oluştur.',  'triangle', 1800, ['doc_100'], 39, 10);
+  addQ('doc_700', '700 Belge', '700 belge oluştur.',  'star',     4000, ['doc_300'], 20,  1);
+
+  // ── Not oluşturma zinciri ──────────────────────────────────────────────────
+  addQ('note_1',   '1 Not',   'İlk notunu oluştur.', 'circle',   150,  [],           17, 21);
+  addQ('note_10',  '10 Not',  '10 not oluştur.',     'circle',   350,  ['note_1'],   29, 20);
+  addQ('note_130', '130 Not', '130 not oluştur.',    'square',   1000, ['note_10'],  25, 14);
+  addQ('note_400', '400 Not', '400 not oluştur.',    'triangle', 2200, ['note_130'], 10,  2);
 
   // ── Star kavşak konumları ────────────────────────────────────────────────
   const STARS = new Set([
