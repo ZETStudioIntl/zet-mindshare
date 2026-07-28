@@ -1730,6 +1730,27 @@ def _roll_case_reward() -> dict:
             return dict(reward)
     return dict(_CASE_REWARDS[-1])
 
+async def _resolve_mood_reward(user_id: str, reward: dict, pool: list) -> dict:
+    """mood_unlock ödülü zaten açıksa açılmamış mod seç; tümü açıksa 100 ZP ver."""
+    if reward.get("type") != "mood_unlock":
+        return reward
+    user_doc = await db.users.find_one({"user_id": user_id}, {"_id": 0, "unlocked_modes": 1})
+    unlocked = set(user_doc.get("unlocked_modes") or [])
+    all_modes = [r for r in pool if r.get("type") == "mood_unlock"]
+    available = [r for r in all_modes if r.get("mode") not in unlocked]
+    if not available:
+        return {"type": "zp", "amount": 100, "rarity": "nadir"}
+    if reward.get("mode") not in unlocked:
+        return reward
+    total = sum(r["chance"] for r in available)
+    rng = random.random() * total
+    cumulative = 0.0
+    for r in available:
+        cumulative += r["chance"]
+        if rng <= cumulative:
+            return dict(r)
+    return dict(available[-1])
+
 def _roll_wheel_reward() -> dict:
     rng = random.random() * _WHEEL_TOTAL_CHANCE
     cumulative = 0.0
@@ -1805,22 +1826,14 @@ async def open_case(case_id: str = Body(..., embed=True), user: User = Depends(g
     inventory = doc.get("inventory") or []
     if not any(c.get("id") == case_id for c in inventory):
         raise HTTPException(status_code=404, detail="Kasa bulunamadı")
-    reward = _roll_case_reward()
+    reward = await _resolve_mood_reward(user.user_id, _roll_case_reward(), _CASE_REWARDS)
     await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": case_id}}})
     if reward["type"] == "zp":
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": reward["amount"]}})
     elif reward["type"] == "credit":
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": reward["amount"]}})
     elif reward["type"] == "mood_unlock":
-        mode = reward["mode"]
-        user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "unlocked_modes": 1})
-        already = mode in (user_doc.get("unlocked_modes") or [])
-        if already:
-            # Zaten açık — yerine 100 ZP ver
-            reward = {"type": "zp", "amount": 100, "rarity": "nadir"}
-            await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": 100}})
-        else:
-            await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": mode}})
+        await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": reward["mode"]}})
     return {"reward": reward}
 
 @api_router.post("/inventory/open-wheel")
@@ -1846,19 +1859,10 @@ async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(g
     if not any(c.get("id") == pack_id for c in inventory):
         logging.warning(f"[open-pack] BULUNAMADI: {pack_id!r} | toplam={len(inventory)} | paket_sayisi={len(pack_ids)}")
         raise HTTPException(status_code=404, detail=f"Paket bulunamadı (user={user.user_id}, envanter={len(inventory)}, paket={len(pack_ids)})")
-    reward = _roll_pack_reward()
+    reward = await _resolve_mood_reward(user.user_id, _roll_pack_reward(), _PACK_REWARDS)
     await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": pack_id}}})
     if reward["type"] == "mood_unlock":
-        mode = reward["mode"]
-        user_doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "unlocked_modes": 1})
-        already = mode in (user_doc.get("unlocked_modes") or [])
-        if already:
-            # Tüm modlar açık — yerine en nadir modu yeniden ver (reroll once)
-            other = [r for r in _PACK_REWARDS if r.get("mode") != mode]
-            reward = dict(other[0]) if other else {"type": "mood_unlock", "mode": "robot", "label": "Robot Zeta", "rarity": "nadir"}
-            await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": reward["mode"]}})
-        else:
-            await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": mode}})
+        await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": reward["mode"]}})
     return {"reward": reward}
 
 @api_router.get("/admin/debug-inventory")
