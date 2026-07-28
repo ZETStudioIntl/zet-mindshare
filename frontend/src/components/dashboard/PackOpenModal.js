@@ -114,7 +114,7 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
   };
 
   const handleCardClick = () => {
-    if (phase !== 'ready' || cardFlipped) return;
+    if (phase !== 'ready' || cardFlipped || !reward) return;
     setCardFlipped(true);
     setPhase('flipping');
     playReveal();
@@ -136,9 +136,9 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
   })();
 
   const cardTf = (() => {
-    if (phase === 'idle' || phase === 'dragging' || phase === 'tearing') return { transform: 'translateY(50px)', opacity: 0, transition: 'none' };
-    if (phase === 'card-rise') return { transform: 'translateY(-20px)', opacity: 1, transition: 'all 0.48s cubic-bezier(0.34,1.56,0.64,1)' };
-    return { transform: 'translateY(0)', opacity: 1, transition: 'all 0.3s ease' };
+    if (phase === 'idle' || phase === 'dragging' || phase === 'tearing') return { transform: 'translateX(-50%) translateY(50px)', opacity: 0, transition: 'none' };
+    if (phase === 'card-rise') return { transform: 'translateX(-50%) translateY(-20px)', opacity: 1, transition: 'all 0.48s cubic-bezier(0.34,1.56,0.64,1)' };
+    return { transform: 'translateX(-50%) translateY(0)', opacity: 1, transition: 'all 0.3s ease' };
   })();
 
   const rc = reward ? (RARITY[reward.rarity] || RARITY.nadir) : RARITY.nadir;
@@ -160,7 +160,7 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
       <div style={{ position: 'relative', width: 200, userSelect: 'none', touchAction: 'none' }}>
 
         {/* ── CARD (behind pack, rises up) ── */}
-        <div style={{ position: 'absolute', top: 0, left: '50%', transform: 'translateX(-50%)', zIndex: 1, ...cardTf }}>
+        <div style={{ position: 'absolute', top: 0, left: '50%', zIndex: 1, ...cardTf }}>
           <div
             style={{ width: 178, height: 256, borderRadius: 16, cursor: phase === 'ready' ? 'pointer' : 'default', perspective: 700 }}
             onClick={handleCardClick}
@@ -171,11 +171,14 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
               {/* Front — before flip */}
               <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 16, background: 'linear-gradient(160deg, #1a0a2e, #2d1054, #1a0a2e)', border: '1px solid rgba(192,132,252,0.35)', boxShadow: phase === 'ready' ? '0 0 40px rgba(192,132,252,0.3), 0 12px 40px rgba(0,0,0,0.5)' : 'none', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
                 <svg width="52" height="52" viewBox="0 0 52 52" fill="none"><circle cx="26" cy="26" r="22" stroke="rgba(192,132,252,0.3)" strokeWidth="1" strokeDasharray="4 3"/><circle cx="26" cy="26" r="16" stroke="rgba(192,132,252,0.15)" strokeWidth="0.8"/><text x="26" y="33" textAnchor="middle" fill="#c084fc" fontSize="24" fontWeight="700" fontFamily="DM Sans,sans-serif" opacity="0.8">Z</text></svg>
-                {phase === 'ready' && (
+                {phase === 'ready' && reward && (
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ color: '#c084fc', fontSize: 10, fontWeight: 700, letterSpacing: 1.5 }}>AÇMAK İÇİN</div>
                     <div style={{ color: 'rgba(192,132,252,0.5)', fontSize: 9, marginTop: 2 }}>tıkla</div>
                   </div>
+                )}
+                {phase === 'ready' && !reward && (
+                  <div style={{ color: 'rgba(192,132,252,0.4)', fontSize: 9, letterSpacing: 1 }}>yükleniyor...</div>
                 )}
               </div>
 
