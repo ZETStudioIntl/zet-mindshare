@@ -1274,13 +1274,9 @@ const Editor = () => {
     if (updatedPages[currentPage]) {
       updatedPages[currentPage] = { ...updatedPages[currentPage], elements: canvasElements, drawPaths, pageSize };
     }
-    // Otomatik kayıtta tüm sayfalar boşsa ve belge daha önce içerik yüklediyse kaydetme — race condition koruması
-    if (silent && docHadContentRef.current) {
-      const allEmpty = updatedPages.every(p => !p.elements?.length && !p.drawPaths?.length);
-      if (allEmpty) { setSaveStatus('saved'); if (!silent) setSaving(false); return; }
-    }
-    // İçerik varsa ref'i güncelle
-    if (updatedPages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
+    // Tüm sayfalar boşsa HİÇBİR ZAMAN kaydetme — otomatik veya manuel fark etmez
+    const allEmpty = updatedPages.every(p => !p.elements?.length && !p.drawPaths?.length);
+    if (allEmpty) { setSaveStatus('saved'); if (!silent) setSaving(false); return; }
     if (navigator.onLine) {
       try {
         const { pages: r2Pages, anyUploaded } = await uploadImagesToR2(updatedPages);

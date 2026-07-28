@@ -16,17 +16,29 @@ function getCtx() {
   if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
   return _actx;
 }
+// Plastik ambalaj yırtılması — yüksek frekans, kısa, sessiz
+// frontend/public/sounds/pack_tear.mp3 varsa onu kullan (Epidemic Sound: Cling Film Rip)
 function playTear() {
   try {
+    const file = new Audio('/sounds/pack_tear.mp3');
+    file.volume = 0.35;
+    const p = file.play();
+    if (p) p.catch(() => _playTearFallback());
+    else _playTearFallback();
+  } catch (_) { _playTearFallback(); }
+}
+function _playTearFallback() {
+  try {
     const ctx = getCtx();
-    const n = ctx.sampleRate * 0.28;
+    const dur = 0.18;
+    const n = Math.floor(ctx.sampleRate * dur);
     const buf = ctx.createBuffer(1, n, ctx.sampleRate);
     const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 0.6);
+    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 0.35);
     const src = ctx.createBufferSource();
-    const flt = ctx.createBiquadFilter(); flt.type = 'bandpass'; flt.frequency.value = 2800; flt.Q.value = 0.4;
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.55, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.28);
-    src.buffer = buf; src.connect(flt); flt.connect(g); g.connect(ctx.destination); src.start();
+    const hi = ctx.createBiquadFilter(); hi.type = 'bandpass'; hi.frequency.value = 4800; hi.Q.value = 0.6;
+    const g = ctx.createGain(); g.gain.setValueAtTime(0.18, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    src.buffer = buf; src.connect(hi); hi.connect(g); g.connect(ctx.destination); src.start();
   } catch (_) {}
 }
 function playReveal() {
@@ -35,8 +47,8 @@ function playReveal() {
     [523, 659, 784, 1047].forEach((f, i) => {
       const o = ctx.createOscillator(); const g = ctx.createGain();
       o.connect(g); g.connect(ctx.destination); o.type = 'sine'; o.frequency.value = f;
-      const t = ctx.currentTime + i * 0.09;
-      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.13, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.32);
+      const t = ctx.currentTime + i * 0.1;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.055, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.3);
       o.start(t); o.stop(t + 0.35);
     });
   } catch (_) {}
@@ -104,6 +116,14 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
       window.removeEventListener('touchend', onUp);
     };
   }, [onMove, onUp]);
+
+  // Kart 'ready' fazında ama reward 4 saniyede gelmediyse kapat (API hatası)
+  useEffect(() => {
+    if (phase === 'ready' && !reward) {
+      const t = setTimeout(onClose, 4000);
+      return () => clearTimeout(t);
+    }
+  }, [phase, reward, onClose]);
 
   const onDragStart = (clientX) => {
     if (phase !== 'idle') return;

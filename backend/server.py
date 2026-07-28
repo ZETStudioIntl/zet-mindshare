@@ -1682,12 +1682,14 @@ _CASE_REWARDS = [
     {"type": "credit",      "amount": 25,  "rarity": "nadir", "chance": 35.0},
     {"type": "zp",          "amount": 120, "rarity": "epik",  "chance": 30.0},
     {"type": "mood_unlock", "mode": "yorgun",  "label": "Yorgun Zeta",  "rarity": "epik",  "chance": 20.0},
-    {"type": "mood_unlock", "mode": "agresif", "label": "Agresif Zeta", "rarity": "epik",  "chance": 7.0},
-    {"type": "credit",      "amount": 50,  "rarity": "epik",  "chance": 3.0},
-    {"type": "zp",          "amount": 300, "rarity": "lore",  "chance": 1.0},
-    {"type": "zp",          "amount": 340, "rarity": "lore",  "chance": 0.8},
-    {"type": "credit",      "amount": 70,  "rarity": "lore",  "chance": 0.2},
-    {"type": "credit",      "amount": 200, "rarity": "lore",  "chance": 0.09},
+    {"type": "mood_unlock", "mode": "agresif",  "label": "Agresif Zeta",  "rarity": "epik",  "chance": 7.0},
+    {"type": "credit",      "amount": 50,   "rarity": "epik",  "chance": 3.0},
+    {"type": "zp",          "amount": 300,  "rarity": "lore",  "chance": 1.0},
+    {"type": "mood_unlock", "mode": "dedektif", "label": "Dedektif Zeta", "rarity": "lore",  "chance": 0.9},
+    {"type": "zp",          "amount": 340,  "rarity": "lore",  "chance": 0.8},
+    {"type": "credit",      "amount": 70,   "rarity": "lore",  "chance": 0.2},
+    {"type": "mood_unlock", "mode": "felsefi",  "label": "Felsefi Zeta",  "rarity": "lore",  "chance": 0.1},
+    {"type": "credit",      "amount": 200,  "rarity": "lore",  "chance": 0.09},
 ]
 _CASE_TOTAL_CHANCE = sum(r["chance"] for r in _CASE_REWARDS)
 
