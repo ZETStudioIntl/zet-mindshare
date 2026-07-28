@@ -64,6 +64,7 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
     } catch {
       showToast('Paket açılamadı — tekrar dene', 'error');
       fetched.current = false;
+      setTimeout(onClose, 1800);
     }
   }, [packId, onReward, showToast]);
 
