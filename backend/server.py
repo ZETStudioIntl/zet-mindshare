@@ -1861,6 +1861,21 @@ async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(g
             await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": mode}})
     return {"reward": reward}
 
+@api_router.get("/admin/debug-inventory")
+async def debug_inventory(user: User = Depends(get_current_user)):
+    if not is_privileged(user.email):
+        raise HTTPException(status_code=403, detail="Unauthorized")
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1})
+    inventory = (doc.get("inventory") or []) if doc else []
+    packs = [c for c in inventory if c.get("item_type") == "rank_case" or c.get("type") == "rank_case"]
+    return {
+        "user_id": user.user_id,
+        "doc_found": doc is not None,
+        "total_inventory": len(inventory),
+        "pack_count": len(packs),
+        "pack_ids": [p.get("id") for p in packs],
+    }
+
 @api_router.post("/admin/give-test-cases")
 async def give_test_cases(user: User = Depends(get_current_user)):
     if not is_privileged(user.email):
