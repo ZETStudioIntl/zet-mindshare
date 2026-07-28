@@ -4590,6 +4590,7 @@ MATCHES:[1,3,5]`;
           packId={openingPackId}
           showToast={showToast}
           onClose={() => setOpeningPackId(null)}
+          onNotFound={() => setInventory(prev => prev.filter(c => c.id !== openingPackId))}
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingPackId));
             if (r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);

@@ -55,7 +55,7 @@ function playReveal() {
 }
 
 // idle → dragging → snapping → gone → card-appear → ready → flipping → done
-export default function PackOpenModal({ packId, onClose, onReward, showToast }) {
+export default function PackOpenModal({ packId, onClose, onReward, onNotFound, showToast }) {
   const [phase, setPhase] = useState('idle');
   const [dragX, setDragX] = useState(0);
   const [tearDir, setTearDir] = useState(1);
@@ -73,8 +73,10 @@ export default function PackOpenModal({ packId, onClose, onReward, showToast }) 
       const res = await axios.post(`${API}/inventory/open-pack`, { pack_id: packId }, { withCredentials: true });
       setReward(res.data.reward);
       if (onReward) onReward(res.data.reward);
-    } catch {
-      showToast('Paket açılamadı — tekrar dene', 'error');
+    } catch (err) {
+      const is404 = err?.response?.status === 404;
+      showToast(is404 ? 'Bu paket artık mevcut değil' : 'Paket açılamadı — tekrar dene', 'error');
+      if (is404 && onNotFound) onNotFound();
       fetched.current = false;
       setTimeout(onClose, 1800);
     }

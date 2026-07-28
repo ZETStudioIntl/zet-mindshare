@@ -1841,7 +1841,10 @@ async def open_wheel(case_id: str = Body(..., embed=True), user: User = Depends(
 async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(get_current_user)):
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "inventory": 1})
     inventory = doc.get("inventory") or []
+    pack_ids = [c.get("id") for c in inventory if c.get("item_type") == "rank_case" or c.get("type") == "rank_case"]
+    logging.info(f"[open-pack] user={user.user_id} requested={pack_id!r} mevcut_paketler={pack_ids}")
     if not any(c.get("id") == pack_id for c in inventory):
+        logging.warning(f"[open-pack] BULUNAMADI: {pack_id!r} | toplam_envanter={len(inventory)}")
         raise HTTPException(status_code=404, detail="Paket bulunamadı")
     reward = _roll_pack_reward()
     await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": pack_id}}})
