@@ -1189,7 +1189,8 @@ const Editor = () => {
       const local = await getDoc(docId);
       if (!isMountedRef.current) return;
       // Local belgede pages varsa kullan; yoksa server'dan tam veriyi çek
-      if (local && local.pages && local.pages.length > 0) {
+      const forceServer = new URLSearchParams(window.location.search).has('fresh');
+      if (!forceServer && local && local.pages && local.pages.length > 0) {
         applyDocSettings(local.settings || null);
         setDocument(local);
         return;
