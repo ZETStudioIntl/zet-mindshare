@@ -1844,8 +1844,8 @@ async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(g
     pack_ids = [c.get("id") for c in inventory if c.get("item_type") == "rank_case" or c.get("type") == "rank_case"]
     logging.info(f"[open-pack] user={user.user_id} requested={pack_id!r} mevcut_paketler={pack_ids}")
     if not any(c.get("id") == pack_id for c in inventory):
-        logging.warning(f"[open-pack] BULUNAMADI: {pack_id!r} | toplam_envanter={len(inventory)}")
-        raise HTTPException(status_code=404, detail="Paket bulunamadı")
+        logging.warning(f"[open-pack] BULUNAMADI: {pack_id!r} | toplam={len(inventory)} | paket_sayisi={len(pack_ids)}")
+        raise HTTPException(status_code=404, detail=f"Paket bulunamadı (envanter={len(inventory)}, paket={len(pack_ids)})")
     reward = _roll_pack_reward()
     await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": pack_id}}})
     if reward["type"] == "mood_unlock":

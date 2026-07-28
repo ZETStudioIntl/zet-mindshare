@@ -30,14 +30,22 @@ function playTear() {
 function _playTearFallback() {
   try {
     const ctx = getCtx();
-    const dur = 0.18;
-    const n = Math.floor(ctx.sampleRate * dur);
-    const buf = ctx.createBuffer(1, n, ctx.sampleRate);
-    const d = buf.getChannelData(0);
-    for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / n, 0.35);
+    const sr  = ctx.sampleRate;
+    const dur = 0.32;
+    const n   = Math.floor(sr * dur);
+    const buf = ctx.createBuffer(1, n, sr);
+    const d   = buf.getChannelData(0);
+    // Kısa çatlama + uzayan yırtık sesi
+    for (let i = 0; i < n; i++) {
+      const t   = i / n;
+      const env = t < 0.08 ? (t / 0.08) : Math.pow(1 - (t - 0.08) / 0.92, 1.2);
+      d[i] = (Math.random() * 2 - 1) * env;
+    }
     const src = ctx.createBufferSource();
-    const hi = ctx.createBiquadFilter(); hi.type = 'bandpass'; hi.frequency.value = 4800; hi.Q.value = 0.6;
-    const g = ctx.createGain(); g.gain.setValueAtTime(0.18, ctx.currentTime); g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+    const hi  = ctx.createBiquadFilter(); hi.type = 'highshelf'; hi.frequency.value = 2800; hi.gain.value = 10;
+    const g   = ctx.createGain();
+    g.gain.setValueAtTime(0.55, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
     src.buffer = buf; src.connect(hi); hi.connect(g); g.connect(ctx.destination); src.start();
   } catch (_) {}
 }
@@ -71,11 +79,22 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
     fetched.current = true;
     try {
       const res = await axios.post(`${API}/inventory/open-pack`, { pack_id: packId }, { withCredentials: true });
-      setReward(res.data.reward);
-      if (onReward) onReward(res.data.reward);
+      const rw = res.data.reward;
+      // Mod kilidi açıldıysa localStorage'a yaz (Dashboard useMemo'su yeniden okusun için)
+      if (rw?.mode) {
+        try {
+          const cur = JSON.parse(localStorage.getItem('zet_unlocked_modes') || '[]');
+          if (!cur.includes(rw.mode)) {
+            localStorage.setItem('zet_unlocked_modes', JSON.stringify([...cur, rw.mode]));
+          }
+        } catch (_) {}
+      }
+      setReward(rw);
+      if (onReward) onReward(rw);
     } catch (err) {
       const is404 = err?.response?.status === 404;
-      showToast(is404 ? 'Bu paket artık mevcut değil' : 'Paket açılamadı — tekrar dene', 'error');
+      const detail = err?.response?.data?.detail || '';
+      showToast(is404 ? `Paket bulunamadı ${detail ? `— ${detail}` : ''}` : 'Paket açılamadı — tekrar dene', 'error');
       if (is404 && onNotFound) onNotFound();
       fetched.current = false;
       setTimeout(onClose, 1800);
