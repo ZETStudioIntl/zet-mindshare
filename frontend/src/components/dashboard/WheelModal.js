@@ -39,6 +39,7 @@ function findWinIndex(reward) {
 let _audioCtx = null;
 function _getCtx() {
   if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
   return _audioCtx;
 }
 
@@ -114,6 +115,7 @@ const WheelModal = ({ caseId, onClose, onReward, showToast: toast }) => {
   const handleSpin = async () => {
     if (phase !== 'ready') return;
     setPhase('spinning');
+    try { _getCtx(); } catch (_) {} // iOS: await öncesinde AudioContext unlock
     try {
       const res = await axios.post(`${API}/inventory/open-wheel`, { case_id: caseId }, { withCredentials: true });
       const rw = res.data.reward;

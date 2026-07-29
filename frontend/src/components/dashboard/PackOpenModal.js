@@ -14,7 +14,12 @@ const RARITY = {
 let _actx = null;
 function getCtx() {
   if (!_actx) _actx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_actx.state === 'suspended') _actx.resume();
   return _actx;
+}
+// iOS'ta touchmove'dan ses çalmak mümkün değil; touchstart'ta context'i unlock et
+function unlockAudio() {
+  try { getCtx(); } catch (_) {}
 }
 // Plastik ambalaj yırtılması — yüksek frekans, kısa, sessiz
 // frontend/public/sounds/pack_tear.mp3 varsa onu kullan (Epidemic Sound: Cling Film Rip)
@@ -166,6 +171,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
 
   const onDragStart = (clientX) => {
     if (phase !== 'idle') return;
+    unlockAudio(); // iOS: touchstart'tan çağrılır, touchmove'da ses çalmak için context unlock gerekli
     isDragging.current = true;
     startX.current = clientX;
     setPhase('dragging');

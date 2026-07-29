@@ -44,6 +44,7 @@ const SLOT_W = 108, SLOT_GAP = 10, SLOT_STEP = 118, SLOT_COUNT = 60, SLOT_WIN = 
 let _audioCtx = null;
 function _getCtx() {
   if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (_audioCtx.state === 'suspended') _audioCtx.resume();
   return _audioCtx;
 }
 
@@ -136,6 +137,7 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
   const handleOpen = async () => {
     if (phase !== 'ready') return;
     setPhase('spinning');
+    try { _getCtx(); } catch (_) {} // iOS: await öncesinde AudioContext unlock (click trusted gesture)
     try {
       const res = await axios.post(`${API}/inventory/open-case`, { case_id: caseId }, { withCredentials: true });
       const rw = res.data.reward;
