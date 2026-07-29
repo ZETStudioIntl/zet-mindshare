@@ -2,6 +2,7 @@ import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Info, X, RefreshCw, Star } from 'lucide-react';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -195,13 +196,11 @@ function WeekProgress() {
 // ─── Bilgi Paneli — 4 slayt ───────────────────────────────────────────────────
 const INFO_SLIDES = [
   {
-    title: 'Nasıl Çalışır',
-    content: ({ rows }) => (
+    titleKey: 'questInfoTitle1',
+    content: ({ rows, t }) => (
       <div>
         <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, marginBottom: 18 }}>
-          Her gün <b style={{ color: '#e2e8f0' }}>3 görev</b> rastgele seçilir.
-          Cuma günü <b style={{ color: '#fbbf24' }}>5 slot</b> açılır ve ilk slot garanti yıldızdır.
-          Görevi tamamladığında <b style={{ color: '#e2e8f0' }}>Topla</b> butonu aktif olur, ödülünü al.
+          {t('questInfoDesc1')}
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {rows.map(row => {
@@ -218,37 +217,33 @@ const INFO_SLIDES = [
     ),
   },
   {
-    title: 'Görevler',
-    content: () => (
+    titleKey: 'questInfoTitle2',
+    content: ({ t }) => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>Kelime Yazma</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>{t('questInfoWordWriting')}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {[50, 150, 500, 1500].map(n => (
-              <span key={n} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{n} kelime</span>
+              <span key={n} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{n}</span>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>
-            Klavyeden yazılan gerçek kelimeler sayılır. Yapıştırma ve otomatik tamamlama sayılmaz.
-          </div>
+          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{t('questInfoWordWritingDesc')}</div>
         </div>
         <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>Editörde Süre</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>{t('questInfoEditorTime')}</div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
             {[10, 25, 45, 90].map(n => (
-              <span key={n} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{n} dk</span>
+              <span key={n} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{n}</span>
             ))}
           </div>
-          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>
-            Aktif çalışma süresi sayılır. Hareketsiz kalırsan ve sekmeyi gizlersen timer durur.
-          </div>
+          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{t('questInfoEditorTimeDesc')}</div>
         </div>
       </div>
     ),
   },
   {
-    title: 'Ödüller',
-    content: ({ rows, EXPECTED_PER_SLOT }) => (
+    titleKey: 'questInfoTitle3',
+    content: ({ rows, EXPECTED_PER_SLOT, t }) => (
       <div>
         <div style={{ marginBottom: 16 }}>
           {rows.map(row => {
@@ -268,13 +263,13 @@ const INFO_SLIDES = [
         </div>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {[
-            { label: 'Normal gün', val: `~${Math.round(EXPECTED_PER_SLOT * 3)} ZP` },
-            { label: 'Cuma', val: `~${Math.round(200 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
-            { label: 'Sandık şansı', val: '%0.9 / slot' },
-            { label: 'Cuma sandık', val: '%2.5 / slot', gold: true },
+            { lk: 'questInfoNormalDay', val: `~${Math.round(EXPECTED_PER_SLOT * 3)} ZP` },
+            { lk: 'questInfoFriday',    val: `~${Math.round(200 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
+            { lk: 'questInfoCaseChance', val: '%0.9 / slot' },
+            { lk: 'questInfoFridayCase', val: '%2.5 / slot', gold: true },
           ].map(item => (
-            <div key={item.label} style={{ flex: '1 1 45%', padding: '8px 10px', borderRadius: 8, background: item.gold ? 'rgba(251,191,36,0.05)' : 'rgba(255,255,255,0.03)', border: `1px solid ${item.gold ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.06)'}` }}>
-              <div style={{ fontSize: 10, color: '#475569', marginBottom: 3 }}>{item.label}</div>
+            <div key={item.lk} style={{ flex: '1 1 45%', padding: '8px 10px', borderRadius: 8, background: item.gold ? 'rgba(251,191,36,0.05)' : 'rgba(255,255,255,0.03)', border: `1px solid ${item.gold ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.06)'}` }}>
+              <div style={{ fontSize: 10, color: '#475569', marginBottom: 3 }}>{t(item.lk)}</div>
               <div style={{ fontSize: 14, fontWeight: 800, color: item.gold ? '#fbbf24' : '#e2e8f0' }}>{item.val}</div>
             </div>
           ))}
@@ -283,35 +278,24 @@ const INFO_SLIDES = [
     ),
   },
   {
-    title: 'Hafizz Koruması',
-    content: () => (
+    titleKey: 'questInfoTitle4',
+    content: ({ t }) => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
         <div style={{ padding: '14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)' }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 8 }}>Otomatik Hile Tespiti</div>
-          <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
-            Zet Mindshare, tüm görev etkileşimlerini arka planda analiz eden <b style={{ color: '#94a3b8' }}>Hafizz</b> sistemi ile koruma altındadır.
-            Hafizz; yazma davranışını, görev ilerlemesini ve API çağrılarını gerçek zamanlı olarak değerlendirir.
-          </div>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 8 }}>{t('questInfoAutoDetect')}</div>
+          <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>{t('questInfoHafizzDesc')}</div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {[
-            'Sahte veya anlamsız içerik sayılmaz',
-            'Otomatik araçlar ve betikler tespit edilir',
-            'Anormal ilerleme hızı işaretlenir',
-          ].map((text, i) => (
-            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {['questInfoCheat1', 'questInfoCheat2', 'questInfoCheat3'].map(key => (
+            <div key={key} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
               <div style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
-              <span style={{ fontSize: 12, color: '#64748b' }}>{text}</span>
+              <span style={{ fontSize: 12, color: '#64748b' }}>{t(key)}</span>
             </div>
           ))}
         </div>
         <div style={{ marginTop: 4, padding: '14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>Uyari</div>
-          <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.65 }}>
-            Hile yapıldığı tespit edilirse hesabınız <b style={{ color: '#fbbf24' }}>geçici olarak askıya</b> alınabilir
-            veya <b style={{ color: '#f87171' }}>kalıcı olarak banlanabilir</b>.
-            Kazanılan ZP ve ödüller geri alınabilir.
-          </div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>{t('questInfoWarning')}</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.65 }}>{t('questInfoWarningDesc')}</div>
         </div>
       </div>
     ),
@@ -319,6 +303,7 @@ const INFO_SLIDES = [
 ];
 
 function InfoPanel({ onClose }) {
+  const { t } = useLanguage();
   const [slide, setSlide] = React.useState(0);
   const TOTAL = INFO_SLIDES.length;
 
@@ -330,7 +315,7 @@ function InfoPanel({ onClose }) {
     { shape: 'triangle', pct: NORM_PCT[2], zp: 130 },
     { shape: 'star',     pct: NORM_PCT[3], zp: 200 },
   ];
-  const ctx = { rows, EXPECTED_PER_SLOT };
+  const ctx = { rows, EXPECTED_PER_SLOT, t };
 
   return (
     <div
@@ -350,7 +335,7 @@ function InfoPanel({ onClose }) {
         {/* Başlık */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <span style={{ fontWeight: 700, fontSize: 16 }}>{INFO_SLIDES[slide].title}</span>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>{t(INFO_SLIDES[slide].titleKey)}</span>
             <span style={{ fontSize: 10, color: '#334155', fontWeight: 600 }}>{slide + 1} / {TOTAL}</span>
           </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}>
@@ -370,7 +355,7 @@ function InfoPanel({ onClose }) {
             disabled={slide === 0}
             style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: slide === 0 ? '#1e293b' : '#94a3b8', fontSize: 12, fontWeight: 600, cursor: slide === 0 ? 'default' : 'pointer' }}
           >
-            Geri
+            {t('back')}
           </button>
 
           {/* Nokta indikatörü */}
@@ -392,7 +377,7 @@ function InfoPanel({ onClose }) {
             onClick={() => slide < TOTAL - 1 ? setSlide(s => s + 1) : onClose()}
             style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${slide === TOTAL - 1 ? 'rgba(239,68,68,0.3)' : 'rgba(56,189,248,0.3)'}`, background: slide === TOTAL - 1 ? 'rgba(239,68,68,0.08)' : 'rgba(56,189,248,0.08)', color: slide === TOTAL - 1 ? '#f87171' : '#38bdf8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
           >
-            {slide === TOTAL - 1 ? 'Kapat' : 'Ileri'}
+            {slide === TOTAL - 1 ? t('questInfoClose') : t('forward')}
           </button>
         </div>
       </div>

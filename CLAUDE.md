@@ -134,7 +134,7 @@ backend/
 
 ## Lokalizasyon Kuralı
 
-**Her yeni UI metni (buton, label, başlık, placeholder, hata mesajı vb.) `frontend/src/contexts/LanguageContext.js` içindeki tüm 10 dile eklenmelidir.**
+**Her yeni UI metni (buton, label, başlık, placeholder, hata mesajı vb.) `frontend/src/contexts/LanguageContext.js` içindeki tüm 10 dile AYNI ANDA eklenmelidir. Bileşen kodu yazılırken çeviriler de yazılır — sonraya bırakılmaz, atlanamaz.**
 
 Desteklenen diller (sırasıyla):
 | Kod | Dil |
