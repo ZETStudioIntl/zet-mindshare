@@ -417,15 +417,17 @@ const QuestMap = () => {
     })();
   }, []);
 
-  // Periyodik sayaç yenileme (her 60 saniyede backend'den çek)
+  // Periyodik sayaç yenileme + Editor'dan gelince race condition için 800ms gecikmeli yenileme
   useEffect(() => {
-    const id = setInterval(async () => {
+    const fetchCounters = async () => {
       try {
         const r = await axios.get(`${API}/quests/today`, { withCredentials: true });
         setCounters({ words_typed: r.data.words_typed || 0, editor_minutes: r.data.editor_minutes || 0 });
       } catch {}
-    }, 60000);
-    return () => clearInterval(id);
+    };
+    const delay = setTimeout(fetchCounters, 800); // Editor cleanup fetch'inin tamamlanmasını bekle
+    const id = setInterval(fetchCounters, 30000);  // 30s'de bir yenile
+    return () => { clearTimeout(delay); clearInterval(id); };
   }, []);
 
   const { slots, isFriday } = useMemo(

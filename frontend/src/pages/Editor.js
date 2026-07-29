@@ -1069,9 +1069,9 @@ const Editor = () => {
     const lastPasteRef = { current: 0 };
     // Hız ölçümü: son 2 saniyedeki karakter zaman damgaları
     const timestamps   = { current: [] };
-    // Kalite analizi için karakter tamponu (50'de bir flush)
+    // Kalite analizi için karakter tamponu (25'de bir flush)
     const charBuf      = { current: [] };
-    const BATCH        = 50;    // bu kadar karakter biriktikçe analiz et
+    const BATCH        = 25;    // bu kadar karakter biriktikçe analiz et
     const MAX_CPS      = 20;    // saniyede 20 karakter üzeri = makine hızı (~200 WPM)
 
     const onPaste = () => { lastPasteRef.current = Date.now(); };
