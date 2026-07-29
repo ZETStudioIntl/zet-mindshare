@@ -37,7 +37,7 @@ import { Bar, Pie, Line } from 'react-chartjs-2';
 import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
 import { Document as DocxDocument, Packer as DocxPacker, Paragraph as DocxParagraph, TextRun as DocxTextRun, ImageRun as DocxImageRun, AlignmentType as DocxAlignmentType, UnderlineType as DocxUnderlineType } from 'docx';
 import JSZip from 'jszip';
-import { questService, scoreWordBuffer } from '../lib/questService';
+import { questService } from '../lib/questService';
 import ShareDialog from '../components/editor/ShareDialog';
 import CommentsPanel from '../components/editor/CommentsPanel';
 import EmojiPicker from '../components/editor/EmojiPicker';
@@ -1063,68 +1063,50 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // === KELIME SAYACI — 3 katman koruma ===
+  // === KELIME SAYACI — 2 katman koruma ===
   useEffect(() => {
     const dom          = window.document;
     const lastPasteRef = { current: 0 };
-    // Hız ölçümü: son 2 saniyedeki karakter zaman damgaları
     const timestamps   = { current: [] };
-    // Kalite analizi için karakter tamponu (25'de bir flush)
     const charBuf      = { current: [] };
-    const BATCH        = 25;    // bu kadar karakter biriktikçe analiz et
-    const MAX_CPS      = 20;    // saniyede 20 karakter üzeri = makine hızı (~200 WPM)
+    const BATCH        = 25;
+    const MAX_CPS      = 20;
 
     const onPaste = () => { lastPasteRef.current = Date.now(); };
 
-    const onBeforeInput = (e) => {
-      // Sadece gerçek tuş basışlarını al
-      if (e.inputType !== 'insertText' &&
-          e.inputType !== 'insertLineBreak' &&
-          e.inputType !== 'insertParagraph') return;
+    const onKeyDown = (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      if (e.key.length !== 1 && e.key !== 'Enter') return;
+      if (!e.target.isContentEditable &&
+          e.target.tagName !== 'INPUT' &&
+          e.target.tagName !== 'TEXTAREA') return;
 
-      // KATMAN 1 — Copy-paste ve mobil öneri filtresi
-      // Paste sonrası 400ms yoksay
+      // KATMAN 1 — Paste filtresi
       if (Date.now() - lastPasteRef.current < 400) return;
-      // Mobil klavye önerisi: tek seferde birden fazla karakter geliyorsa öneridir
-      if (e.data && e.data.length > 1) return;
 
-      // KATMAN 2 — Yazma hızı sınırı (insan üstü hız = otomasyon)
+      // KATMAN 2 — Yazma hızı sınırı
       const now = Date.now();
       timestamps.current.push(now);
       timestamps.current = timestamps.current.filter(t => now - t < 2000);
-      // Son 1 saniyede MAX_CPS'den fazla karakter → bu karakteri say
-      const cpsNow = timestamps.current.filter(t => now - t < 1000).length;
-      if (cpsNow > MAX_CPS) return;
+      if (timestamps.current.filter(t => now - t < 1000).length > MAX_CPS) return;
 
-      // Karakteri tampona ekle
-      const ch = e.data || '\n';
-      charBuf.current.push(ch);
+      charBuf.current.push(e.key);
 
-      // KATMAN 3 — Random metin analizi (BATCH dolduğunda)
       if (charBuf.current.length >= BATCH) {
-        const score = scoreWordBuffer(charBuf.current);
-        if (score >= 0.45) {
-          // Kaliteli metin: kelime sayısını hesapla ve gönder
-          const words = Math.floor(charBuf.current.length / 6);
-          if (words > 0) questService.fireCounter('words_typed', words);
-        }
-        // Düşük kalite → hiç gönderme
+        const words = Math.floor(charBuf.current.length / 6);
+        if (words > 0) questService.fireCounter('words_typed', words);
         charBuf.current = [];
       }
     };
 
     dom.addEventListener('paste', onPaste, { passive: true });
-    dom.addEventListener('beforeinput', onBeforeInput, { passive: true });
+    dom.addEventListener('keydown', onKeyDown, { passive: true });
     return () => {
       dom.removeEventListener('paste', onPaste);
-      dom.removeEventListener('beforeinput', onBeforeInput);
-      // Kalan tamponu gönder (yalnızca kaliteliyse)
-      if (charBuf.current.length >= 12) {
-        const score = scoreWordBuffer(charBuf.current);
-        if (score >= 0.45) {
-          const words = Math.floor(charBuf.current.length / 6);
-          if (words > 0) questService.fireCounter('words_typed', words);
-        }
+      dom.removeEventListener('keydown', onKeyDown);
+      if (charBuf.current.length >= 6) {
+        const words = Math.floor(charBuf.current.length / 6);
+        if (words > 0) questService.fireCounter('words_typed', words);
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
