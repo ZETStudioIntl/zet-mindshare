@@ -17,9 +17,16 @@ function getCtx() {
   if (_actx.state === 'suspended') _actx.resume();
   return _actx;
 }
-// iOS'ta touchmove'dan ses çalmak mümkün değil; touchstart'ta context'i unlock et
+// iOS'ta touchmove'dan ses çalmak mümkün değil; touchstart'ta silent buffer ile unlock et
 function unlockAudio() {
-  try { getCtx(); } catch (_) {}
+  try {
+    const ctx = getCtx();
+    const buf = ctx.createBuffer(1, 1, 22050);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    src.connect(ctx.destination);
+    src.start(0);
+  } catch (_) {}
 }
 // Plastik ambalaj yırtılması — yüksek frekans, kısa, sessiz
 // frontend/public/sounds/pack_tear.mp3 varsa onu kullan (Epidemic Sound: Cling Film Rip)
@@ -319,7 +326,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
             style={{ width: 290, height: 430, borderRadius: 18, cursor: isReady && reward ? 'pointer' : 'default', perspective: 1000 }}
             onClick={handleCardClick}
           >
-            <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>
+            <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', WebkitTransformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>
 
               {/* Front face */}
               <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 18, background: 'linear-gradient(160deg, #0d0d10, #12121a)', border: '1.5px solid rgba(195,160,55,0.38)', boxShadow: isReady && reward ? '0 0 30px rgba(195,160,55,0.16), 0 14px 44px rgba(0,0,0,0.75)' : '0 10px 34px rgba(0,0,0,0.65)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
