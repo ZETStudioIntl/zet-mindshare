@@ -1,6 +1,9 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import axios from 'axios';
 import { ArrowLeft, Info, X, RefreshCw, Star } from 'lucide-react';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // ─── Şekil meta ──────────────────────────────────────────────────────────────
 const SHAPE_META = {
@@ -303,6 +306,14 @@ const QuestMap = () => {
   const [collected,    setCollected]     = useState(new Set());
   const [zpFly,        setZpFly]         = useState(null);
   const [rerolling,    setRerolling]     = useState(false);
+  const [userZP,       setUserZP]        = useState(null);
+  const [rerollErr,    setRerollErr]     = useState('');
+
+  useEffect(() => {
+    axios.get(`${API}/users/me`, { withCredentials: true })
+      .then(r => setUserZP(r.data?.mindshare_xp ?? null))
+      .catch(() => {});
+  }, []);
 
   const { slots, isFriday } = useMemo(
     () => buildDailyQuests(rerollOffset, forceFriday),
@@ -310,17 +321,30 @@ const QuestMap = () => {
   );
 
   const realFriday = new Date().getDay() === 5;
+  const rerollCost = isFriday ? 900 : 600;
 
-  // CEO yenile
-  const handleReroll = useCallback(() => {
-    if (!isCEO || rerolling) return;
+  const handleReroll = useCallback(async () => {
+    if (rerolling) return;
     setRerolling(true);
-    setCollected(new Set());
-    setTimeout(() => {
+    setRerollErr('');
+    try {
+      if (isCEO) {
+        // CEO: ücretsiz
+        await new Promise(r => setTimeout(r, 300));
+      } else {
+        const res = await axios.post(`${API}/quests/reroll`, {}, { withCredentials: true });
+        setUserZP(res.data.new_zp);
+      }
+      setCollected(new Set());
       setRerollOffset(n => n + 1);
+    } catch (err) {
+      const detail = err?.response?.data?.detail || 'Yenileme başarısız';
+      setRerollErr(detail);
+      setTimeout(() => setRerollErr(''), 3000);
+    } finally {
       setRerolling(false);
-    }, 400);
-  }, [isCEO, rerolling]);
+    }
+  }, [isCEO, rerolling, isFriday]);
 
   // Topla
   const handleCollect = useCallback((slot, e) => {
@@ -371,24 +395,22 @@ const QuestMap = () => {
           </span>
         )}
 
-        {/* CEO yenile */}
-        {isCEO && (
-          <button
-            onClick={handleReroll}
-            title="CEO: Görevleri Yenile"
-            style={{
-              background: rerolling ? 'rgba(245,158,11,0.05)' : 'rgba(245,158,11,0.1)',
-              border: '1px solid rgba(245,158,11,0.3)',
-              borderRadius: 8, cursor: 'pointer', color: '#f59e0b',
-              display: 'flex', alignItems: 'center', gap: 5,
-              padding: '6px 10px', fontSize: 11, fontWeight: 700,
-              transition: 'all 0.2s',
-            }}
-          >
-            <RefreshCw size={13} style={{ animation: rerolling ? 'spin 0.4s linear' : 'none' }} />
-            Yenile
-          </button>
-        )}
+        {/* Yenile butonu — CEO ücretsiz, diğerleri 600/900 ZP */}
+        <button
+          onClick={handleReroll}
+          disabled={rerolling}
+          style={{
+            background: rerolling ? 'rgba(245,158,11,0.04)' : 'rgba(245,158,11,0.1)',
+            border: '1px solid rgba(245,158,11,0.3)',
+            borderRadius: 8, cursor: rerolling ? 'default' : 'pointer', color: '#f59e0b',
+            display: 'flex', alignItems: 'center', gap: 5,
+            padding: '6px 10px', fontSize: 11, fontWeight: 700,
+            transition: 'all 0.2s', opacity: rerolling ? 0.6 : 1,
+          }}
+        >
+          <RefreshCw size={13} style={{ animation: rerolling ? 'spin 0.4s linear infinite' : 'none' }} />
+          {isCEO ? 'Yenile' : `${rerollCost} ZP`}
+        </button>
 
         {/* Bilgi */}
         <button
@@ -404,7 +426,9 @@ const QuestMap = () => {
             <circle cx="7" cy="7" r="6" fill="rgba(251,191,36,0.15)" stroke="#fbbf24" strokeWidth="1.2"/>
             <text x="7" y="10.5" textAnchor="middle" fill="#fbbf24" fontSize="5.5" fontWeight="800">ZP</text>
           </svg>
-          <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 700 }}>4 820</span>
+          <span style={{ fontSize: 13, color: '#fbbf24', fontWeight: 700 }}>
+            {userZP !== null ? userZP.toLocaleString('tr-TR') : '—'}
+          </span>
         </div>
       </div>
 
@@ -545,6 +569,13 @@ const QuestMap = () => {
                 Etkinleştir
               </button>
             )}
+          </div>
+        )}
+
+        {/* Yenileme hatası */}
+        {rerollErr && (
+          <div style={{ marginTop: 10, padding: '10px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', color: '#f87171', fontSize: 12, textAlign: 'center' }}>
+            {rerollErr}
           </div>
         )}
 

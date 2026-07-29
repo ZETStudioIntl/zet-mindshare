@@ -1880,6 +1880,24 @@ async def debug_inventory(user: User = Depends(get_current_user)):
         "pack_ids": [p.get("id") for p in packs],
     }
 
+@api_router.post("/quests/reroll")
+async def quest_reroll(user: User = Depends(get_current_user)):
+    from datetime import date
+    is_friday = date.today().weekday() == 4  # 0=Mon … 4=Fri
+    cost = 900 if is_friday else 600
+    doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "mindshare_xp": 1})
+    current_xp = int((doc or {}).get("mindshare_xp") or 0)
+    if current_xp < cost:
+        raise HTTPException(status_code=402, detail=f"Yetersiz ZP (gereken: {cost}, mevcut: {current_xp})")
+    result = await db.users.update_one(
+        {"user_id": user.user_id, "mindshare_xp": {"$gte": cost}},
+        {"$inc": {"mindshare_xp": -cost}}
+    )
+    if result.modified_count == 0:
+        raise HTTPException(status_code=402, detail="Yetersiz ZP")
+    new_xp = current_xp - cost
+    return {"ok": True, "cost": cost, "new_zp": new_xp, "is_friday": is_friday}
+
 @api_router.post("/admin/give-test-cases")
 async def give_test_cases(user: User = Depends(get_current_user)):
     if not is_privileged(user.email):
