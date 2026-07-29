@@ -118,8 +118,6 @@ const Dashboard = () => {
   const isCEO = localStorage.getItem('zet_ceo_mode') === 'true' || user?.email === 'muhammadbahaddinyilmaz@gmail.com';
   const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
   const isPrivileged = isCEO || isAdminMode;
-  const [adminUsers, setAdminUsers] = useState([]);
-  const [adminUsersLoading, setAdminUsersLoading] = useState(false);
   // Onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [obUsername, setObUsername] = useState('');
@@ -130,8 +128,6 @@ const Dashboard = () => {
   const [identityForm, setIdentityForm] = useState({ full_name: '', id_type: 'tc_kimlik', id_number: '', front_image: null, back_image: null, selfie_image: null });
   const [identitySubmitting, setIdentitySubmitting] = useState(false);
   const [identityError, setIdentityError] = useState('');
-  const [pendingVerifications, setPendingVerifications] = useState(null);
-  const [verifDeciding, setVerifDeciding] = useState(null);
   const [mobileSettingsSidebar, setMobileSettingsSidebar] = useState(true);
   const [showNewDoc, setShowNewDoc] = useState(false);
   const [showLanguages, setShowLanguages] = useState(false);
@@ -258,11 +254,6 @@ const Dashboard = () => {
   const [rankTab, setRankTab] = useState('requirements');
   const [zetaSearch, setZetaSearch] = useState(false);
   const [activeWarnings, setActiveWarnings] = useState([]);
-  const [modSearch, setModSearch] = useState('');
-  const [modSearchResults, setModSearchResults] = useState(null);
-  const [modSearchLoading, setModSearchLoading] = useState(false);
-  const [modAction, setModAction] = useState({}); // { reason, duration }
-  const [modActionLoading, setModActionLoading] = useState(false);
   const [toast, setToast] = useState(null); // { msg, type: 'success'|'error'|'info' }
   const [confirmModal, setConfirmModal] = useState(null); // { title, msg, onConfirm, danger }
   const showToast = (msg, type = 'info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
@@ -633,13 +624,6 @@ const Dashboard = () => {
     }
     if (showSettings && settingsTab === 'primedrive') {
       loadDriveFiles();
-    }
-    if (showSettings && settingsTab === 'users' && isPrivileged && adminUsers.length === 0) {
-      setAdminUsersLoading(true);
-      axios.get(`${API}/admin/list-users`, { withCredentials: true })
-        .then(r => setAdminUsers(r.data.users || []))
-        .catch(() => {})
-        .finally(() => setAdminUsersLoading(false));
     }
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1991,8 +1975,6 @@ MATCHES:[1,3,5]`;
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: t('fastSelect') },
                 { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: t('appSwitcher') },
-                ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: t('users'), color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
-                ...(isCEO ? [{ id: 'moderation', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L2 4v4c0 3.3 2.6 5.7 6 6.4 3.4-.7 6-3.1 6-6.4V4L8 1.5z" stroke="#ef4444" strokeWidth="1.4" fill="#ef444418" /><path d="M5.5 8l1.8 1.8L10.5 6" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>, label: 'Moderasyon', color: '#ef4444' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
@@ -3136,285 +3118,6 @@ MATCHES:[1,3,5]`;
                   </div>
                 );
               })()}
-
-              {settingsTab === 'users' && isPrivileged && (
-                <div className="max-w-2xl">
-                  <h2 className="text-lg font-semibold mb-2" style={{ color: 'var(--zet-text)' }}>
-                    {isCEO ? '👑 Kayıtlı Kullanıcılar' : '🛡 Kullanıcılar'}
-                  </h2>
-                  <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>{adminUsers.length} kullanıcı kayıtlı</p>
-                  {adminUsersLoading ? (
-                    <div className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Yükleniyor...</div>
-                  ) : (
-                    <div className="space-y-2 max-h-[60vh] overflow-y-auto">
-                      {adminUsers.map((u, i) => {
-                        const subPlan = typeof u.subscription === 'object' ? u.subscription?.plan : (u.subscription || 'free');
-                        return (
-                          <div key={i} className="px-3 py-2.5 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-                            <div className="flex items-center justify-between gap-2 mb-2">
-                              <div className="min-w-0 flex-1">
-                                <p className="font-medium truncate" style={{ color: 'var(--zet-text)' }}>{u.display_name || u.name || '—'}{u.username && <span className="ml-1 text-xs" style={{ color: 'var(--zet-text-muted)' }}>@{u.username}</span>}</p>
-                                <p className="text-xs truncate" style={{ color: 'var(--zet-text-muted)' }}>{u.email}</p>
-                              </div>
-                              <span className="text-xs flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}>{u.created_at ? new Date(u.created_at).toLocaleDateString('tr-TR') : ''}</span>
-                            </div>
-                            {isCEO && (
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <select
-                                  defaultValue={u.verified_type || ''}
-                                  onChange={async (e) => {
-                                    const val = e.target.value;
-                                    try {
-                                      await axios.patch(`${API}/admin/users/${u.user_id}`, { verified_type: val }, { withCredentials: true });
-                                      setAdminUsers(prev => prev.map((x, j) => j === i ? { ...x, verified_type: val || null } : x));
-                                      showToast('Rozet güncellendi', 'success');
-                                    } catch (err) { showToast(err.response?.data?.detail || 'Hata', 'error'); }
-                                  }}
-                                  className="flex-1 text-xs rounded-lg px-2 py-1.5 outline-none"
-                                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)', minWidth: 120 }}
-                                >
-                                  <option value="">❌ Tik yok</option>
-                                  <option value="red">🔴 Kırmızı</option>
-                                  <option value="gold">🟡 Altın</option>
-                                  <option value="blue">🔵 Mavi</option>
-                                </select>
-                                <select
-                                  defaultValue={subPlan}
-                                  onChange={async (e) => {
-                                    const val = e.target.value;
-                                    try {
-                                      await axios.patch(`${API}/admin/users/${u.user_id}`, { subscription_plan: val }, { withCredentials: true });
-                                      setAdminUsers(prev => prev.map((x, j) => j === i ? { ...x, subscription: val === 'free' ? 'free' : { plan: val, status: 'active' } } : x));
-                                      showToast(t('subscriptionUpdated'), 'success');
-                                    } catch (err) { showToast(err.response?.data?.detail || 'Hata', 'error'); }
-                                  }}
-                                  className="flex-1 text-xs rounded-lg px-2 py-1.5 outline-none"
-                                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)', minWidth: 140 }}
-                                >
-                                  <option value="free">Free</option>
-                                  <option value="pro">Pro</option>
-                                  <option value="plus">Plus</option>
-                                  <option value="creative_station">Creative Station</option>
-                                  <option value="entertainment_pocket">Entertainment Pocket</option>
-                                </select>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                  {isCEO && (() => {
-                    const loadVerifs = async () => { try { const r = await axios.get(`${API}/admin/identity-verifications`, { withCredentials: true }); setPendingVerifications(r.data.verifications || []); } catch { setPendingVerifications([]); } };
-                    if (pendingVerifications === null) { loadVerifs(); return null; }
-                    if (pendingVerifications.length === 0) return null;
-                    const decide = async (vid, decision, vtype) => {
-                      setVerifDeciding(vid);
-                      try { await axios.post(`${API}/admin/identity-verifications/${vid}/decide`, { decision, verified_type: vtype || null }, { withCredentials: true }); setPendingVerifications(p => p.filter(v => v.verification_id !== vid)); } catch {}
-                      setVerifDeciding(null);
-                    };
-                    return (
-                      <div className="mt-6 pt-4 border-t" style={{ borderColor: 'var(--zet-border)' }}>
-                        <h3 className="text-sm font-semibold mb-3" style={{ color: '#f59e0b' }}>🔍 Bekleyen Kimlik Doğrulamaları ({pendingVerifications.length})</h3>
-                        <div className="space-y-3">
-                          {pendingVerifications.map(v => (
-                            <div key={v.verification_id} className="p-3 rounded-xl text-sm" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
-                              <p className="font-medium" style={{ color: 'var(--zet-text)' }}>{v.full_name} — <span style={{ color: 'var(--zet-text-muted)' }}>{v.user_email}</span></p>
-                              <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{v.id_type} · {v.id_number} · {new Date(v.submitted_at).toLocaleDateString('tr-TR')}</p>
-                              <div className="flex gap-2 mt-2 flex-wrap">
-                                {['blue','gold','red'].map(t => (
-                                  <button key={t} onClick={() => decide(v.verification_id, 'approve', t)} disabled={!!verifDeciding}
-                                    className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
-                                    style={{ background: t === 'blue' ? '#3b82f620' : t === 'gold' ? '#f59e0b20' : '#ef444420', color: t === 'blue' ? '#3b82f6' : t === 'gold' ? '#f59e0b' : '#ef4444', border: `1px solid ${t === 'blue' ? '#3b82f640' : t === 'gold' ? '#f59e0b40' : '#ef444440'}` }}>
-                                    ✓ {t === 'blue' ? 'Mavi' : t === 'gold' ? 'Altın' : 'Kırmızı'} Tik
-                                  </button>
-                                ))}
-                                <button onClick={() => decide(v.verification_id, 'reject')} disabled={!!verifDeciding}
-                                  className="px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50"
-                                  style={{ background: '#6b728020', color: '#9ca3af', border: '1px solid #6b728040' }}>
-                                  ✗ Reddet
-                                </button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              )}
-
-              {settingsTab === 'moderation' && isCEO && (
-                <div className="max-w-xl">
-                  <h2 className="text-lg font-semibold mb-5" style={{ color: '#ef4444' }}>Moderasyon Paneli</h2>
-
-                  {/* Kullanıcı Ara */}
-                  <div className="flex gap-2 mb-4">
-                    <input
-                      value={modSearch}
-                      onChange={e => setModSearch(e.target.value)}
-                      onKeyDown={e => {
-                        if (e.key !== 'Enter' || !modSearch.trim()) return;
-                        setModSearchLoading(true);
-                        axios.get(`${API}/ceo/search-user?q=${encodeURIComponent(modSearch.trim())}`, { withCredentials: true })
-                          .then(r => setModSearchResults(r.data.users || []))
-                          .catch(() => setModSearchResults([]))
-                          .finally(() => setModSearchLoading(false));
-                      }}
-                      placeholder="E-posta veya kullanıcı ID ara..."
-                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
-                      style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
-                    />
-                    <button
-                      onClick={() => {
-                        if (!modSearch.trim()) return;
-                        setModSearchLoading(true);
-                        axios.get(`${API}/ceo/search-user?q=${encodeURIComponent(modSearch.trim())}`, { withCredentials: true })
-                          .then(r => setModSearchResults(r.data.users || []))
-                          .catch(() => setModSearchResults([]))
-                          .finally(() => setModSearchLoading(false));
-                      }}
-                      disabled={modSearchLoading}
-                      className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
-                      style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef444440' }}
-                    >
-                      {modSearchLoading ? '...' : 'Ara'}
-                    </button>
-                  </div>
-
-                  {/* Sonuçlar */}
-                  {modSearchResults !== null && (
-                    <div className="space-y-3">
-                      {modSearchResults.length === 0 && (
-                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Sonuç bulunamadı.</p>
-                      )}
-                      {modSearchResults.map(u => {
-                        const key = u.user_id;
-                        const act = modAction[key] || { reason: '', duration: '' };
-                        const isBanned = u.banned || u.temp_banned;
-                        return (
-                          <div key={key} className="rounded-2xl p-4" style={{ background: 'var(--zet-bg-card)', border: `1px solid ${isBanned ? '#ef444430' : 'var(--zet-border)'}` }}>
-                            {/* Kullanıcı bilgisi */}
-                            <div className="flex items-start justify-between gap-3 mb-3">
-                              <div>
-                                <p className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{u.name || '—'}</p>
-                                <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{u.email}</p>
-                                <p className="text-xs mt-0.5" style={{ color: '#64748b', fontFamily: 'monospace' }}>{u.user_id}</p>
-                              </div>
-                              <div className="flex flex-col items-end gap-1">
-                                {u.banned && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#ef444420', color: '#ef4444' }}>Kalıcı Ban</span>}
-                                {u.temp_banned && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#f9731620', color: '#f97316' }}>Geçici Ban</span>}
-                                {u.unread_warnings > 0 && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#f59e0b20', color: '#f59e0b' }}>{u.unread_warnings} uyarı</span>}
-                              </div>
-                            </div>
-
-                            {u.ban_reason && (
-                              <p className="text-xs mb-3 px-2 py-1.5 rounded-lg" style={{ background: '#ef444410', color: '#fca5a5' }}>
-                                Ban sebebi: {u.ban_reason}
-                              </p>
-                            )}
-                            {u.banned_until && (
-                              <p className="text-xs mb-3" style={{ color: '#f97316' }}>
-                                Bitiş: {new Date(u.banned_until).toLocaleString('tr-TR')}
-                              </p>
-                            )}
-
-                            {/* Aksiyon alanı */}
-                            <div className="space-y-2">
-                              <input
-                                value={act.reason}
-                                onChange={e => setModAction(prev => ({ ...prev, [key]: { ...act, reason: e.target.value } }))}
-                                placeholder="Sebep / mesaj..."
-                                className="w-full px-3 py-1.5 rounded-lg text-xs outline-none"
-                                style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
-                              />
-                              <div className="flex gap-2 flex-wrap">
-                                <input
-                                  value={act.duration}
-                                  onChange={e => setModAction(prev => ({ ...prev, [key]: { ...act, duration: e.target.value } }))}
-                                  placeholder="Süre (saat)"
-                                  type="number"
-                                  min="1"
-                                  className="w-24 px-2 py-1.5 rounded-lg text-xs outline-none"
-                                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
-                                />
-                                <button
-                                  disabled={modActionLoading}
-                                  onClick={async () => {
-                                    setModActionLoading(true);
-                                    try {
-                                      await axios.post(`${API}/ceo/security/warn/${key}`, { reason: act.reason || 'Kural ihlali' }, { withCredentials: true });
-                                      showToast('Uyarı gönderildi', 'success');
-                                      setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, unread_warnings: (x.unread_warnings || 0) + 1 } : x));
-                                    } catch { showToast('Hata', 'error'); }
-                                    setModActionLoading(false);
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-                                  style={{ background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40' }}
-                                >
-                                  Uyar
-                                </button>
-                                <button
-                                  disabled={modActionLoading}
-                                  onClick={async () => {
-                                    const dh = parseInt(act.duration);
-                                    if (!dh || dh < 1) { showToast('Geçerli süre girin (saat)', 'error'); return; }
-                                    setModActionLoading(true);
-                                    try {
-                                      await axios.post(`${API}/ceo/security/ban/${key}`, { reason: act.reason || 'Kural ihlali', duration_hours: dh }, { withCredentials: true });
-                                      showToast(`${dh} saatlik ban uygulandı`, 'success');
-                                      setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, temp_banned: true, banned: false } : x));
-                                    } catch { showToast('Hata', 'error'); }
-                                    setModActionLoading(false);
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-                                  style={{ background: '#f9731620', color: '#f97316', border: '1px solid #f9731640' }}
-                                >
-                                  Geçici Ban
-                                </button>
-                                <button
-                                  disabled={modActionLoading}
-                                  onClick={async () => {
-                                    setModActionLoading(true);
-                                    try {
-                                      await axios.post(`${API}/ceo/security/ban/${key}`, { reason: act.reason || 'Kural ihlali' }, { withCredentials: true });
-                                      showToast('Kalıcı ban uygulandı', 'success');
-                                      setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, banned: true, temp_banned: false } : x));
-                                    } catch { showToast('Hata', 'error'); }
-                                    setModActionLoading(false);
-                                  }}
-                                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-                                  style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef444440' }}
-                                >
-                                  Kalıcı Ban
-                                </button>
-                                {isBanned && (
-                                  <button
-                                    disabled={modActionLoading}
-                                    onClick={async () => {
-                                      setModActionLoading(true);
-                                      try {
-                                        await axios.post(`${API}/ceo/security/clear/${key}`, {}, { withCredentials: true });
-                                        showToast('Ban kaldırıldı', 'success');
-                                        setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, banned: false, temp_banned: false, ban_reason: null, banned_until: null } : x));
-                                      } catch { showToast('Hata', 'error'); }
-                                      setModActionLoading(false);
-                                    }}
-                                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
-                                    style={{ background: '#22c55e20', color: '#22c55e', border: '1px solid #22c55e40' }}
-                                  >
-                                    Ban Kaldır
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-              )}
 
               {settingsTab === 'inventory' && (
                 <div className="max-w-lg">
