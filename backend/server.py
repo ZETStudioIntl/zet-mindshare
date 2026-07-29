@@ -1915,8 +1915,20 @@ _QUEST_REQUIREMENTS = {
     "q_editor25":  ("editor_minutes", 25),
     "q_editor45":  ("editor_minutes", 45),
     "q_editor90":  ("editor_minutes", 90),
+    "q_notes10":   ("notes_created",  10),
+    "q_notes25":   ("notes_created",  25),
+    "q_notes50":   ("notes_created",  50),
+    "q_notes100":  ("notes_created", 100),
+    "q_solo1":     ("solo_docs",       1),
+    "q_solo3":     ("solo_docs",       3),
+    "q_solo7":     ("solo_docs",       7),
+    "q_solo15":    ("solo_docs",      15),
+    "q_memory5":   ("memories_added",  5),
+    "q_memory15":  ("memories_added", 15),
+    "q_memory35":  ("memories_added", 35),
+    "q_memory75":  ("memories_added", 75),
 }
-_COUNTER_FIELDS = {"words_typed", "editor_minutes"}
+_COUNTER_FIELDS = {"words_typed", "editor_minutes", "notes_created", "solo_docs", "memories_added"}
 _QUEST_ZP = {"circle": 20, "square": 60, "triangle": 130, "star": 200}
 
 @api_router.get("/quests/today")
@@ -1928,13 +1940,17 @@ async def quests_today(user: User = Depends(get_current_user)):
         doc = {
             "user_id": user.user_id, "date": today_str, "reroll_offset": 0,
             "collected_slots": [], "words_typed": 0, "editor_minutes": 0,
+            "notes_created": 0, "solo_docs": 0, "memories_added": 0,
         }
         await db.quest_daily.insert_one(dict(doc))
     return {
-        "collected_slots": doc.get("collected_slots") or [],
-        "reroll_offset":   doc.get("reroll_offset") or 0,
-        "words_typed":     doc.get("words_typed") or 0,
-        "editor_minutes":  doc.get("editor_minutes") or 0,
+        "collected_slots":  doc.get("collected_slots") or [],
+        "reroll_offset":    doc.get("reroll_offset") or 0,
+        "words_typed":      doc.get("words_typed") or 0,
+        "editor_minutes":   doc.get("editor_minutes") or 0,
+        "notes_created":    doc.get("notes_created") or 0,
+        "solo_docs":        doc.get("solo_docs") or 0,
+        "memories_added":   doc.get("memories_added") or 0,
     }
 
 @api_router.post("/quests/event")
@@ -1945,13 +1961,14 @@ async def quest_event(body: dict = Body(...), user: User = Depends(get_current_u
     if not event_type:
         raise HTTPException(status_code=400, detail="event_type required")
 
-    base_doc = {"user_id": user.user_id, "date": today_str, "reroll_offset": 0, "collected_slots": [], "words_typed": 0, "editor_minutes": 0}
+    base_doc = {"user_id": user.user_id, "date": today_str, "reroll_offset": 0, "collected_slots": [],
+                "words_typed": 0, "editor_minutes": 0, "notes_created": 0, "solo_docs": 0, "memories_added": 0}
 
     if event_type in _COUNTER_FIELDS:
         amount = max(0, min(int(body.get("amount", 1)), 100))  # tek çağrıda max 100
 
         # Günlük üst sınır — otomasyon engelleyici
-        DAILY_CAPS = {"words_typed": 6000, "editor_minutes": 1440}
+        DAILY_CAPS = {"words_typed": 6000, "editor_minutes": 1440, "notes_created": 500, "solo_docs": 50, "memories_added": 300}
         current_doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str},
                                                     {"_id": 0, event_type: 1})
         current_val = int((current_doc or {}).get(event_type) or 0)
@@ -1969,9 +1986,15 @@ async def quest_event(body: dict = Body(...), user: User = Depends(get_current_u
         return {"ok": True}  # ignore unknown event types silently
 
     doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str},
-                                        {"_id": 0, "words_typed": 1, "editor_minutes": 1})
-    return {"ok": True, "words_typed": (doc or {}).get("words_typed") or 0,
-            "editor_minutes": (doc or {}).get("editor_minutes") or 0}
+                                        {"_id": 0, "words_typed": 1, "editor_minutes": 1,
+                                         "notes_created": 1, "solo_docs": 1, "memories_added": 1})
+    d = doc or {}
+    return {"ok": True,
+            "words_typed":    d.get("words_typed") or 0,
+            "editor_minutes": d.get("editor_minutes") or 0,
+            "notes_created":  d.get("notes_created") or 0,
+            "solo_docs":      d.get("solo_docs") or 0,
+            "memories_added": d.get("memories_added") or 0}
 
 @api_router.post("/quests/collect")
 async def quest_collect(body: dict = Body(...), user: User = Depends(get_current_user)):

@@ -23,14 +23,26 @@ const NORM_PCT = WEIGHTS.map(w => Math.round(w / W_TOTAL * 100));
 
 // ─── Görev havuzu ─────────────────────────────────────────────────────────────
 const QUEST_POOL = [
-  { id: 'q_words50',   name: '50 Kelime Yaz',     desc: 'Editörde 50 kelime yaz. Copy-paste ve spam tuş sayılmaz.',   tier: 0 },
-  { id: 'q_editor10',  name: '10 Dk Editörde',    desc: 'Editörde aktif 10 dakika çalış.',                            tier: 0 },
-  { id: 'q_words150',  name: '150 Kelime Yaz',    desc: 'Editörde 150 kelime yaz. Copy-paste ve spam tuş sayılmaz.',  tier: 1 },
-  { id: 'q_editor25',  name: '25 Dk Editörde',    desc: 'Editörde aktif 25 dakika çalış.',                            tier: 1 },
-  { id: 'q_words500',  name: 'Günlük Yazar',      desc: 'Bugün 500 kelime yaz. Copy-paste ve spam tuş sayılmaz.',     tier: 2 },
-  { id: 'q_editor45',  name: 'Editör Maratonu',   desc: 'Editörde aktif 45 dakika çalış.',                            tier: 2 },
-  { id: 'q_words1500', name: 'Kalem Ustası',      desc: 'Bugün 1500 kelime yaz. Copy-paste ve spam tuş sayılmaz.',    tier: 3 },
-  { id: 'q_editor90',  name: 'Uzun Mesai',        desc: 'Editörde aktif 90 dakika çalış.',                            tier: 3 },
+  { id: 'q_words50',   name: '50 Kelime Yaz',       desc: 'Editörde 50 kelime yaz. Copy-paste ve spam tuş sayılmaz.',   tier: 0 },
+  { id: 'q_editor10',  name: '10 Dk Editörde',      desc: 'Editörde aktif 10 dakika çalış.',                            tier: 0 },
+  { id: 'q_notes10',   name: '10 Not Oluştur',      desc: 'Bugün 10 yeni belge oluştur.',                               tier: 0 },
+  { id: 'q_solo1',     name: 'Kendi Başına',        desc: 'AI yardımı olmadan 1 belge oturumu tamamla.',                tier: 0 },
+  { id: 'q_memory5',   name: '5 Bellek Ekle',       desc: 'Zeta hafızasına 5 yeni bilgi ekle.',                         tier: 0 },
+  { id: 'q_words150',  name: '150 Kelime Yaz',      desc: 'Editörde 150 kelime yaz. Copy-paste ve spam tuş sayılmaz.',  tier: 1 },
+  { id: 'q_editor25',  name: '25 Dk Editörde',      desc: 'Editörde aktif 25 dakika çalış.',                            tier: 1 },
+  { id: 'q_notes25',   name: '25 Not Oluştur',      desc: 'Bugün 25 yeni belge oluştur.',                               tier: 1 },
+  { id: 'q_solo3',     name: '3 Bağımsız Belge',   desc: 'AI yardımı olmadan 3 belge oturumu tamamla.',                tier: 1 },
+  { id: 'q_memory15',  name: '15 Bellek Ekle',      desc: 'Zeta hafızasına 15 yeni bilgi ekle.',                        tier: 1 },
+  { id: 'q_words500',  name: 'Günlük Yazar',        desc: 'Bugün 500 kelime yaz. Copy-paste ve spam tuş sayılmaz.',     tier: 2 },
+  { id: 'q_editor45',  name: 'Editör Maratonu',     desc: 'Editörde aktif 45 dakika çalış.',                            tier: 2 },
+  { id: 'q_notes50',   name: '50 Not Oluştur',      desc: 'Bugün 50 yeni belge oluştur.',                               tier: 2 },
+  { id: 'q_solo7',     name: '7 Bağımsız Belge',   desc: 'AI yardımı olmadan 7 belge oturumu tamamla.',                tier: 2 },
+  { id: 'q_memory35',  name: '35 Bellek Ekle',      desc: 'Zeta hafızasına 35 yeni bilgi ekle.',                        tier: 2 },
+  { id: 'q_words1500', name: 'Kalem Ustası',        desc: 'Bugün 1500 kelime yaz. Copy-paste ve spam tuş sayılmaz.',    tier: 3 },
+  { id: 'q_editor90',  name: 'Uzun Mesai',          desc: 'Editörde aktif 90 dakika çalış.',                            tier: 3 },
+  { id: 'q_notes100',  name: '100 Not Oluştur',     desc: 'Bugün 100 yeni belge oluştur.',                              tier: 3 },
+  { id: 'q_solo15',    name: 'Saf Üretkenlik',      desc: 'AI yardımı olmadan 15 belge oturumu tamamla.',               tier: 3 },
+  { id: 'q_memory75',  name: '75 Bellek Ekle',      desc: 'Zeta hafızasına 75 yeni bilgi ekle.',                        tier: 3 },
 ];
 
 // ─── Görev gereksinim eşleme (frontend ilerleme için) ─────────────────────────
@@ -43,6 +55,18 @@ const QUEST_REQ = {
   q_editor25:  { field: 'editor_minutes', threshold: 25,   unit: 'dk'     },
   q_editor45:  { field: 'editor_minutes', threshold: 45,   unit: 'dk'     },
   q_editor90:  { field: 'editor_minutes', threshold: 90,   unit: 'dk'     },
+  q_notes10:   { field: 'notes_created',  threshold: 10,   unit: 'not'    },
+  q_notes25:   { field: 'notes_created',  threshold: 25,   unit: 'not'    },
+  q_notes50:   { field: 'notes_created',  threshold: 50,   unit: 'not'    },
+  q_notes100:  { field: 'notes_created',  threshold: 100,  unit: 'not'    },
+  q_solo1:     { field: 'solo_docs',      threshold: 1,    unit: 'belge'  },
+  q_solo3:     { field: 'solo_docs',      threshold: 3,    unit: 'belge'  },
+  q_solo7:     { field: 'solo_docs',      threshold: 7,    unit: 'belge'  },
+  q_solo15:    { field: 'solo_docs',      threshold: 15,   unit: 'belge'  },
+  q_memory5:   { field: 'memories_added', threshold: 5,    unit: 'bellek' },
+  q_memory15:  { field: 'memories_added', threshold: 15,   unit: 'bellek' },
+  q_memory35:  { field: 'memories_added', threshold: 35,   unit: 'bellek' },
+  q_memory75:  { field: 'memories_added', threshold: 75,   unit: 'bellek' },
 };
 
 // ─── Deterministik PRNG ───────────────────────────────────────────────────────
@@ -394,7 +418,7 @@ const QuestMap = () => {
   const [forceFriday,    setForceFriday]    = useState(false);
   const [showInfo,       setShowInfo]        = useState(false);
   const [collectedSlots, setCollectedSlots]  = useState(new Set()); // slot_idx'ler
-  const [counters,       setCounters]        = useState({ words_typed: 0, editor_minutes: 0 });
+  const [counters,       setCounters]        = useState({ words_typed: 0, editor_minutes: 0, notes_created: 0, solo_docs: 0, memories_added: 0 });
   const [zpFly,          setZpFly]           = useState(null);
   const [rerolling,      setRerolling]       = useState(false);
   const [collecting,     setCollecting]      = useState(null); // collecting slot.id
@@ -411,7 +435,7 @@ const QuestMap = () => {
         setUserZP(meRes.data?.mindshare_xp ?? null);
         const d = todayRes.data;
         setCollectedSlots(new Set(d.collected_slots || []));
-        setCounters({ words_typed: d.words_typed || 0, editor_minutes: d.editor_minutes || 0 });
+        setCounters({ words_typed: d.words_typed || 0, editor_minutes: d.editor_minutes || 0, notes_created: d.notes_created || 0, solo_docs: d.solo_docs || 0, memories_added: d.memories_added || 0 });
         if ((d.reroll_offset || 0) > 0) setRerollOffset(d.reroll_offset);
       } catch {}
     })();
@@ -422,7 +446,7 @@ const QuestMap = () => {
     const fetchCounters = async () => {
       try {
         const r = await axios.get(`${API}/quests/today`, { withCredentials: true });
-        setCounters({ words_typed: r.data.words_typed || 0, editor_minutes: r.data.editor_minutes || 0 });
+        setCounters({ words_typed: r.data.words_typed || 0, editor_minutes: r.data.editor_minutes || 0, notes_created: r.data.notes_created || 0, solo_docs: r.data.solo_docs || 0, memories_added: r.data.memories_added || 0 });
       } catch {}
     };
     const delay = setTimeout(fetchCounters, 800); // Editor cleanup fetch'inin tamamlanmasını bekle

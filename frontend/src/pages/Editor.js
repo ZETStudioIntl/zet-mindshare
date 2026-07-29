@@ -261,6 +261,7 @@ const Editor = () => {
   const [zetaEditExplanation, setZetaEditExplanation] = useState('');
   const [zetaEditSuggestions, setZetaEditSuggestions] = useState([]);
   const pendingOpsRef = useRef([]); // { action, elementId, originalState }
+  const aiUsedRef     = useRef(false);
 
   // Zeta Patch state
   const [patchCorrections, setPatchCorrections] = useState([]);
@@ -1112,6 +1113,14 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // === YARDIMISIZ BELGE SAYACI ===
+  useEffect(() => {
+    return () => {
+      if (!aiUsedRef.current) questService.fireCounter('solo_docs', 1);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastLoadedPageRef = useRef(null);
   useEffect(() => {
@@ -1509,6 +1518,7 @@ const Editor = () => {
           ? canvasElements.filter(el => !el.isPending && !el.isPendingDelete)
           : (p.elements || []),
       }));
+      aiUsedRef.current = true;
       const res = await axios.post(`${API}/zeta/document-edit`, {
         user_request: request,
         page_elements: canvasElements.filter(el => !el.isPending && !el.isPendingDelete),
@@ -1578,6 +1588,7 @@ const Editor = () => {
           // Fire-and-forget: call generate-image API then add to canvas
           (async () => {
             try {
+              aiUsedRef.current = true;
               const imgRes = await axios.post(`${API}/zeta/generate-image`, {
                 prompt: op.prompt,
                 aspect_ratio: '1:1',
@@ -2143,6 +2154,7 @@ const Editor = () => {
     setPatchLoading(true);
     setPatchError(null);
     setPatchScanned(false);
+    aiUsedRef.current = true;
     try {
       console.log('[Patch] API çağrısı yapılıyor...');
       const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-scan`, {
@@ -2663,6 +2675,7 @@ const Editor = () => {
       return;
     }
     setPhotoEditLoading(true);
+    aiUsedRef.current = true;
     try {
       const res = await axios.post(`${API}/zeta/photo-edit`, {
         image_data: photoEditImage,
@@ -5088,9 +5101,10 @@ body{background:#fff}
     }
     
     setAiGenerating(true); setAiPreview(null);
+    aiUsedRef.current = true;
     try {
-      const res = await axios.post(`${API}/zeta/generate-image`, { 
-        prompt: aiPrompt, 
+      const res = await axios.post(`${API}/zeta/generate-image`, {
+        prompt: aiPrompt,
         reference_image: aiReference,
         pro: aiImagePro,
         aspect_ratio: aiAspectRatio

@@ -8,6 +8,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
 import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
+import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { ZPIcon, CreditIcon } from '../components/dashboard/CaseOpenModal';
@@ -1086,6 +1087,7 @@ const Dashboard = () => {
       const res = await axios.post(`${API}/zeta/memory`, { content: newMemoryInput.trim() }, { withCredentials: true });
       setZetaMemories(prev => [res.data, ...prev]);
       setNewMemoryInput('');
+      questService.fireCounter('memories_added', 1);
       showToast('Bellek eklendi', 'success');
     } catch (err) {
       const msg = err?.response?.data?.detail;
@@ -1226,6 +1228,7 @@ const Dashboard = () => {
       };
       await saveDoc(newDoc);
       setDocuments(prev => [newDoc, ...prev]);
+      questService.fireCounter('notes_created', 1);
 
       // PDF: extract text client-side and save pages before navigating
       if (newDocType === 'pdf' && window.__zetPdfFile) {
