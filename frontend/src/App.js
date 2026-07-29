@@ -19,6 +19,7 @@ import AppSelector from "./pages/AppSelector";
 import JudgeDashboard from "./pages/JudgeDashboard";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import MediaApp from "./apps/media/App";
+import ControlCenter from "./pages/ControlCenter";
 import axios from "axios";
 
 const BanScreen = ({ reason, bannedUntil }) => {
@@ -317,6 +318,11 @@ const AppRouter = () => {
       <Route path="/media/*" element={
         <ProtectedRoute>
           <MediaApp />
+        </ProtectedRoute>
+      } />
+      <Route path="/control-center" element={
+        <ProtectedRoute>
+          <ControlCenter />
         </ProtectedRoute>
       } />
       <Route path="/" element={<Navigate to="/app-select" replace />} />

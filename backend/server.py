@@ -89,6 +89,7 @@ def _get_r2():
 
 app = FastAPI()
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
+CEO_ZET_ID = os.getenv("CEO_ZET_ID", "")  # ZET ID doğrulama — env'den alınır, frontend'e asla gönderilmez
 ADMIN_EMAILS = {"info@zetstudiointl.com", "support@zetstudiointl.com", "ideas@zetstudiointl.com"}
 api_router = APIRouter(prefix="/api")
 
@@ -4200,6 +4201,11 @@ async def lemonsqueezy_webhook(request: Request):
         )
         if user_data:
             await send_welcome_email(user_data["email"], plan, billing_cycle, next_renewal)
+        await db.ceo_transactions.insert_one({
+            "user_id": user_id, "type": "subscription",
+            "plan": plan, "billing_cycle": billing_cycle,
+            "amount_usd": plan_price, "timestamp": now.isoformat(),
+        })
 
     elif event_name == "subscription_updated":
         ls_status = obj.get("status", "active")
@@ -4270,12 +4276,18 @@ async def lemonsqueezy_webhook(request: Request):
             current = (ud or {}).get("bonus_credits", 0)
             new_balance = min(current + credits_to_add, MAX_CREDIT_BALANCE)
             await db.users.update_one({"user_id": user_id}, {"$set": {"bonus_credits": new_balance}})
+            pkg_price = next((p["price"] for p in CREDIT_PACKAGES if p["id"] == credit_pkg_id), 0.0)
             await db.credit_purchases.insert_one({
                 "user_id": user_id,
                 "package_id": credit_pkg_id,
                 "credits": credits_to_add,
                 "ls_order_id": ls_id,
                 "date": now.isoformat(),
+            })
+            await db.ceo_transactions.insert_one({
+                "user_id": user_id, "type": "credits",
+                "package_id": credit_pkg_id, "credits": credits_to_add,
+                "amount_usd": pkg_price, "timestamp": now.isoformat(),
             })
             _invalidate_auth_cache(user_id=user_id)
             logging.info(f"Credit purchase: user={user_id} pkg={credit_pkg_id} credits={credits_to_add} new_balance={new_balance}")
@@ -8292,6 +8304,29 @@ async def hafizz_security_dashboard(user: User = Depends(get_current_user)):
     }
 
 
+async def _verify_ceo(user: User) -> None:
+    """CEO doğrulaması — email + isteğe bağlı ZET ID kontrolü. 403 fırlatır."""
+    if user.email != CEO_EMAIL:
+        raise HTTPException(403, "Yetkisiz")
+    if CEO_ZET_ID:
+        raw = await db.users.find_one({"user_id": user.user_id}, {"zet_id": 1})
+        if not raw or raw.get("zet_id") != CEO_ZET_ID:
+            raise HTTPException(403, "Yetkisiz")
+
+
+async def _log_ceo_action(actor_id: str, target_user_id: str, action: str, details: dict = None) -> None:
+    try:
+        await db.ceo_action_log.insert_one({
+            "actor_id": actor_id,
+            "target_user_id": target_user_id,
+            "action": action,
+            "details": details or {},
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+    except Exception as e:
+        logging.error(f"_log_ceo_action error: {e}")
+
+
 @api_router.post("/ceo/security/ban/{target_user_id}")
 async def hafizz_ban_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), duration_hours: Optional[int] = Body(None, embed=True), user: User = Depends(get_current_user)):
     ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
@@ -8392,6 +8427,223 @@ async def mark_warnings_read(user: User = Depends(get_current_user)):
     await db.users.update_one({"user_id": user.user_id}, {"$set": {"hafizz_warnings.$[].read": True}})
     _user_cache.pop(user.user_id, None)
     return {"ok": True}
+
+
+# ============ CEO CONTROL CENTER ============
+
+@api_router.get("/ceo/check-cc")
+async def check_control_center(user: User = Depends(get_current_user)):
+    """Frontend bu endpoint'i çağırır — CEO ise show:true döner. Kimseye 403 fırlatmaz."""
+    is_ceo = user.email == CEO_EMAIL
+    if is_ceo and CEO_ZET_ID:
+        raw = await db.users.find_one({"user_id": user.user_id}, {"zet_id": 1})
+        is_ceo = bool(raw and raw.get("zet_id") == CEO_ZET_ID)
+    return {"show": is_ceo}
+
+
+_CC_PAGE_SIZE = 50
+
+@api_router.get("/ceo/control-center/users")
+async def cc_list_users(page: int = 1, search: str = "", user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    skip = (page - 1) * _CC_PAGE_SIZE
+    query: dict = {}
+    if search.strip():
+        s = search.strip()
+        query["$or"] = [
+            {"email": {"$regex": s, "$options": "i"}},
+            {"user_id": s},
+            {"username": {"$regex": s, "$options": "i"}},
+            {"zet_id": {"$regex": s, "$options": "i"}},
+            {"name": {"$regex": s, "$options": "i"}},
+        ]
+    total = await db.users.count_documents(query)
+    docs = await db.users.find(query, {
+        "user_id": 1, "email": 1, "name": 1, "username": 1, "zet_id": 1,
+        "created_at": 1, "last_heartbeat": 1, "subscription": 1,
+        "banned": 1, "banned_until": 1, "active_time_seconds": 1,
+    }).sort("created_at", -1).skip(skip).limit(_CC_PAGE_SIZE).to_list(_CC_PAGE_SIZE)
+
+    now_utc = datetime.now(timezone.utc)
+    result = []
+    for d in docs:
+        d.pop("_id", None)
+        banned = bool(d.get("banned"))
+        temp_banned = False
+        bu_str = d.get("banned_until")
+        if bu_str:
+            try:
+                bu = datetime.fromisoformat(bu_str)
+                if bu.tzinfo is None: bu = bu.replace(tzinfo=timezone.utc)
+                temp_banned = bu > now_utc
+            except Exception: pass
+        sub = d.get("subscription") or {}
+        plan = sub.get("plan", "free") if isinstance(sub, dict) else (sub or "free")
+        result.append({
+            "user_id": d["user_id"],
+            "email": d.get("email", ""),
+            "name": d.get("name", ""),
+            "username": d.get("username"),
+            "zet_id": d.get("zet_id"),
+            "created_at": d.get("created_at"),
+            "last_active": d.get("last_heartbeat"),
+            "status": "banned" if banned else ("temp_banned" if temp_banned else "active"),
+            "plan": plan,
+            "active_time_seconds": d.get("active_time_seconds", 0),
+        })
+    return {"users": result, "total": total, "page": page, "page_size": _CC_PAGE_SIZE}
+
+
+@api_router.get("/ceo/control-center/users/{target_user_id}/detail")
+async def cc_user_detail(target_user_id: str, user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    u = await db.users.find_one({"user_id": target_user_id})
+    if not u:
+        raise HTTPException(404, "Kullanıcı bulunamadı")
+    u.pop("_id", None)
+    u.pop("hashed_password", None)
+
+    summary = await db.user_stats_summary.find_one({"user_id": target_user_id}, {"_id": 0})
+    anomaly = await db.hafiz_anomaly.find_one({"user_id": target_user_id}, {"_id": 0})
+    if anomaly: anomaly.pop("_id", None)
+
+    actions = await db.ceo_action_log.find(
+        {"target_user_id": target_user_id}, {"_id": 0}
+    ).sort("timestamp", -1).limit(30).to_list(30)
+
+    transactions = await db.ceo_transactions.find(
+        {"user_id": target_user_id}, {"_id": 0}
+    ).sort("timestamp", -1).limit(50).to_list(50)
+
+    total_revenue = sum(float(t.get("amount_usd", 0)) for t in transactions)
+    revenue_by_type: dict = {}
+    for t in transactions:
+        k = t.get("type", "other")
+        revenue_by_type[k] = round(revenue_by_type.get(k, 0.0) + float(t.get("amount_usd", 0)), 2)
+
+    now_utc = datetime.now(timezone.utc)
+    banned = bool(u.get("banned"))
+    temp_banned = False
+    bu_str = u.get("banned_until")
+    if bu_str:
+        try:
+            bu = datetime.fromisoformat(bu_str)
+            if bu.tzinfo is None: bu = bu.replace(tzinfo=timezone.utc)
+            temp_banned = bu > now_utc
+        except Exception: pass
+
+    return {
+        "user": {
+            "user_id": u.get("user_id"),
+            "email": u.get("email"),
+            "name": u.get("name"),
+            "username": u.get("username"),
+            "zet_id": u.get("zet_id"),
+            "picture": u.get("picture"),
+            "created_at": u.get("created_at"),
+            "last_heartbeat": u.get("last_heartbeat"),
+            "active_time_seconds": u.get("active_time_seconds", 0),
+            "subscription": u.get("subscription"),
+            "mindshare_rank": u.get("mindshare_rank", "iron"),
+            "mindshare_xp": u.get("mindshare_xp", 0),
+            "inventory": u.get("inventory", []),
+            "hafizz_warnings": u.get("hafizz_warnings", []),
+            "banned": banned,
+            "temp_banned": temp_banned,
+            "banned_until": bu_str if temp_banned else None,
+            "ban_reason": u.get("ban_reason"),
+        },
+        "security": {
+            "anomaly_score": anomaly.get("score", 0) if anomaly else 0,
+            "log": (anomaly.get("log", []) or [])[-15:] if anomaly else [],
+        },
+        "revenue": {
+            "total_usd": round(total_revenue, 2),
+            "by_type": revenue_by_type,
+            "transactions": transactions,
+        },
+        "summary": summary,
+        "action_log": actions,
+    }
+
+
+@api_router.post("/ceo/control-center/users/{target_user_id}/ban")
+async def cc_ban_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), duration_hours: Optional[int] = Body(None, embed=True), user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    now_utc = datetime.now(timezone.utc)
+    if duration_hours and duration_hours > 0:
+        banned_until = (now_utc + timedelta(hours=duration_hours)).isoformat()
+        await db.users.update_one({"user_id": target_user_id}, {
+            "$set": {"banned_until": banned_until, "ban_reason": reason, "banned_at": now_utc.isoformat()},
+            "$unset": {"banned": ""},
+        })
+        await _log_ceo_action(user.user_id, target_user_id, "temp_ban", {"reason": reason, "duration_hours": duration_hours, "banned_until": banned_until})
+    else:
+        await db.users.update_one({"user_id": target_user_id}, {
+            "$set": {"banned": True, "ban_reason": reason, "banned_at": now_utc.isoformat()},
+            "$unset": {"banned_until": ""},
+        })
+        await _log_ceo_action(user.user_id, target_user_id, "perm_ban", {"reason": reason})
+    _user_cache.pop(target_user_id, None)
+    asyncio.create_task(hafizz.notify_ban(db, target_user_id, reason))
+    return {"ok": True}
+
+
+@api_router.post("/ceo/control-center/users/{target_user_id}/unban")
+async def cc_unban_user(target_user_id: str, user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    await db.hafiz_anomaly.update_one({"user_id": target_user_id}, {"$set": {"score": 0, "log": []}})
+    await db.users.update_one({"user_id": target_user_id}, {"$unset": {"banned": "", "ban_reason": "", "banned_until": ""}})
+    _user_cache.pop(target_user_id, None)
+    await _log_ceo_action(user.user_id, target_user_id, "unban", {})
+    return {"ok": True}
+
+
+@api_router.post("/ceo/control-center/users/{target_user_id}/warn")
+async def cc_warn_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    warning_entry = {"message": reason, "date": datetime.now(timezone.utc).isoformat(), "read": False}
+    await db.users.update_one({"user_id": target_user_id}, {"$push": {"hafizz_warnings": warning_entry}})
+    _user_cache.pop(target_user_id, None)
+    await _log_ceo_action(user.user_id, target_user_id, "warn", {"reason": reason})
+    asyncio.create_task(hafizz.notify_suspicious(db, target_user_id, reason))
+    return {"ok": True}
+
+
+@api_router.post("/ceo/control-center/aggregate-daily")
+async def cc_aggregate_daily(request: Request, user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    # Batch: tüm kullanıcıları 200'erli chunk'larda işle
+    processed = 0
+    skip = 0
+    batch = 200
+    while True:
+        docs = await db.users.find({}, {
+            "user_id": 1, "active_time_seconds": 1,
+            "subscription": 1, "last_heartbeat": 1,
+        }).skip(skip).limit(batch).to_list(batch)
+        if not docs:
+            break
+        for d in docs:
+            uid = d["user_id"]
+            txns = await db.ceo_transactions.find({"user_id": uid}, {"amount_usd": 1, "type": 1, "_id": 0}).to_list(500)
+            total_rev = round(sum(float(t.get("amount_usd", 0)) for t in txns), 2)
+            sub = d.get("subscription") or {}
+            plan = sub.get("plan", "free") if isinstance(sub, dict) else (sub or "free")
+            await db.user_stats_summary.update_one(
+                {"user_id": uid},
+                {"$set": {
+                    "total_time_seconds": d.get("active_time_seconds", 0),
+                    "total_revenue_usd": total_rev,
+                    "current_plan": plan,
+                    "last_active": d.get("last_heartbeat"),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }},
+                upsert=True,
+            )
+            processed += 1
+        skip += batch
+    return {"ok": True, "processed": processed}
 
 
 # ============ HAFIZ: 2FA ============

@@ -1,7 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { RainbowSpinner } from '../components/LoadingScreens';
+import axios from 'axios';
+
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const MindshareIcon = () => (
   <img src="/logo-mindshare.svg" alt="ZET Mindshare" style={{ width: 44, height: 44, objectFit: 'contain' }} />
@@ -57,13 +60,29 @@ const APPS = [
   },
 ];
 
+const ControlCenterIcon = () => (
+  <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+    <rect width="44" height="44" rx="12" fill="#1a0a0a" />
+    <circle cx="22" cy="22" r="12" stroke="#ef4444" strokeWidth="1.5" fill="none" />
+    <path d="M22 10v4M22 30v4M10 22h4M30 22h4" stroke="#ef4444" strokeWidth="1.5" strokeLinecap="round" />
+    <circle cx="22" cy="22" r="3.5" fill="#ef4444" />
+  </svg>
+);
+
 const AppSelector = () => {
   const navigate = useNavigate();
   const { switchApp } = useAppTheme();
   const [hovered, setHovered] = useState(null);
   const [selecting, setSelecting] = useState(null);
+  const [showCC, setShowCC] = useState(false);
 
-  const bgColor = hovered === 'judge' ? '#12020c' : hovered === 'mindshare' ? '#080a1a' : hovered === 'media' ? '#050505' : '#0a0d1a';
+  useEffect(() => {
+    axios.get(`${API}/ceo/check-cc`, { withCredentials: true })
+      .then(r => { if (r.data.show) setShowCC(true); })
+      .catch(() => {});
+  }, []);
+
+  const bgColor = hovered === 'judge' ? '#12020c' : hovered === 'mindshare' ? '#080a1a' : hovered === 'media' ? '#050505' : hovered === 'control-center' ? '#0d0000' : '#0a0d1a';
 
   const handleSelect = (app) => {
     setSelecting(app.id);
@@ -97,7 +116,19 @@ const AppSelector = () => {
       </div>
 
       <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 860, width: '100%' }}>
-        {APPS.map((app) => {
+        {[...APPS, ...(showCC ? [{
+          id: 'control-center',
+          name: 'Kontrol Merkezi',
+          tagline: 'CEO Paneli',
+          description: 'Kullanıcı yönetimi, güvenlik analizleri, gelir takibi ve moderasyon araçları.',
+          gradient: 'linear-gradient(135deg, #1a0000 0%, #3d0000 40%, #7f1d1d 100%)',
+          borderGlow: 'rgba(239, 68, 68, 0.5)',
+          hoverBg: '#0d0000',
+          route: '/control-center',
+          Icon: ControlCenterIcon,
+          version: 'CEO Only',
+          features: ['Tüm kullanıcı listesi', 'Kullanıcı detay & gelir', 'Ban / Uyarı yönetimi', 'Güvenlik skorları'],
+        }] : [])].map((app) => {
           const isHovered = hovered === app.id;
           const isSelecting = selecting === app.id;
           return (
