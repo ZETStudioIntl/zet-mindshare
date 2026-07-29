@@ -1049,6 +1049,25 @@ async def get_current_user(request: Request) -> User:
             raise HTTPException(status_code=401, detail="User not found")
         _user_cache[_uid] = (raw, _now + timedelta(seconds=_USER_TTL))
 
+    banned_until_str = raw.get("banned_until")
+    if banned_until_str:
+        try:
+            bu = datetime.fromisoformat(banned_until_str)
+            if bu.tzinfo is None:
+                bu = bu.replace(tzinfo=timezone.utc)
+            if bu > _now:
+                raise HTTPException(
+                    status_code=403,
+                    detail={"code": "TEMP_BANNED", "reason": raw.get("ban_reason") or "Hesabınız geçici olarak askıya alındı.", "banned_until": banned_until_str}
+                )
+            else:
+                await db.users.update_one({"user_id": _uid}, {"$unset": {"banned_until": "", "ban_reason": ""}})
+                _user_cache.pop(_uid, None)
+        except HTTPException:
+            raise
+        except Exception:
+            pass
+
     if raw.get("banned"):
         raise HTTPException(
             status_code=403,
@@ -8274,11 +8293,22 @@ async def hafizz_security_dashboard(user: User = Depends(get_current_user)):
 
 
 @api_router.post("/ceo/security/ban/{target_user_id}")
-async def hafizz_ban_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), user: User = Depends(get_current_user)):
+async def hafizz_ban_user(target_user_id: str, reason: str = Body("Kural ihlali", embed=True), duration_hours: Optional[int] = Body(None, embed=True), user: User = Depends(get_current_user)):
     ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
-    await db.users.update_one({"user_id": target_user_id}, {"$set": {"banned": True, "ban_reason": reason, "banned_at": datetime.now(timezone.utc).isoformat()}})
+    now_utc = datetime.now(timezone.utc)
+    if duration_hours and duration_hours > 0:
+        banned_until = (now_utc + timedelta(hours=duration_hours)).isoformat()
+        await db.users.update_one({"user_id": target_user_id}, {
+            "$set": {"banned_until": banned_until, "ban_reason": reason, "banned_at": now_utc.isoformat()},
+            "$unset": {"banned": ""}
+        })
+    else:
+        await db.users.update_one({"user_id": target_user_id}, {
+            "$set": {"banned": True, "ban_reason": reason, "banned_at": now_utc.isoformat()},
+            "$unset": {"banned_until": ""}
+        })
     _user_cache.pop(target_user_id, None)
     asyncio.create_task(hafizz.notify_ban(db, target_user_id, reason))
     return {"ok": True}
@@ -8289,6 +8319,9 @@ async def hafizz_warn_user(target_user_id: str, reason: str = Body("Şüpheli ak
     ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
+    warning_entry = {"message": reason, "date": datetime.now(timezone.utc).isoformat(), "read": False}
+    await db.users.update_one({"user_id": target_user_id}, {"$push": {"hafizz_warnings": warning_entry}})
+    _user_cache.pop(target_user_id, None)
     asyncio.create_task(hafizz.notify_suspicious(db, target_user_id, reason))
     await hafizz.add_anomaly_score(db, target_user_id, 10, f"ceo_warning:{reason[:50]}")
     return {"ok": True}
@@ -8300,8 +8333,64 @@ async def hafizz_clear_user(target_user_id: str, user: User = Depends(get_curren
     if not ceo_user or user.user_id != ceo_user.get("user_id"):
         raise HTTPException(403, "Yetkisiz")
     await db.hafiz_anomaly.update_one({"user_id": target_user_id}, {"$set": {"score": 0, "log": []}})
-    await db.users.update_one({"user_id": target_user_id}, {"$unset": {"banned": "", "ban_reason": ""}})
+    await db.users.update_one({"user_id": target_user_id}, {"$unset": {"banned": "", "ban_reason": "", "banned_until": "", "hafizz_warnings": ""}})
     _user_cache.pop(target_user_id, None)
+    return {"ok": True}
+
+
+@api_router.get("/ceo/search-user")
+async def ceo_search_user(q: str, user: User = Depends(get_current_user)):
+    ceo_user = await db.users.find_one({"email": CEO_EMAIL}, {"user_id": 1})
+    if not ceo_user or user.user_id != ceo_user.get("user_id"):
+        raise HTTPException(403, "Yetkisiz")
+    query = {"$or": [
+        {"email": {"$regex": q, "$options": "i"}},
+        {"user_id": q},
+        {"name": {"$regex": q, "$options": "i"}}
+    ]}
+    docs = await db.users.find(query, {
+        "user_id": 1, "email": 1, "name": 1,
+        "banned": 1, "ban_reason": 1, "banned_at": 1, "banned_until": 1, "hafizz_warnings": 1
+    }).limit(10).to_list(10)
+    result = []
+    now_utc = datetime.now(timezone.utc)
+    for u in docs:
+        bu_str = u.get("banned_until")
+        temp_banned = False
+        if bu_str:
+            try:
+                bu = datetime.fromisoformat(bu_str)
+                if bu.tzinfo is None:
+                    bu = bu.replace(tzinfo=timezone.utc)
+                temp_banned = bu > now_utc
+            except Exception:
+                pass
+        unread_warnings = len([w for w in u.get("hafizz_warnings", []) if not w.get("read")])
+        result.append({
+            "user_id": u["user_id"],
+            "email": u.get("email", ""),
+            "name": u.get("name", ""),
+            "banned": bool(u.get("banned")),
+            "temp_banned": temp_banned,
+            "banned_until": bu_str if temp_banned else None,
+            "ban_reason": u.get("ban_reason"),
+            "unread_warnings": unread_warnings,
+        })
+    return {"users": result}
+
+
+@api_router.get("/me/warnings")
+async def get_my_warnings(user: User = Depends(get_current_user)):
+    u = await db.users.find_one({"user_id": user.user_id}, {"hafizz_warnings": 1})
+    warnings = u.get("hafizz_warnings", []) if u else []
+    unread = [w for w in warnings if not w.get("read")]
+    return {"warnings": unread}
+
+
+@api_router.post("/me/warnings/read")
+async def mark_warnings_read(user: User = Depends(get_current_user)):
+    await db.users.update_one({"user_id": user.user_id}, {"$set": {"hafizz_warnings.$[].read": True}})
+    _user_cache.pop(user.user_id, None)
     return {"ok": True}
 
 

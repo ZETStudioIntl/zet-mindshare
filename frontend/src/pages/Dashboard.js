@@ -26,6 +26,7 @@ import DeleteConfirmModal from '../components/dashboard/DeleteConfirmModal';
 import PlanFeaturesModal from '../components/dashboard/PlanFeaturesModal';
 import SeasonEndModal from '../components/dashboard/SeasonEndModal';
 import ConfirmModal from '../components/dashboard/ConfirmModal';
+import WarningPopup from '../components/dashboard/WarningPopup';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
 import goldRankImg from '../assets/rank-gold.svg';
@@ -114,7 +115,7 @@ const Dashboard = () => {
   const [sfxEnabled, setSfxEnabled] = useState(() => localStorage.getItem('zet_sfx_enabled') !== 'false');
   const [sfxVolume, setSfxVolume] = useState(() => parseFloat(localStorage.getItem('zet_sfx_volume') || '0.35'));
   const [gradientAnimEnabled, setGradientAnimEnabled] = useState(() => localStorage.getItem('zet_gradient_anim') === 'true');
-  const isCEO = localStorage.getItem('zet_ceo_mode') === 'true';
+  const isCEO = localStorage.getItem('zet_ceo_mode') === 'true' || user?.email === 'muhammadbahaddinyilmaz@gmail.com';
   const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
   const isPrivileged = isCEO || isAdminMode;
   const [adminUsers, setAdminUsers] = useState([]);
@@ -256,6 +257,12 @@ const Dashboard = () => {
   const [zetaDocAnalysis, setZetaDocAnalysis] = useState({ docId: null, loading: false, result: null });
   const [rankTab, setRankTab] = useState('requirements');
   const [zetaSearch, setZetaSearch] = useState(false);
+  const [activeWarnings, setActiveWarnings] = useState([]);
+  const [modSearch, setModSearch] = useState('');
+  const [modSearchResults, setModSearchResults] = useState(null);
+  const [modSearchLoading, setModSearchLoading] = useState(false);
+  const [modAction, setModAction] = useState({}); // { reason, duration }
+  const [modActionLoading, setModActionLoading] = useState(false);
   const [toast, setToast] = useState(null); // { msg, type: 'success'|'error'|'info' }
   const [confirmModal, setConfirmModal] = useState(null); // { title, msg, onConfirm, danger }
   const showToast = (msg, type = 'info') => { setToast({ msg, type }); setTimeout(() => setToast(null), 4000); };
@@ -635,6 +642,14 @@ const Dashboard = () => {
         .finally(() => setAdminUsersLoading(false));
     }
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Hafizz uyarıları — kullanıcıya gösterilmemiş uyarılar
+  useEffect(() => {
+    if (!user) return;
+    axios.get(`${API}/me/warnings`, { withCredentials: true })
+      .then(r => { if (r.data.warnings?.length) setActiveWarnings(r.data.warnings); })
+      .catch(() => {});
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Onboarding — yeni kullanıcı için zorunlu bilgi ekranı
   useEffect(() => {
@@ -1977,6 +1992,7 @@ MATCHES:[1,3,5]`;
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: t('fastSelect') },
                 { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: t('appSwitcher') },
                 ...(isPrivileged ? [{ id: 'users', icon: <Brain className="h-4 w-4" />, label: t('users'), color: isCEO ? '#f59e0b' : '#818cf8' }] : []),
+                ...(isCEO ? [{ id: 'moderation', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L2 4v4c0 3.3 2.6 5.7 6 6.4 3.4-.7 6-3.1 6-6.4V4L8 1.5z" stroke="#ef4444" strokeWidth="1.4" fill="#ef444418" /><path d="M5.5 8l1.8 1.8L10.5 6" stroke="#ef4444" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" /></svg>, label: 'Moderasyon', color: '#ef4444' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
@@ -3228,6 +3244,178 @@ MATCHES:[1,3,5]`;
                 </div>
               )}
 
+              {settingsTab === 'moderation' && isCEO && (
+                <div className="max-w-xl">
+                  <h2 className="text-lg font-semibold mb-5" style={{ color: '#ef4444' }}>Moderasyon Paneli</h2>
+
+                  {/* Kullanıcı Ara */}
+                  <div className="flex gap-2 mb-4">
+                    <input
+                      value={modSearch}
+                      onChange={e => setModSearch(e.target.value)}
+                      onKeyDown={e => {
+                        if (e.key !== 'Enter' || !modSearch.trim()) return;
+                        setModSearchLoading(true);
+                        axios.get(`${API}/ceo/search-user?q=${encodeURIComponent(modSearch.trim())}`, { withCredentials: true })
+                          .then(r => setModSearchResults(r.data.users || []))
+                          .catch(() => setModSearchResults([]))
+                          .finally(() => setModSearchLoading(false));
+                      }}
+                      placeholder="E-posta veya kullanıcı ID ara..."
+                      className="flex-1 px-3 py-2 rounded-xl text-sm outline-none"
+                      style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
+                    />
+                    <button
+                      onClick={() => {
+                        if (!modSearch.trim()) return;
+                        setModSearchLoading(true);
+                        axios.get(`${API}/ceo/search-user?q=${encodeURIComponent(modSearch.trim())}`, { withCredentials: true })
+                          .then(r => setModSearchResults(r.data.users || []))
+                          .catch(() => setModSearchResults([]))
+                          .finally(() => setModSearchLoading(false));
+                      }}
+                      disabled={modSearchLoading}
+                      className="px-4 py-2 rounded-xl text-sm font-medium disabled:opacity-50"
+                      style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef444440' }}
+                    >
+                      {modSearchLoading ? '...' : 'Ara'}
+                    </button>
+                  </div>
+
+                  {/* Sonuçlar */}
+                  {modSearchResults !== null && (
+                    <div className="space-y-3">
+                      {modSearchResults.length === 0 && (
+                        <p className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>Sonuç bulunamadı.</p>
+                      )}
+                      {modSearchResults.map(u => {
+                        const key = u.user_id;
+                        const act = modAction[key] || { reason: '', duration: '' };
+                        const isBanned = u.banned || u.temp_banned;
+                        return (
+                          <div key={key} className="rounded-2xl p-4" style={{ background: 'var(--zet-bg-card)', border: `1px solid ${isBanned ? '#ef444430' : 'var(--zet-border)'}` }}>
+                            {/* Kullanıcı bilgisi */}
+                            <div className="flex items-start justify-between gap-3 mb-3">
+                              <div>
+                                <p className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{u.name || '—'}</p>
+                                <p className="text-xs mt-0.5" style={{ color: 'var(--zet-text-muted)' }}>{u.email}</p>
+                                <p className="text-xs mt-0.5" style={{ color: '#64748b', fontFamily: 'monospace' }}>{u.user_id}</p>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                {u.banned && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#ef444420', color: '#ef4444' }}>Kalıcı Ban</span>}
+                                {u.temp_banned && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#f9731620', color: '#f97316' }}>Geçici Ban</span>}
+                                {u.unread_warnings > 0 && <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: '#f59e0b20', color: '#f59e0b' }}>{u.unread_warnings} uyarı</span>}
+                              </div>
+                            </div>
+
+                            {u.ban_reason && (
+                              <p className="text-xs mb-3 px-2 py-1.5 rounded-lg" style={{ background: '#ef444410', color: '#fca5a5' }}>
+                                Ban sebebi: {u.ban_reason}
+                              </p>
+                            )}
+                            {u.banned_until && (
+                              <p className="text-xs mb-3" style={{ color: '#f97316' }}>
+                                Bitiş: {new Date(u.banned_until).toLocaleString('tr-TR')}
+                              </p>
+                            )}
+
+                            {/* Aksiyon alanı */}
+                            <div className="space-y-2">
+                              <input
+                                value={act.reason}
+                                onChange={e => setModAction(prev => ({ ...prev, [key]: { ...act, reason: e.target.value } }))}
+                                placeholder="Sebep / mesaj..."
+                                className="w-full px-3 py-1.5 rounded-lg text-xs outline-none"
+                                style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
+                              />
+                              <div className="flex gap-2 flex-wrap">
+                                <input
+                                  value={act.duration}
+                                  onChange={e => setModAction(prev => ({ ...prev, [key]: { ...act, duration: e.target.value } }))}
+                                  placeholder="Süre (saat)"
+                                  type="number"
+                                  min="1"
+                                  className="w-24 px-2 py-1.5 rounded-lg text-xs outline-none"
+                                  style={{ background: 'var(--zet-bg)', border: '1px solid var(--zet-border)', color: 'var(--zet-text)' }}
+                                />
+                                <button
+                                  disabled={modActionLoading}
+                                  onClick={async () => {
+                                    setModActionLoading(true);
+                                    try {
+                                      await axios.post(`${API}/ceo/security/warn/${key}`, { reason: act.reason || 'Kural ihlali' }, { withCredentials: true });
+                                      showToast('Uyarı gönderildi', 'success');
+                                      setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, unread_warnings: (x.unread_warnings || 0) + 1 } : x));
+                                    } catch { showToast('Hata', 'error'); }
+                                    setModActionLoading(false);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                                  style={{ background: '#f59e0b20', color: '#f59e0b', border: '1px solid #f59e0b40' }}
+                                >
+                                  Uyar
+                                </button>
+                                <button
+                                  disabled={modActionLoading}
+                                  onClick={async () => {
+                                    const dh = parseInt(act.duration);
+                                    if (!dh || dh < 1) { showToast('Geçerli süre girin (saat)', 'error'); return; }
+                                    setModActionLoading(true);
+                                    try {
+                                      await axios.post(`${API}/ceo/security/ban/${key}`, { reason: act.reason || 'Kural ihlali', duration_hours: dh }, { withCredentials: true });
+                                      showToast(`${dh} saatlik ban uygulandı`, 'success');
+                                      setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, temp_banned: true, banned: false } : x));
+                                    } catch { showToast('Hata', 'error'); }
+                                    setModActionLoading(false);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                                  style={{ background: '#f9731620', color: '#f97316', border: '1px solid #f9731640' }}
+                                >
+                                  Geçici Ban
+                                </button>
+                                <button
+                                  disabled={modActionLoading}
+                                  onClick={async () => {
+                                    setModActionLoading(true);
+                                    try {
+                                      await axios.post(`${API}/ceo/security/ban/${key}`, { reason: act.reason || 'Kural ihlali' }, { withCredentials: true });
+                                      showToast('Kalıcı ban uygulandı', 'success');
+                                      setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, banned: true, temp_banned: false } : x));
+                                    } catch { showToast('Hata', 'error'); }
+                                    setModActionLoading(false);
+                                  }}
+                                  className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                                  style={{ background: '#ef444420', color: '#ef4444', border: '1px solid #ef444440' }}
+                                >
+                                  Kalıcı Ban
+                                </button>
+                                {isBanned && (
+                                  <button
+                                    disabled={modActionLoading}
+                                    onClick={async () => {
+                                      setModActionLoading(true);
+                                      try {
+                                        await axios.post(`${API}/ceo/security/clear/${key}`, {}, { withCredentials: true });
+                                        showToast('Ban kaldırıldı', 'success');
+                                        setModSearchResults(prev => prev.map(x => x.user_id === key ? { ...x, banned: false, temp_banned: false, ban_reason: null, banned_until: null } : x));
+                                      } catch { showToast('Hata', 'error'); }
+                                      setModActionLoading(false);
+                                    }}
+                                    className="px-3 py-1.5 rounded-lg text-xs font-medium disabled:opacity-50"
+                                    style={{ background: '#22c55e20', color: '#22c55e', border: '1px solid #22c55e40' }}
+                                  >
+                                    Ban Kaldır
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {settingsTab === 'inventory' && (
                 <div className="max-w-lg">
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
@@ -4209,6 +4397,11 @@ MATCHES:[1,3,5]`;
       {/* Confirm Modal */}
       {confirmModal && (
         <ConfirmModal confirmModal={confirmModal} setConfirmModal={setConfirmModal} />
+      )}
+
+      {/* Hafizz Uyarı Popup */}
+      {activeWarnings.length > 0 && (
+        <WarningPopup warnings={activeWarnings} onDismiss={() => setActiveWarnings([])} />
       )}
 
       {/* In-app Alarm Notifications */}

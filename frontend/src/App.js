@@ -21,34 +21,71 @@ import PaymentSuccess from "./pages/PaymentSuccess";
 import MediaApp from "./apps/media/App";
 import axios from "axios";
 
-const BanScreen = ({ reason }) => (
-  <div style={{
-    position: 'fixed', inset: 0, zIndex: 999999,
-    background: 'linear-gradient(160deg, #0a0a1e 0%, #060612 100%)',
-    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-    gap: 20, padding: 32, fontFamily: 'system-ui, sans-serif',
-  }}>
-    <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
-      <circle cx="32" cy="32" r="30" stroke="#ef4444" strokeWidth="3" fill="#ef444414" />
-      <path d="M20 20L44 44M44 20L20 44" stroke="#ef4444" strokeWidth="3.5" strokeLinecap="round" />
-    </svg>
-    <div style={{ color: '#f1f5f9', fontSize: 22, fontWeight: 700, textAlign: 'center' }}>
-      Hesabınız Askıya Alındı
-    </div>
+const BanScreen = ({ reason, bannedUntil }) => {
+  const [remaining, setRemaining] = React.useState('');
+
+  React.useEffect(() => {
+    if (!bannedUntil) return;
+    const tick = () => {
+      const diff = new Date(bannedUntil) - Date.now();
+      if (diff <= 0) { setRemaining(''); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      const s = Math.floor((diff % 60000) / 1000);
+      setRemaining(`${h > 0 ? h + ' sa ' : ''}${m} dk ${s} sn`);
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [bannedUntil]);
+
+  const isTemp = !!bannedUntil;
+  const accentColor = isTemp ? '#f97316' : '#ef4444';
+
+  return (
     <div style={{
-      color: '#94a3b8', fontSize: 14, textAlign: 'center', maxWidth: 420, lineHeight: 1.6,
-      background: '#ffffff0a', border: '1px solid #ef444430', borderRadius: 12, padding: '14px 20px',
+      position: 'fixed', inset: 0, zIndex: 999999,
+      background: 'linear-gradient(160deg, #0a0a1e 0%, #060612 100%)',
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      gap: 20, padding: 32, fontFamily: 'system-ui, sans-serif',
     }}>
-      {reason || "Kural ihlali nedeniyle hesabınıza erişim engellendi."}
+      {isTemp ? (
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" stroke={accentColor} strokeWidth="3" fill={accentColor + '14'} />
+          <path d="M32 18v16l10 6" stroke={accentColor} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      ) : (
+        <svg width="64" height="64" viewBox="0 0 64 64" fill="none">
+          <circle cx="32" cy="32" r="30" stroke={accentColor} strokeWidth="3" fill={accentColor + '14'} />
+          <path d="M20 20L44 44M44 20L20 44" stroke={accentColor} strokeWidth="3.5" strokeLinecap="round" />
+        </svg>
+      )}
+      <div style={{ color: '#f1f5f9', fontSize: 22, fontWeight: 700, textAlign: 'center' }}>
+        {isTemp ? 'Hesabınız Geçici Olarak Askıya Alındı' : 'Hesabınız Askıya Alındı'}
+      </div>
+      <div style={{
+        color: '#94a3b8', fontSize: 14, textAlign: 'center', maxWidth: 420, lineHeight: 1.6,
+        background: '#ffffff0a', border: `1px solid ${accentColor}30`, borderRadius: 12, padding: '14px 20px',
+      }}>
+        {reason || "Kural ihlali nedeniyle hesabınıza erişim engellendi."}
+      </div>
+      {isTemp && remaining && (
+        <div style={{
+          color: accentColor, fontSize: 24, fontWeight: 700, fontVariantNumeric: 'tabular-nums',
+          background: accentColor + '12', border: `1px solid ${accentColor}30`, borderRadius: 12, padding: '12px 24px',
+        }}>
+          {remaining}
+        </div>
+      )}
+      <div style={{ color: '#64748b', fontSize: 13, marginTop: 8 }}>
+        İtiraz için{' '}
+        <a href="mailto:support@zetstudiointl.com" style={{ color: '#6366f1', textDecoration: 'none' }}>
+          support@zetstudiointl.com
+        </a>
+      </div>
     </div>
-    <div style={{ color: '#64748b', fontSize: 13, marginTop: 8 }}>
-      İtiraz için{' '}
-      <a href="mailto:support@zetstudiointl.com" style={{ color: '#6366f1', textDecoration: 'none' }}>
-        support@zetstudiointl.com
-      </a>
-    </div>
-  </div>
-);
+  );
+};
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -299,6 +336,8 @@ function App() {
           const detail = err.response.data?.detail;
           if (detail?.code === 'BANNED') {
             setBanInfo({ reason: detail.reason });
+          } else if (detail?.code === 'TEMP_BANNED') {
+            setBanInfo({ reason: detail.reason, bannedUntil: detail.banned_until });
           }
         }
         return Promise.reject(err);
@@ -320,7 +359,7 @@ function App() {
     return () => document.getElementById('__zet-cursors')?.remove();
   }, []);
 
-  if (banInfo) return <BanScreen reason={banInfo.reason} />;
+  if (banInfo) return <BanScreen reason={banInfo.reason} bannedUntil={banInfo.bannedUntil} />;
 
   return (
     <LanguageProvider>
