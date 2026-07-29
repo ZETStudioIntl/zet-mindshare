@@ -202,7 +202,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
 
   // ---------- Pack body (below band) ----------
   const bodyStyle = {
-    position: 'absolute', top: 65, left: 0, right: 0, bottom: 0,
+    position: 'absolute', top: 94, left: 0, right: 0, bottom: 0,
     background: 'linear-gradient(180deg, #0d0d11 0%, #101014 100%)',
     borderRadius: '0 0 14px 14px',
     overflow: 'hidden',
@@ -217,7 +217,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
 
   // ---------- Top tear band ----------
   const bandStyle = {
-    position: 'absolute', top: 0, left: 0, right: 0, height: 67,
+    position: 'absolute', top: 0, left: 0, right: 0, height: 96,
     background: 'linear-gradient(135deg, #3d1c00 0%, #9c4d06 28%, #d4800c 50%, #9c4d06 72%, #3d1c00 100%)',
     borderRadius: '14px 14px 0 0',
     overflow: 'hidden',
@@ -255,7 +255,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
         ×
       </button>
 
-      <div style={{ position: 'relative', width: 180, height: 280, userSelect: 'none', touchAction: 'none' }}>
+      <div style={{ position: 'relative', width: 260, height: 400, userSelect: 'none', touchAction: 'none' }}>
 
         {/* Outer border frame */}
         <div style={frameStyle} />
@@ -275,7 +275,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
 
         {/* Perforated line between band and body */}
         {(isIdle || isDrag) && (
-          <div style={{ position: 'absolute', top: 64, left: 0, right: 0, height: 2, zIndex: 8, backgroundImage: 'repeating-linear-gradient(90deg, rgba(215,170,55,0.55) 0px, rgba(215,170,55,0.55) 4px, transparent 4px, transparent 9px)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: 93, left: 0, right: 0, height: 2, zIndex: 8, backgroundImage: 'repeating-linear-gradient(90deg, rgba(215,170,55,0.55) 0px, rgba(215,170,55,0.55) 4px, transparent 4px, transparent 9px)', pointerEvents: 'none' }} />
         )}
 
         {/* Top tear band — the draggable part */}
@@ -296,15 +296,15 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
         </div>
 
         {/* Card — always in DOM, animated via style */}
-        <div style={{ position: 'absolute', top: 0, left: '50%', bottom: 0, width: 162, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: (isReady || isFlipping || isDone) ? 'auto' : 'none', ...cardAnimStyle }}>
+        <div style={{ position: 'absolute', top: 0, left: '50%', bottom: 0, width: 234, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: (isReady || isFlipping || isDone) ? 'auto' : 'none', ...cardAnimStyle }}>
           <div
-            style={{ width: 162, height: 242, borderRadius: 14, cursor: isReady && reward ? 'pointer' : 'default', perspective: 820 }}
+            style={{ width: 234, height: 352, borderRadius: 18, cursor: isReady && reward ? 'pointer' : 'default', perspective: 1000 }}
             onClick={handleCardClick}
           >
             <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>
 
               {/* Front face */}
-              <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 14, background: 'linear-gradient(160deg, #0d0d10, #12121a)', border: '1.5px solid rgba(195,160,55,0.38)', boxShadow: isReady && reward ? '0 0 30px rgba(195,160,55,0.16), 0 14px 44px rgba(0,0,0,0.75)' : '0 10px 34px rgba(0,0,0,0.65)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
+              <div style={{ position: 'absolute', inset: 0, backfaceVisibility: 'hidden', WebkitBackfaceVisibility: 'hidden', borderRadius: 18, background: 'linear-gradient(160deg, #0d0d10, #12121a)', border: '1.5px solid rgba(195,160,55,0.38)', boxShadow: isReady && reward ? '0 0 30px rgba(195,160,55,0.16), 0 14px 44px rgba(0,0,0,0.75)' : '0 10px 34px rgba(0,0,0,0.65)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12 }}>
                 <div style={{ position: 'absolute', inset: 0, borderRadius: 14, backgroundImage: 'repeating-linear-gradient(90deg, transparent 0px, transparent 17px, rgba(195,160,55,0.04) 17px, rgba(195,160,55,0.04) 18.5px)', pointerEvents: 'none' }} />
                 <svg width="56" height="56" viewBox="0 0 56 56" fill="none" style={{ position: 'relative', zIndex: 1 }}>
                   <circle cx="28" cy="28" r="23" stroke="rgba(195,160,55,0.22)" strokeWidth="1" strokeDasharray="5 4"/>

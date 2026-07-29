@@ -1884,7 +1884,7 @@ async def debug_inventory(user: User = Depends(get_current_user)):
 async def quest_reroll(user: User = Depends(get_current_user)):
     from datetime import date
     is_friday = date.today().weekday() == 4  # 0=Mon … 4=Fri
-    cost = 900 if is_friday else 600
+    cost = 600 if is_friday else 400
     doc = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "mindshare_xp": 1})
     current_xp = int((doc or {}).get("mindshare_xp") or 0)
     if current_xp < cost:

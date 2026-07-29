@@ -7,10 +7,10 @@ const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // ─── Şekil meta ──────────────────────────────────────────────────────────────
 const SHAPE_META = {
-  circle:   { stroke: '#38bdf8', rgb: '56,189,248',  glow: 'rgba(56,189,248,0.45)',  zp: 50,  label: 'Daire'  },
-  square:   { stroke: '#818cf8', rgb: '129,140,248', glow: 'rgba(129,140,248,0.45)', zp: 120, label: 'Kare'   },
-  triangle: { stroke: '#c084fc', rgb: '192,132,252', glow: 'rgba(192,132,252,0.45)', zp: 200, label: 'Üçgen'  },
-  star:     { stroke: '#fbbf24', rgb: '251,191,36',  glow: 'rgba(251,191,36,0.5)',   zp: 460, label: 'Yıldız' },
+  circle:   { stroke: '#38bdf8', rgb: '56,189,248',  glow: 'rgba(56,189,248,0.45)',  zp: 20,  label: 'Daire'  },
+  square:   { stroke: '#818cf8', rgb: '129,140,248', glow: 'rgba(129,140,248,0.45)', zp: 60,  label: 'Kare'   },
+  triangle: { stroke: '#c084fc', rgb: '192,132,252', glow: 'rgba(192,132,252,0.45)', zp: 130, label: 'Üçgen'  },
+  star:     { stroke: '#fbbf24', rgb: '251,191,36',  glow: 'rgba(251,191,36,0.5)',   zp: 200, label: 'Yıldız' },
 };
 
 const SHAPES  = ['circle', 'square', 'triangle', 'star'];
@@ -196,12 +196,13 @@ function WeekProgress() {
 
 // ─── Bilgi Paneli ─────────────────────────────────────────────────────────────
 function InfoPanel({ onClose }) {
-  const EXPECTED_PER_SLOT = WEIGHTS.reduce((sum, w, i) => sum + (w / W_TOTAL) * [50,120,200,460][i], 0);
+  const ZP_VALS = [20, 60, 130, 200];
+  const EXPECTED_PER_SLOT = WEIGHTS.reduce((sum, w, i) => sum + (w / W_TOTAL) * ZP_VALS[i], 0);
   const rows = [
-    { shape: 'circle',   pct: NORM_PCT[0], zp: 50  },
-    { shape: 'square',   pct: NORM_PCT[1], zp: 120 },
-    { shape: 'triangle', pct: NORM_PCT[2], zp: 200 },
-    { shape: 'star',     pct: NORM_PCT[3], zp: 460 },
+    { shape: 'circle',   pct: NORM_PCT[0], zp: 20  },
+    { shape: 'square',   pct: NORM_PCT[1], zp: 60  },
+    { shape: 'triangle', pct: NORM_PCT[2], zp: 130 },
+    { shape: 'star',     pct: NORM_PCT[3], zp: 200 },
   ];
 
   return (
@@ -280,7 +281,7 @@ function InfoPanel({ onClose }) {
             {[
               { label: 'Slot başına', val: `~${Math.round(EXPECTED_PER_SLOT)} ZP` },
               { label: 'Normal gün', val: `~${Math.round(EXPECTED_PER_SLOT * 3)} ZP` },
-              { label: 'Cuma', val: `~${Math.round(460 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
+              { label: 'Cuma', val: `~${Math.round(200 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
               { label: 'Haftalık', val: `~${Math.round(EXPECTED_PER_SLOT * 3 * 6 + 460 + EXPECTED_PER_SLOT * 4)} ZP` },
             ].map(item => (
               <div key={item.label}>
@@ -321,7 +322,7 @@ const QuestMap = () => {
   );
 
   const realFriday = new Date().getDay() === 5;
-  const rerollCost = isFriday ? 900 : 600;
+  const rerollCost = isFriday ? 600 : 400;
 
   const handleReroll = useCallback(async () => {
     if (rerolling) return;
