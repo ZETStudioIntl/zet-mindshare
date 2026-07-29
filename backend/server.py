@@ -1948,7 +1948,18 @@ async def quest_event(body: dict = Body(...), user: User = Depends(get_current_u
     base_doc = {"user_id": user.user_id, "date": today_str, "reroll_offset": 0, "collected_slots": [], "words_typed": 0, "editor_minutes": 0}
 
     if event_type in _COUNTER_FIELDS:
-        amount = max(0, min(int(body.get("amount", 1)), 300))
+        amount = max(0, min(int(body.get("amount", 1)), 100))  # tek çağrıda max 100
+
+        # Günlük üst sınır — otomasyon engelleyici
+        DAILY_CAPS = {"words_typed": 6000, "editor_minutes": 1440}
+        current_doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str},
+                                                    {"_id": 0, event_type: 1})
+        current_val = int((current_doc or {}).get(event_type) or 0)
+        cap = DAILY_CAPS.get(event_type, 10000)
+        if current_val >= cap:
+            return {"ok": True, "words_typed": current_val, "editor_minutes": (current_doc or {}).get("editor_minutes") or 0}
+        amount = min(amount, cap - current_val)  # sınırı aşma
+
         await db.quest_daily.update_one(
             {"user_id": user.user_id, "date": today_str},
             {"$setOnInsert": base_doc, "$inc": {event_type: amount}},

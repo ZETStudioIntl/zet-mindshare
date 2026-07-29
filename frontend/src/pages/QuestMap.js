@@ -192,8 +192,178 @@ function WeekProgress() {
   );
 }
 
-// ─── Bilgi Paneli ─────────────────────────────────────────────────────────────
+// ─── Bilgi Paneli — 6 slayt ───────────────────────────────────────────────────
+const INFO_SLIDES = [
+  {
+    title: 'Nasıl Çalışır',
+    content: ({ rows }) => (
+      <div>
+        <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, marginBottom: 18 }}>
+          Her gün <b style={{ color: '#e2e8f0' }}>3 görev</b> rastgele seçilir.
+          Cuma günü <b style={{ color: '#fbbf24' }}>5 slot</b> açılır ve ilk slot garanti yıldızdır.
+          Görevi tamamladığında ilerleme çubuğu dolar, ardından <b style={{ color: '#e2e8f0' }}>Topla</b> butonuna basabilirsin.
+        </p>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {rows.map(row => {
+            const meta = SHAPE_META[row.shape];
+            return (
+              <div key={row.shape} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, background: `rgba(${meta.rgb},0.08)`, border: `1px solid rgba(${meta.rgb},0.18)` }}>
+                <ShapeIcon shape={row.shape} size={20} color={meta.stroke} glow={meta.glow} done={false} />
+                <span style={{ fontSize: 11, color: meta.stroke, fontWeight: 700 }}>+{row.zp} ZP</span>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: 'Görev Türleri',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        {[
+          { icon: '✍', label: 'Kelime Yazma', desc: 'Editörde klavyeden yazdığın kelimeler sayılır. Zorluk arttıkça eşik yükselir (50 → 1500 kelime).' },
+          { icon: '⏱', label: 'Editörde Kalma', desc: 'Aktif çalışma süresi dakika olarak takip edilir. Boş bırakırsan timer durur (10 → 90 dakika).' },
+        ].map(item => (
+          <div key={item.label} style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>{item.icon} {item.label}</div>
+            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>{item.desc}</div>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    title: 'Kelime Sayacı',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[
+          { ok: true,  text: 'Klavyeden harf harf yazılanlar sayılır' },
+          { ok: false, text: 'Copy-paste ile yapıştırılan metin sayılmaz' },
+          { ok: false, text: 'Telefon klavyesi önerisi (otomatik tamamlama) sayılmaz' },
+          { ok: false, text: 'Saniyede 20+ karakter = makine hızı, sayılmaz' },
+          { ok: false, text: 'Anlamsız/random karakterler (qwerty, asdf...) sayılmaz' },
+          { ok: false, text: 'Ünlüsüz uzun ünsüz dizileri sayılmaz' },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: item.ok ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.12)', border: `1px solid ${item.ok ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                {item.ok
+                  ? <path d="M2 5l2.5 2.5 3.5-4" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  : <path d="M3 3l4 4M7 3l-4 4" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"/>}
+              </svg>
+            </div>
+            <span style={{ fontSize: 12, color: item.ok ? '#94a3b8' : '#64748b', lineHeight: 1.5 }}>{item.text}</span>
+          </div>
+        ))}
+      </div>
+    ),
+  },
+  {
+    title: 'Editörde Süre',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+        {[
+          { ok: true,  text: 'Fare veya klavye hareketi = aktif sayılır' },
+          { ok: true,  text: 'Her dakika arka planda otomatik kaydedilir' },
+          { ok: false, text: '5 dakika hareketsiz kalırsan timer durur' },
+          { ok: false, text: 'Tab gizliyken (başka uygulamaya geçince) sayılmaz' },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+            <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: item.ok ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.12)', border: `1px solid ${item.ok ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
+                {item.ok
+                  ? <path d="M2 5l2.5 2.5 3.5-4" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  : <path d="M3 3l4 4M7 3l-4 4" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"/>}
+              </svg>
+            </div>
+            <span style={{ fontSize: 12, color: item.ok ? '#94a3b8' : '#64748b', lineHeight: 1.5 }}>{item.text}</span>
+          </div>
+        ))}
+        <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 9, background: 'rgba(56,189,248,0.05)', border: '1px solid rgba(56,189,248,0.12)' }}>
+          <span style={{ fontSize: 11, color: '#38bdf8' }}>Editorde aktifken ZP kazanmak istiyorsan sayfayı arka plana alma.</span>
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: 'Ödüller',
+    content: ({ rows, EXPECTED_PER_SLOT }) => (
+      <div>
+        <div style={{ marginBottom: 16 }}>
+          {rows.map(row => {
+            const meta = SHAPE_META[row.shape];
+            return (
+              <div key={row.shape} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                <ShapeIcon shape={row.shape} size={26} color={meta.stroke} glow={meta.glow} done={false} />
+                <span style={{ width: 46, fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>{meta.label}</span>
+                <div style={{ flex: 1, height: 5, borderRadius: 3, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
+                  <div style={{ height: '100%', width: `${row.pct * 2.5}%`, background: meta.stroke, borderRadius: 3, opacity: 0.7 }} />
+                </div>
+                <span style={{ width: 30, fontSize: 12, fontWeight: 700, color: meta.stroke, textAlign: 'right' }}>%{row.pct}</span>
+                <span style={{ width: 52, fontSize: 11, color: '#475569', textAlign: 'right' }}>+{row.zp} ZP</span>
+              </div>
+            );
+          })}
+        </div>
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+          {[
+            { label: 'Normal gün', val: `~${Math.round(EXPECTED_PER_SLOT * 3)} ZP` },
+            { label: 'Cuma', val: `~${Math.round(200 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
+            { label: 'Sandık şansı', val: '%0.9 / slot' },
+            { label: 'Cuma sandık', val: '%2.5 / slot', gold: true },
+          ].map(item => (
+            <div key={item.label} style={{ flex: '1 1 45%', padding: '8px 10px', borderRadius: 8, background: item.gold ? 'rgba(251,191,36,0.05)' : 'rgba(255,255,255,0.03)', border: `1px solid ${item.gold ? 'rgba(251,191,36,0.15)' : 'rgba(255,255,255,0.06)'}` }}>
+              <div style={{ fontSize: 10, color: '#475569', marginBottom: 3 }}>{item.label}</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: item.gold ? '#fbbf24' : '#e2e8f0' }}>{item.val}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ),
+  },
+  {
+    title: 'Hafizz Koruması',
+    content: () => (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <div style={{ padding: '14px', borderRadius: 10, background: 'rgba(239,68,68,0.06)', border: '1px solid rgba(239,68,68,0.18)' }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 8 }}>Otomatik Hile Tespiti</div>
+          <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
+            Zet Mindshare, tüm görev etkileşimlerini arka planda analiz eden <b style={{ color: '#94a3b8' }}>Hafizz</b> sistemi ile koruma altındadır.
+            Hafizz; yazma hızı, karakter kalitesi, davranış örüntüsü ve API çağrı analizini gerçek zamanlı olarak değerlendirir.
+          </div>
+        </div>
+        {[
+          { label: 'Random karakter girişi', desc: 'Anlamsız tuş kombinasyonları tespit edilir ve sayılmaz.' },
+          { label: 'Makine hızı yazma', desc: 'İnsan üstü yazma hızı otomatik olarak engellenir.' },
+          { label: 'Mobil öneri suistimali', desc: 'Otomatik tamamlama ile kısa sürede kelime birikimi sayılmaz.' },
+          { label: 'API manipülasyonu', desc: 'Günlük üst sınırlar ve davranış analizi ile tespit edilir.' },
+        ].map((item, i) => (
+          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
+            <div style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: '#ef4444', marginTop: 6 }} />
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 2 }}>{item.label}</div>
+              <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{item.desc}</div>
+            </div>
+          </div>
+        ))}
+        <div style={{ marginTop: 4, padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>Uyari</div>
+          <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+            Hile yapıldığı tespit edilirse hesabınız <b style={{ color: '#fbbf24' }}>geçici olarak askıya</b> alınabilir
+            veya <b style={{ color: '#f87171' }}>kalıcı olarak banlanabilir</b>.
+            ZP ve ödüller geri alınabilir.
+          </div>
+        </div>
+      </div>
+    ),
+  },
+];
+
 function InfoPanel({ onClose }) {
+  const [slide, setSlide] = React.useState(0);
+  const TOTAL = INFO_SLIDES.length;
+
   const ZP_VALS = [20, 60, 130, 200];
   const EXPECTED_PER_SLOT = WEIGHTS.reduce((sum, w, i) => sum + (w / W_TOTAL) * ZP_VALS[i], 0);
   const rows = [
@@ -202,6 +372,7 @@ function InfoPanel({ onClose }) {
     { shape: 'triangle', pct: NORM_PCT[2], zp: 130 },
     { shape: 'star',     pct: NORM_PCT[3], zp: 200 },
   ];
+  const ctx = { rows, EXPECTED_PER_SLOT };
 
   return (
     <div
@@ -214,80 +385,57 @@ function InfoPanel({ onClose }) {
           width: '100%', maxWidth: 520,
           background: '#0b1120', borderRadius: '20px 20px 0 0',
           border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none',
-          padding: '24px 20px 40px',
+          padding: '24px 20px 36px',
           animation: 'slide-up 0.28s cubic-bezier(0.32,0.72,0,1)',
         }}
       >
         {/* Başlık */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 22 }}>
-          <span style={{ fontWeight: 700, fontSize: 16 }}>Görev Sistemi</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span style={{ fontWeight: 700, fontSize: 16 }}>{INFO_SLIDES[slide].title}</span>
+            <span style={{ fontSize: 10, color: '#334155', fontWeight: 600 }}>{slide + 1} / {TOTAL}</span>
+          </div>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#475569', padding: 4 }}>
             <X size={18} />
           </button>
         </div>
 
-        {/* Açıklama */}
-        <p style={{ fontSize: 12, color: '#64748b', marginBottom: 20, lineHeight: 1.6 }}>
-          Her gün 3 görev rastgele seçilir. Her slot bağımsız olarak aşağıdaki ağırlıklarla çekilir. Cuma günü 5 slot gelir ve ilk slot garanti yıldızdır.
-        </p>
-
-        {/* Oranlar tablosu */}
-        <div style={{ marginBottom: 22 }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#334155', letterSpacing: '0.08em', marginBottom: 10, textTransform: 'uppercase' }}>
-            Slot Oranları
-          </div>
-          {rows.map(row => {
-            const meta = SHAPE_META[row.shape];
-            return (
-              <div key={row.shape} style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8 }}>
-                <ShapeIcon shape={row.shape} size={28} color={meta.stroke} glow={meta.glow} done={false} />
-                <span style={{ width: 44, fontSize: 12, color: '#94a3b8', fontWeight: 600 }}>{meta.label}</span>
-                {/* Bar */}
-                <div style={{ flex: 1, height: 6, borderRadius: 3, background: 'rgba(255,255,255,0.05)', overflow: 'hidden' }}>
-                  <div style={{ height: '100%', width: `${row.pct * 2.5}%`, background: meta.stroke, borderRadius: 3, opacity: 0.7 }} />
-                </div>
-                <span style={{ width: 32, fontSize: 12, fontWeight: 700, color: meta.stroke, textAlign: 'right' }}>%{row.pct}</span>
-                <span style={{ width: 52, fontSize: 11, color: '#475569', textAlign: 'right' }}>+{row.zp} ZP</span>
-              </div>
-            );
-          })}
+        {/* Slayt içeriği */}
+        <div style={{ minHeight: 220, marginBottom: 20 }}>
+          {INFO_SLIDES[slide].content(ctx)}
         </div>
 
-        {/* Sandık / Çark şansı */}
-        <div style={{ marginBottom: 22, padding: '12px 14px', borderRadius: 10, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.12)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#92740a', letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
-            Sandık / Çark Şansı (slot başına)
-          </div>
-          <div style={{ display: 'flex', gap: 20 }}>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Normal gün</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#e2e8f0' }}>%0.9</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: '#64748b' }}>Cuma</div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: '#fbbf24' }}>%2.5</div>
-            </div>
-          </div>
-        </div>
+        {/* Navigasyon */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <button
+            onClick={() => setSlide(s => Math.max(0, s - 1))}
+            disabled={slide === 0}
+            style={{ padding: '8px 16px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.08)', background: 'rgba(255,255,255,0.04)', color: slide === 0 ? '#1e293b' : '#94a3b8', fontSize: 12, fontWeight: 600, cursor: slide === 0 ? 'default' : 'pointer' }}
+          >
+            Geri
+          </button>
 
-        {/* Beklenen kazanç */}
-        <div style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(56,189,248,0.04)', border: '1px solid rgba(56,189,248,0.1)' }}>
-          <div style={{ fontSize: 10, fontWeight: 700, color: '#155e75', letterSpacing: '0.08em', marginBottom: 8, textTransform: 'uppercase' }}>
-            Beklenen Kazanç
-          </div>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-            {[
-              { label: 'Slot başına', val: `~${Math.round(EXPECTED_PER_SLOT)} ZP` },
-              { label: 'Normal gün', val: `~${Math.round(EXPECTED_PER_SLOT * 3)} ZP` },
-              { label: 'Cuma', val: `~${Math.round(200 + EXPECTED_PER_SLOT * 4)} ZP`, gold: true },
-              { label: 'Haftalık', val: `~${Math.round(EXPECTED_PER_SLOT * 3 * 6 + 460 + EXPECTED_PER_SLOT * 4)} ZP` },
-            ].map(item => (
-              <div key={item.label}>
-                <div style={{ fontSize: 11, color: '#64748b' }}>{item.label}</div>
-                <div style={{ fontSize: 15, fontWeight: 800, color: item.gold ? '#fbbf24' : '#e2e8f0' }}>{item.val}</div>
-              </div>
+          {/* Nokta indikatörü */}
+          <div style={{ display: 'flex', gap: 6 }}>
+            {Array.from({ length: TOTAL }).map((_, i) => (
+              <button
+                key={i}
+                onClick={() => setSlide(i)}
+                style={{
+                  width: i === slide ? 18 : 6, height: 6, borderRadius: 3, border: 'none', padding: 0,
+                  background: i === slide ? (i === TOTAL - 1 ? '#ef4444' : '#38bdf8') : 'rgba(255,255,255,0.12)',
+                  cursor: 'pointer', transition: 'all 0.2s',
+                }}
+              />
             ))}
           </div>
+
+          <button
+            onClick={() => slide < TOTAL - 1 ? setSlide(s => s + 1) : onClose()}
+            style={{ padding: '8px 16px', borderRadius: 8, border: `1px solid ${slide === TOTAL - 1 ? 'rgba(239,68,68,0.3)' : 'rgba(56,189,248,0.3)'}`, background: slide === TOTAL - 1 ? 'rgba(239,68,68,0.08)' : 'rgba(56,189,248,0.08)', color: slide === TOTAL - 1 ? '#f87171' : '#38bdf8', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            {slide === TOTAL - 1 ? 'Kapat' : 'Ileri'}
+          </button>
         </div>
       </div>
     </div>

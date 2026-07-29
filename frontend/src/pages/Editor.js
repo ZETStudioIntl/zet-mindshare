@@ -37,7 +37,7 @@ import { Bar, Pie, Line } from 'react-chartjs-2';
 import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
 import { Document as DocxDocument, Packer as DocxPacker, Paragraph as DocxParagraph, TextRun as DocxTextRun, ImageRun as DocxImageRun, AlignmentType as DocxAlignmentType, UnderlineType as DocxUnderlineType } from 'docx';
 import JSZip from 'jszip';
-import { questService } from '../lib/questService';
+import { questService, scoreWordBuffer } from '../lib/questService';
 import ShareDialog from '../components/editor/ShareDialog';
 import CommentsPanel from '../components/editor/CommentsPanel';
 import EmojiPicker from '../components/editor/EmojiPicker';
@@ -1063,35 +1063,53 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // === KELIME SAYACI — copy-paste ve spam algılama ===
+  // === KELIME SAYACI — 3 katman koruma ===
   useEffect(() => {
-    const dom = window.document;
-    const typedCharsRef = { current: 0 };
-    const lastPasteRef  = { current: 0 };
-    const recentKeys    = { current: [] };
-    const BATCH_CHARS   = 36; // ~6 karakter = 1 kelime, 6 kelimede bir gönder
+    const dom          = window.document;
+    const lastPasteRef = { current: 0 };
+    // Hız ölçümü: son 2 saniyedeki karakter zaman damgaları
+    const timestamps   = { current: [] };
+    // Kalite analizi için karakter tamponu (50'de bir flush)
+    const charBuf      = { current: [] };
+    const BATCH        = 50;    // bu kadar karakter biriktikçe analiz et
+    const MAX_CPS      = 20;    // saniyede 20 karakter üzeri = makine hızı (~200 WPM)
 
     const onPaste = () => { lastPasteRef.current = Date.now(); };
 
     const onBeforeInput = (e) => {
-      if (e.inputType !== 'insertText' && e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return;
-      if (Date.now() - lastPasteRef.current < 300) return; // paste sonrası 300ms yoksay
+      // Sadece gerçek tuş basışlarını al
+      if (e.inputType !== 'insertText' &&
+          e.inputType !== 'insertLineBreak' &&
+          e.inputType !== 'insertParagraph') return;
 
-      const ch = e.data || ' ';
-      // Spam algılama: son 30 tuşun %60'ı aynıysa say
-      recentKeys.current = [...recentKeys.current.slice(-29), ch];
-      if (recentKeys.current.length >= 15) {
-        const counts = {};
-        recentKeys.current.forEach(k => { counts[k] = (counts[k] || 0) + 1; });
-        const maxCount = Math.max(...Object.values(counts));
-        if (maxCount / recentKeys.current.length > 0.6) return;
-      }
+      // KATMAN 1 — Copy-paste ve mobil öneri filtresi
+      // Paste sonrası 400ms yoksay
+      if (Date.now() - lastPasteRef.current < 400) return;
+      // Mobil klavye önerisi: tek seferde birden fazla karakter geliyorsa öneridir
+      if (e.data && e.data.length > 1) return;
 
-      typedCharsRef.current++;
-      if (typedCharsRef.current >= BATCH_CHARS) {
-        const words = Math.floor(typedCharsRef.current / 6);
-        typedCharsRef.current = typedCharsRef.current % 6;
-        questService.fireCounter('words_typed', words);
+      // KATMAN 2 — Yazma hızı sınırı (insan üstü hız = otomasyon)
+      const now = Date.now();
+      timestamps.current.push(now);
+      timestamps.current = timestamps.current.filter(t => now - t < 2000);
+      // Son 1 saniyede MAX_CPS'den fazla karakter → bu karakteri say
+      const cpsNow = timestamps.current.filter(t => now - t < 1000).length;
+      if (cpsNow > MAX_CPS) return;
+
+      // Karakteri tampona ekle
+      const ch = e.data || '\n';
+      charBuf.current.push(ch);
+
+      // KATMAN 3 — Random metin analizi (BATCH dolduğunda)
+      if (charBuf.current.length >= BATCH) {
+        const score = scoreWordBuffer(charBuf.current);
+        if (score >= 0.45) {
+          // Kaliteli metin: kelime sayısını hesapla ve gönder
+          const words = Math.floor(charBuf.current.length / 6);
+          if (words > 0) questService.fireCounter('words_typed', words);
+        }
+        // Düşük kalite → hiç gönderme
+        charBuf.current = [];
       }
     };
 
@@ -1100,9 +1118,13 @@ const Editor = () => {
     return () => {
       dom.removeEventListener('paste', onPaste);
       dom.removeEventListener('beforeinput', onBeforeInput);
-      // Kalan karakterleri gönder
-      if (typedCharsRef.current >= 6) {
-        questService.fireCounter('words_typed', Math.floor(typedCharsRef.current / 6));
+      // Kalan tamponu gönder (yalnızca kaliteliyse)
+      if (charBuf.current.length >= 12) {
+        const score = scoreWordBuffer(charBuf.current);
+        if (score >= 0.45) {
+          const words = Math.floor(charBuf.current.length / 6);
+          if (words > 0) questService.fireCounter('words_typed', words);
+        }
       }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
