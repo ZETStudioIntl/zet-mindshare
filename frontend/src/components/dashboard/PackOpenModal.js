@@ -169,6 +169,18 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
     }
   }, [phase, reward, onClose]);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      e.preventDefault();
+      if (phase === 'idle') triggerTear(1);
+      else if (phase === 'ready') handleCardClick();
+      else if (phase === 'done') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase, triggerTear, onClose]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const onDragStart = (clientX) => {
     if (phase !== 'idle') return;
     unlockAudio(); // iOS: touchstart'tan çağrılır, touchmove'da ses çalmak için context unlock gerekli
@@ -261,7 +273,7 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
         ×
       </button>
 
-      <div style={{ position: 'relative', width: 260, height: 400, userSelect: 'none', touchAction: 'none' }}>
+      <div style={{ position: 'relative', width: 320, height: 490, userSelect: 'none', touchAction: 'none' }}>
 
         {/* Outer border frame */}
         <div style={frameStyle} />
@@ -302,9 +314,9 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
         </div>
 
         {/* Card — always in DOM, animated via style */}
-        <div style={{ position: 'absolute', top: 0, left: '50%', bottom: 0, width: 234, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: (isReady || isFlipping || isDone) ? 'auto' : 'none', ...cardAnimStyle }}>
+        <div style={{ position: 'absolute', top: 0, left: '50%', bottom: 0, width: 290, zIndex: 20, display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: (isReady || isFlipping || isDone) ? 'auto' : 'none', ...cardAnimStyle }}>
           <div
-            style={{ width: 234, height: 352, borderRadius: 18, cursor: isReady && reward ? 'pointer' : 'default', perspective: 1000 }}
+            style={{ width: 290, height: 430, borderRadius: 18, cursor: isReady && reward ? 'pointer' : 'default', perspective: 1000 }}
             onClick={handleCardClick}
           >
             <div style={{ width: '100%', height: '100%', position: 'relative', transformStyle: 'preserve-3d', transform: cardFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)', transition: 'transform 0.55s cubic-bezier(0.4,0,0.2,1)' }}>

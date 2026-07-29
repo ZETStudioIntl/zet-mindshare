@@ -112,6 +112,17 @@ const WheelModal = ({ caseId, onClose, onReward, showToast: toast }) => {
 
   useEffect(() => () => clearTicks(), []);
 
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      e.preventDefault();
+      if (phase === 'ready') handleSpin();
+      else if (phase === 'done') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSpin = async () => {
     if (phase !== 'ready') return;
     setPhase('spinning');

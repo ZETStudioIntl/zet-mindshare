@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
@@ -172,6 +172,17 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
       }));
     } catch { setPhase('ready'); if (toast) toast('Kasa açılamadı', 'error'); }
   };
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.code !== 'Space' || e.repeat) return;
+      e.preventDefault();
+      if (phase === 'ready') handleOpen();
+      else if (phase === 'done') onClose();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const col   = reward ? RARITY_COLORS[reward.rarity] : '#60a5fa';
   const glow  = reward ? RARITY_GLOW[reward.rarity]   : 'rgba(96,165,250,0.15)';
