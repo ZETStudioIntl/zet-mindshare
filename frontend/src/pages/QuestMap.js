@@ -192,7 +192,7 @@ function WeekProgress() {
   );
 }
 
-// ─── Bilgi Paneli — 6 slayt ───────────────────────────────────────────────────
+// ─── Bilgi Paneli — 4 slayt ───────────────────────────────────────────────────
 const INFO_SLIDES = [
   {
     title: 'Nasıl Çalışır',
@@ -201,7 +201,7 @@ const INFO_SLIDES = [
         <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, marginBottom: 18 }}>
           Her gün <b style={{ color: '#e2e8f0' }}>3 görev</b> rastgele seçilir.
           Cuma günü <b style={{ color: '#fbbf24' }}>5 slot</b> açılır ve ilk slot garanti yıldızdır.
-          Görevi tamamladığında ilerleme çubuğu dolar, ardından <b style={{ color: '#e2e8f0' }}>Topla</b> butonuna basabilirsin.
+          Görevi tamamladığında <b style={{ color: '#e2e8f0' }}>Topla</b> butonu aktif olur, ödülünü al.
         </p>
         <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
           {rows.map(row => {
@@ -218,70 +218,30 @@ const INFO_SLIDES = [
     ),
   },
   {
-    title: 'Görev Türleri',
-    content: () => (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {[
-          { icon: '✍', label: 'Kelime Yazma', desc: 'Editörde klavyeden yazdığın kelimeler sayılır. Zorluk arttıkça eşik yükselir (50 → 1500 kelime).' },
-          { icon: '⏱', label: 'Editörde Kalma', desc: 'Aktif çalışma süresi dakika olarak takip edilir. Boş bırakırsan timer durur (10 → 90 dakika).' },
-        ].map(item => (
-          <div key={item.label} style={{ padding: '12px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', marginBottom: 4 }}>{item.icon} {item.label}</div>
-            <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.6 }}>{item.desc}</div>
-          </div>
-        ))}
-      </div>
-    ),
-  },
-  {
-    title: 'Kelime Sayacı',
+    title: 'Görevler',
     content: () => (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {[
-          { ok: true,  text: 'Klavyeden harf harf yazılanlar sayılır' },
-          { ok: false, text: 'Copy-paste ile yapıştırılan metin sayılmaz' },
-          { ok: false, text: 'Telefon klavyesi önerisi (otomatik tamamlama) sayılmaz' },
-          { ok: false, text: 'Saniyede 20+ karakter = makine hızı, sayılmaz' },
-          { ok: false, text: 'Anlamsız/random karakterler (qwerty, asdf...) sayılmaz' },
-          { ok: false, text: 'Ünlüsüz uzun ünsüz dizileri sayılmaz' },
-        ].map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: item.ok ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.12)', border: `1px solid ${item.ok ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                {item.ok
-                  ? <path d="M2 5l2.5 2.5 3.5-4" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  : <path d="M3 3l4 4M7 3l-4 4" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"/>}
-              </svg>
-            </div>
-            <span style={{ fontSize: 12, color: item.ok ? '#94a3b8' : '#64748b', lineHeight: 1.5 }}>{item.text}</span>
+        <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>Kelime Yazma</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {[50, 150, 500, 1500].map(n => (
+              <span key={n} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{n} kelime</span>
+            ))}
           </div>
-        ))}
-      </div>
-    ),
-  },
-  {
-    title: 'Editörde Süre',
-    content: () => (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {[
-          { ok: true,  text: 'Fare veya klavye hareketi = aktif sayılır' },
-          { ok: true,  text: 'Her dakika arka planda otomatik kaydedilir' },
-          { ok: false, text: '5 dakika hareketsiz kalırsan timer durur' },
-          { ok: false, text: 'Tab gizliyken (başka uygulamaya geçince) sayılmaz' },
-        ].map((item, i) => (
-          <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-            <div style={{ flexShrink: 0, width: 18, height: 18, borderRadius: '50%', background: item.ok ? 'rgba(74,222,128,0.15)' : 'rgba(239,68,68,0.12)', border: `1px solid ${item.ok ? 'rgba(74,222,128,0.3)' : 'rgba(239,68,68,0.25)'}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginTop: 1 }}>
-              <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-                {item.ok
-                  ? <path d="M2 5l2.5 2.5 3.5-4" stroke="#4ade80" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  : <path d="M3 3l4 4M7 3l-4 4" stroke="#f87171" strokeWidth="1.5" strokeLinecap="round"/>}
-              </svg>
-            </div>
-            <span style={{ fontSize: 12, color: item.ok ? '#94a3b8' : '#64748b', lineHeight: 1.5 }}>{item.text}</span>
+          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>
+            Klavyeden yazılan gerçek kelimeler sayılır. Yapıştırma ve otomatik tamamlama sayılmaz.
           </div>
-        ))}
-        <div style={{ marginTop: 8, padding: '10px 12px', borderRadius: 9, background: 'rgba(56,189,248,0.05)', border: '1px solid rgba(56,189,248,0.12)' }}>
-          <span style={{ fontSize: 11, color: '#38bdf8' }}>Editorde aktifken ZP kazanmak istiyorsan sayfayı arka plana alma.</span>
+        </div>
+        <div style={{ padding: '10px 14px', borderRadius: 10, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.07)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#e2e8f0', marginBottom: 8 }}>Editörde Süre</div>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+            {[10, 25, 45, 90].map(n => (
+              <span key={n} style={{ fontSize: 11, color: '#94a3b8', background: 'rgba(255,255,255,0.05)', borderRadius: 6, padding: '3px 8px', fontWeight: 600 }}>{n} dk</span>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>
+            Aktif çalışma süresi sayılır. Hareketsiz kalırsan ve sekmeyi gizlersen timer durur.
+          </div>
         </div>
       </div>
     ),
@@ -330,29 +290,27 @@ const INFO_SLIDES = [
           <div style={{ fontSize: 13, fontWeight: 700, color: '#f87171', marginBottom: 8 }}>Otomatik Hile Tespiti</div>
           <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7 }}>
             Zet Mindshare, tüm görev etkileşimlerini arka planda analiz eden <b style={{ color: '#94a3b8' }}>Hafizz</b> sistemi ile koruma altındadır.
-            Hafizz; yazma hızı, karakter kalitesi, davranış örüntüsü ve API çağrı analizini gerçek zamanlı olarak değerlendirir.
+            Hafizz; yazma davranışını, görev ilerlemesini ve API çağrılarını gerçek zamanlı olarak değerlendirir.
           </div>
         </div>
-        {[
-          { label: 'Random karakter girişi', desc: 'Anlamsız tuş kombinasyonları tespit edilir ve sayılmaz.' },
-          { label: 'Makine hızı yazma', desc: 'İnsan üstü yazma hızı otomatik olarak engellenir.' },
-          { label: 'Mobil öneri suistimali', desc: 'Otomatik tamamlama ile kısa sürede kelime birikimi sayılmaz.' },
-          { label: 'API manipülasyonu', desc: 'Günlük üst sınırlar ve davranış analizi ile tespit edilir.' },
-        ].map((item, i) => (
-          <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-            <div style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: '#ef4444', marginTop: 6 }} />
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 700, color: '#94a3b8', marginBottom: 2 }}>{item.label}</div>
-              <div style={{ fontSize: 11, color: '#475569', lineHeight: 1.5 }}>{item.desc}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            'Sahte veya anlamsız içerik sayılmaz',
+            'Otomatik araçlar ve betikler tespit edilir',
+            'Anormal ilerleme hızı işaretlenir',
+          ].map((text, i) => (
+            <div key={i} style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+              <div style={{ flexShrink: 0, width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
+              <span style={{ fontSize: 12, color: '#64748b' }}>{text}</span>
             </div>
-          </div>
-        ))}
-        <div style={{ marginTop: 4, padding: '12px 14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.22)' }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: '#f87171', marginBottom: 4 }}>Uyari</div>
-          <div style={{ fontSize: 11, color: '#94a3b8', lineHeight: 1.6 }}>
+          ))}
+        </div>
+        <div style={{ marginTop: 4, padding: '14px', borderRadius: 10, background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.25)' }}>
+          <div style={{ fontSize: 12, fontWeight: 700, color: '#f87171', marginBottom: 6 }}>Uyari</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', lineHeight: 1.65 }}>
             Hile yapıldığı tespit edilirse hesabınız <b style={{ color: '#fbbf24' }}>geçici olarak askıya</b> alınabilir
             veya <b style={{ color: '#f87171' }}>kalıcı olarak banlanabilir</b>.
-            ZP ve ödüller geri alınabilir.
+            Kazanılan ZP ve ödüller geri alınabilir.
           </div>
         </div>
       </div>
@@ -377,16 +335,16 @@ function InfoPanel({ onClose }) {
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '16px' }}
     >
       <div
         onClick={e => e.stopPropagation()}
         style={{
-          width: '100%', maxWidth: 520,
-          background: '#0b1120', borderRadius: '20px 20px 0 0',
-          border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none',
-          padding: '24px 20px 36px',
-          animation: 'slide-up 0.28s cubic-bezier(0.32,0.72,0,1)',
+          width: '100%', maxWidth: 480,
+          background: '#0b1120', borderRadius: 20,
+          border: '1px solid rgba(255,255,255,0.08)',
+          padding: '24px 20px 28px',
+          animation: 'slide-up 0.22s cubic-bezier(0.32,0.72,0,1)',
         }}
       >
         {/* Başlık */}
