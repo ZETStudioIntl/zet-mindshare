@@ -37,6 +37,7 @@ import { Bar, Pie, Line } from 'react-chartjs-2';
 import { convertToMSFormat, convertFromMSFormat, exportToMSFile, importFromMSFile } from '../lib/msFormat';
 import { Document as DocxDocument, Packer as DocxPacker, Paragraph as DocxParagraph, TextRun as DocxTextRun, ImageRun as DocxImageRun, AlignmentType as DocxAlignmentType, UnderlineType as DocxUnderlineType } from 'docx';
 import JSZip from 'jszip';
+import { questService } from '../lib/questService';
 import ShareDialog from '../components/editor/ShareDialog';
 import CommentsPanel from '../components/editor/CommentsPanel';
 import EmojiPicker from '../components/editor/EmojiPicker';
@@ -1035,6 +1036,7 @@ const Editor = () => {
       lastTimeSentRef.current = now;
       if (seconds > 0 && seconds <= 120) {
         axios.post(`${API}/user/time-spent`, { seconds }, { withCredentials: true }).catch(() => {});
+        questService.fireCounter('editor_minutes', 1);
       }
     };
 
@@ -1057,6 +1059,51 @@ const Editor = () => {
       dom.removeEventListener('keydown', onActivity);
       dom.removeEventListener('click', onActivity);
       sendTimeSpent();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // === KELIME SAYACI — copy-paste ve spam algılama ===
+  useEffect(() => {
+    const dom = window.document;
+    const typedCharsRef = { current: 0 };
+    const lastPasteRef  = { current: 0 };
+    const recentKeys    = { current: [] };
+    const BATCH_CHARS   = 36; // ~6 karakter = 1 kelime, 6 kelimede bir gönder
+
+    const onPaste = () => { lastPasteRef.current = Date.now(); };
+
+    const onBeforeInput = (e) => {
+      if (e.inputType !== 'insertText' && e.inputType !== 'insertLineBreak' && e.inputType !== 'insertParagraph') return;
+      if (Date.now() - lastPasteRef.current < 300) return; // paste sonrası 300ms yoksay
+
+      const ch = e.data || ' ';
+      // Spam algılama: son 30 tuşun %60'ı aynıysa say
+      recentKeys.current = [...recentKeys.current.slice(-29), ch];
+      if (recentKeys.current.length >= 15) {
+        const counts = {};
+        recentKeys.current.forEach(k => { counts[k] = (counts[k] || 0) + 1; });
+        const maxCount = Math.max(...Object.values(counts));
+        if (maxCount / recentKeys.current.length > 0.6) return;
+      }
+
+      typedCharsRef.current++;
+      if (typedCharsRef.current >= BATCH_CHARS) {
+        const words = Math.floor(typedCharsRef.current / 6);
+        typedCharsRef.current = typedCharsRef.current % 6;
+        questService.fireCounter('words_typed', words);
+      }
+    };
+
+    dom.addEventListener('paste', onPaste, { passive: true });
+    dom.addEventListener('beforeinput', onBeforeInput, { passive: true });
+    return () => {
+      dom.removeEventListener('paste', onPaste);
+      dom.removeEventListener('beforeinput', onBeforeInput);
+      // Kalan karakterleri gönder
+      if (typedCharsRef.current >= 6) {
+        questService.fireCounter('words_typed', Math.floor(typedCharsRef.current / 6));
+      }
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

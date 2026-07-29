@@ -1896,7 +1896,117 @@ async def quest_reroll(user: User = Depends(get_current_user)):
     if result.modified_count == 0:
         raise HTTPException(status_code=402, detail="Yetersiz ZP")
     new_xp = current_xp - cost
+    # Reroll: clear collected slots & bump offset in quest_daily
+    from datetime import date as _date
+    today_str = str(_date.today())
+    await db.quest_daily.update_one(
+        {"user_id": user.user_id, "date": today_str},
+        {"$set": {"collected_slots": []}, "$inc": {"reroll_offset": 1}},
+        upsert=True
+    )
     return {"ok": True, "cost": cost, "new_zp": new_xp, "is_friday": is_friday}
+
+_QUEST_REQUIREMENTS = {
+    "q_words50":   ("words_typed",    50),
+    "q_words150":  ("words_typed",   150),
+    "q_words500":  ("words_typed",   500),
+    "q_words1500": ("words_typed",  1500),
+    "q_editor10":  ("editor_minutes", 10),
+    "q_editor25":  ("editor_minutes", 25),
+    "q_editor45":  ("editor_minutes", 45),
+    "q_editor90":  ("editor_minutes", 90),
+}
+_COUNTER_FIELDS = {"words_typed", "editor_minutes"}
+_QUEST_ZP = {"circle": 20, "square": 60, "triangle": 130, "star": 200}
+
+@api_router.get("/quests/today")
+async def quests_today(user: User = Depends(get_current_user)):
+    from datetime import date as _date
+    today_str = str(_date.today())
+    doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str}, {"_id": 0})
+    if doc is None:
+        doc = {
+            "user_id": user.user_id, "date": today_str, "reroll_offset": 0,
+            "collected_slots": [], "words_typed": 0, "editor_minutes": 0,
+        }
+        await db.quest_daily.insert_one(dict(doc))
+    return {
+        "collected_slots": doc.get("collected_slots") or [],
+        "reroll_offset":   doc.get("reroll_offset") or 0,
+        "words_typed":     doc.get("words_typed") or 0,
+        "editor_minutes":  doc.get("editor_minutes") or 0,
+    }
+
+@api_router.post("/quests/event")
+async def quest_event(body: dict = Body(...), user: User = Depends(get_current_user)):
+    from datetime import date as _date
+    today_str  = str(_date.today())
+    event_type = (body.get("event_type") or "").strip()
+    if not event_type:
+        raise HTTPException(status_code=400, detail="event_type required")
+
+    base_doc = {"user_id": user.user_id, "date": today_str, "reroll_offset": 0, "collected_slots": [], "words_typed": 0, "editor_minutes": 0}
+
+    if event_type in _COUNTER_FIELDS:
+        amount = max(0, min(int(body.get("amount", 1)), 300))
+        await db.quest_daily.update_one(
+            {"user_id": user.user_id, "date": today_str},
+            {"$setOnInsert": base_doc, "$inc": {event_type: amount}},
+            upsert=True,
+        )
+    else:
+        return {"ok": True}  # ignore unknown event types silently
+
+    doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str},
+                                        {"_id": 0, "words_typed": 1, "editor_minutes": 1})
+    return {"ok": True, "words_typed": (doc or {}).get("words_typed") or 0,
+            "editor_minutes": (doc or {}).get("editor_minutes") or 0}
+
+@api_router.post("/quests/collect")
+async def quest_collect(body: dict = Body(...), user: User = Depends(get_current_user)):
+    from datetime import date as _date
+    today_str    = str(_date.today())
+    slot_idx     = body.get("slot_idx")
+    quest_id     = (body.get("quest_id") or "").strip()
+    shape        = body.get("shape", "circle")
+    is_special   = bool(body.get("is_special", False))
+    special_type = body.get("special_type", "case")
+
+    doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str}, {"_id": 0})
+    if doc is None:
+        raise HTTPException(status_code=400, detail="Görev durumu bulunamadı. Sayfayı yenileyin.")
+
+    if slot_idx in (doc.get("collected_slots") or []):
+        raise HTTPException(status_code=409, detail="Bu slot zaten toplandı")
+
+    req = _QUEST_REQUIREMENTS.get(quest_id)
+    if req:
+        field, threshold = req
+        current = doc.get(field) or 0
+        if current < threshold:
+            raise HTTPException(status_code=403, detail=f"Görev henüz tamamlanmadı ({current}/{threshold})")
+    else:
+        raise HTTPException(status_code=403, detail="Bilinmeyen görev")
+
+    await db.quest_daily.update_one(
+        {"user_id": user.user_id, "date": today_str},
+        {"$addToSet": {"collected_slots": slot_idx}}
+    )
+
+    if is_special:
+        item_type = "rank_case" if special_type == "case" else "daily_wheel"
+        item_id   = f"{special_type}_{uuid.uuid4().hex[:12]}"
+        now_iso   = datetime.now(timezone.utc).isoformat()
+        await db.users.update_one(
+            {"user_id": user.user_id},
+            {"$push": {"inventory": {"id": item_id, "item_type": item_type, "acquired_at": now_iso}}}
+        )
+        return {"ok": True, "reward": "special", "type": special_type, "item_id": item_id, "new_zp": None}
+    else:
+        zp = _QUEST_ZP.get(shape, 20)
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": zp}})
+        u = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "mindshare_xp": 1})
+        return {"ok": True, "reward": "zp", "zp_earned": zp, "new_zp": int((u or {}).get("mindshare_xp") or 0)}
 
 @api_router.post("/admin/give-test-cases")
 async def give_test_cases(user: User = Depends(get_current_user)):

@@ -22,29 +22,27 @@ const NORM_PCT = WEIGHTS.map(w => Math.round(w / W_TOTAL * 100));
 
 // ─── Görev havuzu ─────────────────────────────────────────────────────────────
 const QUEST_POOL = [
-  { id: 'q_write500',    name: '500 Kelime Yaz',        desc: 'Belgelerinde toplam 500 kelime yaz.',          tier: 0 },
-  { id: 'q_new_doc',     name: 'Yeni Belge Oluştur',    desc: 'Sıfırdan yeni bir belge aç.',                  tier: 0 },
-  { id: 'q_open_app',    name: 'Uygulamayı Aç',         desc: "Zet Mindshare'e giriş yap.",                   tier: 0 },
-  { id: 'q_add_page',    name: 'Sayfa Ekle',            desc: 'Bir belgeye yeni sayfa ekle.',                  tier: 0 },
-  { id: 'q_change_font', name: 'Font Değiştir',         desc: 'Bir metnin fontunu değiştir.',                  tier: 0 },
-  { id: 'q_add_note',    name: 'Not Al',                desc: 'Not defterine bir kayıt ekle.',                 tier: 0 },
-  { id: 'q_add_table',   name: 'Tablo Ekle',            desc: 'Bir belgeye tablo ekle.',                       tier: 1 },
-  { id: 'q_add_image',   name: 'Görsel Ekle',           desc: 'Belgeye bir resim ekle.',                       tier: 1 },
-  { id: 'q_signature',   name: 'İmza At',               desc: 'Dijital imzanı bir belgeye ekle.',              tier: 1 },
-  { id: 'q_zeta_chat',   name: 'Zeta ile Konuş',        desc: 'Zeta AI ile bir konuşma başlat.',               tier: 1 },
-  { id: 'q_draw',        name: 'Çizim Yap',             desc: 'Kalem aracıyla serbest çizim yap.',             tier: 1 },
-  { id: 'q_color',       name: 'Renk Değiştir',         desc: 'Bir metin veya şeklin rengini değiştir.',       tier: 1 },
-  { id: 'q_export_pdf',  name: 'PDF Aktar',             desc: 'Bir belgeyi PDF olarak dışa aktar.',            tier: 2 },
-  { id: 'q_qr_code',     name: 'QR Kod Oluştur',        desc: 'Bir belgeye QR kod ekle.',                      tier: 2 },
-  { id: 'q_template',    name: 'Şablon Kullan',         desc: 'Bir şablon uygula veya kaydet.',                tier: 2 },
-  { id: 'q_chart',       name: 'Grafik Ekle',           desc: 'Bir grafik oluştur.',                           tier: 2 },
-  { id: 'q_watermark',   name: 'Filigran Ekle',         desc: 'Belgeye filigran uygula.',                      tier: 2 },
-  { id: 'q_share',       name: 'Belgeyi Paylaş',        desc: 'Bir belgeyi paylaşıma aç.',                    tier: 2 },
-  { id: 'q_ai_image',    name: 'AI ile Görsel Üret',    desc: 'Zeta Colors ile görsel üret.',                  tier: 3 },
-  { id: 'q_write2000',   name: '2000 Kelime Yaz',       desc: 'Tek oturumda 2000 kelime yaz.',                 tier: 3 },
-  { id: 'q_10docs',      name: '10 Belgeyi Ziyaret Et', desc: 'Bugün 10 farklı belgeyi aç.',                   tier: 3 },
-  { id: 'q_judge',       name: 'Judge ile Analiz Et',   desc: 'Judge AI ile derinlemesine bir analiz yap.',    tier: 3 },
+  { id: 'q_words50',   name: '50 Kelime Yaz',     desc: 'Editörde 50 kelime yaz. Copy-paste ve spam tuş sayılmaz.',   tier: 0 },
+  { id: 'q_editor10',  name: '10 Dk Editörde',    desc: 'Editörde aktif 10 dakika çalış.',                            tier: 0 },
+  { id: 'q_words150',  name: '150 Kelime Yaz',    desc: 'Editörde 150 kelime yaz. Copy-paste ve spam tuş sayılmaz.',  tier: 1 },
+  { id: 'q_editor25',  name: '25 Dk Editörde',    desc: 'Editörde aktif 25 dakika çalış.',                            tier: 1 },
+  { id: 'q_words500',  name: 'Günlük Yazar',      desc: 'Bugün 500 kelime yaz. Copy-paste ve spam tuş sayılmaz.',     tier: 2 },
+  { id: 'q_editor45',  name: 'Editör Maratonu',   desc: 'Editörde aktif 45 dakika çalış.',                            tier: 2 },
+  { id: 'q_words1500', name: 'Kalem Ustası',      desc: 'Bugün 1500 kelime yaz. Copy-paste ve spam tuş sayılmaz.',    tier: 3 },
+  { id: 'q_editor90',  name: 'Uzun Mesai',        desc: 'Editörde aktif 90 dakika çalış.',                            tier: 3 },
 ];
+
+// ─── Görev gereksinim eşleme (frontend ilerleme için) ─────────────────────────
+const QUEST_REQ = {
+  q_words50:   { field: 'words_typed',    threshold: 50,   unit: 'kelime' },
+  q_words150:  { field: 'words_typed',    threshold: 150,  unit: 'kelime' },
+  q_words500:  { field: 'words_typed',    threshold: 500,  unit: 'kelime' },
+  q_words1500: { field: 'words_typed',    threshold: 1500, unit: 'kelime' },
+  q_editor10:  { field: 'editor_minutes', threshold: 10,   unit: 'dk'     },
+  q_editor25:  { field: 'editor_minutes', threshold: 25,   unit: 'dk'     },
+  q_editor45:  { field: 'editor_minutes', threshold: 45,   unit: 'dk'     },
+  q_editor90:  { field: 'editor_minutes', threshold: 90,   unit: 'dk'     },
+};
 
 // ─── Deterministik PRNG ───────────────────────────────────────────────────────
 function seededRng(seed) {
@@ -298,22 +296,45 @@ function InfoPanel({ onClose }) {
 
 // ─── Ana bileşen ──────────────────────────────────────────────────────────────
 const QuestMap = () => {
-  const navigate    = useNavigate();
-  const isCEO       = localStorage.getItem('zet_ceo_mode') === 'true';
+  const navigate = useNavigate();
+  const isCEO    = localStorage.getItem('zet_ceo_mode') === 'true';
 
-  const [rerollOffset, setRerollOffset] = useState(0);
-  const [forceFriday,  setForceFriday]  = useState(false);
-  const [showInfo,     setShowInfo]      = useState(false);
-  const [collected,    setCollected]     = useState(new Set());
-  const [zpFly,        setZpFly]         = useState(null);
-  const [rerolling,    setRerolling]     = useState(false);
-  const [userZP,       setUserZP]        = useState(null);
-  const [rerollErr,    setRerollErr]     = useState('');
+  const [rerollOffset,   setRerollOffset]   = useState(0);
+  const [forceFriday,    setForceFriday]    = useState(false);
+  const [showInfo,       setShowInfo]        = useState(false);
+  const [collectedSlots, setCollectedSlots]  = useState(new Set()); // slot_idx'ler
+  const [counters,       setCounters]        = useState({ words_typed: 0, editor_minutes: 0 });
+  const [zpFly,          setZpFly]           = useState(null);
+  const [rerolling,      setRerolling]       = useState(false);
+  const [collecting,     setCollecting]      = useState(null); // collecting slot.id
+  const [userZP,         setUserZP]          = useState(null);
+  const [rerollErr,      setRerollErr]       = useState('');
 
   useEffect(() => {
-    axios.get(`${API}/users/me`, { withCredentials: true })
-      .then(r => setUserZP(r.data?.mindshare_xp ?? null))
-      .catch(() => {});
+    (async () => {
+      try {
+        const [meRes, todayRes] = await Promise.all([
+          axios.get(`${API}/users/me`, { withCredentials: true }),
+          axios.get(`${API}/quests/today`, { withCredentials: true }),
+        ]);
+        setUserZP(meRes.data?.mindshare_xp ?? null);
+        const d = todayRes.data;
+        setCollectedSlots(new Set(d.collected_slots || []));
+        setCounters({ words_typed: d.words_typed || 0, editor_minutes: d.editor_minutes || 0 });
+        if ((d.reroll_offset || 0) > 0) setRerollOffset(d.reroll_offset);
+      } catch {}
+    })();
+  }, []);
+
+  // Periyodik sayaç yenileme (her 60 saniyede backend'den çek)
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const r = await axios.get(`${API}/quests/today`, { withCredentials: true });
+        setCounters({ words_typed: r.data.words_typed || 0, editor_minutes: r.data.editor_minutes || 0 });
+      } catch {}
+    }, 60000);
+    return () => clearInterval(id);
   }, []);
 
   const { slots, isFriday } = useMemo(
@@ -330,13 +351,12 @@ const QuestMap = () => {
     setRerollErr('');
     try {
       if (isCEO) {
-        // CEO: ücretsiz
         await new Promise(r => setTimeout(r, 300));
       } else {
         const res = await axios.post(`${API}/quests/reroll`, {}, { withCredentials: true });
         setUserZP(res.data.new_zp);
       }
-      setCollected(new Set());
+      setCollectedSlots(new Set());
       setRerollOffset(n => n + 1);
     } catch (err) {
       const detail = err?.response?.data?.detail || 'Yenileme başarısız';
@@ -348,24 +368,43 @@ const QuestMap = () => {
   }, [isCEO, rerolling, isFriday]);
 
   // Topla
-  const handleCollect = useCallback((slot, e) => {
-    if (collected.has(slot.id)) return;
-    setCollected(prev => new Set([...prev, slot.id]));
-    const rect   = e.currentTarget.getBoundingClientRect();
-    const badge  = document.getElementById('daily-zp-badge');
-    const toRect = badge?.getBoundingClientRect();
-    setZpFly({
-      key:   Date.now(),
-      fromX: rect.left + rect.width / 2,
-      fromY: rect.top  + rect.height / 2,
-      toX:   toRect ? toRect.left + toRect.width / 2 : window.innerWidth / 2,
-      toY:   toRect ? toRect.top  : 60,
-      label: slot.isSpecial
-        ? (slot.specialType === 'case' ? 'Sandık!' : 'Çark!')
-        : `+${SHAPE_META[slot.shape].zp} ZP`,
-    });
-    setTimeout(() => setZpFly(null), 1100);
-  }, [collected]);
+  const handleCollect = useCallback(async (slot, slotIdx, e) => {
+    if (collectedSlots.has(slotIdx) || collecting === slot.id) return;
+    setCollecting(slot.id);
+    try {
+      const res = await axios.post(`${API}/quests/collect`, {
+        slot_idx:     slotIdx,
+        quest_id:     slot.quest.id,
+        shape:        slot.shape,
+        is_special:   slot.isSpecial,
+        special_type: slot.specialType || 'case',
+      }, { withCredentials: true });
+
+      setCollectedSlots(prev => new Set([...prev, slotIdx]));
+      if (res.data.new_zp !== null && res.data.new_zp !== undefined) setUserZP(res.data.new_zp);
+
+      const rect   = e.currentTarget.getBoundingClientRect();
+      const badge  = document.getElementById('daily-zp-badge');
+      const toRect = badge?.getBoundingClientRect();
+      setZpFly({
+        key: Date.now(),
+        fromX: rect.left + rect.width / 2,
+        fromY: rect.top  + rect.height / 2,
+        toX: toRect ? toRect.left + toRect.width / 2 : window.innerWidth / 2,
+        toY: toRect ? toRect.top : 60,
+        label: slot.isSpecial
+          ? (slot.specialType === 'case' ? 'Sandık!' : 'Çark!')
+          : `+${SHAPE_META[slot.shape].zp} ZP`,
+      });
+      setTimeout(() => setZpFly(null), 1100);
+    } catch (err) {
+      const detail = err?.response?.data?.detail || 'Toplama başarısız';
+      setRerollErr(detail);
+      setTimeout(() => setRerollErr(''), 3000);
+    } finally {
+      setCollecting(null);
+    }
+  }, [collectedSlots, collecting]);
 
   return (
     <>
@@ -441,9 +480,14 @@ const QuestMap = () => {
         {/* Görev kartları */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 16 }}>
           {slots.map((slot, idx) => {
-            const meta = SHAPE_META[slot.shape];
-            const done = collected.has(slot.id);
-            const rgb  = meta.rgb;
+            const meta       = SHAPE_META[slot.shape];
+            const done       = collectedSlots.has(idx);
+            const rgb        = meta.rgb;
+            const req        = QUEST_REQ[slot.quest.id];
+            const current    = req ? (counters[req.field] || 0) : 0;
+            const isReady    = req ? (current >= req.threshold) : false;
+            const isCollecting = collecting === slot.id;
+            const pct        = req ? Math.min(100, Math.round(current / req.threshold * 100)) : 0;
             return (
               <div
                 key={slot.id}
@@ -468,10 +512,30 @@ const QuestMap = () => {
                 <ShapeIcon shape={slot.shape} size={44} color={meta.stroke} glow={meta.glow} done={done} />
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#4ade80' : '#e2e8f0', marginBottom: 3 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: done ? '#4ade80' : isReady ? '#e2e8f0' : '#94a3b8', marginBottom: 3 }}>
                     {slot.quest.name}
                   </div>
                   <div style={{ fontSize: 12, color: '#475569', lineHeight: 1.4 }}>{slot.quest.desc}</div>
+
+                  {/* İlerleme çubuğu */}
+                  {req && !done && (
+                    <div style={{ marginTop: 8 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ fontSize: 10, color: isReady ? '#4ade80' : '#475569', fontWeight: 700 }}>
+                          {current.toLocaleString('tr-TR')} / {req.threshold.toLocaleString('tr-TR')} {req.unit}
+                        </span>
+                        <span style={{ fontSize: 10, color: isReady ? '#4ade80' : '#334155', fontWeight: 600 }}>%{pct}</span>
+                      </div>
+                      <div style={{ height: 4, borderRadius: 2, background: 'rgba(255,255,255,0.06)', overflow: 'hidden' }}>
+                        <div style={{
+                          height: '100%', borderRadius: 2, transition: 'width 0.4s ease',
+                          width: `${pct}%`,
+                          background: isReady ? '#4ade80' : meta.stroke,
+                        }} />
+                      </div>
+                    </div>
+                  )}
+
                   <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
                     {slot.isSpecial ? (
                       <span style={{
@@ -498,22 +562,23 @@ const QuestMap = () => {
                 </div>
 
                 <button
-                  onClick={(e) => handleCollect(slot, e)}
-                  disabled={done}
+                  onClick={(e) => handleCollect(slot, idx, e)}
+                  disabled={done || !isReady || isCollecting}
                   style={{
                     flexShrink: 0, padding: '9px 18px', borderRadius: 10,
-                    border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : `rgba(${rgb},0.28)`}`,
-                    cursor: done ? 'default' : 'pointer',
-                    background: done ? 'rgba(74,222,128,0.08)' : `rgba(${rgb},0.1)`,
-                    color: done ? '#4ade80' : meta.stroke,
+                    border: `1px solid ${done ? 'rgba(74,222,128,0.2)' : isReady ? `rgba(${rgb},0.5)` : 'rgba(255,255,255,0.06)'}`,
+                    cursor: (done || !isReady || isCollecting) ? 'default' : 'pointer',
+                    background: done ? 'rgba(74,222,128,0.08)' : isReady ? `rgba(${rgb},0.15)` : 'rgba(255,255,255,0.03)',
+                    color: done ? '#4ade80' : isReady ? meta.stroke : '#1e293b',
                     fontSize: 12, fontWeight: 700, transition: 'all 0.2s', lineHeight: 1,
+                    opacity: isCollecting ? 0.6 : 1,
                   }}
                 >
                   {done ? (
                     <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                       <path d="M3 8l4 4 6-6" stroke="#4ade80" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
-                  ) : 'Topla'}
+                  ) : isCollecting ? '...' : isReady ? 'Topla' : 'Kilitli'}
                 </button>
 
                 <span style={{ position: 'absolute', top: 8, right: 10, fontSize: 10, color: '#1a2035', fontWeight: 700 }}>#{idx + 1}</span>
