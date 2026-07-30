@@ -76,6 +76,15 @@ export default function ControlCenter() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // Mobile
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+  const [mobileView, setMobileView] = useState('list'); // 'list' | 'detail'
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
   const showToast = (msg, type = 'info') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 4000);
@@ -102,6 +111,7 @@ export default function ControlCenter() {
   const loadDetail = async (userId) => {
     setDetailLoading(true);
     setDetail(null);
+    if (isMobile) setMobileView('detail');
     try {
       const r = await axios.get(`${API}/ceo/control-center/users/${userId}/detail`, { withCredentials: true });
       setDetail(r.data);
@@ -144,33 +154,50 @@ export default function ControlCenter() {
       )}
 
       {/* Header */}
-      <div style={{ padding: '20px 32px', borderBottom: '1px solid #1e2433', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-          <button onClick={() => navigate('/app-select')} style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+      <div style={{ padding: isMobile ? '14px 16px' : '20px 32px', borderBottom: '1px solid #1e2433', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 10 : 16 }}>
+          <button
+            onClick={() => {
+              if (isMobile && mobileView === 'detail') { setMobileView('list'); return; }
+              navigate('/app-select');
+            }}
+            style={{ background: 'none', border: 'none', color: '#6b7280', cursor: 'pointer', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
+          >
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" /></svg>
-            Geri
+            {isMobile && mobileView === 'detail' ? 'Liste' : 'Geri'}
           </button>
           <div>
-            <div style={{ fontSize: 18, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.3px' }}>Kontrol Merkezi</div>
-            <div style={{ fontSize: 12, color: '#4b5563', marginTop: 1 }}>{total.toLocaleString('tr-TR')} kullanıcı kayıtlı</div>
+            <div style={{ fontSize: isMobile ? 15 : 18, fontWeight: 800, color: '#f1f5f9', letterSpacing: '-0.3px' }}>
+              {isMobile && mobileView === 'detail' ? (detail?.user?.name || 'Detay') : 'Kontrol Merkezi'}
+            </div>
+            {(!isMobile || mobileView === 'list') && (
+              <div style={{ fontSize: 12, color: '#4b5563', marginTop: 1 }}>{total.toLocaleString('tr-TR')} kullanıcı kayıtlı</div>
+            )}
           </div>
         </div>
-        <button
-          onClick={async () => {
-            try {
-              await axios.post(`${API}/ceo/control-center/aggregate-daily`, {}, { withCredentials: true });
-              showToast('Günlük agregasyon tamamlandı', 'success');
-            } catch { showToast('Agregasyon başarısız', 'error'); }
-          }}
-          style={{ background: '#ef444415', border: '1px solid #ef444430', color: '#ef4444', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
-        >
-          Güncelle (Daily Agg.)
-        </button>
+        {!isMobile && (
+          <button
+            onClick={async () => {
+              try {
+                await axios.post(`${API}/ceo/control-center/aggregate-daily`, {}, { withCredentials: true });
+                showToast('Günlük agregasyon tamamlandı', 'success');
+              } catch { showToast('Agregasyon başarısız', 'error'); }
+            }}
+            style={{ background: '#ef444415', border: '1px solid #ef444430', color: '#ef4444', borderRadius: 10, padding: '8px 16px', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+          >
+            Güncelle (Daily Agg.)
+          </button>
+        )}
       </div>
 
       <div style={{ display: 'flex', height: 'calc(100vh - 73px)' }}>
         {/* LEFT — user list */}
-        <div style={{ width: 380, borderRight: '1px solid #1e2433', display: 'flex', flexDirection: 'column', flexShrink: 0 }}>
+        <div style={{
+          width: isMobile ? '100%' : 380,
+          borderRight: isMobile ? 'none' : '1px solid #1e2433',
+          display: isMobile && mobileView === 'detail' ? 'none' : 'flex',
+          flexDirection: 'column', flexShrink: 0,
+        }}>
           {/* Search */}
           <div style={{ padding: '14px 16px', borderBottom: '1px solid #1e2433' }}>
             <input
@@ -233,7 +260,7 @@ export default function ControlCenter() {
         </div>
 
         {/* RIGHT — detail */}
-        <div style={{ flex: 1, overflowY: 'auto', padding: 24 }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: isMobile ? 16 : 24, display: isMobile && mobileView === 'list' ? 'none' : 'block' }}>
           {detailLoading && (
             <div style={{ textAlign: 'center', color: '#4b5563', paddingTop: 80, fontSize: 14 }}>Yükleniyor...</div>
           )}
@@ -299,8 +326,8 @@ export default function ControlCenter() {
                     ))}
                   </div>
                   {rev.transactions?.length > 0 && (
-                    <div style={{ maxHeight: 180, overflowY: 'auto' }}>
-                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                    <div style={{ maxHeight: 180, overflowY: 'auto', overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, minWidth: 340 }}>
                         <thead>
                           <tr style={{ color: '#374151' }}>
                             {['Tarih', 'Tür', 'Detay', 'Tutar'].map(h => (
