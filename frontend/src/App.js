@@ -80,8 +80,8 @@ const BanScreen = ({ reason, bannedUntil }) => {
       )}
       <div style={{ color: '#64748b', fontSize: 13, marginTop: 8 }}>
         İtiraz için{' '}
-        <a href="mailto:support@zetstudiointl.com" style={{ color: '#6366f1', textDecoration: 'none' }}>
-          support@zetstudiointl.com
+        <a href="mailto:help@zetstudiointl.com" style={{ color: '#6366f1', textDecoration: 'none' }}>
+          help@zetstudiointl.com
         </a>
       </div>
     </div>

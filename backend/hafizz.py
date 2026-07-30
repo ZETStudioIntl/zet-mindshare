@@ -246,18 +246,51 @@ async def send_security_email(to_email: str, subject: str, message: str):
     import resend as _resend
     import os
     _resend.api_key = os.environ.get("RESEND_API_KEY", "")
-    sender = os.environ.get("SENDER_EMAIL", "noreply@zetstudiointl.com")
+    sender = os.environ.get("SENDER_EMAIL", "ZET Mindshare <help@zetstudiointl.com>")
+    html = f"""<!DOCTYPE html>
+<html lang="tr">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"></head>
+<body style="margin:0;padding:0;background-color:#070916;">
+<table width="100%" cellspacing="0" cellpadding="0" bgcolor="#070916">
+<tr><td align="center" style="padding:40px 16px;">
+<table width="600" cellspacing="0" cellpadding="0" style="max-width:600px;width:100%;font-family:-apple-system,BlinkMacSystemFont,'Helvetica Neue',Helvetica,Arial,sans-serif;">
+  <tr><td style="background:#0a0e22;border-radius:14px 14px 0 0;padding:22px 44px;text-align:center;border-bottom:2px solid #f59e0b;">
+    <span style="font-size:20px;font-weight:900;color:#ffffff;letter-spacing:2px;font-family:Helvetica,Arial,sans-serif;">ZET</span>
+    <span style="font-size:10px;font-weight:700;color:#f59e0b;letter-spacing:5px;margin-left:8px;text-transform:uppercase;vertical-align:2px;font-family:Helvetica,Arial,sans-serif;">MINDSHARE</span>
+  </td></tr>
+  <tr><td style="background:#090c20;padding:44px 44px 40px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04);">
+    <p style="margin:0 0 20px;text-align:center;">
+      <span style="display:inline-block;width:52px;height:52px;border-radius:14px;background:#1a1000;border:1px solid #f59e0b40;line-height:52px;font-size:22px;text-align:center;color:#f59e0b;">&#9888;</span>
+    </p>
+    <p style="margin:0 0 16px;text-align:center;">
+      <span style="display:inline-block;background:#1a1000;border:1px solid #f59e0b44;border-radius:20px;padding:5px 16px;font-size:11px;font-weight:700;color:#f59e0b;letter-spacing:1.5px;font-family:Helvetica,Arial,sans-serif;">GUVENLiK BiLDiRiMi</span>
+    </p>
+    <h1 style="margin:0 0 20px;font-size:22px;font-weight:800;color:#ffffff;line-height:1.35;text-align:center;font-family:Helvetica,Arial,sans-serif;">{subject}</h1>
+    <p style="margin:0 0 28px;font-size:14px;color:#9ca3af;line-height:1.75;text-align:center;">{message}</p>
+    <table width="100%" cellspacing="0" cellpadding="0" style="margin-bottom:32px;">
+    <tr><td style="background:#1a1000;border-radius:12px;border:1px solid #f59e0b2e;padding:14px 18px;">
+      <p style="margin:0;font-size:13px;color:#f5c85a;line-height:1.65;text-align:center;">Bu islemler size ait degilse sifrenizi hemen degistirin. Yardim: <a href="mailto:help@zetstudiointl.com" style="color:#f59e0b;text-decoration:none;">help@zetstudiointl.com</a></p>
+    </td></tr>
+    </table>
+    <p style="margin:0;text-align:center;">
+      <a href="https://zetmindshare.com/dashboard" style="display:inline-block;background:#f59e0b;color:#0a0600;padding:13px 36px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.3px;font-family:Helvetica,Arial,sans-serif;">Hesabima Git</a>
+    </p>
+  </td></tr>
+  <tr><td style="background:#060813;border-radius:0 0 14px 14px;padding:18px 44px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);">
+    <p style="margin:0 0 3px;font-size:11px;color:#2d3352;text-align:center;font-weight:600;letter-spacing:1.5px;font-family:Helvetica,Arial,sans-serif;">ZET STUDIO INTERNATIONAL</p>
+    <p style="margin:0;font-size:11px;color:#2d3352;text-align:center;font-family:Helvetica,Arial,sans-serif;">Bu e-posta ZET Mindshare Hafizz guvenlik sistemi tarafindan otomatik gonderilmistir.</p>
+  </td></tr>
+</table>
+</td></tr>
+</table>
+</body>
+</html>"""
     try:
         _resend.Emails.send({
             "from": sender,
             "to": to_email,
             "subject": subject,
-            "html": f"""<div style="font-family:sans-serif;max-width:480px;margin:auto;padding:24px">
-                <h2 style="color:#292f91;margin-bottom:12px">&#9888; ZET Güvenlik Bildirimi</h2>
-                <p style="color:#333;line-height:1.6">{message}</p>
-                <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
-                <small style="color:#999">Bu e-posta ZET Mindshare Hafızz güvenlik sistemi tarafından otomatik gönderilmiştir.</small>
-            </div>"""
+            "html": html,
         })
     except Exception as e:
         logging.warning(f"Hafızz: güvenlik e-postası gönderilemedi {to_email}: {e}")
@@ -283,7 +316,7 @@ async def notify_suspicious(db, user_id: str, reason: str):
         user["email"],
         "ZET Hesabınızda Şüpheli Aktivite Tespit Edildi",
         f"Merhaba {user.get('name', '')}, hesabınızda şüpheli aktivite tespit edildi: <b>{reason}</b>. "
-        "Bu işlemler size ait değilse lütfen destek@zetstudiointl.com adresine yazın."
+        "Bu işlemler size ait değilse lütfen help@zetstudiointl.com adresine yazın."
     )
 
 
@@ -295,7 +328,7 @@ async def notify_ban(db, user_id: str, reason: str):
         user["email"],
         "ZET Hesabınız Askıya Alındı",
         f"Merhaba {user.get('name', '')}, hesabınız şu sebeple askıya alınmıştır: <b>{reason}</b>. "
-        "İtiraz için destek@zetstudiointl.com adresine yazabilirsiniz."
+        "İtiraz için help@zetstudiointl.com adresine yazabilirsiniz."
     )
 
 

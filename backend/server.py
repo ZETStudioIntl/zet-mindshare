@@ -624,7 +624,7 @@ collab_manager = CollaborationManager()
 # ============ EMAIL HELPER ============
 
 resend.api_key = os.environ.get("RESEND_API_KEY")
-SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <info@zetstudiointl.com>")
+SENDER_EMAIL = os.environ.get("SENDER_EMAIL", "ZET Mindshare <help@zetstudiointl.com>")
 
 # ── Lemon Squeezy ─────────────────────────────────────────────────────────────
 LS_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY", "")
@@ -693,7 +693,7 @@ def _email_shell(body: str, accent: str = "#4ca8ad") -> str:
 </td></tr>
 <tr><td style="background-color:#060813;border-radius:0 0 16px 16px;padding:24px 48px;border:1px solid rgba(255,255,255,0.05);border-top:none;">
   <p style="margin:0 0 5px;font-size:11px;color:#2d3352;text-align:center;font-weight:600;letter-spacing:1.5px;">ZET STUDIO INTERNATIONAL</p>
-  <p style="margin:0;font-size:11px;color:#2d3352;text-align:center;">Destek: <a href="mailto:support@zetstudiointl.com" style="color:{accent};text-decoration:none;">support@zetstudiointl.com</a></p>
+  <p style="margin:0;font-size:11px;color:#2d3352;text-align:center;">Yardım: <a href="mailto:help@zetstudiointl.com" style="color:{accent};text-decoration:none;">help@zetstudiointl.com</a></p>
 </td></tr>
 </table>
 </td></tr>
@@ -2669,7 +2669,7 @@ async def register_with_email(req: EmailAuthRequest, response: Response):
             <p style="margin: 4px 0; font-size: 14px;">✅ AI sohbet (ZETA)</p>
         </div>
         <a href="https://zetmindshare.com" style="display: inline-block; background: #4ca8ad; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: bold;">Hemen Başla</a>
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">Sorunuz mu var? <a href="mailto:support@zetstudiointl.com" style="color: #4ca8ad;">support@zetstudiointl.com</a></p>
+        <p style="color: #666; font-size: 12px; margin-top: 20px;">Sorunuz mu var? <a href="mailto:help@zetstudiointl.com" style="color: #4ca8ad;">help@zetstudiointl.com</a></p>
     </div>
     """
     asyncio.create_task(send_email(req.email, "ZET Mindshare'e Hoş Geldiniz! 🎉", welcome_html))
