@@ -1141,6 +1141,25 @@ const Dashboard = () => {
     } catch { showToast('İndirme başarısız', 'error'); }
   };
 
+  const uploadDocToDrive = async (doc) => {
+    try {
+      showToast('Drive\'a yükleniyor...', 'info');
+      const blob = new Blob([JSON.stringify(doc)], { type: 'application/json' });
+      const file = new File([blob], `${doc.doc_id}.zetdoc`, { type: 'application/json' });
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true });
+      setDriveFiles(prev => [res.data, ...prev.filter(f => f.name !== `${doc.doc_id}.zetdoc`)]);
+      setDriveUsed(prev => prev + res.data.size);
+      const updated = [...primeDriveDocs.filter(d => d.id !== doc.doc_id), { id: doc.doc_id, title: doc.title, size: res.data.size, addedAt: Date.now(), type: 'document' }];
+      setPrimeDriveDocs(updated);
+      localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
+      showToast(t('primeDriveAdded'), 'success');
+    } catch (err) {
+      showToast(err?.response?.data?.detail || 'Drive yükleme başarısız', 'error');
+    }
+  };
+
   const pinNote = async (note) => {
     const newPinned = !note.pinned;
     try {
@@ -3461,13 +3480,7 @@ MATCHES:[1,3,5]`;
                     }
                   }] : []),
                   { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveIn') : t('primeDriveAdd'), color: inDrive ? '#6366f1' : undefined, action: () => {
-                    if (!inDrive && doc) {
-                      const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);
-                      const updated = [...primeDriveDocs, { id: doc.doc_id, title: doc.title, size, addedAt: Date.now(), type: 'document' }];
-                      setPrimeDriveDocs(updated);
-                      localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
-                      showToast(t('primeDriveAdded'), 'success');
-                    }
+                    if (!inDrive && doc) uploadDocToDrive(doc);
                     setOpenFolderDocMenuId(null);
                   }},
                   { icon: <X className="h-4 w-4" />, label: t('removeFromFolder'), color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm(t('removeFromFolderTitle'), t('removeFromFolderMsg'), () => removeDocFromFile(id, activeDocFile.file_id)); } },
@@ -3660,13 +3673,7 @@ MATCHES:[1,3,5]`;
                       }
                     }] : []),
                     { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveIn') : t('primeDriveAdd'), color: inDrive ? '#6366f1' : undefined, action: () => {
-                      if (!inDrive && doc) {
-                        const size = Math.max(50 * 1024, JSON.stringify(doc).length * 2);
-                        const updated = [...primeDriveDocs, { id: doc.doc_id, title: doc.title, size, addedAt: Date.now(), type: 'document' }];
-                        setPrimeDriveDocs(updated);
-                        localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
-                        showToast(t('primeDriveAdded'), 'success');
-                      }
+                      if (!inDrive && doc) uploadDocToDrive(doc);
                       setOpenMenuDocId(null);
                     }},
                     { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
