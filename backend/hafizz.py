@@ -272,9 +272,14 @@ async def send_security_email(to_email: str, subject: str, message: str):
       <p style="margin:0;font-size:13px;color:#f5c85a;line-height:1.65;text-align:center;">Bu islemler size ait degilse sifrenizi hemen degistirin. Yardim: <a href="mailto:help@zetstudiointl.com" style="color:#f59e0b;text-decoration:none;">help@zetstudiointl.com</a></p>
     </td></tr>
     </table>
-    <p style="margin:0;text-align:center;">
-      <a href="https://zetmindshare.com/dashboard" style="display:inline-block;background:#f59e0b;color:#0a0600;padding:13px 36px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700;letter-spacing:0.3px;font-family:Helvetica,Arial,sans-serif;">Hesabima Git</a>
-    </p>
+    <table width="100%" cellspacing="0" cellpadding="0"><tr>
+      <td align="center" style="padding-right:8px;">
+        <a href="https://app.zetstudiointl.com/dashboard" style="display:inline-block;background:#f59e0b;color:#0a0600;padding:13px 28px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700;font-family:Helvetica,Arial,sans-serif;">Hesabima Git</a>
+      </td>
+      <td align="center" style="padding-left:8px;">
+        <a href="mailto:help@zetstudiointl.com" style="display:inline-block;background:transparent;color:#f59e0b;padding:12px 28px;border-radius:10px;text-decoration:none;font-size:14px;font-weight:700;font-family:Helvetica,Arial,sans-serif;border:1px solid #f59e0b44;">Itiraz Et</a>
+      </td>
+    </tr></table>
   </td></tr>
   <tr><td style="background:#060813;border-radius:0 0 14px 14px;padding:18px 44px;border-left:1px solid rgba(255,255,255,0.04);border-right:1px solid rgba(255,255,255,0.04);border-bottom:1px solid rgba(255,255,255,0.04);">
     <p style="margin:0 0 3px;font-size:11px;color:#2d3352;text-align:center;font-weight:600;letter-spacing:1.5px;font-family:Helvetica,Arial,sans-serif;">ZET STUDIO INTERNATIONAL</p>
