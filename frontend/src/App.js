@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import "@/index.css";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppThemeProvider } from "./contexts/AppThemeContext";
@@ -271,63 +272,76 @@ const GlobalHeartbeat = () => {
   return null;
 };
 
+const PAGE_SPRING = { type: "spring", stiffness: 350, damping: 35 };
+
 const AppRouter = () => {
+  const location = useLocation();
   return (
-    <Routes>
-      <Route path="/login" element={<LoginPage />} />
-      <Route path="/dashboard" element={
-        <ProtectedRoute>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/editor/:docId" element={
-        <ProtectedRoute>
-          <Editor />
-        </ProtectedRoute>
-      } />
-      <Route path="/quest-map" element={
-        <ProtectedRoute>
-          <QuestMap />
-        </ProtectedRoute>
-      } />
-      <Route path="/profile/:username" element={
-        <ProtectedRoute>
-          <Profile />
-        </ProtectedRoute>
-      } />
-      <Route path="/app-select" element={
-        <ProtectedRoute>
-          <AppSelector />
-        </ProtectedRoute>
-      } />
-      <Route path="/judge" element={
-        <ProtectedRoute>
-          <JudgeDashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/trash" element={
-        <ProtectedRoute>
-          <RecycleBin />
-        </ProtectedRoute>
-      } />
-      <Route path="/payment/success" element={<PaymentSuccess />} />
-      <Route path="/auth-callback" element={<AuthCallback />} />
-      <Route path="/shared/:shareId" element={<SharedView />} />
-      <Route path="/confirm-delete" element={<ConfirmDelete />} />
-      <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
-      <Route path="/media/*" element={
-        <ProtectedRoute>
-          <MediaApp />
-        </ProtectedRoute>
-      } />
-      <Route path="/control-center" element={
-        <ProtectedRoute>
-          <ControlCenter />
-        </ProtectedRoute>
-      } />
-      <Route path="/" element={<Navigate to="/app-select" replace />} />
-      <Route path="*" element={<Navigate to="/app-select" replace />} />
-    </Routes>
+    <AnimatePresence mode="wait" initial={false}>
+      <motion.div
+        key={location.pathname}
+        initial={{ opacity: 0, y: 7 }}
+        animate={{ opacity: 1, y: 0, transition: PAGE_SPRING }}
+        exit={{ opacity: 0, transition: { duration: 0.12 } }}
+        style={{ position: "fixed", inset: 0, overflowY: "auto", overflowX: "hidden" }}
+      >
+        <Routes location={location}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/editor/:docId" element={
+            <ProtectedRoute>
+              <Editor />
+            </ProtectedRoute>
+          } />
+          <Route path="/quest-map" element={
+            <ProtectedRoute>
+              <QuestMap />
+            </ProtectedRoute>
+          } />
+          <Route path="/profile/:username" element={
+            <ProtectedRoute>
+              <Profile />
+            </ProtectedRoute>
+          } />
+          <Route path="/app-select" element={
+            <ProtectedRoute>
+              <AppSelector />
+            </ProtectedRoute>
+          } />
+          <Route path="/judge" element={
+            <ProtectedRoute>
+              <JudgeDashboard />
+            </ProtectedRoute>
+          } />
+          <Route path="/trash" element={
+            <ProtectedRoute>
+              <RecycleBin />
+            </ProtectedRoute>
+          } />
+          <Route path="/payment/success" element={<PaymentSuccess />} />
+          <Route path="/auth-callback" element={<AuthCallback />} />
+          <Route path="/shared/:shareId" element={<SharedView />} />
+          <Route path="/confirm-delete" element={<ConfirmDelete />} />
+          <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
+          <Route path="/media/*" element={
+            <ProtectedRoute>
+              <MediaApp />
+            </ProtectedRoute>
+          } />
+          <Route path="/control-center" element={
+            <ProtectedRoute>
+              <ControlCenter />
+            </ProtectedRoute>
+          } />
+          <Route path="/" element={<Navigate to="/app-select" replace />} />
+          <Route path="*" element={<Navigate to="/app-select" replace />} />
+        </Routes>
+      </motion.div>
+    </AnimatePresence>
   );
 };
 

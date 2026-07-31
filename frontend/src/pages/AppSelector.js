@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { RainbowSpinner } from '../components/LoadingScreens';
 import axios from 'axios';
+import { motion } from 'framer-motion';
+import { SPRING, SPRING_FAST, STAGGER_CONTAINER, STAGGER_ITEM, haptic } from '../lib/animations';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -85,14 +87,32 @@ const AppSelector = () => {
   const bgColor = hovered === 'judge' ? '#12020c' : hovered === 'mindshare' ? '#080a1a' : hovered === 'media' ? '#050505' : hovered === 'control-center' ? '#0d0000' : '#0a0d1a';
 
   const handleSelect = (app) => {
+    haptic(20);
     setSelecting(app.id);
     switchApp(app.id);
     try { const a = new Audio('/sounds/app-select.wav'); a.volume = 0.6; a.play().catch(() => {}); } catch (_) {}
-    setTimeout(() => navigate(app.route), 350);
+    setTimeout(() => navigate(app.route), 380);
   };
 
+  const allApps = [...APPS, ...(showCC ? [{
+    id: 'control-center',
+    name: 'Kontrol Merkezi',
+    tagline: 'CEO Paneli',
+    description: 'Kullanıcı yönetimi, güvenlik analizleri, gelir takibi ve moderasyon araçları.',
+    gradient: 'linear-gradient(135deg, #1a0000 0%, #3d0000 40%, #7f1d1d 100%)',
+    borderGlow: 'rgba(239, 68, 68, 0.5)',
+    hoverBg: '#0d0000',
+    route: '/control-center',
+    Icon: ControlCenterIcon,
+    version: 'CEO Only',
+    features: ['Tüm kullanıcı listesi', 'Kullanıcı detay & gelir', 'Ban / Uyarı yönetimi', 'Güvenlik skorları'],
+  }] : [])];
+
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.25 }}
       style={{
         minHeight: '100vh',
         background: bgColor,
@@ -105,38 +125,47 @@ const AppSelector = () => {
         fontFamily: "'DM Sans', sans-serif",
       }}
     >
-      <div style={{ textAlign: 'center', marginBottom: 56 }}>
-        <img src="/logo-cs.svg" alt="ZET Portal" style={{ height: 64, width: 64, margin: '0 auto 16px' }} />
+      <motion.div
+        initial={{ opacity: 0, y: -16 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ type: 'spring', stiffness: 280, damping: 28, delay: 0.05 }}
+        style={{ textAlign: 'center', marginBottom: 56 }}
+      >
+        <motion.img
+          src="/logo-cs.svg"
+          alt="ZET Portal"
+          layoutId="zet-portal-logo"
+          style={{ height: 64, width: 64, margin: '0 auto 16px', display: 'block' }}
+        />
         <h1 style={{ color: '#fff', fontSize: 30, fontWeight: 700, letterSpacing: '-0.5px', marginBottom: 10 }}>
           ZET Portal
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: 15 }}>
           Hangi uygulamayı kullanmak istiyorsunuz?
         </p>
-      </div>
+      </motion.div>
 
-      <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 860, width: '100%' }}>
-        {[...APPS, ...(showCC ? [{
-          id: 'control-center',
-          name: 'Kontrol Merkezi',
-          tagline: 'CEO Paneli',
-          description: 'Kullanıcı yönetimi, güvenlik analizleri, gelir takibi ve moderasyon araçları.',
-          gradient: 'linear-gradient(135deg, #1a0000 0%, #3d0000 40%, #7f1d1d 100%)',
-          borderGlow: 'rgba(239, 68, 68, 0.5)',
-          hoverBg: '#0d0000',
-          route: '/control-center',
-          Icon: ControlCenterIcon,
-          version: 'CEO Only',
-          features: ['Tüm kullanıcı listesi', 'Kullanıcı detay & gelir', 'Ban / Uyarı yönetimi', 'Güvenlik skorları'],
-        }] : [])].map((app) => {
+      <motion.div
+        variants={STAGGER_CONTAINER}
+        initial="initial"
+        animate="animate"
+        style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 860, width: '100%' }}
+      >
+        {allApps.map((app) => {
           const isHovered = hovered === app.id;
           const isSelecting = selecting === app.id;
           return (
-            <button
+            <motion.button
               key={app.id}
+              variants={STAGGER_ITEM}
+              layoutId={`app-card-${app.id}`}
               onClick={() => handleSelect(app)}
-              onMouseEnter={() => setHovered(app.id)}
-              onMouseLeave={() => setHovered(null)}
+              onHoverStart={() => setHovered(app.id)}
+              onHoverEnd={() => setHovered(null)}
+              whileHover={{ y: -6, scale: 1.02, transition: SPRING }}
+              whileTap={{ scale: 0.97, transition: SPRING_FAST }}
+              animate={{ opacity: selecting && !isSelecting ? 0.45 : 1 }}
+              transition={SPRING}
               style={{
                 flex: '1 1 340px',
                 maxWidth: 400,
@@ -146,28 +175,28 @@ const AppSelector = () => {
                 background: isHovered ? app.gradient : 'rgba(255,255,255,0.03)',
                 cursor: 'pointer',
                 textAlign: 'left',
-                transition: 'all 0.4s cubic-bezier(0.34,1.56,0.64,1)',
                 boxShadow: isHovered ? `0 8px 60px ${app.borderGlow}` : 'none',
-                transform: isSelecting ? 'scale(0.97)' : isHovered ? 'translateY(-6px) scale(1.02)' : 'none',
-                opacity: selecting && !isSelecting ? 0.5 : 1,
+                transition: 'border-color 0.3s ease, background 0.3s ease, box-shadow 0.3s ease',
               }}
             >
               <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 20 }}>
-                <app.Icon />
+                <motion.div layoutId={`app-icon-${app.id}`}>
+                  <app.Icon />
+                </motion.div>
                 <div>
                   <div style={{ color: '#fff', fontSize: 19, fontWeight: 700, lineHeight: 1.2 }}>{app.name}</div>
-                  <div style={{ color: isHovered ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 3 }}>{app.tagline}</div>
+                  <div style={{ color: isHovered ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.4)', fontSize: 12, marginTop: 3, transition: 'color 0.3s' }}>{app.tagline}</div>
                 </div>
               </div>
 
-              <p style={{ color: isHovered ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)', fontSize: 13, lineHeight: 1.6, marginBottom: 20 }}>
+              <p style={{ color: isHovered ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)', fontSize: 13, lineHeight: 1.6, marginBottom: 20, transition: 'color 0.3s' }}>
                 {app.description}
               </p>
 
               <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 24px', display: 'flex', flexDirection: 'column', gap: 6 }}>
                 {app.features.map((f) => (
-                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, color: isHovered ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)', fontSize: 12 }}>
-                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: isHovered ? '#fff' : 'rgba(255,255,255,0.3)', flexShrink: 0 }} />
+                  <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, color: isHovered ? 'rgba(255,255,255,0.75)' : 'rgba(255,255,255,0.35)', fontSize: 12, transition: 'color 0.3s' }}>
+                    <span style={{ width: 4, height: 4, borderRadius: '50%', background: isHovered ? '#fff' : 'rgba(255,255,255,0.3)', flexShrink: 0, transition: 'background 0.3s' }} />
                     {f}
                   </li>
                 ))}
@@ -175,25 +204,30 @@ const AppSelector = () => {
 
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 14, fontWeight: 600 }}>
+                  <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 14, fontWeight: 600, transition: 'color 0.3s' }}>
                     {isSelecting ? 'Açılıyor...' : 'Başla'}
                   </span>
                   {isSelecting
                     ? <RainbowSpinner size={20} thickness={3} />
-                    : <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 18 }}>→</span>
+                    : <span style={{ color: isHovered ? '#fff' : 'rgba(255,255,255,0.35)', fontSize: 18, transition: 'color 0.3s' }}>→</span>
                   }
                 </div>
                 <span style={{ color: 'rgba(255,255,255,0.2)', fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>{app.version}</span>
               </div>
-            </button>
+            </motion.button>
           );
         })}
-      </div>
+      </motion.div>
 
-      <p style={{ marginTop: 40, color: 'rgba(255,255,255,0.2)', fontSize: 12 }}>
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.5, duration: 0.4 }}
+        style={{ marginTop: 40, color: 'rgba(255,255,255,0.2)', fontSize: 12 }}
+      >
         Her zaman ayarlar menüsünden uygulama değiştirebilirsiniz
-      </p>
-    </div>
+      </motion.p>
+    </motion.div>
   );
 };
 

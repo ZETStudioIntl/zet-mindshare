@@ -25,6 +25,11 @@
   box-sizing: border-box;
 }
 
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
 body {
   font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--zet-bg);
