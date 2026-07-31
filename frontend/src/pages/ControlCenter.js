@@ -392,7 +392,12 @@ export default function ControlCenter() {
                       placeholder="Sebep / mesaj..."
                       style={{ padding: '9px 12px', borderRadius: 10, background: '#0d1117', border: '1px solid #1e2433', color: '#e2e8f0', fontSize: 13, outline: 'none' }}
                     />
-                    <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center' }}>
+                    {/* Uyar + Geçici Ban satırı */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+                      <button disabled={actionLoading} onClick={() => doAction(u.user_id, 'warn')}
+                        style={{ padding: '9px 16px', borderRadius: 10, background: '#f59e0b15', border: '1px solid #f59e0b30', color: '#f59e0b', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
+                        Uyar
+                      </button>
                       <input
                         value={actionDuration}
                         onChange={e => setActionDuration(e.target.value)}
@@ -400,13 +405,20 @@ export default function ControlCenter() {
                         type="number" min="1"
                         style={{ width: 110, padding: '9px 12px', borderRadius: 10, background: '#0d1117', border: '1px solid #1e2433', color: '#e2e8f0', fontSize: 13, outline: 'none' }}
                       />
-                      <button disabled={actionLoading} onClick={() => doAction(u.user_id, 'warn')}
-                        style={{ padding: '9px 16px', borderRadius: 10, background: '#f59e0b15', border: '1px solid #f59e0b30', color: '#f59e0b', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
-                        Uyar
+                      <button
+                        disabled={actionLoading || !actionDuration}
+                        onClick={() => doAction(u.user_id, 'ban')}
+                        style={{ padding: '9px 16px', borderRadius: 10, background: '#f9731615', border: '1px solid #f9731630', color: '#f97316', fontSize: 13, fontWeight: 600, cursor: actionDuration ? 'pointer' : 'not-allowed', opacity: (actionLoading || !actionDuration) ? 0.4 : 1 }}>
+                        {actionDuration ? `${actionDuration} sa Geçici Ban` : 'Geçici Ban'}
                       </button>
-                      <button disabled={actionLoading} onClick={() => doAction(u.user_id, 'ban')}
-                        style={{ padding: '9px 16px', borderRadius: 10, background: '#f9731615', border: '1px solid #f9731630', color: '#f97316', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
-                        {actionDuration ? `${actionDuration} sa Ban` : 'Kalıcı Ban'}
+                    </div>
+                    {/* Kalıcı Ban — ayrı satır, tehlikeli */}
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', paddingTop: 4, borderTop: '1px solid #1e2433' }}>
+                      <button
+                        disabled={actionLoading}
+                        onClick={() => { if (window.confirm(`${u.name || u.email} kullanıcısını kalıcı olarak banlamak istediğinize emin misiniz?`)) doAction(u.user_id, 'ban'); }}
+                        style={{ padding: '9px 16px', borderRadius: 10, background: '#ef444415', border: '1px solid #ef444430', color: '#ef4444', fontSize: 13, fontWeight: 600, cursor: 'pointer', opacity: actionLoading ? 0.5 : 1 }}>
+                        Kalıcı Ban
                       </button>
                       {(u.banned || u.temp_banned) && (
                         <button disabled={actionLoading} onClick={() => doAction(u.user_id, 'unban')}

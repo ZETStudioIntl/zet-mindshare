@@ -29,7 +29,7 @@ const APPS = [
     hoverBg: '#0d0f2a',
     route: '/dashboard',
     Icon: MindshareIcon,
-    version: 'v26.07.27',
+    version: 'v26.07.31',
     features: ['Belge editörü & sayfa sistemi', 'Zeta AI yazma asistanı', 'ZET Media sosyal feed', 'Quest haritası & XP sistemi'],
   },
   {
