@@ -636,6 +636,17 @@ LS_VARIANTS: Dict[str, Dict[str, str]] = {
     "creative_station": {"monthly": "1633753", "yearly": "1633854"},
 }
 
+# ── Paddle ────────────────────────────────────────────────────────────────────
+PADDLE_WEBHOOK_SECRET = os.getenv("PADDLE_WEBHOOK_SECRET", "")
+PADDLE_PRICE_MAP: Dict[str, Dict[str, str]] = {
+    "pri_01kyvfkckwcaymmcp28haj7wdx": {"plan": "plus",             "billing_cycle": "monthly"},
+    "pri_01kyvfv0e11nn6gj6wbc0c4pt8": {"plan": "plus",             "billing_cycle": "yearly"},
+    "pri_01kyvh3djaq82s8fq8x2z1kht1": {"plan": "pro",              "billing_cycle": "monthly"},
+    "pri_01kyvh5shj156wresbp49gqgt8": {"plan": "pro",              "billing_cycle": "yearly"},
+    "pri_01kyvh762mgc9q9pvd9hfqbn9t": {"plan": "creative_station", "billing_cycle": "monthly"},
+    "pri_01kyvh8j1zrbfrcdafzb7rnbqv": {"plan": "creative_station", "billing_cycle": "yearly"},
+}
+
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     """Send email using Resend API"""
     try:
@@ -4303,6 +4314,156 @@ async def lemonsqueezy_webhook(request: Request):
             logging.info(f"Credit purchase: user={user_id} pkg={credit_pkg_id} credits={credits_to_add} new_balance={new_balance}")
 
     return {"ok": True}
+
+
+# ============ PADDLE WEBHOOKS ============
+
+@api_router.post("/webhooks/paddle")
+async def paddle_webhook(request: Request):
+    raw_body = await request.body()
+
+    if PADDLE_WEBHOOK_SECRET:
+        header = request.headers.get("Paddle-Signature", "")
+        try:
+            parts = dict(p.split("=", 1) for p in header.split(";") if "=" in p)
+            ts = parts.get("ts", "")
+            h1 = parts.get("h1", "")
+            payload = f"{ts}:{raw_body.decode('utf-8')}"
+            expected = hmac.new(PADDLE_WEBHOOK_SECRET.encode(), payload.encode(), hashlib.sha256).hexdigest()
+            if not hmac.compare_digest(expected, h1):
+                raise HTTPException(status_code=401, detail="Invalid Paddle signature")
+        except HTTPException:
+            raise
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid Paddle signature")
+
+    try:
+        event = json.loads(raw_body)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON")
+
+    event_type = event.get("event_type", "")
+    data = event.get("data", {}) or {}
+    custom = data.get("custom_data") or {}
+
+    user_id = custom.get("user_id")
+    if not user_id:
+        return {"ok": True, "skipped": "no user_id"}
+
+    now = datetime.now(timezone.utc)
+
+    def _plan_from_items(items):
+        for item in (items or []):
+            pid = item.get("price", {}).get("id", "")
+            if pid in PADDLE_PRICE_MAP:
+                return PADDLE_PRICE_MAP[pid]["plan"], PADDLE_PRICE_MAP[pid]["billing_cycle"]
+        return None, "monthly"
+
+    if event_type in ("subscription.created", "subscription.activated"):
+        plan = custom.get("plan", "")
+        billing_cycle = custom.get("billing_cycle", "monthly")
+        if not plan:
+            plan, billing_cycle = _plan_from_items(data.get("items", []))
+        if not plan:
+            logging.warning(f"Paddle webhook: cannot determine plan user={user_id}")
+            return {"ok": True, "skipped": "unknown plan"}
+
+        next_billed_at = data.get("next_billed_at")
+        start_date = now.date()
+        next_renewal = compute_next_renewal(start_date, billing_cycle)
+        if next_billed_at:
+            try:
+                next_renewal = datetime.fromisoformat(next_billed_at.replace("Z", "+00:00")).date()
+            except Exception:
+                pass
+
+        plan_price = PLAN_PRICES_USD.get(plan, {}).get(billing_cycle, 0.0)
+        subscription = {
+            "plan":                     plan,
+            "status":                   "active",
+            "billing_cycle":            billing_cycle,
+            "current_period_start":     now.isoformat(),
+            "current_period_end":       next_renewal.isoformat(),
+            "subscription_start_date":  start_date.isoformat(),
+            "next_renewal_date":        next_renewal.isoformat(),
+            "plan_price":               plan_price,
+            "cancel_at_period_end":     False,
+            "payment_provider":         "paddle",
+            "external_subscription_id": data.get("id", ""),
+            "created_at":               now.isoformat(),
+            "updated_at":               now.isoformat(),
+        }
+        user_data = await db.users.find_one_and_update(
+            {"user_id": user_id},
+            {"$set": {
+                "mindshare_subscription": subscription,
+                "subscription":           subscription,
+                "cancel_pending":         False,
+                "next_renewal_date":      next_renewal.isoformat(),
+            }},
+            return_document=True,
+        )
+        if user_data:
+            await send_welcome_email(user_data["email"], plan, billing_cycle, next_renewal)
+        await db.ceo_transactions.insert_one({
+            "user_id": user_id, "type": "subscription",
+            "plan": plan, "billing_cycle": billing_cycle,
+            "amount_usd": plan_price, "timestamp": now.isoformat(),
+            "payment_provider": "paddle",
+        })
+
+    elif event_type == "subscription.updated":
+        paddle_status = data.get("status", "active")
+        status = "active" if paddle_status in ("active", "past_due", "trialing") else "cancelled"
+        update: Dict[str, Any] = {
+            "subscription.status":               status,
+            "mindshare_subscription.status":     status,
+            "subscription.updated_at":           now.isoformat(),
+            "mindshare_subscription.updated_at": now.isoformat(),
+        }
+        next_billed_at = data.get("next_billed_at")
+        if next_billed_at:
+            try:
+                renewal = datetime.fromisoformat(next_billed_at.replace("Z", "+00:00")).date()
+                update["subscription.next_renewal_date"]           = renewal.isoformat()
+                update["mindshare_subscription.next_renewal_date"] = renewal.isoformat()
+                update["next_renewal_date"]                        = renewal.isoformat()
+            except Exception:
+                pass
+        await db.users.update_one({"user_id": user_id}, {"$set": update})
+
+    elif event_type == "subscription.canceled":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "subscription.cancel_at_period_end":           True,
+                "subscription.status":                         "cancelled",
+                "subscription.updated_at":                     now.isoformat(),
+                "mindshare_subscription.cancel_at_period_end": True,
+                "mindshare_subscription.status":               "cancelled",
+                "mindshare_subscription.updated_at":           now.isoformat(),
+                "cancel_pending":                              True,
+            }},
+        )
+
+    elif event_type == "subscription.past_due":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "subscription.status":           "past_due",
+                "mindshare_subscription.status": "past_due",
+            }},
+        )
+
+    elif event_type == "transaction.payment_failed":
+        plan = custom.get("plan", "")
+        ud = await db.users.find_one({"user_id": user_id}, {"_id": 0, "email": 1})
+        if ud:
+            await send_payment_failed_email(ud["email"], plan)
+
+    _invalidate_auth_cache(user_id=user_id)
+    return {"ok": True}
+
 
 # ============ CREDIT PACKAGES ============
 

@@ -75,6 +75,7 @@ jobs:
           ENV_VARS="$ENV_VARS,R2_PUBLIC_URL=${{ secrets.R2_PUBLIC_URL }}"
           ENV_VARS="$ENV_VARS,CRON_SECRET=${{ secrets.CRON_SECRET }}"
           ENV_VARS="$ENV_VARS,CEO_ZET_ID=${{ secrets.CEO_ZET_ID }}"
+          ENV_VARS="$ENV_VARS,PADDLE_WEBHOOK_SECRET=${{ secrets.PADDLE_WEBHOOK_SECRET }}"
 
           gcloud run deploy $SERVICE_NAME \
             --image $IMAGE:${{ github.sha }} \

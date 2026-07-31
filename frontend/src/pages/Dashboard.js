@@ -10,6 +10,7 @@ import { savePreference } from '../lib/preferences';
 import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
+import { openPaddleCheckout } from '../lib/paddle';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { ZPIcon, CreditIcon } from '../components/dashboard/CaseOpenModal';
 import WheelModal from '../components/dashboard/WheelModal';
@@ -605,11 +606,10 @@ const Dashboard = () => {
   const handleSubscribe = async (planId) => {
     setSubscribing(true);
     try {
-      const res = await axios.post(`${API}/checkout/lemonsqueezy`, { plan: planId, billing_cycle: billingCycle }, { withCredentials: true });
-      openCheckoutOverlay(res.data.checkout_url);
+      const ok = openPaddleCheckout({ plan: planId, billingCycle, userEmail: user?.email, userId: user?.user_id });
+      if (!ok) throw new Error('Paddle yüklenemedi. Sayfayı yenileyip tekrar deneyin.');
     } catch (err) {
-      const msg = err?.response?.data?.detail || err?.message || 'Ödeme sayfası açılamadı';
-      showToast(msg, 'error');
+      showToast(err?.message || 'Ödeme sayfası açılamadı', 'error');
     } finally {
       setSubscribing(false);
     }
