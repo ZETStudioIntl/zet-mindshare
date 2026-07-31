@@ -12,22 +12,16 @@ function Reveal({ children, delay = 0 }) {
 }
 
 const VALUES = [
-  {
-    title: 'Kullanıcı önce gelir',
-    desc: 'Her özelliği önce kullanıcı geri bildirimiyle tasarlıyoruz. Şişirilmiş özellik listeleri değil, gerçek ihtiyaçlara yanıt.',
-  },
-  {
-    title: 'Gizlilik hakkı',
-    desc: 'Verilerini satmıyoruz. Belgelerini AI eğitiminde kullanmıyoruz. Sana ait olan sende kalır.',
-  },
-  {
-    title: 'Hız = saygı',
-    desc: 'Yavaş bir uygulama zamanına saygısızlıktır. Her sürümde performans bir öncelik, sonradan eklenecek bir detay değil.',
-  },
-  {
-    title: 'Dürüst fiyatlandırma',
-    desc: 'Gizli ücret yok, yanıltıcı "ücretsiz" katmanı yok. Ne ödediğini ve ne aldığını açık söylüyoruz.',
-  },
+  { title: 'Kullanıcı önce gelir', desc: 'Her özelliği önce kullanıcı geri bildirimiyle tasarlıyoruz. Şişirilmiş özellik listeleri değil, gerçek ihtiyaçlara yanıt.' },
+  { title: 'Gizlilik hakkı', desc: 'Verilerini satmıyoruz. Belgelerini AI eğitiminde kullanmıyoruz. Sana ait olan sende kalır.' },
+  { title: 'Hız = saygı', desc: 'Yavaş bir uygulama zamanına saygısızlıktır. Her sürümde performans birinci öncelik.' },
+  { title: 'Dürüst fiyatlandırma', desc: 'Gizli ücret yok. ZP kazanarak plan satın alabilirsin. Şeffaf, adil fiyatlandırma.' },
+];
+
+const APPS = [
+  { name: 'ZET Mindshare', tag: 'MS', desc: 'Akıllı belge editörü. Zeta AI, canvas araçları, Prime Drive ve rank sistemi.' },
+  { name: 'ZET Judge', tag: 'JD', desc: 'İş planı değerlendirmesi ve stratejik AI danışmanlığı.' },
+  { name: 'ZET Media', tag: 'MD', desc: 'Bağımsız sosyal medya ve mesajlaşma platformu. (Beta)' },
 ];
 
 export default function About() {
@@ -39,37 +33,37 @@ export default function About() {
           <Reveal>
             <div className="section-label">Hakkımızda</div>
             <h1 className="section-title" style={{ marginBottom: 24 }}>
-              Bilgiyi düzenli tutmak<br />zor olmamalı.
+              Tek hesap.<br />Büyüyen bir ekosistem.
             </h1>
           </Reveal>
           <Reveal delay={0.1}>
             <p style={{ fontSize: 18, color: 'var(--text-muted)', lineHeight: 1.8, marginBottom: 20 }}>
-              ZET Studio International, bir not defterinin sadeliğini bir doküman editörünün gücüyle birleştirmek üzere kuruldu. Zet, Türkçe'de "özet"ten geliyor — ana fikri, özü, en değerli kısmı ifade ediyor.
+              ZET Studio International, insanların düşünme, yazma ve karar verme süreçlerini destekleyen yapay zeka destekli uygulamalar geliştiriyor.
             </p>
             <p style={{ fontSize: 18, color: 'var(--text-muted)', lineHeight: 1.8, marginBottom: 20 }}>
-              Bir öğrencinin ders notları, bir araştırmacının gözlemleri, bir girişimcinin fikir akışı — hepsi farklı biçimlerde ama aynı ihtiyaçla: düşünceyi kaybetmeden yakalamak, daha sonra bulmak, başkasına iletmek.
+              ZET Mindshare ile belgelerini yönet, ZET Judge ile fikirlerini sorgula, ZET Media ile topluluğuna bağlan. Tek hesap, tüm ekosisteme erişim.
             </p>
             <p style={{ fontSize: 18, color: 'var(--text-muted)', lineHeight: 1.8 }}>
-              Yapay zeka bu sürecin ortağı olabilir — sana yazan değil, senin yazdığını anlayan bir asistan.
+              Yeni uygulamalar sürekli ekleniyor.
             </p>
           </Reveal>
         </div>
       </section>
 
-      {/* Stats */}
+      {/* Uygulamalar */}
       <section style={{ padding: '48px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 32 }}>
-            {[
-              { num: '2024', label: 'Kuruluş yılı' },
-              { num: '10+', label: 'Dil desteği' },
-              { num: 'Web + Mobil', label: 'Platform' },
-              { num: 'İstanbul', label: 'Şehir' },
-            ].map((s, i) => (
-              <Reveal key={s.label} delay={i * 0.07}>
-                <div style={{ textAlign: 'center' }}>
-                  <p style={{ fontSize: 32, fontWeight: 800, color: 'var(--text)', marginBottom: 6 }}>{s.num}</p>
-                  <p style={{ fontSize: 14, color: 'var(--text-muted)' }}>{s.label}</p>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+            {APPS.map((app, i) => (
+              <Reveal key={app.name} delay={i * 0.08}>
+                <div style={{ padding: '24px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(41,47,145,0.2)', border: '1px solid rgba(41,47,145,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                      <text x="1" y="15" fontSize="12" fontWeight="900" fill="#a0aaff" fontFamily="DM Sans,sans-serif">{app.tag}</text>
+                    </svg>
+                  </div>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{app.name}</h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>{app.desc}</p>
                 </div>
               </Reveal>
             ))}
@@ -77,7 +71,7 @@ export default function About() {
         </div>
       </section>
 
-      {/* Values */}
+      {/* Değerler */}
       <section className="section">
         <div className="container">
           <Reveal>
@@ -97,19 +91,21 @@ export default function About() {
         </div>
       </section>
 
-      {/* Mission */}
+      {/* CTA */}
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container" style={{ maxWidth: 760 }}>
           <div style={{ padding: '48px', background: 'linear-gradient(130deg, var(--bg-card) 0%, var(--bg-card-2) 100%)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
             <Reveal>
-              <div className="section-label">Misyonumuz</div>
-              <blockquote style={{ fontSize: 'clamp(18px, 2.5vw, 24px)', fontWeight: 700, lineHeight: 1.5, color: 'var(--text)', marginBottom: 24, fontStyle: 'italic' }}>
-                "Her insanın bilgi birikimini daha kolay organize etmesini, daha verimli paylaşmasını ve yapay zeka ile daha derin düşünmesini sağlamak."
-              </blockquote>
+              <h2 style={{ fontSize: 'clamp(18px, 2.5vw, 24px)', fontWeight: 800, marginBottom: 16 }}>
+                ZET ekosistemini keşfet
+              </h2>
+              <p style={{ fontSize: 15, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 28 }}>
+                Tek hesapla tüm uygulamalara erişirsin. Ücretsiz planla başla, ihtiyacına göre yükselt.
+              </p>
             </Reveal>
             <Reveal delay={0.1}>
               <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-                <Link to="/fiyatlandirma" className="btn btn-primary">Hemen Başla</Link>
+                <Link to="/fiyatlandirma" className="btn btn-primary">Planları Gör</Link>
                 <Link to="/destek" className="btn btn-secondary">Destek Al</Link>
               </div>
             </Reveal>

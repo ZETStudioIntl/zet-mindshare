@@ -14,19 +14,19 @@ function Reveal({ children, delay = 0 }) {
 }
 
 const RANKS = [
-  { name: 'Aday', xp: '0 XP', desc: 'Yolculuğun başlangıcı.', color: '#7a87b0' },
-  { name: 'Çırak', xp: '500 XP', desc: 'İlk adımlar atılıyor.', color: '#6dbf67' },
-  { name: 'Usta', xp: '2.000 XP', desc: 'Disiplin kazanılmaya başlandı.', color: '#4ca8ad' },
-  { name: 'Bilge', xp: '5.000 XP', desc: 'Derin bilgi ve tutarlılık.', color: '#a0aaff' },
-  { name: 'Hakim', xp: '12.000 XP', desc: 'Ustalık zirveye yaklaşıyor.', color: '#f4c542' },
-  { name: 'Mizan', xp: '25.000 XP', desc: 'Dengenin ve bilgeliğin sembolü.', color: '#ff7c56' },
+  { name: 'Demir', hours: '0 saat', desc: 'Başlangıç rankı. Her yolculuk buradan başlar.', color: '#7a87b0', rewards: '30 kredi · 50 ZP · 2 çark' },
+  { name: 'Gümüş', hours: '40 saat', desc: 'Alışkanlık kazanıyorsun.', color: '#c0c8d8', rewards: '200 kredi · 400 ZP · 2 kasa · 2 çark' },
+  { name: 'Altın', hours: '75 saat', desc: 'Kararlılık kendini gösteriyor.', color: '#f4c542', rewards: '500 kredi · 1.000 ZP · 4 kasa · 2 çark' },
+  { name: 'Elmas', hours: '130 saat', desc: 'Disiplin artık bir alışkanlık.', color: '#74c6f7', rewards: '800 kredi · 1.600 ZP · 7 kasa · 4 çark' },
+  { name: 'Zümrüt', hours: '230 saat', desc: 'Üst düzey bir kullanıcısın.', color: '#4ca8ad', rewards: '1.000 kredi · 2.400 ZP · 10 kasa · 5 çark' },
+  { name: 'Endless', hours: '400 saat', desc: 'Maksimum rank. Sınırın ötesinde.', color: '#a0aaff', rewards: '2.000 kredi · 3.000 ZP · 20 kasa · 7 çark · +Zeta paketi' },
 ];
 
 const HOW_IT_WORKS = [
-  { step: '01', title: 'Belge yaz', desc: 'Her yeni belge ve sayfa XP kazandırır. Düzenli çalışma bonus XP verir.' },
-  { step: '02', title: 'Görevleri tamamla', desc: 'Görev Haritası\'ndaki görevleri tamamlayarak büyük XP paketleri kazan.' },
-  { step: '03', title: 'Rank yükselt', desc: 'Biriken XP ile rankın yükselir. Her rank yeni avatarlar ve rozet açar.' },
-  { step: '04', title: 'Sezon ödülü al', desc: 'Her sezon sonunda rankına göre özel ödüller ve unvanlar verilir.' },
+  { step: '01', title: 'Aktif çalış', desc: 'ZET Mindshare\'de geçirdiğin aktif kullanım süresi otomatik izlenir.' },
+  { step: '02', title: 'Eşiği geç', desc: 'Belirli saat eşiklerini geçtikçe rankın otomatik yükselir.' },
+  { step: '03', title: 'Sezon biter', desc: 'Her sezon sonunda bulunduğun ranka göre ödüllerin hesabına yüklenir.' },
+  { step: '04', title: 'Ödülü kullan', desc: 'Kredi, ZP, kasa ve çark ödülleri 1 ay geçerlidir. ZP ile plan satın alabilirsin.' },
 ];
 
 export default function Mizan() {
@@ -39,24 +39,24 @@ export default function Mizan() {
         </div>
         <div className="container" style={{ position: 'relative', zIndex: 1 }}>
           <Reveal>
-            <div className="section-label">Mizan-ı ZET</div>
+            <div className="section-label">Rank Sistemi</div>
             <h1 className="section-title" style={{ maxWidth: 600, margin: '0 auto 20px' }}>
-              Üretkenliğini bir oyuna dönüştür
+              Çalıştıkça yükselen bir sistem
             </h1>
             <p className="section-desc" style={{ margin: '0 auto 40px' }}>
-              Mizan-ı ZET, çalışmalarını anlayan ve takip eden bir ilerleme sistemidir. Yaz, öğren, büyü — her adım sana geri döner.
+              ZET Mindshare'de geçirdiğin aktif kullanım süresi rankına yansır. 6 rank, sezonluk ödüller, kazanılmış ayrıcalıklar.
             </p>
-            <a href={APP_URL} className="btn btn-primary btn-lg">Sisteme Katıl</a>
+            <a href={APP_URL} className="btn btn-primary btn-lg">Hemen Başla</a>
           </Reveal>
         </div>
       </section>
 
-      {/* How it works */}
+      {/* Nasıl çalışır */}
       <section className="section">
         <div className="container">
           <Reveal>
             <div className="section-label" style={{ marginBottom: 14 }}>Nasıl Çalışır?</div>
-            <h2 className="section-title" style={{ marginBottom: 48 }}>Dört adımda üst ranka ulaş</h2>
+            <h2 className="section-title" style={{ marginBottom: 48 }}>Aktif kullan, rank kazan</h2>
           </Reveal>
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 24 }}>
             {HOW_IT_WORKS.map((h, i) => (
@@ -72,31 +72,35 @@ export default function Mizan() {
         </div>
       </section>
 
-      {/* Ranks */}
+      {/* Ranklar */}
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
           <Reveal>
             <div className="section-label" style={{ marginBottom: 14 }}>Ranklar</div>
-            <h2 className="section-title" style={{ marginBottom: 48 }}>Hangi seviyedesin?</h2>
+            <h2 className="section-title" style={{ marginBottom: 12 }}>6 rank, 6 hedef</h2>
+            <p style={{ fontSize: 15, color: 'var(--text-muted)', marginBottom: 48 }}>Sezon ödülleri 1 ay geçerlidir. ZP ile plan satın alabilirsin.</p>
           </Reveal>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 20 }}>
             {RANKS.map((r, i) => (
               <Reveal key={r.name} delay={i * 0.07}>
                 <div style={{
-                  padding: '28px 20px', textAlign: 'center',
+                  padding: '28px 20px',
                   background: 'var(--bg-card)',
-                  border: `1px solid ${r.name === 'Mizan' ? r.color : 'var(--border)'}`,
+                  border: `1px solid ${r.name === 'Endless' ? r.color : 'var(--border)'}`,
                   borderRadius: 'var(--radius)',
-                  boxShadow: r.name === 'Mizan' ? `0 0 30px ${r.color}33` : 'none',
+                  boxShadow: r.name === 'Endless' ? `0 0 30px ${r.color}33` : 'none',
                 }}>
-                  <div style={{ width: 52, height: 52, borderRadius: '50%', background: `${r.color}22`, border: `2px solid ${r.color}`, margin: '0 auto 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-                      <path d="M12 3l2.2 6.4H21l-5.6 4 2.2 6.4L12 16l-5.6 3.8 2.2-6.4L3 9.4h6.8z" fill={r.color} />
+                  <div style={{ width: 48, height: 48, borderRadius: '50%', background: `${r.color}22`, border: `2px solid ${r.color}`, margin: '0 0 16px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                      <path d="M11 2.5l2 5.8H19l-4.9 3.6 1.9 5.8L11 14.1 6 17.7l1.9-5.8L3 8.3h6z" fill={r.color} />
                     </svg>
                   </div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, color: r.color, marginBottom: 4 }}>{r.name}</h3>
-                  <p style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', marginBottom: 8 }}>{r.xp}</p>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>{r.desc}</p>
+                  <h3 style={{ fontSize: 17, fontWeight: 800, color: r.color, marginBottom: 2 }}>{r.name}</h3>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 700, fontVariantNumeric: 'tabular-nums', marginBottom: 8 }}>{r.hours}</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 14 }}>{r.desc}</p>
+                  <div style={{ padding: '10px 12px', background: 'rgba(255,255,255,0.04)', borderRadius: 8, fontSize: 12, color: 'var(--text-dim)', lineHeight: 1.6 }}>
+                    {r.rewards}
+                  </div>
                 </div>
               </Reveal>
             ))}
@@ -110,10 +114,10 @@ export default function Mizan() {
           <Reveal>
             <div style={{ background: 'linear-gradient(130deg, var(--purple) 0%, #1e266e 100%)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 'var(--radius)', padding: '48px 40px', textAlign: 'center' }}>
               <h2 style={{ fontSize: 'clamp(20px, 3vw, 32px)', fontWeight: 800, marginBottom: 16 }}>
-                Bugün "Aday" olarak başla,<br />bir gün "Mizan"a ulaş.
+                Demir'den başla, Endless'a ulaş.
               </h2>
               <p style={{ color: 'rgba(255,255,255,0.65)', fontSize: 16, marginBottom: 32 }}>
-                Her belge, her not, her görev seni ileriye taşır.
+                Her oturum rankına yansır. Her sezon ödülle biter.
               </p>
               <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
                 <a href={APP_URL} className="btn btn-teal btn-lg">Hesap Oluştur</a>
