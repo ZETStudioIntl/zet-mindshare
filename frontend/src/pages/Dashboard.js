@@ -1144,7 +1144,10 @@ const Dashboard = () => {
   const uploadDocToDrive = async (doc) => {
     try {
       showToast('Drive\'a yükleniyor...', 'info');
-      const blob = new Blob([JSON.stringify(doc)], { type: 'application/json' });
+      let jsonStr;
+      try { jsonStr = JSON.stringify(doc); } catch { showToast('Belge serileştirilemedi', 'error'); return; }
+      const blob = new Blob([jsonStr], { type: 'application/json' });
+      if (blob.size > 200 * 1024 * 1024) { showToast('Belge 200 MB sınırını aşıyor, yüklenemiyor', 'error'); return; }
       const file = new File([blob], `${doc.doc_id}.zetdoc`, { type: 'application/json' });
       const formData = new FormData();
       formData.append('file', file);

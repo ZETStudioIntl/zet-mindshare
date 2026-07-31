@@ -3216,7 +3216,7 @@ async def list_drive_files(user: User = Depends(get_current_user)):
 @api_router.post("/drive/upload")
 async def upload_drive_file(file: UploadFile = File(...), user: User = Depends(get_current_user)):
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
-    sub = _normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
+    sub = normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
     plan = sub.get("plan", "free")
     quota = DRIVE_QUOTA_BYTES.get(plan, DRIVE_QUOTA_BYTES["free"])
     agg = await db.drive_files.aggregate([
@@ -3228,15 +3228,25 @@ async def upload_drive_file(file: UploadFile = File(...), user: User = Depends(g
     file_size = len(content)
     if used + file_size > quota:
         raise HTTPException(status_code=413, detail="Depolama kotanız doldu. Planınızı yükseltin.")
+    if file_size > 200 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Dosya 200 MB sınırını aşıyor.")
     file_id = f"file_{uuid.uuid4().hex[:14]}"
     fname = file.filename or file_id
     ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "bin"
     key = f"drive/{user.user_id}/{file_id}.{ext}"
-    r2 = _get_r2()
-    await asyncio.to_thread(r2.put_object, Bucket=R2_BUCKET, Key=key, Body=content, ContentType=file.content_type or "application/octet-stream")
+    try:
+        r2 = _get_r2()
+        await asyncio.to_thread(r2.put_object, Bucket=R2_BUCKET, Key=key, Body=content, ContentType=file.content_type or "application/octet-stream")
+    except Exception as e:
+        logging.error(f"Drive R2 upload error user={user.user_id} size={file_size}: {e}")
+        raise HTTPException(status_code=503, detail="Depolama servisi şu an kullanılamıyor. Lütfen tekrar deneyin.")
     now = datetime.now(timezone.utc).isoformat()
     doc = {"file_id": file_id, "user_id": user.user_id, "name": fname, "size": file_size, "content_type": file.content_type or "application/octet-stream", "r2_key": key, "created_at": now}
-    await db.drive_files.insert_one(doc)
+    try:
+        await db.drive_files.insert_one(doc)
+    except Exception as e:
+        logging.error(f"Drive DB insert error: {e}")
+        raise HTTPException(status_code=500, detail="Veritabanı kaydı başarısız.")
     return {k: v for k, v in doc.items() if k != "_id"}
 
 @api_router.delete("/drive/files/{file_id}")
@@ -4731,7 +4741,7 @@ ZETA_MEMORY_LIMITS = {"free": 25, "plus": 75, "pro": 200, "creative_station": No
 @api_router.post("/zeta/memory")
 async def save_zeta_memory(content: str = Body(..., embed=True), user: User = Depends(get_current_user)):
     user_doc = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
-    sub = _normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
+    sub = normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
     plan = sub.get("plan", "free")
     limit = ZETA_MEMORY_LIMITS.get(plan, 25)
     if limit is not None:
