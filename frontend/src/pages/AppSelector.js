@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import { RainbowSpinner } from '../components/LoadingScreens';
 import axios from 'axios';
 import { motion } from 'framer-motion';
-import { SPRING, SPRING_FAST, STAGGER_CONTAINER, STAGGER_ITEM, haptic } from '../lib/animations';
+import { SPRING, SPRING_FAST, haptic } from '../lib/animations';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -77,11 +77,45 @@ const AppSelector = () => {
   const [hovered, setHovered] = useState(null);
   const [selecting, setSelecting] = useState(null);
   const [showCC, setShowCC] = useState(false);
+  const logoRef = useRef(null);
+  const cardsRef = useRef(null);
 
   useEffect(() => {
     axios.get(`${API}/ceo/check-cc`, { withCredentials: true })
       .then(r => { if (r.data.show) setShowCC(true); })
       .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const logo = logoRef.current;
+    const container = cardsRef.current;
+    if (!logo || !container) return;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      const lr = logo.getBoundingClientRect();
+      const lx = lr.left + lr.width / 2;
+      const ly = lr.top + lr.height / 2;
+      const wrappers = Array.from(container.children);
+      const offs = wrappers.map(w => {
+        const r = w.getBoundingClientRect();
+        return { dx: lx - (r.left + r.width / 2), dy: ly - (r.top + r.height / 2) };
+      });
+      wrappers.forEach((w, i) => {
+        w.style.transition = 'none';
+        w.style.transform = `translate(${offs[i].dx}px,${offs[i].dy}px) scale(0.12)`;
+        w.style.opacity = '0';
+        w.style.willChange = 'transform,opacity';
+      });
+      container.offsetHeight;
+      wrappers.forEach((w, i) => {
+        setTimeout(() => {
+          w.style.transition = 'transform 0.64s cubic-bezier(0.22,1,0.36,1), opacity 0.28s ease';
+          w.style.transform = '';
+          w.style.opacity = '';
+        }, 80 + i * 100);
+      });
+      const cleanup = 80 + wrappers.length * 100 + 700;
+      setTimeout(() => wrappers.forEach(w => { w.style.transition = ''; w.style.willChange = ''; }), cleanup);
+    }));
   }, []);
 
   const bgColor = hovered === 'judge' ? '#12020c' : hovered === 'mindshare' ? '#080a1a' : hovered === 'media' ? '#050505' : hovered === 'control-center' ? '#0d0000' : '#0a0d1a';
@@ -132,6 +166,7 @@ const AppSelector = () => {
         style={{ textAlign: 'center', marginBottom: 56 }}
       >
         <motion.img
+          ref={logoRef}
           src="/logo-cs.svg"
           alt="ZET Portal"
           layoutId="zet-portal-logo"
@@ -145,19 +180,15 @@ const AppSelector = () => {
         </p>
       </motion.div>
 
-      <motion.div
-        variants={STAGGER_CONTAINER}
-        initial="initial"
-        animate="animate"
+      <div
+        ref={cardsRef}
         style={{ display: 'flex', gap: 20, flexWrap: 'wrap', justifyContent: 'center', maxWidth: 860, width: '100%' }}
       >
         {allApps.map((app) => {
           const isHovered = hovered === app.id;
           const isSelecting = selecting === app.id;
-          return (
+          const cardInner = (
             <motion.button
-              key={app.id}
-              variants={STAGGER_ITEM}
               layoutId={`app-card-${app.id}`}
               onClick={() => handleSelect(app)}
               onHoverStart={() => setHovered(app.id)}
@@ -167,8 +198,7 @@ const AppSelector = () => {
               animate={{ opacity: selecting && !isSelecting ? 0.45 : 1 }}
               transition={SPRING}
               style={{
-                flex: '1 1 340px',
-                maxWidth: 400,
+                width: '100%',
                 padding: '32px 28px',
                 borderRadius: 20,
                 border: `1px solid ${isHovered ? app.borderGlow : 'rgba(255,255,255,0.07)'}`,
@@ -216,8 +246,13 @@ const AppSelector = () => {
               </div>
             </motion.button>
           );
+          return (
+            <div key={app.id} style={{ flex: '1 1 340px', maxWidth: 400 }}>
+              {cardInner}
+            </div>
+          );
         })}
-      </motion.div>
+      </div>
 
       <motion.p
         initial={{ opacity: 0 }}

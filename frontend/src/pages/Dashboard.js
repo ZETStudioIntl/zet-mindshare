@@ -74,6 +74,40 @@ const ZetaIcon = ({ size = 14, color = '#4ca8ad' }) => (
 );
 
 
+function scatterFromCenter(gridEl) {
+  if (!gridEl) return;
+  const cards = Array.from(gridEl.children);
+  if (cards.length < 2) return;
+  const gridRect = gridEl.getBoundingClientRect();
+  const cx = gridRect.width / 2;
+  const cy = gridRect.height / 2;
+  const offsets = cards.map(card => {
+    const r = card.getBoundingClientRect();
+    return {
+      dx: cx - (r.left - gridRect.left + r.width / 2),
+      dy: cy - (r.top - gridRect.top + r.height / 2),
+    };
+  });
+  cards.forEach((card, i) => {
+    card.style.transition = 'none';
+    card.style.willChange = 'transform, opacity';
+    card.style.transform = `translate(${offsets[i].dx}px, ${offsets[i].dy}px) scale(0.84)`;
+    card.style.opacity = '0';
+  });
+  gridEl.offsetHeight;
+  cards.forEach((card, i) => {
+    setTimeout(() => {
+      card.style.transition = 'transform 0.48s cubic-bezier(0.22,1,0.36,1), opacity 0.32s ease';
+      card.style.transform = '';
+      card.style.opacity = '';
+    }, i * 28);
+  });
+  const cleanup = cards.length * 28 + 530;
+  setTimeout(() => {
+    cards.forEach(card => { card.style.willChange = ''; });
+  }, cleanup);
+}
+
 const Dashboard = () => {
   const { user, logout, updateUser } = useAuth();
   const { t, language, changeLanguage } = useLanguage();
@@ -177,6 +211,12 @@ const Dashboard = () => {
   const docsSkipRef = useRef(0);
   const docsLoadingMoreRef = useRef(false);
   const docsBottomRef = useRef(null);
+  const docsGridRef = useRef(null);
+  const docsAnimatedRef = useRef(false);
+  const notesListRef = useRef(null);
+  const notesAnimatedRef = useRef(false);
+  const settingsSidebarRef = useRef(null);
+  const settingsAnimatedRef = useRef(false);
   const [completedQuestCount, setCompletedQuestCount] = useState(0);
   const [showRankBadge, setShowRankBadge] = useState(() => localStorage.getItem('zet_show_rank') !== 'false');
   
@@ -520,6 +560,71 @@ const Dashboard = () => {
     const interval = setInterval(fetchNotes, 300000);
     return () => clearInterval(interval);
   }, []);
+
+  useEffect(() => {
+    if (documents.length > 0 && !docsAnimatedRef.current) {
+      docsAnimatedRef.current = true;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        scatterFromCenter(docsGridRef.current);
+      }));
+    }
+  }, [documents.length]);
+
+  useEffect(() => {
+    if (activeTab === 'notes' && !notesAnimatedRef.current) {
+      notesAnimatedRef.current = true;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const el = notesListRef.current;
+        if (!el) return;
+        const items = Array.from(el.children);
+        if (items.length === 0) return;
+        items.forEach(item => {
+          item.style.transition = 'none';
+          item.style.transform = 'translateY(48px)';
+          item.style.opacity = '0';
+          item.style.willChange = 'transform,opacity';
+        });
+        el.offsetHeight;
+        items.forEach((item, i) => {
+          setTimeout(() => {
+            item.style.transition = 'transform 0.44s cubic-bezier(0.22,1,0.36,1), opacity 0.28s ease';
+            item.style.transform = '';
+            item.style.opacity = '';
+          }, i * 68);
+        });
+        setTimeout(() => items.forEach(item => { item.style.willChange = ''; }), items.length * 68 + 480);
+      }));
+    }
+    if (activeTab !== 'notes') notesAnimatedRef.current = false;
+  }, [activeTab]);
+
+  useEffect(() => {
+    if (showSettings && !settingsAnimatedRef.current) {
+      settingsAnimatedRef.current = true;
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const el = settingsSidebarRef.current;
+        if (!el) return;
+        const items = Array.from(el.children);
+        if (items.length === 0) return;
+        items.forEach(item => {
+          item.style.transition = 'none';
+          item.style.transform = 'translateX(52px)';
+          item.style.opacity = '0';
+          item.style.willChange = 'transform,opacity';
+        });
+        el.offsetHeight;
+        items.forEach((item, i) => {
+          setTimeout(() => {
+            item.style.transition = 'transform 0.38s cubic-bezier(0.22,1,0.36,1), opacity 0.22s ease';
+            item.style.transform = '';
+            item.style.opacity = '';
+          }, i * 44);
+        });
+        setTimeout(() => items.forEach(item => { item.style.willChange = ''; }), items.length * 44 + 420);
+      }));
+    }
+    if (!showSettings) settingsAnimatedRef.current = false;
+  }, [showSettings]);
 
   // Not menüsünü dışarı tıklayınca kapat
   useEffect(() => {
@@ -1973,7 +2078,7 @@ MATCHES:[1,3,5]`;
           {/* Body: sidebar + content */}
           <div className="flex flex-1 min-h-0">
             {/* Left sidebar - full screen on mobile when sidebar open, hidden when content shown */}
-            <div className={`${mobileSettingsSidebar ? 'flex flex-col' : 'hidden'} md:flex md:flex-col w-full md:w-56 flex-shrink-0 border-r overflow-y-auto py-4 px-3`} style={{ borderColor: 'var(--zet-border)' }}>
+            <div ref={settingsSidebarRef} className={`${mobileSettingsSidebar ? 'flex flex-col' : 'hidden'} md:flex md:flex-col w-full md:w-56 flex-shrink-0 border-r overflow-y-auto py-4 px-3`} style={{ borderColor: 'var(--zet-border)' }}>
               {/* Profil özeti */}
               <div className="flex items-center gap-3 px-3 pb-4 mb-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
                 <img src={user?.picture || 'https://via.placeholder.com/36'} alt="" className="w-9 h-9 rounded-full flex-shrink-0" />
@@ -3541,7 +3646,7 @@ MATCHES:[1,3,5]`;
             </div>
           )}
 
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
+          <div ref={docsGridRef} className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 mb-6">
             {/* New Document Card — hidden during import */}
             {!importMode && (
             <button
@@ -3860,7 +3965,7 @@ MATCHES:[1,3,5]`;
               )}
             </div>
 
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-3" style={{ paddingBottom: 80 }}>
+            <div ref={notesListRef} className="flex-1 min-h-0 overflow-y-auto space-y-3" style={{ paddingBottom: 80 }}>
               {/* Defterler */}
               {notebooks.filter(nb => !searchQuery || nb.name.toLowerCase().includes(searchQuery.toLowerCase())).map(nb => {
                 const hasPassword = !!(nb.password_hash || nb.has_password);
