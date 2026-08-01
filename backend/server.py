@@ -9012,34 +9012,24 @@ async def assetlinks():
         }
     }])
 
-# Desktop indirme — R2'deki dosyayı direkt Content-Disposition: attachment ile yönlendir
+# Desktop indirme — GitHub'dan stream et, Content-Disposition: attachment ile direkt indir
 @app.get("/download/windows", include_in_schema=False)
 async def download_windows():
-    from fastapi.responses import RedirectResponse
-    return RedirectResponse(
-        f"{R2_PUBLIC_URL}/downloads/ZET-Portal-Setup-1.0.0.exe",
-        status_code=302
-    )
-
-# Geçici: GitHub Release'teki exe'yi R2'ye yükle (bir kez çalıştır, sonra silinecek)
-@app.post("/admin/upload-windows-release", include_in_schema=False)
-async def upload_windows_release():
-    import httpx, io
+    import httpx
+    from fastapi.responses import StreamingResponse
     GITHUB_URL = "https://github.com/ZETStudioIntl/zet-mindshare/releases/download/desktop-v1.0.0/ZET.Portal.Setup.1.0.0.exe"
-    async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
-        resp = await client.get(GITHUB_URL)
-        resp.raise_for_status()
-    r2 = _get_r2()
-    r2.upload_fileobj(
-        io.BytesIO(resp.content),
-        R2_BUCKET,
-        "downloads/ZET-Portal-Setup-1.0.0.exe",
-        ExtraArgs={
-            "ContentType": "application/octet-stream",
-            "ContentDisposition": 'attachment; filename="ZET Portal Setup 1.0.0.exe"',
-        }
+    client = httpx.AsyncClient(follow_redirects=True, timeout=300)
+    resp = await client.get(GITHUB_URL)
+    resp.raise_for_status()
+    async def stream():
+        async for chunk in resp.aiter_bytes(65536):
+            yield chunk
+        await client.aclose()
+    return StreamingResponse(
+        stream(),
+        media_type="application/octet-stream",
+        headers={"Content-Disposition": 'attachment; filename="ZET Portal Setup 1.0.0.exe"'},
     )
-    return {"url": f"{R2_PUBLIC_URL}/downloads/ZET-Portal-Setup-1.0.0.exe"}
 
 # ZET Media router
 from media_router import media_router, set_media_db
