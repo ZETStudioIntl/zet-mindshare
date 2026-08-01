@@ -9012,6 +9012,37 @@ async def assetlinks():
         }
     }])
 
+# Desktop indirme — R2'deki dosyayı direkt Content-Disposition: attachment ile yönlendir
+@app.get("/download/windows", include_in_schema=False)
+async def download_windows():
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(
+        f"{R2_PUBLIC_URL}/downloads/ZET-Portal-Setup-1.0.0.exe",
+        status_code=302
+    )
+
+# Admin: GitHub Release'teki exe'yi R2'ye yükle (bir kez çalıştır)
+@app.post("/admin/upload-windows-release", include_in_schema=False)
+async def upload_windows_release(key: str):
+    if key != os.getenv("ADMIN_KEY", ""):
+        raise HTTPException(status_code=403)
+    import httpx, io
+    GITHUB_URL = "https://github.com/ZETStudioIntl/zet-mindshare/releases/download/desktop-v1.0.0/ZET.Portal.Setup.1.0.0.exe"
+    async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
+        resp = await client.get(GITHUB_URL)
+        resp.raise_for_status()
+    r2 = _get_r2()
+    r2.upload_fileobj(
+        io.BytesIO(resp.content),
+        R2_BUCKET,
+        "downloads/ZET-Portal-Setup-1.0.0.exe",
+        ExtraArgs={
+            "ContentType": "application/octet-stream",
+            "ContentDisposition": 'attachment; filename="ZET Portal Setup 1.0.0.exe"',
+        }
+    )
+    return {"url": f"{R2_PUBLIC_URL}/downloads/ZET-Portal-Setup-1.0.0.exe"}
+
 # ZET Media router
 from media_router import media_router, set_media_db
 set_media_db(db)
