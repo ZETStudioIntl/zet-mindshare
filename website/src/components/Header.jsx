@@ -1,13 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import ZetLogoSrc from '../assets/zet-logo.svg';
 
 const APP_URL = 'https://app.zetstudiointl.com';
 
 const ZetLogo = () => (
-  <svg width="88" height="28" viewBox="0 0 88 28" fill="none">
-    <text x="0" y="22" fontSize="22" fontWeight="800" fill="#ffffff" fontFamily="DM Sans, sans-serif" letterSpacing="-1">ZET</text>
-    <rect x="52" y="8" width="4" height="4" rx="1" fill="#4ca8ad" />
-  </svg>
+  <img src={ZetLogoSrc} alt="ZET Studio" height="28" style={{ width: 'auto', filter: 'brightness(0) invert(1)' }} />
 );
 
 const NAV_LINKS = [

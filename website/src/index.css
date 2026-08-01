@@ -1,15 +1,15 @@
 :root {
-  --purple: #292F91;
-  --purple-mid: #3545c8;
-  --purple-light: #4056e0;
-  --purple-glow: rgba(41, 47, 145, 0.35);
+  --purple: #004e64;
+  --purple-mid: #006880;
+  --purple-light: #008fa8;
+  --purple-glow: rgba(0, 78, 100, 0.35);
   --teal: #4ca8ad;
   --teal-glow: rgba(76, 168, 173, 0.3);
   --bg: #070916;
   --bg-2: #0a0d1a;
   --bg-card: #0d1029;
   --bg-card-2: #101430;
-  --text: #e8eaf4;
+  --text: #e0e5e9;
   --text-muted: #7a87b0;
   --text-dim: #4a5580;
   --border: rgba(255,255,255,0.07);
@@ -70,7 +70,7 @@ ul { list-style: none; }
   color: var(--text);
   border: 1px solid var(--border-2);
 }
-.btn-secondary:hover { border-color: var(--purple); color: #fff; background: rgba(41,47,145,0.12); }
+.btn-secondary:hover { border-color: var(--purple); color: #fff; background: rgba(0,78,100,0.12); }
 .btn-teal {
   background: var(--teal);
   color: #070916;
@@ -130,9 +130,9 @@ ul { list-style: none; }
   border-radius: 99px;
   font-size: 12px;
   font-weight: 600;
-  background: rgba(41,47,145,0.18);
-  color: #a0aaff;
-  border: 1px solid rgba(41,47,145,0.35);
+  background: rgba(0,78,100,0.18);
+  color: #7fd6e8;
+  border: 1px solid rgba(0,78,100,0.35);
 }
 .badge-teal {
   background: rgba(76,168,173,0.15);

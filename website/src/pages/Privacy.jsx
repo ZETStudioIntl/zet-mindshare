@@ -12,17 +12,17 @@ const SECTIONS = [
   {
     id: 'kullanim-amaci',
     title: '2. Verilerin Kullanım Amacı',
-    content: `Topladığımız verileri şu amaçlarla kullanırız:\n• Hizmetlerimizi sunmak ve sürdürmek\n• Hesabınızı yönetmek ve abonelik işlemlerini gerçekleştirmek\n• Hizmet kalitesini artırmak için anonim analiz yapmak\n• Güvenlik tehditlerini tespit etmek ve önlemek\n• Yasal yükümlülükleri yerine getirmek\n\nVerilerinizi başkalarına satmıyoruz, kiralamıyoruz ve pazarlama amaçlı üçüncü taraflarla paylaşmıyoruz.`,
+    content: `Topladığımız verileri şu amaçlarla kullanırız:\n• Hizmetlerimizi sunmak ve sürdürmek\n• Hesabınızı yönetmek ve abonelik işlemlerini gerçekleştirmek\n• Hizmet kalitesini artırmak için anonim analiz yapmak\n• Güvenlik tehditlerini tespit etmek ve önlemek\n• Yasal yükümlülükleri yerine getirmek\n\nVerilerinizi başkalarına satmıyoruz, kiralamıyoruz ve pazarlama amaçlı üçüncü taraflarla paylaşmıyoruz. Mahkeme kararı veya yasal zorunluluk halinde yetkili mercilerle paylaşım yapılabilir.\n\nHizmet kalitesini artırmak amacıyla anonim ve anonimleştirilmiş veriler gelecekte model iyileştirmesinde kullanılabilir. Bu durumda kişisel tanımlamaya olanak tanıyacak hiçbir veri işlenmez.`,
   },
   {
     id: 'ai-veriler',
     title: '3. AI ve İçerik Gizliliği',
-    content: `Zeta AI asistanına ilettiğiniz mesajlar ve belgeler, yapay zeka modelini eğitmek amacıyla kullanılmaz. Belgeleriniz yalnızca sizin oturumunuzda işlenir.\n\nAI özelliklerini kullanırken ilettiğiniz içerikler, hizmet sağlayıcı altyapısı (Claude API) üzerinden işlenebilir. Bu sağlayıcıların kendi gizlilik politikaları geçerlidir.`,
+    content: `Zeta AI asistanına ilettiğiniz mesajlar ve belgeler, yapay zeka modelini eğitmek amacıyla kullanılmaz. Belgeleriniz yalnızca sizin oturumunuzda işlenir.\n\nAI özelliklerini kullanırken ilettiğiniz içerikler, yapay zeka hizmet sağlayıcısı altyapıları üzerinden işlenebilir. Bu sağlayıcıların kendi gizlilik politikaları geçerlidir.`,
   },
   {
     id: 'depolama',
     title: '4. Veri Depolama ve Güvenlik',
-    content: `Belgeleriniz Cloudflare R2 altyapısında şifreli olarak saklanır. Veritabanı MongoDB Atlas üzerinde çalışır ve güvenlik standartlarına uygun yapılandırılmıştır.\n\nGüvenlik olayı tespiti halinde kayıtlı e-posta adresinize 72 saat içinde bildirim gönderilir.`,
+    content: `Belgeleriniz Cloudflare R2 altyapısında şifreli olarak saklanır. Veritabanı MongoDB Atlas üzerinde çalışır ve güvenlik standartlarına uygun yapılandırılmıştır.\n\nGüvenlik olayı tespiti halinde kayıtlı e-posta adresinize 72 saat içinde bildirim gönderilir.\n\nCloudflare R2 ve MongoDB Atlas altyapısından kaynaklanan veri kayıplarında ZET'in sorumluluğu, bu hizmet sağlayıcıların kendi hizmet koşullarıyla sınırlıdır.`,
   },
   {
     id: 'ucuncu-taraf',

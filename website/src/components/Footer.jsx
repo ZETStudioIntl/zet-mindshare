@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import ZetLogoSrc from '../assets/zet-logo.svg';
 
 const APP_URL = 'https://app.zetstudiointl.com';
 
@@ -22,10 +23,7 @@ const LINKS = {
 };
 
 const ZetLogo = () => (
-  <svg width="80" height="24" viewBox="0 0 80 24" fill="none">
-    <text x="0" y="20" fontSize="20" fontWeight="800" fill="#ffffff" fontFamily="DM Sans, sans-serif" letterSpacing="-1">ZET</text>
-    <rect x="48" y="6" width="4" height="4" rx="1" fill="#4ca8ad" />
-  </svg>
+  <img src={ZetLogoSrc} alt="ZET Studio" height="24" style={{ width: 'auto', filter: 'brightness(0) invert(1)' }} />
 );
 
 export default function Footer() {

@@ -1,6 +1,14 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useScrollReveal } from '../hooks/useScrollReveal';
+import MindshareLogoSrc from '../assets/zet-mindshare-logo.svg';
+import JudgeLogoSrc from '../assets/zet-judge-logo.svg';
+import RankIron from '../assets/rank-iron.svg';
+import RankSilver from '../assets/rank-silver.svg';
+import RankGold from '../assets/rank-gold.svg';
+import RankDiamond from '../assets/rank-diamond.svg';
+import RankEmerald from '../assets/rank-emerald.svg';
+import RankEndless from '../assets/rank-endless.svg';
 
 const APP_URL = 'https://app.zetstudiointl.com';
 
@@ -20,7 +28,7 @@ function HeroBlob() {
       <div style={{
         position: 'absolute', top: '-30%', left: '30%', width: '70vw', height: '70vw',
         maxWidth: 900, maxHeight: 900,
-        background: 'radial-gradient(ellipse at center, rgba(41,47,145,0.45) 0%, transparent 70%)',
+        background: 'radial-gradient(ellipse at center, rgba(0,78,100,0.45) 0%, transparent 70%)',
         animation: 'blobA 14s ease-in-out infinite alternate',
         borderRadius: '60% 40% 50% 60% / 50% 60% 40% 50%',
       }} />
@@ -39,7 +47,7 @@ function HeroBlob() {
   );
 }
 
-function AppCard({ name, tag, desc, badge, delay }) {
+function AppCard({ name, logo, desc, badge, delay }) {
   const [hovered, setHovered] = useState(false);
   return (
     <Reveal delay={delay}>
@@ -56,16 +64,11 @@ function AppCard({ name, tag, desc, badge, delay }) {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
-          <div style={{
-            width: 48, height: 48, borderRadius: 12,
-            background: 'rgba(41,47,145,0.2)',
-            border: '1px solid rgba(41,47,145,0.35)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
-              <text x="2" y="17" fontSize="14" fontWeight="900" fill="#a0aaff" fontFamily="DM Sans,sans-serif">{tag}</text>
-            </svg>
-          </div>
+          <img
+            src={logo}
+            alt={name}
+            style={{ width: 48, height: 48, borderRadius: 12, objectFit: 'cover', flexShrink: 0 }}
+          />
           {badge && <span className={`badge ${badge === 'Beta' ? 'badge-soon' : ''}`}>{badge}</span>}
         </div>
         <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{name}</h3>
@@ -77,19 +80,14 @@ function AppCard({ name, tag, desc, badge, delay }) {
 
 const APPS = [
   {
-    tag: 'MS',
+    logo: MindshareLogoSrc,
     name: 'ZET Mindshare',
     desc: 'Akıllı belge editörü ve not alma platformu. Zeta AI asistanı, canvas araçları ve Prime Drive ile düşüncelerini organize et.',
   },
   {
-    tag: 'JD',
+    logo: JudgeLogoSrc,
     name: 'ZET Judge',
     desc: 'İş planı değerlendirmesi, risk analizi ve AI tabanlı stratejik danışmanlık. Fikirlerini sorgula, kararlarını güçlendir.',
-  },
-  {
-    tag: 'MD',
-    name: 'ZET Media',
-    desc: 'Bağımsız sosyal medya ve mesajlaşma platformu. Akış, keşfet ve doğrudan mesajlaşma.',
     badge: 'Beta',
   },
 ];
@@ -98,13 +96,13 @@ function PlanCard({ name, price, yearlyPrice, desc, features, highlighted, delay
   return (
     <Reveal delay={delay}>
       <div style={{
-        background: highlighted ? 'linear-gradient(160deg, var(--purple) 0%, #1e266e 100%)' : 'var(--bg-card)',
+        background: highlighted ? 'linear-gradient(160deg, var(--purple) 0%, #003348 100%)' : 'var(--bg-card)',
         border: `1px solid ${highlighted ? 'rgba(255,255,255,0.15)' : 'var(--border)'}`,
         borderRadius: 'var(--radius)',
         padding: '32px 28px',
         display: 'flex', flexDirection: 'column',
         position: 'relative',
-        boxShadow: highlighted ? '0 0 60px rgba(41,47,145,0.4)' : 'none',
+        boxShadow: highlighted ? '0 0 60px rgba(0,78,100,0.4)' : 'none',
       }}>
         {highlighted && (
           <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)' }}>
@@ -155,7 +153,7 @@ export default function Home() {
             <span style={{ color: 'var(--teal)' }}>Hepsi bir yerde.</span>
           </h1>
           <p style={{ fontSize: 'clamp(16px, 2vw, 20px)', color: 'var(--text-muted)', maxWidth: 580, margin: '0 auto 40px', lineHeight: 1.7 }}>
-            ZET; belge editörü, AI danışmanı ve sosyal platform uygulamalarını tek çatı altında toplayan üretkenlik ekosistemi.
+            ZET; belge editörü ve AI danışmanı uygulamalarını tek çatı altında toplayan üretkenlik ekosistemi.
           </p>
           <div style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
             <a href={APP_URL} className="btn btn-primary btn-lg">Ücretsiz Başla</a>
@@ -177,15 +175,18 @@ export default function Home() {
                 <div key={c} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
               ))}
             </div>
-            <div style={{ height: 320, background: 'linear-gradient(160deg, #0d1029 0%, #0a0d1a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 24, flexWrap: 'wrap', padding: 32 }}>
-              {['Mindshare', 'Judge', 'Media'].map((app, i) => (
-                <div key={app} style={{ textAlign: 'center', opacity: i === 0 ? 1 : 0.4 }}>
-                  <div style={{ width: 56, height: 56, borderRadius: 14, background: 'var(--purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 10px' }}>
-                    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-                      <text x="4" y="21" fontSize="14" fontWeight="900" fill="#fff" fontFamily="DM Sans,sans-serif">{app.slice(0,2)}</text>
-                    </svg>
-                  </div>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>ZET {app}</p>
+            <div style={{ height: 320, background: 'linear-gradient(160deg, #0d1029 0%, #0a0d1a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
+              {[
+                { name: 'Mindshare', logo: MindshareLogoSrc },
+                { name: 'Judge', logo: JudgeLogoSrc },
+              ].map((app, i) => (
+                <div key={app.name} style={{ textAlign: 'center', opacity: i === 0 ? 1 : 0.6 }}>
+                  <img
+                    src={app.logo}
+                    alt={app.name}
+                    style={{ width: 64, height: 64, borderRadius: 16, objectFit: 'cover', margin: '0 auto 12px', display: 'block' }}
+                  />
+                  <p style={{ color: 'var(--text-muted)', fontSize: 13, fontWeight: 600 }}>ZET {app.name}</p>
                 </div>
               ))}
             </div>
@@ -201,7 +202,7 @@ export default function Home() {
               <div className="section-label">Uygulamalar</div>
               <h2 className="section-title">Tek hesap, tüm ekosistem</h2>
               <p className="section-desc" style={{ margin: '0 auto' }}>
-                ZET hesabınla Mindshare, Judge ve Media uygulamalarına aynı anda erişirsin. Yeni uygulamalar yolda.
+                ZET hesabınla Mindshare ve Judge uygulamalarına aynı anda erişirsin. Yeni uygulamalar yolda.
               </p>
             </Reveal>
           </div>
@@ -242,12 +243,56 @@ export default function Home() {
         </div>
       </section>
 
+      {/* RANK SİSTEMİ */}
+      <section className="section" style={{ paddingTop: 0 }}>
+        <div className="container">
+          <div style={{ textAlign: 'center', maxWidth: 560, margin: '0 auto 48px' }}>
+            <Reveal>
+              <div className="section-label">Rank Sistemi</div>
+              <h2 className="section-title">6 rütbe, sonsuz ilerleme</h2>
+              <p className="section-desc" style={{ margin: '0 auto' }}>
+                Uygulamayı kullandıkça XP kazan, rütbeni yükselt. Her sezon sıfırlanır ve yeni ödüller seni bekler.
+              </p>
+            </Reveal>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: 16 }} className="rank-grid">
+            {[
+              { icon: RankIron,    name: 'Demir',  xp: 0,   color: '#9ca3af' },
+              { icon: RankSilver,  name: 'Gümüş', xp: 40,  color: '#cdd2d6' },
+              { icon: RankGold,    name: 'Altın',  xp: 75,  color: '#f59e0b' },
+              { icon: RankDiamond, name: 'Elmas',  xp: 130, color: '#818cf8' },
+              { icon: RankEmerald, name: 'Zümrüt', xp: 230, color: '#34d399' },
+              { icon: RankEndless, name: 'Endless', xp: 400, color: '#ef4444' },
+            ].map((rank, i) => (
+              <Reveal key={rank.name} delay={i * 0.07}>
+                <div style={{
+                  background: 'var(--bg-card)',
+                  border: `1px solid var(--border)`,
+                  borderRadius: 'var(--radius)',
+                  padding: '20px 12px 16px',
+                  textAlign: 'center',
+                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                }}>
+                  <img src={rank.icon} alt={rank.name} style={{ height: 44, width: 'auto' }} />
+                  <p style={{ fontSize: 14, fontWeight: 700, color: rank.color }}>{rank.name}</p>
+                  <p style={{ fontSize: 12, color: 'var(--text-dim)' }}>{rank.xp === 0 ? 'Başlangıç' : `${rank.xp} XP`}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+          <style>{`
+            @media (max-width: 860px) { .rank-grid { grid-template-columns: repeat(3, 1fr) !important; } }
+            @media (max-width: 480px) { .rank-grid { grid-template-columns: repeat(2, 1fr) !important; } }
+          `}</style>
+        </div>
+      </section>
+
       {/* CTA */}
       <section className="section" style={{ paddingTop: 0 }}>
         <div className="container">
           <Reveal>
             <div style={{
-              background: 'linear-gradient(130deg, var(--purple) 0%, #1e266e 60%, #102025 100%)',
+              background: 'linear-gradient(130deg, var(--purple) 0%, #003348 60%, #102025 100%)',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 'var(--radius)',
               padding: 'clamp(40px, 6vw, 72px) clamp(28px, 6vw, 72px)',
