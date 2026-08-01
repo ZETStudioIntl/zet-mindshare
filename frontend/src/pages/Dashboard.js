@@ -4780,6 +4780,7 @@ MATCHES:[1,3,5]`;
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingCaseId));
             if (r.type === 'zp') setUserZP(prev => prev + r.amount);
+            if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);
           }}
         />
       )}
@@ -4793,6 +4794,7 @@ MATCHES:[1,3,5]`;
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingWheelId));
             if (r.type === 'zp') setUserZP(prev => prev + r.amount);
+            if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);
           }}
         />
       )}
