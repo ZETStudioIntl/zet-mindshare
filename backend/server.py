@@ -5682,7 +5682,9 @@ async def zeta_patch_scan(request: Request, req: PatchScanRequest, user: User = 
     if not api_key:
         return JSONResponse({"detail": "GEMINI_API_KEY eksik"}, status_code=500, headers=cors_h)
 
-    can_word = user.plan != 'free'
+    user_doc_ps = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
+    plan_ps = get_plan_name(user_doc_ps or {})
+    can_word = plan_ps != 'free'
     ignore_str = ', '.join(f'"{w}"' for w in req.ignore_list) if req.ignore_list else 'Yok'
     system_prompt = f"""Sen profesyonel bir yazım denetçisisin.
 {"Sadece yazım hatalarını (yanlış yazılmış kelimeler) tespit et." if not can_word else "Hem yazım hatalarını hem eksik/fazla kelimeleri tespit et."}
@@ -5729,7 +5731,7 @@ async def zeta_patch_accept(req: PatchAcceptRequest, user: User = Depends(get_cu
         raise HTTPException(402, f"Yetersiz kredi. Bu işlem {total_cost} kredi gerektirir.")
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     await db.usage.update_one({"user_id": user.user_id, "date": today}, {"$inc": {"credits_used": total_cost}}, upsert=True)
-    daily_limit = PLAN_LIMITS.get(user.plan, PLAN_LIMITS['free']).get('daily_credits', 0)
+    daily_limit = PLAN_LIMITS.get(credit_info.get('plan', 'free'), PLAN_LIMITS['free']).get('daily_credits', 0)
     new_used = credit_info['credits_used'] + total_cost
     overspend = new_used - daily_limit
     if overspend > 0 and credit_info.get('bonus_credits', 0) > 0:

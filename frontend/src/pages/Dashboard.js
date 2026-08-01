@@ -2111,7 +2111,7 @@ MATCHES:[1,3,5]`;
                   ...dynStyle,
                 }}
               >
-                Merhaba, {user.name.split(' ')[0]}
+                {t('greeting')}, {user.name.split(' ')[0]}
               </span>
             );
           })()}
@@ -2403,23 +2403,23 @@ MATCHES:[1,3,5]`;
                       return (
                         <div className="p-4 rounded-xl space-y-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.06)' }}>
                           <div className="flex items-center gap-2">
-                            <span className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>Selamlama Stili</span>
+                            <span className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>{t('greetingStyleTitle')}</span>
                             {isPro ? (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa' }}>PRO</span>
                             ) : (
-                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(120,120,140,0.15)', color: 'var(--zet-text-dim)' }}>Pro ile aç</span>
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(120,120,140,0.15)', color: 'var(--zet-text-dim)' }}>{t('greetingStyleProLabel')}</span>
                             )}
                           </div>
                           {!isPro ? (
-                            <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Pro veya Creative Station aboneliğiyle selamlama rengini ve stilini özelleştirebilirsin.</p>
+                            <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('greetingStyleProDesc')}</p>
                           ) : (
                             <div className="space-y-4">
                               {/* Stil seçici */}
                               <div className="grid grid-cols-3 gap-2">
                                 {[
-                                  { id: 'solid',    label: 'Düz Renk' },
-                                  { id: 'shimmer',  label: 'Parlak Düz' },
-                                  { id: 'gradient', label: 'Hareketli Gradient' },
+                                  { id: 'solid',    label: t('greetingStyleSolid') },
+                                  { id: 'shimmer',  label: t('greetingStyleShimmer') },
+                                  { id: 'gradient', label: t('greetingStyleGradient') },
                                 ].map(opt => (
                                   <button
                                     key={opt.id}
@@ -2436,7 +2436,7 @@ MATCHES:[1,3,5]`;
                               {/* Düz renk / parlak */}
                               {(gStyle === 'solid' || gStyle === 'shimmer') && (
                                 <div className="flex items-center gap-3">
-                                  <label className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Renk</label>
+                                  <label className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('greetingStyleColor')}</label>
                                   <input
                                     type="color"
                                     value={gColor}
@@ -2449,7 +2449,7 @@ MATCHES:[1,3,5]`;
                               {/* Gradient renkleri */}
                               {gStyle === 'gradient' && (
                                 <div className="space-y-2">
-                                  <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Gradient renkleri (en az 2)</p>
+                                  <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('greetingStyleGradientColors')}</p>
                                   <div className="flex flex-wrap gap-2">
                                     {gColors.map((c, i) => (
                                       <div key={i} className="flex items-center gap-1">
@@ -2484,7 +2484,7 @@ MATCHES:[1,3,5]`;
                               )}
                               {/* Önizleme */}
                               <div className="flex items-center gap-2 pt-1">
-                                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Önizleme:</span>
+                                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{t('greetingStylePreview')}</span>
                                 {(() => {
                                   let pvStyle = {};
                                   if (gStyle === 'gradient') {
@@ -2497,7 +2497,7 @@ MATCHES:[1,3,5]`;
                                   }
                                   return (
                                     <span style={{ fontFamily: "'Caveat', cursive", fontSize: '1.4rem', fontWeight: 700, ...pvStyle }}>
-                                      Merhaba, {user?.name?.split(' ')[0]}
+                                      {t('greeting')}, {user?.name?.split(' ')[0]}
                                     </span>
                                   );
                                 })()}
