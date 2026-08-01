@@ -28,7 +28,7 @@ function HeroBlob() {
       <div style={{
         position: 'absolute', top: '-30%', left: '30%', width: '70vw', height: '70vw',
         maxWidth: 900, maxHeight: 900,
-        background: 'radial-gradient(ellipse at center, rgba(0,78,100,0.45) 0%, transparent 70%)',
+        background: 'radial-gradient(ellipse at center, rgba(76,168,173,0.25) 0%, transparent 70%)',
         animation: 'blobA 14s ease-in-out infinite alternate',
         borderRadius: '60% 40% 50% 60% / 50% 60% 40% 50%',
       }} />
@@ -175,7 +175,7 @@ export default function Home() {
                 <div key={c} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
               ))}
             </div>
-            <div style={{ height: 320, background: 'linear-gradient(160deg, #081d2a 0%, #061620 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
+            <div style={{ height: 320, background: 'linear-gradient(160deg, #003d50 0%, #002535 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
               {[
                 { name: 'Mindshare', logo: MindshareLogoSrc },
                 { name: 'Judge', logo: JudgeLogoSrc },
@@ -292,7 +292,7 @@ export default function Home() {
         <div className="container">
           <Reveal>
             <div style={{
-              background: 'linear-gradient(130deg, var(--purple) 0%, #003348 60%, #051018 100%)',
+              background: 'linear-gradient(130deg, #006880 0%, #004e64 60%, #002535 100%)',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 'var(--radius)',
               padding: 'clamp(40px, 6vw, 72px) clamp(28px, 6vw, 72px)',

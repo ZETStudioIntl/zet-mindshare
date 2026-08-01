@@ -40,7 +40,7 @@ export default function Header() {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 100,
         height: 'var(--header-h)',
         display: 'flex', alignItems: 'center',
-        background: scrolled ? 'rgba(7,9,22,0.92)' : 'transparent',
+        background: scrolled ? 'rgba(0,37,53,0.95)' : 'transparent',
         backdropFilter: scrolled ? 'blur(16px)' : 'none',
         borderBottom: scrolled ? '1px solid rgba(255,255,255,0.06)' : '1px solid transparent',
         transition: 'all 0.3s ease',
@@ -87,7 +87,7 @@ export default function Header() {
       {/* Mobile menu overlay */}
       <div style={{
         position: 'fixed', inset: 0, zIndex: 99,
-        background: 'rgba(7,9,22,0.97)',
+        background: 'rgba(0,37,53,0.98)',
         backdropFilter: 'blur(20px)',
         display: 'flex', flexDirection: 'column',
         padding: '100px 32px 48px',
