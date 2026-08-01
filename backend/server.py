@@ -3226,39 +3226,47 @@ async def list_drive_files(user: User = Depends(get_current_user)):
 
 @api_router.post("/drive/upload")
 async def upload_drive_file(file: UploadFile = File(...), user: User = Depends(get_current_user)):
-    user_doc = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
-    sub = normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
-    plan = sub.get("plan", "free")
-    quota = DRIVE_QUOTA_BYTES.get(plan, DRIVE_QUOTA_BYTES["free"])
-    agg = await db.drive_files.aggregate([
-        {"$match": {"user_id": user.user_id}},
-        {"$group": {"_id": None, "total": {"$sum": "$size"}}}
-    ]).to_list(1)
-    used = agg[0]["total"] if agg else 0
-    content = await file.read()
-    file_size = len(content)
-    if used + file_size > quota:
-        raise HTTPException(status_code=413, detail="Depolama kotanız doldu. Planınızı yükseltin.")
-    if file_size > 200 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Dosya 200 MB sınırını aşıyor.")
-    file_id = f"file_{uuid.uuid4().hex[:14]}"
-    fname = file.filename or file_id
-    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "bin"
-    key = f"drive/{user.user_id}/{file_id}.{ext}"
     try:
-        r2 = _get_r2()
-        await asyncio.to_thread(r2.put_object, Bucket=R2_BUCKET, Key=key, Body=content, ContentType=file.content_type or "application/octet-stream")
+        user_doc = await db.users.find_one({"user_id": user.user_id}, {"mindshare_subscription": 1, "subscription": 1})
+        sub = normalize_subscription((user_doc or {}).get("mindshare_subscription") or (user_doc or {}).get("subscription"))
+        plan = sub.get("plan", "free")
+        quota = DRIVE_QUOTA_BYTES.get(plan, DRIVE_QUOTA_BYTES["free"])
+        agg = await db.drive_files.aggregate([
+            {"$match": {"user_id": user.user_id}},
+            {"$group": {"_id": None, "total": {"$sum": "$size"}}}
+        ]).to_list(1)
+        used = int(agg[0]["total"]) if agg else 0
+        content = await file.read()
+        file_size = len(content)
+        if used + file_size > quota:
+            raise HTTPException(status_code=413, detail="Depolama kotanız doldu. Planınızı yükseltin.")
+        if file_size > 200 * 1024 * 1024:
+            raise HTTPException(status_code=413, detail="Dosya 200 MB sınırını aşıyor.")
+        file_id = f"file_{uuid.uuid4().hex[:14]}"
+        fname = file.filename or file_id
+        ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "bin"
+        key = f"drive/{user.user_id}/{file_id}.{ext}"
+        try:
+            r2 = _get_r2()
+            await asyncio.to_thread(r2.put_object, Bucket=R2_BUCKET, Key=key, Body=content, ContentType=file.content_type or "application/octet-stream")
+        except HTTPException:
+            raise
+        except Exception as e:
+            logging.error(f"Drive R2 upload error user={user.user_id} size={file_size}: {e}")
+            raise HTTPException(status_code=503, detail="Depolama servisi şu an kullanılamıyor. Lütfen tekrar deneyin.")
+        now = datetime.now(timezone.utc).isoformat()
+        doc = {"file_id": file_id, "user_id": user.user_id, "name": fname, "size": file_size, "content_type": file.content_type or "application/octet-stream", "r2_key": key, "created_at": now}
+        try:
+            await db.drive_files.insert_one(doc)
+        except Exception as e:
+            logging.error(f"Drive DB insert error: {e}")
+            raise HTTPException(status_code=500, detail="Veritabanı kaydı başarısız.")
+        return {k: v for k, v in doc.items() if k != "_id"}
+    except HTTPException:
+        raise
     except Exception as e:
-        logging.error(f"Drive R2 upload error user={user.user_id} size={file_size}: {e}")
-        raise HTTPException(status_code=503, detail="Depolama servisi şu an kullanılamıyor. Lütfen tekrar deneyin.")
-    now = datetime.now(timezone.utc).isoformat()
-    doc = {"file_id": file_id, "user_id": user.user_id, "name": fname, "size": file_size, "content_type": file.content_type or "application/octet-stream", "r2_key": key, "created_at": now}
-    try:
-        await db.drive_files.insert_one(doc)
-    except Exception as e:
-        logging.error(f"Drive DB insert error: {e}")
-        raise HTTPException(status_code=500, detail="Veritabanı kaydı başarısız.")
-    return {k: v for k, v in doc.items() if k != "_id"}
+        logging.error(f"Drive upload unhandled error user={user.user_id}: {type(e).__name__}: {e}")
+        raise HTTPException(status_code=500, detail=f"[{type(e).__name__}] {str(e)[:200]}")
 
 @api_router.delete("/drive/files/{file_id}")
 async def delete_drive_file(file_id: str, user: User = Depends(get_current_user)):
