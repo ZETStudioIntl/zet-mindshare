@@ -1278,6 +1278,21 @@ const Dashboard = () => {
     }
   };
 
+  const removeFromPrimeDrive = async (docId) => {
+    const driveFile = driveFiles.find(f => f.name === `${docId}.zetdoc`);
+    if (driveFile) {
+      try {
+        await axios.delete(`${API}/drive/files/${driveFile.file_id}`, { withCredentials: true });
+        setDriveFiles(prev => prev.filter(f => f.file_id !== driveFile.file_id));
+        setDriveUsed(prev => Math.max(0, prev - driveFile.size));
+      } catch { /* sessizce devam et, localStorage yine de temizlenir */ }
+    }
+    const updated = primeDriveDocs.filter(d => d.id !== docId);
+    setPrimeDriveDocs(updated);
+    localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
+    showToast(t('primeDriveRemove'), 'success');
+  };
+
   const pinNote = async (note) => {
     const newPinned = !note.pinned;
     try {
@@ -2078,7 +2093,9 @@ MATCHES:[1,3,5]`;
               <RankIcon rank={currentRank} size={18} />
             </span>
           )}
-          {user?.name && (() => {
+          {user && (() => {
+            const displayFirst = (user.name || user.display_name || user.email?.split('@')[0] || '').split(' ')[0];
+            if (!displayFirst) return null;
             const isPro = userSubscription === 'pro' || userSubscription === 'creative_station';
             const gStyle = isPro ? (greetingPrefs.style || 'gradient') : 'solid';
             const gColor = greetingPrefs.color || '#4ca8ad';
@@ -2113,7 +2130,7 @@ MATCHES:[1,3,5]`;
                   ...dynStyle,
                 }}
               >
-                {t('greeting')}, {user.name.split(' ')[0]}
+                {t('greeting')}, {displayFirst}
               </span>
             );
           })()}
@@ -2499,7 +2516,7 @@ MATCHES:[1,3,5]`;
                                   }
                                   return (
                                     <span style={{ fontFamily: "'Caveat', cursive", fontSize: '1.4rem', fontWeight: 700, ...pvStyle }}>
-                                      {t('greeting')}, {user?.name?.split(' ')[0]}
+                                      {t('greeting')}, {(user?.name || user?.display_name || user?.email?.split('@')[0] || '').split(' ')[0]}
                                     </span>
                                   );
                                 })()}
@@ -3765,8 +3782,9 @@ MATCHES:[1,3,5]`;
                       } catch { showToast('Belge yüklenemedi', 'error'); }
                     }
                   }] : []),
-                  { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveIn') : t('primeDriveAdd'), color: inDrive ? '#6366f1' : undefined, action: () => {
-                    if (!inDrive && doc) uploadDocToDrive(doc);
+                  { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveRemove') : t('primeDriveAdd'), color: inDrive ? '#ef4444' : undefined, action: () => {
+                    if (inDrive) removeFromPrimeDrive(openFolderDocMenuId);
+                    else if (doc) uploadDocToDrive(doc);
                     setOpenFolderDocMenuId(null);
                   }},
                   { icon: <X className="h-4 w-4" />, label: t('removeFromFolder'), color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm(t('removeFromFolderTitle'), t('removeFromFolderMsg'), () => removeDocFromFile(id, activeDocFile.file_id)); } },
@@ -3958,8 +3976,9 @@ MATCHES:[1,3,5]`;
                         } catch { showToast('Belge yüklenemedi', 'error'); }
                       }
                     }] : []),
-                    { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveIn') : t('primeDriveAdd'), color: inDrive ? '#6366f1' : undefined, action: () => {
-                      if (!inDrive && doc) uploadDocToDrive(doc);
+                    { icon: <HardDrive className="h-4 w-4" />, label: inDrive ? t('primeDriveRemove') : t('primeDriveAdd'), color: inDrive ? '#ef4444' : undefined, action: () => {
+                      if (inDrive) removeFromPrimeDrive(openMenuDocId);
+                      else if (doc) uploadDocToDrive(doc);
                       setOpenMenuDocId(null);
                     }},
                     { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
