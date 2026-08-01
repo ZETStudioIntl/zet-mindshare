@@ -2055,11 +2055,11 @@ MATCHES:[1,3,5]`;
         }
       `}</style>
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 min-w-0 flex-1">
           <img
             src="/logo.svg"
             alt="ZET"
-            className="h-10 w-10"
+            className="h-10 w-10 flex-shrink-0"
             style={{ cursor: 'pointer' }}
             onClick={() => navigate('/')}
           />
@@ -2102,12 +2102,14 @@ MATCHES:[1,3,5]`;
             return (
               <span
                 onClick={() => { setShowSettings(true); setSettingsTab('profile'); setMobileSettingsSidebar(false); }}
+                className="truncate"
                 style={{
                   fontFamily: "'Caveat', cursive",
-                  fontSize: '1.6rem',
+                  fontSize: 'clamp(1.1rem, 4vw, 1.6rem)',
                   fontWeight: 700,
                   letterSpacing: '0.01em',
                   cursor: 'pointer',
+                  minWidth: 0,
                   ...dynStyle,
                 }}
               >
