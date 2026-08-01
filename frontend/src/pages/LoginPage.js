@@ -306,15 +306,15 @@ const LoginPage = () => {
             </button>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--zet-text-muted)' }}>
               ZET Studio International{' '}
-              <a href="https://zetstudiointernational.com/zet-kullanim-kosullari/" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="terms-link">
+              <a href="https://zetstudiointl.com/kullanim-kosillari" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="terms-link">
                 Kullanim Kosullari
               </a>
               ,{' '}
-              <a href="https://zetstudiointernational.com/odeme-ve-iade-sozlesmesi/" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="payment-terms-link">
-                Odeme ve Iade Sozlesmesi
+              <a href="https://zetstudiointl.com/cerez-politikasi" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="payment-terms-link">
+                Cerez Politikasi
               </a>
               {' '}ve{' '}
-              <a href="https://zetstudiointernational.com/zet-gizlilik-sozlesmesi/" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="privacy-policy-link">
+              <a href="https://zetstudiointl.com/gizlilik-politikasi" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="privacy-policy-link">
                 Gizlilik Politikasi
               </a>
               'ni okudum ve kabul ediyorum.
@@ -405,9 +405,9 @@ const LoginPage = () => {
 
           <p className="mt-3 text-[10px] leading-relaxed" style={{ color: 'var(--zet-text-muted)' }}>
             Giriş yaparak{' '}
-            <a href="https://zetstudiointernational.com/zet-kullanim-kosullari/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Kullanim Kosullari</a>
+            <a href="https://zetstudiointl.com/kullanim-kosillari" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Kullanim Kosullari</a>
             {' '}ve{' '}
-            <a href="https://zetstudiointernational.com/zet-gizlilik-sozlesmesi/" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Gizlilik Politikasi</a>
+            <a href="https://zetstudiointl.com/gizlilik-politikasi" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--zet-text-muted)' }}>Gizlilik Politikasi</a>
             'ni kabul etmis olursunuz.
           </p>
         </div>
