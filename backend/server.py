@@ -1966,6 +1966,7 @@ _QUEST_ZP = {"circle": 20, "square": 60, "triangle": 130, "star": 200}
 async def quests_today(user: User = Depends(get_current_user)):
     from datetime import date as _date
     today_str = str(_date.today())
+    await db.quest_daily.delete_many({"user_id": user.user_id, "date": {"$ne": today_str}})
     doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str}, {"_id": 0})
     if doc is None:
         doc = {

@@ -68,17 +68,123 @@ export function scoreWordBuffer(chars) {
   return Math.max(0, Math.min(1, score));
 }
 
+// ─── Görev eşikleri ve isimleri ──────────────────────────────────────────────
+const _THRESHOLDS = {
+  words_typed:    [50, 150, 500, 1500],
+  editor_minutes: [10, 25, 45, 90],
+  notes_created:  [10, 25, 50, 100],
+  solo_docs:      [1, 3, 7, 15],
+  memories_added: [5, 15, 35, 75],
+};
+
+const _NAMES = {
+  words_typed:    { 50: '50 Kelime Yaz', 150: '150 Kelime Yaz', 500: 'Günlük Yazar', 1500: 'Kalem Ustası' },
+  editor_minutes: { 10: '10 Dk Editörde', 25: '25 Dk Editörde', 45: 'Editör Maratonu', 90: 'Uzun Mesai' },
+  notes_created:  { 10: '10 Not Oluştur', 25: '25 Not Oluştur', 50: '50 Not Oluştur', 100: '100 Not Oluştur' },
+  solo_docs:      { 1: 'Kendi Başına', 3: '3 Bağımsız Belge', 7: '7 Bağımsız Belge', 15: 'Saf Üretkenlik' },
+  memories_added: { 5: '5 Bellek Ekle', 15: '15 Bellek Ekle', 35: '35 Bellek Ekle', 75: '75 Bellek Ekle' },
+};
+
+// Oturum başındaki counter durumu — yanlış tetiklenmeyi önler
+let _prev = {};
+let _initialized = false;
+let _toastTimer = null;
+
+async function _ensureInit() {
+  if (_initialized) return;
+  _initialized = true;
+  try {
+    const r = await fetch(`${API}/quests/today`, { credentials: 'include' });
+    if (r.ok) Object.assign(_prev, await r.json());
+  } catch {}
+}
+
+function _showToast(name) {
+  const existing = document.getElementById('__zet_quest_toast__');
+  if (existing) existing.remove();
+  if (_toastTimer) clearTimeout(_toastTimer);
+
+  const el = document.createElement('div');
+  el.id = '__zet_quest_toast__';
+  el.style.cssText = [
+    'position:fixed;top:20px;left:50%;z-index:99999',
+    'transform:translateX(-50%) translateY(-90px)',
+    'background:#0f172a;border:1px solid rgba(74,222,128,0.45)',
+    'border-radius:14px;padding:12px 18px 12px 14px',
+    'display:flex;align-items:center;gap:12px',
+    'box-shadow:0 8px 32px rgba(0,0,0,0.6)',
+    'transition:transform 0.38s cubic-bezier(.34,1.56,.64,1)',
+    'font-family:system-ui,-apple-system,sans-serif',
+    'cursor:pointer;min-width:200px',
+  ].join(';');
+
+  el.innerHTML = `
+    <div style="flex-shrink:0;width:30px;height:30px;border-radius:50%;background:rgba(74,222,128,0.15);display:flex;align-items:center;justify-content:center;">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M2 7l3.5 3.5L12 3" stroke="#4ade80" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:9px;color:#4ade80;font-weight:800;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:3px;">Görev Tamamlandı</div>
+      <div style="font-size:13px;color:#e2e8f0;font-weight:600;">${name}</div>
+      <div style="font-size:10px;color:#64748b;margin-top:2px;">Ödülü almak için dokun</div>
+    </div>
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style="flex-shrink:0;opacity:0.4;">
+      <path d="M5 3l4 4-4 4" stroke="#e2e8f0" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  `;
+
+  el.addEventListener('click', () => {
+    el.remove();
+    if (_toastTimer) clearTimeout(_toastTimer);
+    window.location.href = '/quest-map';
+  });
+
+  document.body.appendChild(el);
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    el.style.transform = 'translateX(-50%) translateY(0)';
+  }));
+
+  _toastTimer = setTimeout(() => {
+    el.style.transform = 'translateX(-50%) translateY(-90px)';
+    setTimeout(() => el.remove(), 380);
+  }, 3200);
+}
+
 // ─── Backend'e sayaç gönder ───────────────────────────────────────────────────
 export const questService = {
+  // Oturum başında mevcut DB sayaçlarını yükle (yanlış toast'ı önler)
+  initCounters(data) {
+    Object.assign(_prev, data);
+    _initialized = true;
+  },
+
   async fireCounter(field, amount = 1) {
     if (amount <= 0) return;
+    await _ensureInit();
     try {
-      await fetch(`${API}/quests/event`, {
+      const res = await fetch(`${API}/quests/event`, {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ event_type: field, amount }),
       });
+      if (!res.ok) return;
+      const data = await res.json();
+
+      // QuestMap'in real-time güncellemesi için
+      window.dispatchEvent(new CustomEvent('quest-counter-update', { detail: data }));
+
+      // Eşik geçildi mi?
+      for (const threshold of (_THRESHOLDS[field] || [])) {
+        const prev = _prev[field] || 0;
+        const curr = data[field] || 0;
+        if (prev < threshold && curr >= threshold) {
+          _showToast(_NAMES[field]?.[threshold] || 'Görev');
+        }
+      }
+
+      Object.assign(_prev, data);
     } catch {}
   },
 };

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { ArrowLeft, Info, X, RefreshCw, Star } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
+import { questService } from '../lib/questService';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -436,12 +437,29 @@ const QuestMap = () => {
         const d = todayRes.data;
         setCollectedSlots(new Set(d.collected_slots || []));
         setCounters({ words_typed: d.words_typed || 0, editor_minutes: d.editor_minutes || 0, notes_created: d.notes_created || 0, solo_docs: d.solo_docs || 0, memories_added: d.memories_added || 0 });
+        questService.initCounters(d);
         if ((d.reroll_offset || 0) > 0) setRerollOffset(d.reroll_offset);
       } catch {}
     })();
   }, []);
 
-  // Periyodik sayaç yenileme + Editor'dan gelince race condition için 800ms gecikmeli yenileme
+  // Real-time counter update — questService.fireCounter her çağrıldığında anında yansır
+  useEffect(() => {
+    const handler = (e) => {
+      const d = e.detail || {};
+      setCounters({
+        words_typed:    d.words_typed    || 0,
+        editor_minutes: d.editor_minutes || 0,
+        notes_created:  d.notes_created  || 0,
+        solo_docs:      d.solo_docs      || 0,
+        memories_added: d.memories_added || 0,
+      });
+    };
+    window.addEventListener('quest-counter-update', handler);
+    return () => window.removeEventListener('quest-counter-update', handler);
+  }, []);
+
+  // Periyodik yenileme (fallback — real-time event yetmezse)
   useEffect(() => {
     const fetchCounters = async () => {
       try {
@@ -449,9 +467,8 @@ const QuestMap = () => {
         setCounters({ words_typed: r.data.words_typed || 0, editor_minutes: r.data.editor_minutes || 0, notes_created: r.data.notes_created || 0, solo_docs: r.data.solo_docs || 0, memories_added: r.data.memories_added || 0 });
       } catch {}
     };
-    const delay = setTimeout(fetchCounters, 800); // Editor cleanup fetch'inin tamamlanmasını bekle
-    const id = setInterval(fetchCounters, 30000);  // 30s'de bir yenile
-    return () => { clearTimeout(delay); clearInterval(id); };
+    const id = setInterval(fetchCounters, 30000);
+    return () => clearInterval(id);
   }, []);
 
   const { slots, isFriday } = useMemo(
