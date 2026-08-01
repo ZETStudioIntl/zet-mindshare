@@ -1263,13 +1263,15 @@ const Dashboard = () => {
       try { jsonStr = JSON.stringify(doc); } catch { showToast('Belge serileştirilemedi', 'error'); return; }
       const blob = new Blob([jsonStr], { type: 'application/json' });
       if (blob.size > 200 * 1024 * 1024) { showToast('Belge 200 MB sınırını aşıyor, yüklenemiyor', 'error'); return; }
-      const file = new File([blob], `${doc.doc_id}.zetdoc`, { type: 'application/json' });
+      const safeTitle = (doc.title || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 100) || 'belge';
+      const fileName = `${safeTitle}.zetdoc`;
+      const file = new File([blob], fileName, { type: 'application/json' });
       const formData = new FormData();
       formData.append('file', file);
       const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true });
-      setDriveFiles(prev => [res.data, ...prev.filter(f => f.name !== `${doc.doc_id}.zetdoc`)]);
+      setDriveFiles(prev => [res.data, ...prev.filter(f => f.file_id !== res.data.file_id)]);
       setDriveUsed(prev => prev + res.data.size);
-      const updated = [...primeDriveDocs.filter(d => d.id !== doc.doc_id), { id: doc.doc_id, title: doc.title, size: res.data.size, addedAt: Date.now(), type: 'document' }];
+      const updated = [...primeDriveDocs.filter(d => d.id !== doc.doc_id), { id: doc.doc_id, fileId: res.data.file_id, title: doc.title, size: res.data.size, addedAt: Date.now(), type: 'document' }];
       setPrimeDriveDocs(updated);
       localStorage.setItem('prime_drive_docs', JSON.stringify(updated));
       showToast(t('primeDriveAdded'), 'success');
@@ -1279,7 +1281,10 @@ const Dashboard = () => {
   };
 
   const removeFromPrimeDrive = async (docId) => {
-    const driveFile = driveFiles.find(f => f.name === `${docId}.zetdoc`);
+    const entry = primeDriveDocs.find(d => d.id === docId);
+    const driveFile = entry?.fileId
+      ? driveFiles.find(f => f.file_id === entry.fileId)
+      : driveFiles.find(f => f.name === `${docId}.zetdoc`);
     if (driveFile) {
       try {
         await axios.delete(`${API}/drive/files/${driveFile.file_id}`, { withCredentials: true });
