@@ -15,18 +15,33 @@
     "appId": "com.zetstudiointl.portal",
     "productName": "ZET Portal",
     "copyright": "© 2026 ZET Studio International",
-    "icon": "../frontend/public/icon-512.png",
+    "icon": "icon.ico",
     "directories": {
       "output": "dist"
     },
     "win": {
-      "target": [{ "target": "nsis", "arch": ["x64"] }],
-      "icon": "../frontend/public/icon-512.png",
-      "publisherName": "ZET Studio International"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "icon.ico",
+      "signtoolOptions": {
+        "publisherName": "ZET Studio International"
+      }
     },
     "mac": {
       "target": [
-        { "target": "dmg", "arch": ["x64", "arm64"] }
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
       ],
       "icon": "../frontend/public/icon-512.png",
       "category": "public.app-category.productivity",
@@ -36,7 +51,10 @@
       "entitlementsInherit": "entitlements.mac.plist"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "icon": "../frontend/public/icon-512.png",
       "category": "Office"
     },
@@ -44,14 +62,15 @@
       "oneClick": true,
       "perMachine": false,
       "allowToChangeInstallationDirectory": false,
-      "installerIcon": "../frontend/public/icon-512.png",
-      "uninstallerIcon": "../frontend/public/icon-512.png",
+      "installerIcon": "icon.ico",
+      "uninstallerIcon": "icon.ico",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     }
   },
   "devDependencies": {
     "electron": "^32.0.0",
-    "electron-builder": "^25.0.0"
+    "electron-builder": "^25.0.0",
+    "png-to-ico": "^3.0.2"
   }
 }
