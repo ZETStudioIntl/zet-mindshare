@@ -90,11 +90,19 @@ let _prev = {};
 let _initialized = false;
 let _toastTimer = null;
 
+function _authHeaders() {
+  const token = localStorage.getItem('session_token');
+  return token ? { 'Authorization': `Bearer ${token}` } : {};
+}
+
 async function _ensureInit() {
   if (_initialized) return;
   _initialized = true;
   try {
-    const r = await fetch(`${API}/quests/today`, { credentials: 'include' });
+    const r = await fetch(`${API}/quests/today`, {
+      credentials: 'include',
+      headers: _authHeaders(),
+    });
     if (r.ok) Object.assign(_prev, await r.json());
   } catch {}
 }
@@ -166,7 +174,7 @@ export const questService = {
       const res = await fetch(`${API}/quests/event`, {
         method: 'POST',
         credentials: 'include',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ..._authHeaders() },
         body: JSON.stringify({ event_type: field, amount }),
       });
       if (!res.ok) return;
