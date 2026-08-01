@@ -5706,18 +5706,31 @@ Sonucu SADECE aşağıdaki JSON formatında döndür, başka hiçbir şey yazma:
 ]
 type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — original=null), "extra" (gereksiz kelime — suggestion=null)
 Hiç hata yoksa sadece [] döndür."""
+    # [METİN]: etiketlerini soy, sadece düz metni gönder
+    text_lines = [
+        line[len('[METİN]: '):]
+        for line in req.doc_content.split('\n')
+        if line.startswith('[METİN]: ')
+    ]
+    clean_text = '\n'.join(text_lines).strip()
+    if not clean_text:
+        return JSONResponse({"corrections": [], "can_word": can_word}, headers=cors_h)
+
     try:
         client = google_genai.Client(api_key=api_key)
         resp = await gemini_generate(
-            client, "gemini-2.5-flash", req.doc_content[:10000],
+            client, "gemini-2.5-flash", clean_text[:10000],
             genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1),
             max_retries=1
         )
         raw = resp.text.strip()
         import re as _re
-        m = _re.search(r'\[[\s\S]*\]', raw)
+        # JSON dizisini bul — greedy eşleşmeden kaçın
+        m = _re.search(r'\[[\s\S]*?\]', raw) or _re.search(r'\[[\s\S]*\]', raw)
         try:
             corrections = json.loads(m.group()) if m else []
+            if not isinstance(corrections, list):
+                corrections = []
         except Exception:
             corrections = []
         for i, c in enumerate(corrections):
