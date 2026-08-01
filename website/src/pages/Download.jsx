@@ -2,7 +2,7 @@ import React from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 
 const APP_URL = 'https://app.zetstudiointl.com';
-const WIN_URL = 'https://github.com/ZETStudioIntl/zet-mindshare/releases/download/desktop-v1.0.0/ZET-Portal-Setup-1.0.0-win64.exe';
+const WIN_URL = 'https://github.com/ZETStudioIntl/zet-mindshare/releases/download/desktop-v1.0.0/ZET.Portal.Setup.1.0.0.exe';
 
 function Reveal({ children, delay = 0 }) {
   const [ref, visible] = useScrollReveal();
