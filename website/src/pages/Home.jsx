@@ -175,7 +175,7 @@ export default function Home() {
                 <div key={c} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
               ))}
             </div>
-            <div style={{ height: 320, background: 'linear-gradient(160deg, #0d1029 0%, #0a0d1a 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
+            <div style={{ height: 320, background: 'linear-gradient(160deg, #081d2a 0%, #061620 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
               {[
                 { name: 'Mindshare', logo: MindshareLogoSrc },
                 { name: 'Judge', logo: JudgeLogoSrc },
@@ -292,7 +292,7 @@ export default function Home() {
         <div className="container">
           <Reveal>
             <div style={{
-              background: 'linear-gradient(130deg, var(--purple) 0%, #003348 60%, #102025 100%)',
+              background: 'linear-gradient(130deg, var(--purple) 0%, #003348 60%, #051018 100%)',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 'var(--radius)',
               padding: 'clamp(40px, 6vw, 72px) clamp(28px, 6vw, 72px)',
