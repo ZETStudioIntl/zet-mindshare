@@ -199,6 +199,16 @@ const Dashboard = () => {
   const [currentCreditIndex, setCurrentCreditIndex] = useState(0);
   const [userSubscription, setUserSubscription] = useState('free');
   const isFreeOffline = !isOnline && userSubscription === 'free';
+  const [greetingPrefs, setGreetingPrefs] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('zet_greeting_prefs')) || {}; } catch { return {}; }
+  });
+  const saveGreetingPrefs = (patch) => {
+    setGreetingPrefs(prev => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem('zet_greeting_prefs', JSON.stringify(next));
+      return next;
+    });
+  };
   const [subscribing, setSubscribing] = useState(false);
   const [userZP, setUserZP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
@@ -2039,6 +2049,10 @@ MATCHES:[1,3,5]`;
           0%, 100% { background-position: 0% 50%; }
           50%       { background-position: 100% 50%; }
         }
+        @keyframes zetGreetingShimmer {
+          0%, 100% { filter: brightness(1) saturate(1); }
+          50%       { filter: brightness(1.5) saturate(1.4); }
+        }
       `}</style>
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-3">
@@ -2064,26 +2078,43 @@ MATCHES:[1,3,5]`;
               <RankIcon rank={currentRank} size={18} />
             </span>
           )}
-          {user?.name && (
-            <span
-              onClick={() => { setShowSettings(true); setSettingsTab('profile'); setMobileSettingsSidebar(false); }}
-              style={{
-                fontFamily: "'Caveat', cursive",
-                fontSize: '1.25rem',
-                fontWeight: 700,
-                letterSpacing: '0.01em',
-                background: 'linear-gradient(270deg, #4ca8ad, #a78bfa, #f59e0b, #4ca8ad)',
+          {user?.name && (() => {
+            const isPro = userSubscription === 'pro' || userSubscription === 'creative_station';
+            const gStyle = isPro ? (greetingPrefs.style || 'gradient') : 'solid';
+            const gColor = greetingPrefs.color || '#4ca8ad';
+            const gColors = greetingPrefs.colors?.length >= 2 ? greetingPrefs.colors : ['#4ca8ad', '#a78bfa', '#f59e0b'];
+            let dynStyle = {};
+            if (gStyle === 'gradient' && isPro) {
+              const stops = [...gColors, gColors[0]].join(', ');
+              dynStyle = {
+                background: `linear-gradient(270deg, ${stops})`,
                 backgroundSize: '300% 300%',
                 WebkitBackgroundClip: 'text',
                 WebkitTextFillColor: 'transparent',
                 backgroundClip: 'text',
                 animation: 'zetGreeting 5s ease infinite',
-                cursor: 'pointer',
-              }}
-            >
-              Merhaba, {user.name.split(' ')[0]}
-            </span>
-          )}
+              };
+            } else if (gStyle === 'shimmer' && isPro) {
+              dynStyle = { color: gColor, animation: 'zetGreetingShimmer 3s ease infinite' };
+            } else {
+              dynStyle = { color: isPro ? gColor : '#4ca8ad' };
+            }
+            return (
+              <span
+                onClick={() => { setShowSettings(true); setSettingsTab('profile'); setMobileSettingsSidebar(false); }}
+                style={{
+                  fontFamily: "'Caveat', cursive",
+                  fontSize: '1.6rem',
+                  fontWeight: 700,
+                  letterSpacing: '0.01em',
+                  cursor: 'pointer',
+                  ...dynStyle,
+                }}
+              >
+                Merhaba, {user.name.split(' ')[0]}
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           <button
@@ -2363,6 +2394,119 @@ MATCHES:[1,3,5]`;
                       />
                       <p className="text-xs mt-1 text-right" style={{ color: 'var(--zet-text-muted)' }}>{editBio.length}/200</p>
                     </div>
+                    {/* Selamlama Stili */}
+                    {(() => {
+                      const isPro = userSubscription === 'pro' || userSubscription === 'creative_station';
+                      const gStyle = greetingPrefs.style || 'gradient';
+                      const gColor = greetingPrefs.color || '#4ca8ad';
+                      const gColors = greetingPrefs.colors?.length >= 2 ? greetingPrefs.colors : ['#4ca8ad', '#a78bfa', '#f59e0b'];
+                      return (
+                        <div className="p-4 rounded-xl space-y-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.06)' }}>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium" style={{ color: 'var(--zet-text)' }}>Selamlama Stili</span>
+                            {isPro ? (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(139,92,246,0.2)', color: '#a78bfa' }}>PRO</span>
+                            ) : (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(120,120,140,0.15)', color: 'var(--zet-text-dim)' }}>Pro ile aç</span>
+                            )}
+                          </div>
+                          {!isPro ? (
+                            <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Pro veya Creative Station aboneliğiyle selamlama rengini ve stilini özelleştirebilirsin.</p>
+                          ) : (
+                            <div className="space-y-4">
+                              {/* Stil seçici */}
+                              <div className="grid grid-cols-3 gap-2">
+                                {[
+                                  { id: 'solid',    label: 'Düz Renk' },
+                                  { id: 'shimmer',  label: 'Parlak Düz' },
+                                  { id: 'gradient', label: 'Hareketli Gradient' },
+                                ].map(opt => (
+                                  <button
+                                    key={opt.id}
+                                    onClick={() => saveGreetingPrefs({ style: opt.id })}
+                                    className="py-2 px-3 rounded-lg text-xs font-medium transition-all"
+                                    style={{
+                                      background: gStyle === opt.id ? 'rgba(139,92,246,0.2)' : 'rgba(255,255,255,0.04)',
+                                      border: `1px solid ${gStyle === opt.id ? '#a78bfa' : 'rgba(255,255,255,0.08)'}`,
+                                      color: gStyle === opt.id ? '#a78bfa' : 'var(--zet-text-muted)',
+                                    }}
+                                  >{opt.label}</button>
+                                ))}
+                              </div>
+                              {/* Düz renk / parlak */}
+                              {(gStyle === 'solid' || gStyle === 'shimmer') && (
+                                <div className="flex items-center gap-3">
+                                  <label className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Renk</label>
+                                  <input
+                                    type="color"
+                                    value={gColor}
+                                    onChange={e => saveGreetingPrefs({ color: e.target.value })}
+                                    className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent"
+                                  />
+                                  <span className="text-xs font-mono" style={{ color: 'var(--zet-text-muted)' }}>{gColor}</span>
+                                </div>
+                              )}
+                              {/* Gradient renkleri */}
+                              {gStyle === 'gradient' && (
+                                <div className="space-y-2">
+                                  <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Gradient renkleri (en az 2)</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {gColors.map((c, i) => (
+                                      <div key={i} className="flex items-center gap-1">
+                                        <input
+                                          type="color"
+                                          value={c}
+                                          onChange={e => {
+                                            const next = [...gColors];
+                                            next[i] = e.target.value;
+                                            saveGreetingPrefs({ colors: next });
+                                          }}
+                                          className="w-8 h-8 rounded cursor-pointer border-0 bg-transparent"
+                                        />
+                                        {gColors.length > 2 && (
+                                          <button
+                                            onClick={() => saveGreetingPrefs({ colors: gColors.filter((_, j) => j !== i) })}
+                                            className="w-5 h-5 rounded-full flex items-center justify-center text-xs"
+                                            style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}
+                                          >×</button>
+                                        )}
+                                      </div>
+                                    ))}
+                                    {gColors.length < 6 && (
+                                      <button
+                                        onClick={() => saveGreetingPrefs({ colors: [...gColors, '#6366f1'] })}
+                                        className="w-8 h-8 rounded flex items-center justify-center text-sm font-bold"
+                                        style={{ background: 'rgba(255,255,255,0.06)', color: 'var(--zet-text-muted)', border: '1px dashed rgba(255,255,255,0.15)' }}
+                                      >+</button>
+                                    )}
+                                  </div>
+                                </div>
+                              )}
+                              {/* Önizleme */}
+                              <div className="flex items-center gap-2 pt-1">
+                                <span className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>Önizleme:</span>
+                                {(() => {
+                                  let pvStyle = {};
+                                  if (gStyle === 'gradient') {
+                                    const stops = [...gColors, gColors[0]].join(', ');
+                                    pvStyle = { background: `linear-gradient(270deg, ${stops})`, backgroundSize: '300% 300%', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text', animation: 'zetGreeting 5s ease infinite' };
+                                  } else if (gStyle === 'shimmer') {
+                                    pvStyle = { color: gColor, animation: 'zetGreetingShimmer 3s ease infinite' };
+                                  } else {
+                                    pvStyle = { color: gColor };
+                                  }
+                                  return (
+                                    <span style={{ fontFamily: "'Caveat', cursive", fontSize: '1.4rem', fontWeight: 700, ...pvStyle }}>
+                                      Merhaba, {user?.name?.split(' ')[0]}
+                                    </span>
+                                  );
+                                })()}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
                     {/* E-posta değiştir */}
                     <div className="p-4 rounded-xl space-y-3" style={{ background: 'var(--zet-bg-card)', border: '1px solid rgba(255,255,255,0.06)' }}>
                       <div className="flex items-center justify-between">
