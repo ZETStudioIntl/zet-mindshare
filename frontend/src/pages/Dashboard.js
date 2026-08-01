@@ -2034,21 +2034,53 @@ MATCHES:[1,3,5]`;
       )}
 
       {/* Header */}
+      <style>{`
+        @keyframes zetGreeting {
+          0%, 100% { background-position: 0% 50%; }
+          50%       { background-position: 100% 50%; }
+        }
+      `}</style>
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
         <div className="flex items-center gap-3">
-          <img 
-            src="/logo.svg" 
-            alt="ZET" 
+          <img
+            src="/logo.svg"
+            alt="ZET"
             className="h-10 w-10"
+            style={{ cursor: 'pointer' }}
+            onClick={() => navigate('/')}
           />
-          <span className="text-xl font-semibold hidden sm:block" style={{ color: 'var(--zet-text)' }}>ZET Mindshare</span>
+          <span
+            className="text-xl font-semibold hidden sm:block"
+            style={{ color: 'var(--zet-text)', cursor: 'pointer' }}
+            onClick={() => navigate('/')}
+          >ZET Mindshare</span>
           {showRankBadge && (
-            <span className="flex items-center px-1.5 py-0.5 rounded-full" style={{ background: `${currentRank.color}25`, border: `1px solid ${currentRank.color}50` }} data-testid="header-rank-badge">
+            <span
+              className="flex items-center px-1.5 py-0.5 rounded-full"
+              style={{ background: `${currentRank.color}25`, border: `1px solid ${currentRank.color}50`, cursor: 'pointer' }}
+              data-testid="header-rank-badge"
+              onClick={() => { setShowSettings(true); setSettingsTab('ranks'); setMobileSettingsSidebar(false); }}
+            >
               <RankIcon rank={currentRank} size={18} />
             </span>
           )}
           {user?.name && (
-            <span style={{ fontFamily: "'Caveat', cursive", fontSize: '1.25rem', fontWeight: 700, color: '#4ca8ad', letterSpacing: '0.01em' }}>
+            <span
+              onClick={() => { setShowSettings(true); setSettingsTab('profile'); setMobileSettingsSidebar(false); }}
+              style={{
+                fontFamily: "'Caveat', cursive",
+                fontSize: '1.25rem',
+                fontWeight: 700,
+                letterSpacing: '0.01em',
+                background: 'linear-gradient(270deg, #4ca8ad, #a78bfa, #f59e0b, #4ca8ad)',
+                backgroundSize: '300% 300%',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'zetGreeting 5s ease infinite',
+                cursor: 'pointer',
+              }}
+            >
               Merhaba, {user.name.split(' ')[0]}
             </span>
           )}
