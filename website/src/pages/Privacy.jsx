@@ -1,6 +1,6 @@
 import React from 'react';
 
-const LAST_UPDATED = '1 Temmuz 2025';
+const LAST_UPDATED = '1 Ağustos 2026';
 const EMAIL = 'help@zetstudiointl.com';
 
 const SECTIONS = [

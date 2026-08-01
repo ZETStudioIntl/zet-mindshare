@@ -1,12 +1,10 @@
 import React from 'react';
 
-const LAST_UPDATED = '1 Temmuz 2025';
+const LAST_UPDATED = '1 Ağustos 2026';
 const EMAIL = 'help@zetstudiointl.com';
 
 const COOKIE_TABLE = [
-  { name: 'zet_session', type: 'Zorunlu', purpose: 'Kullanıcı oturum yönetimi', duration: 'Oturum süresi' },
-  { name: 'zet_cookie_consent', type: 'Zorunlu', purpose: 'Çerez tercihlerini hatırlama', duration: '1 yıl' },
-  { name: '_ga, _gid', type: 'Analitik', purpose: 'Google Analytics (anonim kullanım istatistikleri)', duration: '2 yıl / 24 saat' },
+  { name: 'session_token', type: 'Zorunlu', purpose: 'Kullanıcı oturum yönetimi ve kimlik doğrulama', duration: '7 gün' },
 ];
 
 const SECTIONS = [
@@ -27,7 +25,7 @@ const SECTIONS = [
   {
     id: 'analitik',
     title: '4. Analitik Çerezler',
-    content: 'Hangi özelliklerin daha fazla kullanıldığını anlamak için anonim kullanım verileri toplayan analitik çerezler kullanılabilir. Bu çerezler için onayınız alınır; onay vermezseniz analitik çerezler aktif edilmez.',
+    content: 'ZET şu an üçüncü taraf analitik çerez kullanmamaktadır. Google Analytics veya benzeri takip araçları entegre edilmemiştir.',
   },
   {
     id: 'kontrol',
