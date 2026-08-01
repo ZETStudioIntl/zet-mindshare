@@ -386,6 +386,45 @@ const INFO_SLIDES = [
       </div>
     ),
   },
+  {
+    titleKey: 'questInfoTitle5',
+    content: ({ t }) => {
+      const MODES = [
+        { nameKey: 'modeDedektif', rarity: 'epik'  },
+        { nameKey: 'modeFelsefi',  rarity: 'epik'  },
+        { nameKey: 'modeAgresif',  rarity: 'epik'  },
+        { nameKey: 'modeRobot',    rarity: 'nadir' },
+        { nameKey: 'modeYorgun',   rarity: 'nadir' },
+      ];
+      return (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          <p style={{ fontSize: 12, color: '#64748b', lineHeight: 1.7, margin: '0 0 6px' }}>{t('questInfoModesDesc')}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 7 }}>
+            {MODES.map(m => {
+              const isEpik = m.rarity === 'epik';
+              const col = isEpik ? '#a78bfa' : '#60a5fa';
+              const rgb = isEpik ? '167,139,250' : '96,165,250';
+              return (
+                <div key={m.nameKey} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px', borderRadius: 10, background: `rgba(${rgb},0.06)`, border: `1px solid rgba(${rgb},0.18)` }}>
+                  <div style={{ width: 8, height: 8, borderRadius: '50%', background: col, flexShrink: 0 }} />
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#e2e8f0', flex: 1 }}>{t(m.nameKey)}</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: col, padding: '2px 8px', borderRadius: 99, background: `rgba(${rgb},0.12)` }}>
+                    {isEpik ? t('questInfoModesEpic') : t('questInfoModesRare')}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 4, padding: '10px 12px', borderRadius: 10, background: 'rgba(251,191,36,0.05)', border: '1px solid rgba(251,191,36,0.15)', fontSize: 11, color: '#64748b', lineHeight: 1.6 }}>
+            <span style={{ display: 'inline-block', marginRight: 5, verticalAlign: 'middle' }}>
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><polygon points="6,1 7.5,4.5 11.5,4.8 8.7,7.3 9.5,11.2 6,9.2 2.5,11.2 3.3,7.3 0.5,4.8 4.5,4.5" fill="#fbbf24"/></svg>
+            </span>
+            {t('questInfoModesHowDesc')}
+          </div>
+        </div>
+      );
+    },
+  },
 ];
 
 function InfoPanel({ onClose }) {

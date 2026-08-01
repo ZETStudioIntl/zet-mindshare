@@ -2009,9 +2009,10 @@ async def quest_event(body: dict = Body(...), user: User = Depends(get_current_u
             return {"ok": True, "words_typed": current_val, "editor_minutes": (current_doc or {}).get("editor_minutes") or 0}
         amount = min(amount, cap - current_val)  # sınırı aşma
 
+        insert_base = {k: v for k, v in base_doc.items() if k != event_type}
         await db.quest_daily.update_one(
             {"user_id": user.user_id, "date": today_str},
-            {"$setOnInsert": base_doc, "$inc": {event_type: amount}},
+            {"$setOnInsert": insert_base, "$inc": {event_type: amount}},
             upsert=True,
         )
     else:
@@ -7544,7 +7545,7 @@ async def upload_to_icloud(user: User = Depends(get_current_user)):
 async def get_quest_progress(user: User = Depends(get_current_user)):
     return {
         "completed_quests": user.completed_quests or [],
-        "quest_xp": user.quest_xp or 0,
+        "quest_xp": user.mindshare_xp or 0,
         "active_time_seconds": user.active_time_seconds or 0,
     }
 
