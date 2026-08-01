@@ -7410,12 +7410,12 @@ async def drive_callback(code: str = Query(...), state: str = Query(...)):
         from fastapi.responses import RedirectResponse
         return RedirectResponse(url=f"{frontend_url}/dashboard?drive_error={str(e)}")
 
-@api_router.post("/drive/upload")
+@api_router.post("/drive/gdrive-export")
 async def upload_to_drive(
     doc_id: str = Body(...),
     user: User = Depends(get_current_user)
 ):
-    """Upload document to Google Drive"""
+    """Export document to Google Drive (OAuth)"""
     doc = await docs_collection.find_one({"doc_id": doc_id, "user_id": user.user_id})
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found")
