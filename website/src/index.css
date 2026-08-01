@@ -1,19 +1,19 @@
 :root {
   --purple: #004e64;
-  --purple-mid: #006880;
-  --purple-light: #008fa8;
-  --purple-glow: rgba(0, 78, 100, 0.5);
-  --teal: #4ca8ad;
-  --teal-glow: rgba(76, 168, 173, 0.35);
-  --bg: #002535;
-  --bg-2: #003040;
-  --bg-card: #003d50;
-  --bg-card-2: #004a61;
+  --purple-mid: #005d77;
+  --purple-light: #006e8a;
+  --purple-glow: rgba(0, 78, 100, 0.55);
+  --teal: #c8dfe5;
+  --teal-glow: rgba(200, 223, 229, 0.25);
+  --bg: #001e2b;
+  --bg-2: #002535;
+  --bg-card: #004e64;
+  --bg-card-2: #005d77;
   --text: #e0e5e9;
   --text-muted: #a8c8d4;
-  --text-dim: #6895a5;
-  --border: rgba(255,255,255,0.09);
-  --border-2: rgba(255,255,255,0.16);
+  --text-dim: #6090a0;
+  --border: rgba(224, 229, 233, 0.14);
+  --border-2: rgba(224, 229, 233, 0.26);
   --radius: 16px;
   --radius-sm: 10px;
   --radius-xs: 6px;
@@ -72,11 +72,11 @@ ul { list-style: none; }
 }
 .btn-secondary:hover { border-color: var(--purple); color: #fff; background: rgba(0,78,100,0.12); }
 .btn-teal {
-  background: var(--teal);
-  color: #070916;
+  background: var(--text);
+  color: var(--purple);
   font-weight: 700;
 }
-.btn-teal:hover { background: #5bbfc4; box-shadow: 0 0 20px var(--teal-glow); }
+.btn-teal:hover { background: #fff; box-shadow: 0 0 24px rgba(224,229,233,0.3); }
 .btn-lg { padding: 16px 32px; font-size: 16px; border-radius: var(--radius); }
 .btn-sm { padding: 9px 18px; font-size: 14px; }
 
@@ -130,23 +130,23 @@ ul { list-style: none; }
   border-radius: 99px;
   font-size: 12px;
   font-weight: 600;
-  background: rgba(0,78,100,0.18);
-  color: #7fd6e8;
-  border: 1px solid rgba(0,78,100,0.35);
+  background: rgba(224,229,233,0.1);
+  color: var(--text);
+  border: 1px solid rgba(224,229,233,0.22);
 }
 .badge-teal {
-  background: rgba(76,168,173,0.15);
+  background: rgba(200,223,229,0.15);
   color: var(--teal);
-  border-color: rgba(76,168,173,0.3);
+  border-color: rgba(200,223,229,0.3);
 }
 .badge-soon {
-  background: rgba(120,120,140,0.15);
+  background: rgba(224,229,233,0.07);
   color: var(--text-dim);
-  border-color: rgba(120,120,140,0.2);
+  border-color: rgba(224,229,233,0.12);
 }
 .badge-live {
   background: rgba(76,168,120,0.15);
-  color: #4ca878;
+  color: #5ec89e;
   border-color: rgba(76,168,120,0.3);
 }
 

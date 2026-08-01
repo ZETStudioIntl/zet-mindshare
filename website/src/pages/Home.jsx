@@ -28,7 +28,7 @@ function HeroBlob() {
       <div style={{
         position: 'absolute', top: '-30%', left: '30%', width: '70vw', height: '70vw',
         maxWidth: 900, maxHeight: 900,
-        background: 'radial-gradient(ellipse at center, rgba(76,168,173,0.25) 0%, transparent 70%)',
+        background: 'radial-gradient(ellipse at center, rgba(0,110,138,0.55) 0%, transparent 70%)',
         animation: 'blobA 14s ease-in-out infinite alternate',
         borderRadius: '60% 40% 50% 60% / 50% 60% 40% 50%',
       }} />
@@ -96,13 +96,13 @@ function PlanCard({ name, price, yearlyPrice, desc, features, highlighted, delay
   return (
     <Reveal delay={delay}>
       <div style={{
-        background: highlighted ? 'linear-gradient(160deg, var(--purple) 0%, #003348 100%)' : 'var(--bg-card)',
-        border: `1px solid ${highlighted ? 'rgba(255,255,255,0.15)' : 'var(--border)'}`,
+        background: highlighted ? 'linear-gradient(160deg, #006e8a 0%, #004e64 100%)' : 'var(--bg-card)',
+        border: `1px solid ${highlighted ? 'rgba(224,229,233,0.3)' : 'var(--border)'}`,
         borderRadius: 'var(--radius)',
         padding: '32px 28px',
         display: 'flex', flexDirection: 'column',
         position: 'relative',
-        boxShadow: highlighted ? '0 0 60px rgba(0,78,100,0.4)' : 'none',
+        boxShadow: highlighted ? '0 0 60px rgba(0,110,138,0.55)' : 'none',
       }}>
         {highlighted && (
           <div style={{ position: 'absolute', top: -12, left: '50%', transform: 'translateX(-50%)' }}>
@@ -123,7 +123,7 @@ function PlanCard({ name, price, yearlyPrice, desc, features, highlighted, delay
           {features.map((f, i) => (
             <li key={i} style={{ display: 'flex', gap: 10, fontSize: 14, color: highlighted ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)' }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" style={{ flexShrink: 0, marginTop: 1 }}>
-                <path d="M3 8l4 4 6-6" stroke="#4ca8ad" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M3 8l4 4 6-6" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
               {f}
             </li>
@@ -175,7 +175,7 @@ export default function Home() {
                 <div key={c} style={{ width: 12, height: 12, borderRadius: '50%', background: c }} />
               ))}
             </div>
-            <div style={{ height: 320, background: 'linear-gradient(160deg, #003d50 0%, #002535 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
+            <div style={{ height: 320, background: 'linear-gradient(160deg, #004e64 0%, #001e2b 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 32, flexWrap: 'wrap', padding: 32 }}>
               {[
                 { name: 'Mindshare', logo: MindshareLogoSrc },
                 { name: 'Judge', logo: JudgeLogoSrc },
@@ -292,7 +292,7 @@ export default function Home() {
         <div className="container">
           <Reveal>
             <div style={{
-              background: 'linear-gradient(130deg, #006880 0%, #004e64 60%, #002535 100%)',
+              background: 'linear-gradient(130deg, #006e8a 0%, #004e64 55%, #001e2b 100%)',
               border: '1px solid rgba(255,255,255,0.1)',
               borderRadius: 'var(--radius)',
               padding: 'clamp(40px, 6vw, 72px) clamp(28px, 6vw, 72px)',

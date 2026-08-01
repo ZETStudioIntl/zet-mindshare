@@ -21,7 +21,6 @@ const VALUES = [
 const APPS = [
   { name: 'ZET Mindshare', tag: 'MS', desc: 'Akıllı belge editörü. Zeta AI, canvas araçları, Prime Drive ve rank sistemi.' },
   { name: 'ZET Judge', tag: 'JD', desc: 'İş planı değerlendirmesi ve stratejik AI danışmanlığı.' },
-  { name: 'ZET Media', tag: 'MD', desc: 'Bağımsız sosyal medya ve mesajlaşma platformu. (Beta)' },
 ];
 
 export default function About() {
@@ -41,7 +40,7 @@ export default function About() {
               ZET Studio International, insanların düşünme, yazma ve karar verme süreçlerini destekleyen yapay zeka destekli uygulamalar geliştiriyor.
             </p>
             <p style={{ fontSize: 18, color: 'var(--text-muted)', lineHeight: 1.8, marginBottom: 20 }}>
-              ZET Mindshare ile belgelerini yönet, ZET Judge ile fikirlerini sorgula, ZET Media ile topluluğuna bağlan. Tek hesap, tüm ekosisteme erişim.
+              ZET Mindshare ile belgelerini yönet, ZET Judge ile fikirlerini sorgula. Tek hesap, tüm ekosisteme erişim.
             </p>
             <p style={{ fontSize: 18, color: 'var(--text-muted)', lineHeight: 1.8 }}>
               Yeni uygulamalar sürekli ekleniyor.
