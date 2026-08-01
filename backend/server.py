@@ -8999,6 +8999,19 @@ async def admin_reset_all_quests(user: User = Depends(get_current_user)):
 
 app.include_router(api_router)
 
+# TWA Digital Asset Links — Android Play Store doğrulaması için
+@app.get("/.well-known/assetlinks.json", include_in_schema=False)
+async def assetlinks():
+    sha256 = os.getenv("TWA_SHA256_CERT", "")
+    return JSONResponse([{
+        "relation": ["delegate_permission/common.handle_all_urls"],
+        "target": {
+            "namespace": "android_app",
+            "package_name": "com.zetstudiointl.portal",
+            "sha256_cert_fingerprints": [sha256] if sha256 else []
+        }
+    }])
+
 # ZET Media router
 from media_router import media_router, set_media_db
 set_media_db(db)

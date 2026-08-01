@@ -1,0 +1,57 @@
+{
+  "name": "zet-portal-desktop",
+  "version": "1.0.0",
+  "description": "ZET Portal — Desktop App",
+  "main": "main.js",
+  "author": "ZET Studio International",
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "electron .",
+    "build:win": "electron-builder --win --x64",
+    "build:mac": "electron-builder --mac --x64 --arm64",
+    "build:linux": "electron-builder --linux"
+  },
+  "build": {
+    "appId": "com.zetstudiointl.portal",
+    "productName": "ZET Portal",
+    "copyright": "© 2026 ZET Studio International",
+    "icon": "../frontend/public/icon-512.png",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }],
+      "icon": "../frontend/public/icon-512.png",
+      "publisherName": "ZET Studio International"
+    },
+    "mac": {
+      "target": [
+        { "target": "dmg", "arch": ["x64", "arm64"] }
+      ],
+      "icon": "../frontend/public/icon-512.png",
+      "category": "public.app-category.productivity",
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "../frontend/public/icon-512.png",
+      "category": "Office"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "../frontend/public/icon-512.png",
+      "uninstallerIcon": "../frontend/public/icon-512.png",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "devDependencies": {
+    "electron": "^32.0.0",
+    "electron-builder": "^25.0.0"
+  }
+}

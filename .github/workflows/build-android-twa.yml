@@ -1,0 +1,66 @@
+name: Build Android TWA (Play Store)
+
+on:
+  push:
+    tags:
+      - 'android-v*'
+  workflow_dispatch:
+
+jobs:
+  build-twa:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Bubblewrap CLI
+        run: npm install -g @bubblewrap/cli
+
+      - name: Generate TWA project
+        run: |
+          mkdir -p twa-build && cd twa-build
+          bubblewrap init --manifest https://app.zetstudiointl.com/manifest.json \
+            --directory .
+
+      - name: Build AAB (release)
+        working-directory: twa-build
+        run: bubblewrap build --skipPwaValidation
+
+      - name: Sign AAB
+        working-directory: twa-build
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > zet-portal.keystore
+          jarsigner -verbose \
+            -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore zet-portal.keystore \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -keypass "${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            app-release-bundle.aab \
+            "${{ secrets.ANDROID_KEY_ALIAS }}"
+
+      - name: Upload AAB artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zet-portal-android-aab
+          path: twa-build/app-release-bundle.aab
+
+      - name: Extract SHA256 fingerprint
+        working-directory: twa-build
+        run: |
+          keytool -list -v \
+            -keystore zet-portal.keystore \
+            -alias "${{ secrets.ANDROID_KEY_ALIAS }}" \
+            -storepass "${{ secrets.ANDROID_KEYSTORE_PASSWORD }}" \
+            -noprompt 2>&1 | grep "SHA256" | head -1

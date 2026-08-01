@@ -1,28 +1,78 @@
 {
+  "id": "com.zetstudiointl.portal",
   "name": "ZET Portal",
-  "short_name": "ZET Portal",
-  "description": "AI destekli eğlenceli üretkenlik platformu",
-  "start_url": "/",
-  "display": "standalone",
-  "background_color": "#0f0f1a",
-  "theme_color": "#0f0f1a",
-  "orientation": "any",
+  "short_name": "ZET",
+  "description": "Mindshare, Judge ve Media — tek hesap, tüm ZET ekosistemi.",
+  "start_url": "/?source=pwa",
   "scope": "/",
+  "display": "standalone",
+  "display_override": ["window-controls-overlay", "standalone", "minimal-ui"],
+  "background_color": "#070916",
+  "theme_color": "#070916",
+  "orientation": "any",
   "lang": "tr",
+  "dir": "ltr",
+  "categories": ["productivity", "education", "utilities"],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  },
   "icons": [
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
     },
     {
       "src": "/icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ],
-  "screenshots": [],
-  "categories": ["productivity", "entertainment", "education"]
+  "screenshots": [
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "ZET Mindshare — Belge Editörü"
+    }
+  ],
+  "prefer_related_applications": false,
+  "related_applications": [
+    {
+      "platform": "play",
+      "url": "https://play.google.com/store/apps/details?id=com.zetstudiointl.portal",
+      "id": "com.zetstudiointl.portal"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Mindshare",
+      "short_name": "Mindshare",
+      "description": "Belge editörüne git",
+      "url": "/dashboard?source=shortcut",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Judge",
+      "short_name": "Judge",
+      "description": "AI danışmana git",
+      "url": "/judge?source=shortcut",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
 }
