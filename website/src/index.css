@@ -144,6 +144,11 @@ ul { list-style: none; }
   color: var(--text-dim);
   border-color: rgba(120,120,140,0.2);
 }
+.badge-live {
+  background: rgba(76,168,120,0.15);
+  color: #4ca878;
+  border-color: rgba(76,168,120,0.3);
+}
 
 /* Divider */
 .divider { height: 1px; background: var(--border); width: 100%; }

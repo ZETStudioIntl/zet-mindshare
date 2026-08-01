@@ -2,6 +2,7 @@ import React from 'react';
 import { useScrollReveal } from '../hooks/useScrollReveal';
 
 const APP_URL = 'https://app.zetstudiointl.com';
+const WIN_URL = 'https://github.com/ZETStudioIntl/zet-mindshare/releases/download/desktop-v1.0.0/ZET-Portal-Setup-1.0.0-win64.exe';
 
 function Reveal({ children, delay = 0 }) {
   const [ref, visible] = useScrollReveal();
@@ -25,6 +26,23 @@ const PLATFORMS = [
         <circle cx="20" cy="20" r="14" stroke="#a0aaff" strokeWidth="1.5"/>
         <ellipse cx="20" cy="20" rx="6" ry="14" stroke="#a0aaff" strokeWidth="1.5"/>
         <path d="M6 20h28M7 13h26M7 27h26" stroke="#a0aaff" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'windows',
+    name: 'Windows',
+    desc: 'Windows 10 ve 11 için native masaüstü uygulaması. Tek tıkla kur, görev çubuğundan anında eriş.',
+    cta: 'Windows için İndir (.exe)',
+    href: WIN_URL,
+    badge: 'v1.0.0',
+    badgeClass: 'badge-live',
+    icon: (
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <path d="M6 7.5L19.5 5.5V19H6V7.5Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M21 5.2L34 3V19H21V5.2Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M6 21H19.5V34.5L6 32.5V21Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
+        <path d="M21 21H34V37L21 34.8V21Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
       </svg>
     ),
   },
@@ -108,13 +126,23 @@ export default function Download() {
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{p.name}</h3>
                     <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>{p.desc}</p>
                   </div>
-                  <a href={p.href}
-                    className={`btn ${p.id === 'web' ? 'btn-primary' : 'btn-secondary'}`}
-                    style={{ marginTop: 'auto' }}
-                    {...(p.id !== 'web' ? { onClick: e => e.preventDefault(), style: { marginTop: 'auto', opacity: 0.5, cursor: 'not-allowed' } } : {})}
-                  >
-                    {p.cta}
-                  </a>
+                  {(p.id === 'web' || p.id === 'windows') ? (
+                    <a href={p.href}
+                      className={`btn ${p.id === 'web' ? 'btn-primary' : 'btn-secondary'}`}
+                      style={{ marginTop: 'auto' }}
+                      {...(p.id === 'windows' ? { download: true } : {})}
+                    >
+                      {p.cta}
+                    </a>
+                  ) : (
+                    <a href={p.href}
+                      className="btn btn-secondary"
+                      style={{ marginTop: 'auto', opacity: 0.5, cursor: 'not-allowed' }}
+                      onClick={e => e.preventDefault()}
+                    >
+                      {p.cta}
+                    </a>
+                  )}
                 </div>
               </Reveal>
             ))}
@@ -126,6 +154,7 @@ export default function Download() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 20, textAlign: 'left' }}>
                 {[
                   { label: 'Web', value: 'Chrome 90+, Safari 14+, Firefox 88+, Edge 90+' },
+                  { label: 'Windows', value: 'Windows 10 / 11 (64-bit)' },
                   { label: 'iOS', value: 'iOS 16 ve üzeri (Yakında)' },
                   { label: 'Android', value: 'Android 11 ve üzeri (Yakında)' },
                   { label: 'macOS', value: 'macOS 12 Monterey+ (Yakında)' },
