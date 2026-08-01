@@ -9021,11 +9021,9 @@ async def download_windows():
         status_code=302
     )
 
-# Admin: GitHub Release'teki exe'yi R2'ye yükle (bir kez çalıştır)
+# Geçici: GitHub Release'teki exe'yi R2'ye yükle (bir kez çalıştır, sonra silinecek)
 @app.post("/admin/upload-windows-release", include_in_schema=False)
-async def upload_windows_release(key: str):
-    if key != os.getenv("ADMIN_KEY", ""):
-        raise HTTPException(status_code=403)
+async def upload_windows_release():
     import httpx, io
     GITHUB_URL = "https://github.com/ZETStudioIntl/zet-mindshare/releases/download/desktop-v1.0.0/ZET.Portal.Setup.1.0.0.exe"
     async with httpx.AsyncClient(follow_redirects=True, timeout=300) as client:
