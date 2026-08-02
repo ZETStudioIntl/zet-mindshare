@@ -10,7 +10,7 @@ import { savePreference } from '../lib/preferences';
 import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
-import { openPaddleCheckout } from '../lib/paddle';
+import { openPaddleCheckout, openPaddleCreditCheckout } from '../lib/paddle';
 import ZetaTypingIndicator from '../components/ZetaTypingIndicator';
 import CaseOpenModal, { ZPIcon, CreditIcon } from '../components/dashboard/CaseOpenModal';
 import WheelModal from '../components/dashboard/WheelModal';
@@ -793,23 +793,23 @@ const Dashboard = () => {
     } catch { /* ignore */ }
   };
 
-  const handleBuyCredits = async (packageId) => {
-    setBuyingCredits(true);
-    try {
-      const res = await axios.post(`${API}/credits/checkout`, { package_id: packageId }, { withCredentials: true });
-      // Arc fill animation + sound
-      const arcMap = { pack_50k: 2, pack_230k: 3, pack_700k: 4, pack_950k: 5 };
-      const bars = arcMap[packageId] || 3;
-      setCreditArcFill(0);
-      let n = 0;
-      const step = () => { n++; setCreditArcFill(n); if (n < bars) setTimeout(step, 280); };
-      setTimeout(step, 120);
-      try { const _s = new Audio('/sounds/energy.mp3'); _s.volume = 0.22; _s.play().catch(() => {}); } catch {}
-      openCheckoutOverlay(res.data.checkout_url);
-    } catch (err) {
-      showToast(err.response?.data?.detail || 'Ödeme sayfası açılamadı', 'error');
-    }
-    setBuyingCredits(false);
+  const handleBuyCredits = (packageId) => {
+    const isSubscriber = userSubscription !== 'free';
+    const ok = openPaddleCreditCheckout({
+      packageId,
+      userEmail: user?.email,
+      userId: user?.user_id,
+      isSubscriber,
+    });
+    if (!ok) { showToast('Paddle yüklenemedi. Sayfayı yenileyip tekrar deneyin.', 'error'); return; }
+    // Arc fill animation + sound
+    const arcMap = { pack_50k: 2, pack_230k: 3, pack_700k: 4, pack_950k: 5 };
+    const bars = arcMap[packageId] || 3;
+    setCreditArcFill(0);
+    let n = 0;
+    const step = () => { n++; setCreditArcFill(n); if (n < bars) setTimeout(step, 280); };
+    setTimeout(step, 120);
+    try { const _s = new Audio('/sounds/energy.mp3'); _s.volume = 0.22; _s.play().catch(() => {}); } catch {}
   };
 
 

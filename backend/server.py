@@ -647,6 +647,13 @@ PADDLE_PRICE_MAP: Dict[str, Dict[str, str]] = {
     "pri_01kyvh8j1zrbfrcdafzb7rnbqv": {"plan": "creative_station", "billing_cycle": "yearly"},
 }
 
+PADDLE_CREDIT_PRICE_MAP: Dict[str, Dict] = {
+    "pri_01kz1sreqq4phvr1yv7qavg98v": {"id": "pack_50k",  "credits": 50},
+    "pri_01kz1st3r9a07zrdagvbxxgs0r": {"id": "pack_230k", "credits": 230},
+    "pri_01kz1stmg2h06p8mtec80zn1j2": {"id": "pack_700k", "credits": 700},
+    "pri_01kz1sv2e8y9w2p2fqrkqay7ak": {"id": "pack_950k", "credits": 950},
+}
+
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
     """Send email using Resend API"""
     try:
@@ -4464,6 +4471,37 @@ async def paddle_webhook(request: Request):
                 "mindshare_subscription.status": "past_due",
             }},
         )
+
+    elif event_type == "transaction.completed":
+        # Kredi paketi satın alımı
+        credit_pkg_id = custom.get("credit_package_id")
+        if credit_pkg_id:
+            # custom_data'dan gelen paket id'si ile kredileri bul
+            pkg_info = next((p for p in CREDIT_PACKAGES if p["id"] == credit_pkg_id), None)
+            if pkg_info:
+                credits_to_add = pkg_info["credits"]
+            else:
+                # Fallback: price_id üzerinden bul
+                items = data.get("details", {}).get("line_items", []) or data.get("items", [])
+                credits_to_add = 0
+                for item in items:
+                    pid = item.get("price", {}).get("id", "")
+                    if pid in PADDLE_CREDIT_PRICE_MAP:
+                        credits_to_add += PADDLE_CREDIT_PRICE_MAP[pid]["credits"]
+            if credits_to_add > 0:
+                user_data = await db.users.find_one({"user_id": user_id}, {"_id": 0, "bonus_credits": 1})
+                current = user_data.get("bonus_credits", 0) if user_data else 0
+                new_total = min(current + credits_to_add, MAX_CREDIT_BALANCE)
+                await db.users.update_one({"user_id": user_id}, {"$set": {"bonus_credits": new_total}})
+                amount_usd = data.get("details", {}).get("totals", {}).get("total", "0")
+                await db.credit_purchases.insert_one({
+                    "user_id": user_id,
+                    "package_id": credit_pkg_id,
+                    "credits": credits_to_add,
+                    "price": float(amount_usd) / 100 if str(amount_usd).isdigit() else 0,
+                    "payment_provider": "paddle",
+                    "date": now.isoformat(),
+                })
 
     elif event_type == "transaction.payment_failed":
         plan = custom.get("plan", "")
