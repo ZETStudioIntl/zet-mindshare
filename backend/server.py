@@ -2071,9 +2071,9 @@ async def quest_collect(body: dict = Body(...), user: User = Depends(get_current
         return {"ok": True, "reward": "special", "type": special_type, "item_id": item_id, "new_zp": None}
     else:
         zp = _QUEST_ZP.get(shape, 20)
-        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": zp}})
-        u = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "mindshare_xp": 1})
-        return {"ok": True, "reward": "zp", "zp_earned": zp, "new_zp": int((u or {}).get("mindshare_xp") or 0)}
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"quest_xp": zp}})
+        u = await db.users.find_one({"user_id": user.user_id}, {"_id": 0, "quest_xp": 1})
+        return {"ok": True, "reward": "zp", "zp_earned": zp, "new_zp": int((u or {}).get("quest_xp") or 0)}
 
 @api_router.post("/admin/give-test-cases")
 async def give_test_cases(user: User = Depends(get_current_user)):
@@ -4961,7 +4961,7 @@ async def judge_chat(req: ZetaChatRequest, user: User = Depends(get_current_user
     if not is_ceo:
         token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
         if not token_allowed:
-            return {"response": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "session_id": None, "token_limit_exceeded": True}
+             return {"response": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "session_id": None, "token_limit_exceeded": True}
 
     api_key = os.getenv("GEMINI_API_KEY")
     session_id = req.session_id or f"judge_{user.user_id}_{uuid.uuid4().hex[:8]}"
@@ -7545,7 +7545,7 @@ async def upload_to_icloud(user: User = Depends(get_current_user)):
 async def get_quest_progress(user: User = Depends(get_current_user)):
     return {
         "completed_quests": user.completed_quests or [],
-        "quest_xp": user.mindshare_xp or 0,
+        "quest_xp": user.quest_xp or 0,
         "active_time_seconds": user.active_time_seconds or 0,
     }
 

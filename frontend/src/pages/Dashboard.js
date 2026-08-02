@@ -4838,6 +4838,8 @@ MATCHES:[1,3,5]`;
           { title: 'Agresif',     rarity: 'epik',  badge: 'Kasaya Özel', warn: true, desc: 'Kısa, sert ve aşağılayıcı bir ton. Uyarı: ağır dil içerebilir.' },
           { title: 'Robot',       rarity: 'nadir', badge: 'Kasaya Özel', desc: 'Tamamen mekanik format: "KOMUT ALINDI / SONUÇ / BİTTİ"' },
           { title: 'Yorgun',      rarity: 'nadir', badge: 'Kasaya Özel', desc: 'Hayattan bezgin, usanmış, uyuşuk bir ton. Her şeye uğursuz yaklaşır.' },
+          { title: 'Dedektif',    rarity: 'epik',  badge: 'Kasaya Özel', desc: 'Sorgulayıcı ve şüpheci. Her iddiayı kanıt ister, sonuçlara mantık zinciriyle ulaşır.' },
+          { title: 'Felsefi',     rarity: 'epik',  badge: 'Kasaya Özel', desc: 'Derin ve soyut. Her konuyu varoluşsal bir perspektiften ele alır, sorular sorar.' },
         ];
         const slide = MOOD_SLIDES[moodInfoSlide];
         const col = slide.rarity ? RARITY_COL[slide.rarity] : '#4ca8ad';
