@@ -1370,6 +1370,7 @@ const Dashboard = () => {
       }, { withCredentials: true });
       setNotes(prev => [res.data, ...prev]);
       setNotebookNote('');
+      questService.fireCounter('notes_created', 1);
     } catch (error) {
       console.error('Error adding note to notebook:', error);
     }
