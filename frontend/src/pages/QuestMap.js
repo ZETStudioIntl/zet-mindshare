@@ -4,7 +4,7 @@ import axios from 'axios';
 import { ArrowLeft, Info, X, RefreshCw } from 'lucide-react';
 import { useLanguage } from '../contexts/LanguageContext';
 import { questService } from '../lib/questService';
-import { QUEST_POOL, QUEST_REQ, SHAPES, WEIGHTS, W_TOTAL, buildDailyQuests } from '../lib/questData';
+import { QUEST_REQ, WEIGHTS, W_TOTAL, buildDailyQuests } from '../lib/questData';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -365,6 +365,7 @@ const QuestMap = () => {
   const [forceFriday,    setForceFriday]    = useState(false);
   const [showInfo,       setShowInfo]        = useState(false);
   const [collectedSlots, setCollectedSlots]  = useState(new Set());
+  const [revealedSlots,  setRevealedSlots]   = useState(new Set());
   const [counters,       setCounters]        = useState({ words_typed: 0, editor_minutes: 0, notes_created: 0, solo_docs: 0, memories_added: 0 });
   const [zpFly,          setZpFly]           = useState(null);
   const [rerolling,      setRerolling]       = useState(false);
@@ -388,6 +389,8 @@ const QuestMap = () => {
       } catch {}
     })();
   }, []);
+
+  useEffect(() => { setRevealedSlots(new Set()); }, [rerollOffset]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -466,6 +469,7 @@ const QuestMap = () => {
 
       setCollectedSlots(prev => new Set([...prev, slotIdx]));
       if (res.data.new_zp !== null && res.data.new_zp !== undefined) setUserZP(res.data.new_zp);
+      try { const _s = new Audio('/sounds/energy.mp3'); _s.volume = 0.22; _s.play().catch(() => {}); } catch {}
 
       const rect   = e.currentTarget.getBoundingClientRect();
       const badge  = document.getElementById('daily-zp-badge');
@@ -492,6 +496,10 @@ const QuestMap = () => {
 
   return (
     <>
+    <style>{`
+      @keyframes qSlideR { from { opacity:0; transform:translateX(72px); } to { opacity:1; transform:translateX(0); } }
+      @keyframes qSlideL { from { opacity:0; transform:translateX(-72px); } to { opacity:1; transform:translateX(0); } }
+    `}</style>
     <div style={{ minHeight: '100vh', background: '#050810', color: '#e2e8f0', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
 
       {/* ── Top bar ── */}
@@ -598,6 +606,7 @@ const QuestMap = () => {
               <div
                 key={slot.id}
                 style={{
+                  position: 'relative',
                   borderRadius: 16,
                   background: done
                     ? 'rgba(74,222,128,0.04)'
@@ -608,6 +617,7 @@ const QuestMap = () => {
                   overflow: 'hidden',
                   transition: 'border-color 0.3s, background 0.3s',
                   boxShadow: isReady && !done ? `0 0 20px rgba(${catMeta.rgb},0.08)` : 'none',
+                  animation: `${idx % 2 === 0 ? 'qSlideR' : 'qSlideL'} 0.5s cubic-bezier(.34,1.56,.64,1) ${idx * 0.15}s both`,
                 }}
               >
                 {/* Kart içeriği */}
@@ -733,6 +743,31 @@ const QuestMap = () => {
                     ) : isCollecting ? '...' : isReady ? 'TOPLA' : 'Kilitli'}
                   </button>
                 </div>
+
+                {/* Kilitli kapak — dokunarak açılır */}
+                {!done && (
+                  <div
+                    onClick={() => setRevealedSlots(prev => new Set([...prev, idx]))}
+                    style={{
+                      position: 'absolute', inset: 0, borderRadius: 16, zIndex: 2,
+                      background: 'rgba(5,8,16,0.88)',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+                      cursor: 'pointer',
+                      opacity: revealedSlots.has(idx) ? 0 : 1,
+                      pointerEvents: revealedSlots.has(idx) ? 'none' : 'all',
+                      transform: revealedSlots.has(idx) ? 'translateY(-10px) scale(0.97)' : 'none',
+                      transition: 'opacity 0.38s ease, transform 0.38s cubic-bezier(.4,0,.2,1)',
+                    }}
+                  >
+                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
+                        <rect x="2" y="10" width="14" height="11" rx="3" stroke="rgba(56,189,248,0.5)" strokeWidth="1.5"/>
+                        <path d="M5 10V7a4 4 0 0 1 8 0v3" stroke="rgba(56,189,248,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                    </div>
+                    <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>Açmak için dokun</span>
+                  </div>
+                )}
               </div>
             );
           })}

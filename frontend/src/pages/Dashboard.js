@@ -240,6 +240,8 @@ const Dashboard = () => {
   const [showCredits, setShowCredits] = useState(false);
   const [creditPackages, setCreditPackages] = useState([]);
   const [buyingCredits, setBuyingCredits] = useState(false);
+  const [showCreditsDepleted, setShowCreditsDepleted] = useState(false);
+  const [creditArcFill, setCreditArcFill] = useState(0);
   const [showMissions, setShowMissions] = useState(false);
   const [inventory, setInventory] = useState([]);
   const [openingCaseId, setOpeningCaseId] = useState(null);
@@ -795,6 +797,14 @@ const Dashboard = () => {
     setBuyingCredits(true);
     try {
       const res = await axios.post(`${API}/credits/checkout`, { package_id: packageId }, { withCredentials: true });
+      // Arc fill animation + sound
+      const arcMap = { pack_50k: 2, pack_230k: 3, pack_700k: 4, pack_950k: 5 };
+      const bars = arcMap[packageId] || 3;
+      setCreditArcFill(0);
+      let n = 0;
+      const step = () => { n++; setCreditArcFill(n); if (n < bars) setTimeout(step, 280); };
+      setTimeout(step, 120);
+      try { const _s = new Audio('/sounds/energy.mp3'); _s.volume = 0.22; _s.play().catch(() => {}); } catch {}
       openCheckoutOverlay(res.data.checkout_url);
     } catch (err) {
       showToast(err.response?.data?.detail || 'Ödeme sayfası açılamadı', 'error');
@@ -1334,6 +1344,7 @@ const Dashboard = () => {
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: res.data.response, sources: res.data.sources || [] });
       try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
     } catch (error) {
+      if (error.response?.status === 402) { setShowCreditsDepleted(true); setZetaAnalysis({ noteId: note.note_id, loading: false, result: null }); return; }
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: 'Analiz başarısız oldu.' });
     }
   };
@@ -1719,7 +1730,8 @@ const Dashboard = () => {
         message: `Bu belgeyi kısaca özetle ve önemli noktaları belirt:\n\n${text.slice(0, 3000)}`
       }, { withCredentials: true });
       setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: chatRes.data.response });
-    } catch {
+    } catch (err) {
+      if (err.response?.status === 402) { setShowCreditsDepleted(true); setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: null }); return; }
       setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: 'Analiz başarısız oldu.' });
     }
   };
@@ -1798,7 +1810,8 @@ MATCHES:[1,3,5]`;
         .map(it => ({ id: it.id, title: it.title, type: it.type }));
 
       setZetaSearchResults({ text: cleanText, matches });
-    } catch {
+    } catch (err) {
+      if (err.response?.status === 402) { setShowCreditsDepleted(true); setZetaSearchLoading(false); return; }
       setZetaSearchResults({ text: 'Arama sırasında bir hata oluştu.', matches: [] });
     }
     setZetaSearchLoading(false);
@@ -2236,7 +2249,7 @@ MATCHES:[1,3,5]`;
                 <ChevronLeft className="h-4 w-4" /> Geri
               </button>
 
-              <div key={settingsTab} className="animate-slideIn flex-1">
+              <div key={settingsTab} className="animate-slideInUp flex-1">
               {settingsTab === 'general' && (
                 <div className="max-w-lg">
                   <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>{t('general')}</h2>
@@ -4936,6 +4949,85 @@ MATCHES:[1,3,5]`;
             <button onClick={() => setMoodLocked(null)} style={{ background: 'linear-gradient(135deg, #4ca8ad, #2d7a7e)', border: 'none', borderRadius: 10, color: '#fff', fontSize: 13, fontWeight: 700, padding: '10px 32px', cursor: 'pointer' }}>
               Tamam
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Credits Depleted Popup ── */}
+      {showCreditsDepleted && (
+        <div
+          onClick={() => setShowCreditsDepleted(false)}
+          style={{ position: 'fixed', inset: 0, zIndex: 10200, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#0d1117', border: '1px solid rgba(239,68,68,0.3)', borderRadius: 20, padding: '32px 28px',
+              width: '100%', maxWidth: 300, textAlign: 'center',
+              animation: 'slideInFromBottom 0.32s cubic-bezier(.34,1.56,.64,1)',
+            }}
+          >
+            {/* 5-arc gauge — all empty, outermost red */}
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}>
+              <svg width="140" height="90" viewBox="0 0 140 90">
+                {[28, 38, 48, 58, 68].map((r, i) => (
+                  <path key={i}
+                    d={`M ${70 - r} 80 A ${r} ${r} 0 0 1 ${70 + r} 80`}
+                    fill="none"
+                    stroke={i === 4 ? 'rgba(239,68,68,0.8)' : 'rgba(255,255,255,0.07)'}
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                  />
+                ))}
+                {/* Lightning bolt */}
+                <path d="M74 46 L65 62 L71 62 L68 76 L77 58 L71 58 Z" fill="rgba(239,68,68,0.9)" />
+              </svg>
+            </div>
+            <p style={{ color: '#e2e8f0', fontWeight: 700, fontSize: 16, marginBottom: 6 }}>Kredin Tükendi</p>
+            <p style={{ color: '#64748b', fontSize: 12, lineHeight: 1.6, marginBottom: 22 }}>Zeta ile çalışmaya devam etmek için kredi paketi al.</p>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <button
+                onClick={() => { setShowCreditsDepleted(false); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#94a3b8', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
+              >
+                Kapat
+              </button>
+              <button
+                onClick={() => { setShowCreditsDepleted(false); setShowCredits(false); fetchCreditPackages(); setShowSettings(true); setSettingsTab('magaza'); }}
+                style={{ flex: 1, padding: '10px 0', borderRadius: 10, background: 'linear-gradient(135deg, #4ca8ad, #2d7a7e)', border: 'none', color: '#fff', fontSize: 13, fontWeight: 700, cursor: 'pointer' }}
+              >
+                Kredi Al
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Credits Arc Fill Animation Overlay ── */}
+      {creditArcFill > 0 && (
+        <div
+          onClick={() => setCreditArcFill(0)}
+          style={{ position: 'fixed', inset: 0, zIndex: 10210, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', display: 'flex', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}
+        >
+          <div style={{ background: '#0d1117', border: '1px solid rgba(76,168,173,0.3)', borderRadius: 20, padding: '28px 24px', textAlign: 'center', animation: 'slideInFromBottom 0.3s cubic-bezier(.34,1.56,.64,1)' }}>
+            <svg width="140" height="90" viewBox="0 0 140 90">
+              {[28, 38, 48, 58, 68].map((r, i) => {
+                const filled = i < creditArcFill;
+                const arcColors = ['#38bdf8', '#4ca8ad', '#6366f1', '#8b5cf6', '#f59e0b'];
+                return (
+                  <path key={i}
+                    d={`M ${70 - r} 80 A ${r} ${r} 0 0 1 ${70 + r} 80`}
+                    fill="none"
+                    stroke={filled ? arcColors[i] : 'rgba(255,255,255,0.07)'}
+                    strokeWidth="7"
+                    strokeLinecap="round"
+                    style={{ transition: 'stroke 0.25s ease' }}
+                  />
+                );
+              })}
+              <path d="M74 46 L65 62 L71 62 L68 76 L77 58 L71 58 Z" fill="#f59e0b" opacity="0.9" />
+            </svg>
+            <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13, marginTop: 4 }}>Kredi Yükleniyor...</p>
           </div>
         </div>
       )}
