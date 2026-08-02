@@ -113,6 +113,10 @@ const Dashboard = () => {
   const { t, language, changeLanguage } = useLanguage();
   const { switchApp } = useAppTheme();
   useEffect(() => { switchApp('mindshare'); }, []); // always enforce mindshare theme in dashboard
+  useEffect(() => {
+    questService.enterPage('dashboard');
+    return () => questService.leavePage('dashboard');
+  }, []);
   const navigate = useNavigate();
 
   // Quest pending check + listener

@@ -1,3 +1,5 @@
+import { buildDailyQuests, QUEST_REQ } from './questData';
+
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 // ─── Klavye satır haritası (TR-Q) ────────────────────────────────────────────
@@ -85,10 +87,30 @@ const _NAMES = {
   memories_added: { 5: '5 Bellek Ekle', 15: '15 Bellek Ekle', 35: '35 Bellek Ekle', 75: '75 Bellek Ekle' },
 };
 
+// Her görev tipi için geçerli sayfa bağlamı
+const _FIELD_PAGE = {
+  words_typed:    'editor',
+  editor_minutes: 'editor',
+  solo_docs:      'editor',
+  notes_created:  'dashboard',
+  memories_added: 'dashboard',
+};
+
 // Oturum başındaki counter durumu — yanlış tetiklenmeyi önler
-let _prev = {};
+let _prev        = {};
 let _initialized = false;
-let _toastTimer = null;
+let _toastTimer  = null;
+let _todayFields = null; // null = henüz belirlenmedi, Set = belirlendi
+let _currentPage = null; // 'editor' | 'dashboard' | null
+
+function _loadTodayFields(rerollOffset) {
+  try {
+    const { slots } = buildDailyQuests(rerollOffset || 0);
+    _todayFields = new Set(slots.map(s => QUEST_REQ[s.quest.id]?.field).filter(Boolean));
+  } catch {
+    _todayFields = null;
+  }
+}
 
 function _authHeaders() {
   const token = localStorage.getItem('session_token');
@@ -103,7 +125,11 @@ async function _ensureInit() {
       credentials: 'include',
       headers: _authHeaders(),
     });
-    if (r.ok) Object.assign(_prev, await r.json());
+    if (r.ok) {
+      const data = await r.json();
+      Object.assign(_prev, data);
+      _loadTodayFields(data.reroll_offset);
+    }
   } catch {}
 }
 
@@ -165,11 +191,27 @@ export const questService = {
   initCounters(data) {
     Object.assign(_prev, data);
     _initialized = true;
+    if (_todayFields === null) _loadTodayFields(data.reroll_offset);
+  },
+
+  // Sayfa bağlamı — hangi sayfada olduğunu bildirir
+  enterPage(page) {
+    _currentPage = page;
+  },
+  leavePage(page) {
+    if (_currentPage === page) _currentPage = null;
   },
 
   async fireCounter(field, amount = 1) {
     if (amount <= 0) return;
     await _ensureInit();
+
+    // Sadece bugünün görev alanları için say
+    if (_todayFields !== null && !_todayFields.has(field)) return;
+
+    // Sayfa bağlamı uyuşmazsa say
+    if (_currentPage !== null && _FIELD_PAGE[field] && _currentPage !== _FIELD_PAGE[field]) return;
+
     try {
       const res = await fetch(`${API}/quests/event`, {
         method: 'POST',

@@ -1121,6 +1121,12 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // === SAYFA BAĞLAMI — editörde olduğunu questService'e bildir ===
+  useEffect(() => {
+    questService.enterPage('editor');
+    return () => questService.leavePage('editor');
+  }, []);
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const lastLoadedPageRef = useRef(null);
   useEffect(() => {
