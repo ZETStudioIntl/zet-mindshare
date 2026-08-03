@@ -38,11 +38,25 @@ export const useCanvasHistory = () => {
     tick(n => n + 1);
   }, []);
 
+  const serialize = useCallback(() => ({
+    stack: historyRef.current,
+    index: indexRef.current,
+  }), []);
+
+  const restore = useCallback((data) => {
+    if (!data?.stack?.length) return;
+    historyRef.current = data.stack;
+    indexRef.current = Math.min(data.index ?? data.stack.length - 1, data.stack.length - 1);
+    tick(n => n + 1);
+  }, []);
+
   return {
     push,
     undo,
     redo,
     reset,
+    serialize,
+    restore,
     canUndo: indexRef.current > 0,
     canRedo: indexRef.current < historyRef.current.length - 1,
   };

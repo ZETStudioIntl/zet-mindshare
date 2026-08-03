@@ -11,6 +11,7 @@ import { useCanvasHistory } from '../hooks/useCanvasHistory';
 import { TOOLS, PAGE_SIZES, FONTS, PRESET_COLORS, TRANSLATE_LANGUAGES, LINE_SPACINGS, TEXT_ALIGNMENTS, CHART_TYPES, TEMPLATES, DEFAULT_SHORTCUTS, DEFAULT_PAGE_SIZE, DEFAULT_FONT_SIZE, DEFAULT_FONT, DEFAULT_COLOR, DEFAULT_ZOOM, SCRIPT_ELEMENT_TYPES, SCREENPLAY_PX_PER_CM } from '../lib/editorConstants';
 import { savePreference } from '../lib/preferences';
 import { saveDoc, getDoc, updateDocField } from '../lib/localDocDB';
+import { saveUndoStack, loadUndoStack, saveDocVersion } from '../lib/localHistoryDB';
 import { Toolbox, SHAPE_LIST, PUNCTUATION_LIST } from '../components/editor/Toolbox';
 import { CanvasArea } from '../components/editor/CanvasArea';
 import { RightPanel } from '../components/editor/RightPanel';
@@ -1138,7 +1139,11 @@ const Editor = () => {
         const page = document.pages[currentPage];
         setCanvasElements(page.elements || []);
         setDrawPaths(page.drawPaths || []);
-        history.reset(page.elements || []);
+        // Kayıtlı undo stack varsa geri yükle, yoksa sıfırla
+        loadUndoStack(docId, currentPage).then(saved => {
+          if (saved) history.restore(saved);
+          else history.reset(page.elements || []);
+        }).catch(() => history.reset(page.elements || []));
         if (page.pageSize) setPageSize(page.pageSize);
         setSelectedElement(null); setSelectedElements([]);
         lastLoadedPageRef.current = pageKey;
@@ -1370,6 +1375,9 @@ const Editor = () => {
       });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
+      // Undo stack ve versiyon geçmişini IndexedDB'ye kaydet
+      saveUndoStack(docId, currentPage, history.serialize()).catch(() => {});
+      saveDocVersion(docId, document.title, updatedPages, docSettings).catch(() => {});
       // CS: sunucuya da yaz (iki kez depolama)
       if (userPlan === 'creative_station' && navigator.onLine) {
         axios.put(`${API}/documents/${docId}`, {

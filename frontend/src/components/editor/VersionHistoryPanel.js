@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { History, RotateCcw } from 'lucide-react';
 import { DraggablePanel } from './DraggablePanel';
-import axios from 'axios';
-
-const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
+import { getDocVersions, getDocVersion } from '../../lib/localHistoryDB';
+import { saveDoc, getDoc } from '../../lib/localDocDB';
 
 const formatVersionTime = (iso) => {
   if (!iso) return '';
@@ -20,8 +19,8 @@ const VersionHistoryPanel = ({ docId, onRestore, isMobile, onClose }) => {
     if (!docId) return;
     let cancelled = false;
     setLoading(true);
-    axios.get(`${API}/documents/${docId}/history`, { withCredentials: true })
-      .then(res => { if (!cancelled) setVersions(res.data || []); })
+    getDocVersions(docId)
+      .then(v => { if (!cancelled) setVersions(v || []); })
       .catch(() => { if (!cancelled) setVersions([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
@@ -31,7 +30,11 @@ const VersionHistoryPanel = ({ docId, onRestore, isMobile, onClose }) => {
     if (!docId || restoringIndex !== null) return;
     setRestoringIndex(index);
     try {
-      await axios.post(`${API}/documents/${docId}/restore/${index}`, {}, { withCredentials: true });
+      const version = await getDocVersion(docId, index);
+      if (!version) return;
+      const current = await getDoc(docId);
+      if (!current) return;
+      await saveDoc({ ...current, pages: version.pages, settings: version.settings, updated_at: new Date().toISOString() });
       onRestore?.();
     } catch {} finally {
       setRestoringIndex(null);
