@@ -131,17 +131,19 @@ export function generateNoteId() {
 }
 
 // Bekleyen değişiklikleri sunucuya gönderir.
+// Döndürür: Map<tempId, serverNoteId> — ID değişen notlar için swap haritası
 export async function processSyncQueue(apiFn) {
   const pending = await getPendingNotes();
+  const idSwaps = new Map();
   for (const note of pending) {
     try {
       if (note._local_only && !note._deleted) {
         const { _dirty, _local_only, _deleted, ...payload } = note;
         const res = await apiFn('post', payload);
-        // Sunucudan gelen note_id ile güncelle (local id farklıysa)
         if (res.note_id && res.note_id !== note.note_id) {
           await deleteNote(note.note_id);
           await saveNote({ ...note, note_id: res.note_id, _dirty: false, _local_only: false, _deleted: false });
+          idSwaps.set(note.note_id, res.note_id);
         } else {
           await saveNote({ ...note, _dirty: false, _local_only: false, _deleted: false });
         }
@@ -157,4 +159,5 @@ export async function processSyncQueue(apiFn) {
       // offline veya hata — bir sonraki sync'te tekrar dener
     }
   }
+  return idSwaps;
 }

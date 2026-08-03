@@ -583,9 +583,12 @@ const Dashboard = () => {
     // İnternet bağlandığında bekleyen değişiklikleri gönder
     const handleOnline = async () => {
       try {
-        await processSyncQueue(noteApiHelper);
+        const idSwaps = await processSyncQueue(noteApiHelper);
         const merged = await getAllNotes();
         setNotes(merged);
+        if (idSwaps.size > 0) {
+          setEditingNoteId(prev => idSwaps.has(prev) ? idSwaps.get(prev) : prev);
+        }
       } catch {}
     };
     window.addEventListener('online', handleOnline);
@@ -717,7 +720,7 @@ const Dashboard = () => {
   useEffect(() => {
     if (notes.length === 0) return;
     const now = new Date();
-    const due = notes.filter(n => n.reminder_time && !n.reminder_sent && new Date(n.reminder_time) <= now);
+    const due = notes.filter(n => n.reminder_time && !n.reminder_sent && !n._local_only && new Date(n.reminder_time) <= now);
     if (due.length === 0) return;
     setFiredAlarms(prev => {
       const existing = new Set(prev.map(a => a.note_id));
@@ -725,8 +728,11 @@ const Dashboard = () => {
     });
     due.forEach(n => {
       setNotes(prev => prev.map(note => note.note_id === n.note_id ? { ...note, reminder_sent: true } : note));
+      // IndexedDB'ye de kaydet — offline'da kapansa tekrar tetiklemez
+      getNote(n.note_id).then(existing => {
+        if (existing) saveNote({ ...existing, reminder_sent: true });
+      }).catch(() => {});
       axios.put(`${API}/notes/${n.note_id}/reminder-sent`, {}, { withCredentials: true }).catch(() => {});
-      // Browser / in-app notification
       showNotification('ZET Hatırlatıcı', n.content?.slice(0, 100) || 'Bir hatırlatıcınız var');
     });
   }, [notes, alarmTick]);
@@ -1447,6 +1453,7 @@ const Dashboard = () => {
           await deleteNoteLocal(noteId);
           await saveNote({ ...res.data, _dirty: false, _local_only: false, _deleted: false });
           setNotes(prev => prev.map(n => n.note_id === noteId ? { ...res.data, _dirty: false, _local_only: false, _deleted: false } : n));
+          setEditingNoteId(prev => prev === noteId ? res.data.note_id : prev);
         } else {
           await saveNote({ ...newNote, _dirty: false, _local_only: false });
         }
@@ -1912,6 +1919,7 @@ MATCHES:[1,3,5]`;
           await deleteNoteLocal(noteId);
           await saveNote({ ...res.data, _dirty: false, _local_only: false, _deleted: false });
           setNotes(prev => prev.map(n => n.note_id === noteId ? { ...res.data, _dirty: false, _local_only: false, _deleted: false } : n));
+          setEditingNoteId(prev => prev === noteId ? res.data.note_id : prev);
         } else {
           await saveNote({ ...newNote, _dirty: false, _local_only: false });
         }
@@ -4390,7 +4398,7 @@ MATCHES:[1,3,5]`;
 
               {notebooks.length === 0 && notes.filter(n => !n.notebook_id).length === 0 && (
                 <div className="text-center py-8" style={{ color: 'var(--zet-text-muted)' }}>
-                  {t('noNotesYet')}
+                  {!navigator.onLine ? t('offlineNoNotes') : t('noNotesYet')}
                 </div>
               )}
             </div>
