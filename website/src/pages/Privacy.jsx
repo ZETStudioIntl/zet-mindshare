@@ -17,7 +17,7 @@ const SECTIONS = [
   {
     id: 'ai-veriler',
     title: '3. AI ve İçerik Gizliliği',
-    content: `Zeta AI asistanına ilettiğiniz mesajlar ve belgeler, yapay zeka modelini eğitmek amacıyla kullanılmaz. Belgeleriniz yalnızca sizin oturumunuzda işlenir.\n\nAI özelliklerini kullanırken ilettiğiniz içerikler, yapay zeka hizmet sağlayıcısı altyapıları üzerinden işlenebilir. Bu sağlayıcıların kendi gizlilik politikaları geçerlidir.`,
+    content: `Hizmet kalitesini ve AI modellerini geliştirmek amacıyla ilettiğiniz içerikler anonim biçimde işlenebilir. Bu süreçte kişisel kimliğinizi doğrudan açığa çıkaracak veriler ayrıştırılır.\n\nAI özelliklerini kullanırken ilettiğiniz içerikler, yapay zeka hizmet sağlayıcısı altyapıları üzerinden işlenebilir. Bu sağlayıcıların kendi gizlilik politikaları geçerlidir.`,
   },
   {
     id: 'depolama',
