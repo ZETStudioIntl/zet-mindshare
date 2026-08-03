@@ -32,7 +32,7 @@ const APPS = [
     route: '/dashboard',
     Icon: MindshareIcon,
     version: 'v26.07.31',
-    features: ['Belge editörü & sayfa sistemi', 'Zeta AI yazma asistanı', 'ZET Media sosyal feed', 'Quest haritası & XP sistemi'],
+    features: ['Belge editörü & sayfa sistemi', 'Zeta AI yazma asistanı', 'Prime Drive bulut depolama', 'Quest haritası & XP sistemi'],
   },
   {
     id: 'judge',

@@ -19,8 +19,22 @@ const VALUES = [
 ];
 
 const APPS = [
-  { name: 'ZET Mindshare', tag: 'MS', desc: 'Akıllı belge editörü. Zeta AI, canvas araçları, Prime Drive ve rank sistemi.' },
-  { name: 'ZET Judge', tag: 'JD', desc: 'İş planı değerlendirmesi ve stratejik AI danışmanlığı.' },
+  {
+    name: 'ZET Mindshare',
+    logo: '/logo-mindshare.svg',
+    desc: 'Akıllı belge editörü. Zeta AI, canvas araçları, Prime Drive ve rank sistemi.',
+    features: ['Belge editörü & canvas araçları', 'Zeta AI yazma asistanı', 'Prime Drive bulut depolama', 'Quest haritası & XP sistemi'],
+    color: 'rgba(76,168,173,0.15)',
+    border: 'rgba(76,168,173,0.3)',
+  },
+  {
+    name: 'ZET Judge',
+    logo: '/logo-judge.svg',
+    desc: 'İş planı, fikir ve strateji değerlendirmesi için özel geliştirilmiş analitik AI.',
+    features: ['İş planı & risk analizi', 'Başarı skoru hesaplama', 'Derin araştırma modu', 'Geçmiş analiz arşivi'],
+    color: 'rgba(200,0,90,0.1)',
+    border: 'rgba(200,0,90,0.25)',
+  },
 ];
 
 export default function About() {
@@ -52,17 +66,25 @@ export default function About() {
       {/* Uygulamalar */}
       <section style={{ padding: '48px 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)' }}>
         <div className="container">
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 24 }}>
             {APPS.map((app, i) => (
               <Reveal key={app.name} delay={i * 0.08}>
-                <div style={{ padding: '24px 20px', background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(41,47,145,0.2)', border: '1px solid rgba(41,47,145,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 14 }}>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                      <text x="1" y="15" fontSize="12" fontWeight="900" fill="#a0aaff" fontFamily="DM Sans,sans-serif">{app.tag}</text>
-                    </svg>
+                <div style={{ padding: '28px 24px', background: 'var(--bg-card)', border: `1px solid ${app.border}`, borderRadius: 'var(--radius)', height: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 16 }}>
+                    <div style={{ width: 48, height: 48, borderRadius: 12, background: app.color, border: `1px solid ${app.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <img src={app.logo} alt={app.name} style={{ width: 30, height: 30, objectFit: 'contain' }} />
+                    </div>
+                    <h3 style={{ fontSize: 16, fontWeight: 700 }}>{app.name}</h3>
                   </div>
-                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 6 }}>{app.name}</h3>
-                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.6 }}>{app.desc}</p>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7, marginBottom: 16 }}>{app.desc}</p>
+                  <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    {app.features.map(f => (
+                      <li key={f} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--text-muted)' }}>
+                        <span style={{ width: 4, height: 4, borderRadius: '50%', background: 'var(--text-muted)', flexShrink: 0, opacity: 0.5 }} />
+                        {f}
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </Reveal>
             ))}

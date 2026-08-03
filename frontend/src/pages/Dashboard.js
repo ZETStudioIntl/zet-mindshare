@@ -269,6 +269,8 @@ const Dashboard = () => {
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveUploading, setDriveUploading] = useState(false);
   const [driveUsed, setDriveUsed] = useState(0);
+  const [showDriveUploadSheet, setShowDriveUploadSheet] = useState(false);
+  const [showDriveDocPicker, setShowDriveDocPicker] = useState(false);
   const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
   const [confirmDeleteNotebookId, setConfirmDeleteNotebookId] = useState(null);
@@ -1268,6 +1270,13 @@ const Dashboard = () => {
       a.click();
       document.body.removeChild(a);
     } catch { showToast('İndirme başarısız', 'error'); }
+  };
+
+  const openDriveFile = async (fileId) => {
+    try {
+      const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
+      window.open(res.data.url, '_blank', 'noopener,noreferrer');
+    } catch { showToast('Dosya açılamadı', 'error'); }
   };
 
   const uploadDocToDrive = async (doc) => {
@@ -3237,15 +3246,18 @@ MATCHES:[1,3,5]`;
                         <HardDrive className="h-6 w-6" style={{ color: '#6366f1' }} />
                         <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Prime Drive</h2>
                       </div>
-                      <label className="flex items-center gap-2 px-3 py-1.5 rounded-xl cursor-pointer text-sm font-medium transition-all" style={{ background: driveUploading ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)', opacity: driveUploading ? 0.6 : 1, pointerEvents: driveUploading ? 'none' : 'auto' }}>
+                      <button
+                        onClick={() => !driveUploading && setShowDriveUploadSheet(true)}
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-all"
+                        style={{ background: driveUploading ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)', opacity: driveUploading ? 0.6 : 1, cursor: driveUploading ? 'default' : 'pointer' }}
+                      >
                         {driveUploading ? (
                           <svg className="animate-spin" viewBox="0 0 20 20" style={{width:14,height:14}}><circle cx="10" cy="10" r="7" stroke="#6366f1" strokeWidth="2.5" strokeDasharray="30" strokeDashoffset="10" fill="none"/></svg>
                         ) : (
                           <svg viewBox="0 0 20 20" fill="none" style={{width:14,height:14}}><path d="M10 3v10M6 7l4-4 4 4" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 15h14" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
                         )}
                         {driveUploading ? t('uploading') : t('uploadFile')}
-                        <input type="file" multiple className="hidden" onChange={e => { Array.from(e.target.files || []).forEach(f => uploadDriveFile(f)); e.target.value = ''; }} />
-                      </label>
+                      </button>
                     </div>
                     <div className="p-5 rounded-2xl mb-4" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
                       <div className="flex items-center justify-between mb-3">
@@ -3280,23 +3292,28 @@ MATCHES:[1,3,5]`;
                       </div>
                     ) : (
                       <div className="space-y-2">
-                        {driveFiles.map(item => (
-                          <div key={item.file_id} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)' }}>
+                        {driveFiles.map(item => {
+                          const _isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.name) || /^file_[a-z0-9]+$/i.test(item.name);
+                          const _ext = item.content_type?.split('/')[1] || '';
+                          const displayName = _isUuid ? `Dosya${_ext ? '.' + _ext : ''}` : item.name;
+                          return (
+                          <div key={item.file_id} onClick={() => openDriveFile(item.file_id)} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', cursor: 'pointer', transition: 'border-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.borderColor='rgba(99,102,241,0.4)'} onMouseLeave={e => e.currentTarget.style.borderColor='var(--zet-border)'}>
                             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(99,102,241,0.1)' }}>
                               {fileIcon(item.content_type)}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{item.name}</p>
+                              <p className="text-sm font-medium truncate" style={{ color: 'var(--zet-text)' }}>{displayName}</p>
                               <p className="text-xs" style={{ color: 'var(--zet-text-muted)' }}>{fmtSize(item.size)} · {new Date(item.created_at).toLocaleDateString('tr-TR')}</p>
                             </div>
-                            <button onClick={() => downloadDriveFile(item.file_id, item.name)} className="p-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#6366f1' }} title="İndir">
+                            <button onClick={e => { e.stopPropagation(); downloadDriveFile(item.file_id, item.name); }} className="p-1.5 rounded-lg hover:bg-white/10 transition-all" style={{ color: '#6366f1' }} title="İndir">
                               <svg viewBox="0 0 20 20" fill="none" style={{width:15,height:15}}><path d="M10 3v10M6 9l4 4 4-4" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><path d="M3 15h14" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
                             </button>
-                            <button onClick={() => deleteDriveFile(item.file_id, item.size)} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: 'rgba(255,255,255,0.3)' }} title="Sil">
+                            <button onClick={e => { e.stopPropagation(); deleteDriveFile(item.file_id, item.size); }} className="p-1.5 rounded-lg hover:bg-red-500/10 transition-all" style={{ color: 'rgba(255,255,255,0.3)' }} title="Sil">
                               <X className="h-4 w-4" />
                             </button>
                           </div>
-                        ))}
+                        );
+                        })}
                       </div>
                     )}
                     {userSubscription === 'free' && (
@@ -5029,6 +5046,79 @@ MATCHES:[1,3,5]`;
               <path d="M74 46 L65 62 L71 62 L68 76 L77 58 L71 58 Z" fill="#f59e0b" opacity="0.9" />
             </svg>
             <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 13, marginTop: 4 }}>Kredi Yükleniyor...</p>
+          </div>
+        </div>
+      )}
+
+      {/* ── Drive Upload Sheet ── */}
+      {showDriveUploadSheet && (
+        <div onClick={() => setShowDriveUploadSheet(false)} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 480, background: '#0f1225', borderRadius: '20px 20px 0 0', padding: '24px 24px 36px', border: '1px solid rgba(255,255,255,0.08)', borderBottom: 'none' }}>
+            <div style={{ width: 36, height: 4, background: 'rgba(255,255,255,0.12)', borderRadius: 2, margin: '0 auto 20px' }} />
+            <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 15, marginBottom: 16, textAlign: 'center' }}>Dosya Yükle</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.2)', cursor: 'pointer' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(99,102,241,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg viewBox="0 0 24 24" fill="none" style={{width:20,height:20}}><rect x="4" y="2" width="16" height="20" rx="3" stroke="#6366f1" strokeWidth="1.5"/><path d="M8 7h8M8 11h8M8 15h5" stroke="#6366f1" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                </div>
+                <div>
+                  <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 14 }}>Cihazdan Yükle</p>
+                  <p style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>Fotoğraf, dosya veya belge seç</p>
+                </div>
+                <input type="file" multiple className="hidden" style={{ display: 'none' }} onChange={e => { Array.from(e.target.files || []).forEach(f => uploadDriveFile(f)); e.target.value = ''; setShowDriveUploadSheet(false); }} />
+              </label>
+              <button
+                onClick={() => { setShowDriveUploadSheet(false); setShowDriveDocPicker(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', borderRadius: 14, background: 'rgba(56,189,248,0.06)', border: '1px solid rgba(56,189,248,0.18)', cursor: 'pointer', width: '100%', textAlign: 'left' }}
+              >
+                <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(56,189,248,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  <svg viewBox="0 0 24 24" fill="none" style={{width:20,height:20}}><path d="M12 2L2 7l10 5 10-5-10-5z" stroke="#38bdf8" strokeWidth="1.5" strokeLinejoin="round"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5" stroke="#38bdf8" strokeWidth="1.5" strokeLinejoin="round"/></svg>
+                </div>
+                <div>
+                  <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 14 }}>ZET Belgelerinden Seç</p>
+                  <p style={{ color: '#64748b', fontSize: 12, marginTop: 2 }}>Mevcut belgeni Drive'a yükle</p>
+                </div>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Drive Doc Picker ── */}
+      {showDriveDocPicker && (
+        <div onClick={() => setShowDriveDocPicker(false)} style={{ position: 'fixed', inset: 0, zIndex: 1200, background: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <div onClick={e => e.stopPropagation()} style={{ width: '100%', maxWidth: 420, background: '#0f1225', borderRadius: 20, padding: '24px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '70vh', display: 'flex', flexDirection: 'column' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ color: '#e2e8f0', fontWeight: 600, fontSize: 15 }}>Belge Seç</p>
+              <button onClick={() => setShowDriveDocPicker(false)} style={{ background: 'none', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4 }}>
+                <svg viewBox="0 0 20 20" fill="none" style={{width:18,height:18}}><path d="M5 5l10 10M15 5L5 15" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+              </button>
+            </div>
+            <div style={{ overflowY: 'auto', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {documents.length === 0 ? (
+                <p style={{ color: '#64748b', fontSize: 13, textAlign: 'center', padding: '32px 0' }}>Henüz belge yok</p>
+              ) : documents.map(doc => (
+                <button
+                  key={doc.doc_id}
+                  onClick={async () => {
+                    try {
+                      const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
+                      const json = JSON.stringify(res.data);
+                      const blob = new Blob([json], { type: 'application/json' });
+                      const file = new File([blob], `${doc.title || 'belge'}.zetdoc`, { type: 'application/json' });
+                      uploadDriveFile(file);
+                      setShowDriveDocPicker(false);
+                    } catch { showToast('Belge aktarılamadı', 'error'); }
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', width: '100%', textAlign: 'left', transition: 'border-color 0.15s' }}
+                  onMouseEnter={e => e.currentTarget.style.borderColor='rgba(56,189,248,0.3)'}
+                  onMouseLeave={e => e.currentTarget.style.borderColor='rgba(255,255,255,0.06)'}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" style={{width:18,height:18,flexShrink:0}}><rect x="4" y="2" width="16" height="20" rx="3" stroke="#38bdf8" strokeWidth="1.5"/><path d="M8 7h8M8 11h8M8 15h5" stroke="#38bdf8" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  <p style={{ color: '#e2e8f0', fontSize: 13, fontWeight: 500, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{doc.title || 'İsimsiz Belge'}</p>
+                </button>
+              ))}
+            </div>
           </div>
         </div>
       )}

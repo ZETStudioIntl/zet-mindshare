@@ -3252,7 +3252,8 @@ async def upload_drive_file(file: UploadFile = File(...), user: User = Depends(g
         if file_size > 200 * 1024 * 1024:
             raise HTTPException(status_code=413, detail="Dosya 200 MB sınırını aşıyor.")
         file_id = f"file_{uuid.uuid4().hex[:14]}"
-        fname = file.filename or file_id
+        raw_name = file.filename or ""
+        fname = raw_name.strip() if raw_name.strip() else f"dosya_{file_id[-6:]}"
         ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else "bin"
         key = f"drive/{user.user_id}/{file_id}.{ext}"
         try:
