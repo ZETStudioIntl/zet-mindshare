@@ -120,8 +120,11 @@ export default function Pricing() {
           <Reveal>
             <div className="section-label">Fiyatlandırma</div>
             <h1 className="section-title" style={{ maxWidth: 560, margin: '0 auto 16px' }}>İhtiyacına göre seç</h1>
-            <p className="section-desc" style={{ margin: '0 auto 36px' }}>
+            <p className="section-desc" style={{ margin: '0 auto 16px' }}>
               Kredi kartı gerekmeden başla. ZP kazanarak plan satın alma seçeneği de mevcut.
+            </p>
+            <p style={{ fontSize: 13, color: 'var(--text-dim)', marginBottom: 36 }}>
+              Free, Plus ve Pro planları <strong style={{ color: 'var(--text-muted)' }}>ZET Mindshare</strong>'e aittir. Creative Station tüm ZET ekosistemini kapsar.
             </p>
           </Reveal>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 12, background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 99, padding: '6px 8px' }}>

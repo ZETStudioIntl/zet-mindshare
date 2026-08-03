@@ -11,7 +11,6 @@ import Support from './pages/Support';
 import Terms from './pages/Terms';
 import Privacy from './pages/Privacy';
 import Cookies from './pages/Cookies';
-import Mizan from './pages/Mizan';
 
 const ScrollToTop = () => {
   const { pathname } = useLocation();
@@ -41,7 +40,6 @@ export default function App() {
         <Route path="/kullanim-kosullari" element={<Layout><Terms /></Layout>} />
         <Route path="/gizlilik-politikasi" element={<Layout><Privacy /></Layout>} />
         <Route path="/cerez-politikasi" element={<Layout><Cookies /></Layout>} />
-        <Route path="/mizan-i-zet" element={<Layout><Mizan /></Layout>} />
         <Route path="*" element={<Layout><Home /></Layout>} />
       </Routes>
     </BrowserRouter>

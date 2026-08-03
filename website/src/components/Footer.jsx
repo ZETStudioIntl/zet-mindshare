@@ -9,7 +9,6 @@ const LINKS = {
     { label: 'Özellikler', href: '/#urunler' },
     { label: 'Fiyatlandırma', href: '/fiyatlandirma' },
     { label: 'İndir', href: '/indir' },
-    { label: 'Mizan-ı ZET', href: '/mizan-i-zet' },
   ],
   Şirket: [
     { label: 'Hakkımızda', href: '/hakkimizda' },
