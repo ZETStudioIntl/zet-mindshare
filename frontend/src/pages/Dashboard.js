@@ -8,6 +8,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
 import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
+import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue } from '../lib/localNoteDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import { openPaddleCheckout, openPaddleCreditCheckout } from '../lib/paddle';
@@ -252,7 +253,7 @@ const Dashboard = () => {
   const [seasonResult, setSeasonResult] = useState(null);
   const [firedAlarms, setFiredAlarms] = useState([]);
   const [alarmTick, setAlarmTick] = useState(0);
-  const [notebooks, setNotebooks] = useState([]);
+  const [notebooks, setNotebooks] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_notebooks_cache') || '[]'); } catch { return []; } });
   const [activeNotebook, setActiveNotebook] = useState(null);
   const [newNotebookName, setNewNotebookName] = useState('');
   const [showNewNotebook, setShowNewNotebook] = useState(false);
@@ -568,16 +569,35 @@ const Dashboard = () => {
       setShowCredits(true);
       window.history.replaceState({}, '', '/dashboard');
     }
-    // Her 30sn notları yeniden çek (alarm kontrolü için)
-    const fetchNotes = async () => {
+    // Her 5dk notları arka planda sunucuyla senkronize et (alarm kontrolü için)
+    const syncNotes = async () => {
+      if (!navigator.onLine) return;
       try {
         const res = await axios.get(`${API}/notes`, { withCredentials: true });
-        setNotes(res.data);
+        await mergeServerNotes(res.data);
+        const merged = await getAllNotes();
+        setNotes(merged);
       } catch {}
     };
-    const interval = setInterval(fetchNotes, 300000);
-    return () => clearInterval(interval);
-  }, []);
+    const interval = setInterval(syncNotes, 300000);
+    // İnternet bağlandığında bekleyen değişiklikleri gönder
+    const handleOnline = async () => {
+      try {
+        await processSyncQueue(noteApiHelper);
+        const merged = await getAllNotes();
+        setNotes(merged);
+      } catch {}
+    };
+    window.addEventListener('online', handleOnline);
+    return () => { clearInterval(interval); window.removeEventListener('online', handleOnline); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Defterler değiştiğinde cache güncelle
+  useEffect(() => {
+    if (notebooks.length > 0) {
+      try { localStorage.setItem('zet_notebooks_cache', JSON.stringify(notebooks)); } catch {}
+    }
+  }, [notebooks]);
 
   useEffect(() => {
     if (documents.length > 0 && !docsAnimatedRef.current) {
@@ -907,37 +927,52 @@ const Dashboard = () => {
     } catch {}
   };
 
+  // Sunucuya note işlemleri için yardımcı — processSyncQueue tarafından çağrılır
+  const noteApiHelper = async (method, note) => {
+    const { _dirty, _local_only, _deleted, ...payload } = note;
+    if (method === 'post') {
+      const res = await axios.post(`${API}/notes`, payload, { withCredentials: true });
+      return res.data;
+    } else if (method === 'put') {
+      await axios.put(`${API}/notes/${note.note_id}`, payload, { withCredentials: true });
+      return note;
+    } else if (method === 'delete') {
+      await axios.delete(`${API}/notes/${note.note_id}`, { withCredentials: true });
+      return note;
+    }
+  };
+
   const fetchData = async () => {
     await migrateDocsFromServer();
-    try {
-      const [localDocs, notesRes] = await Promise.all([
-        getAllDocs(),
-        axios.get(`${API}/notes`, { withCredentials: true })
-      ]);
-      setDocuments(localDocs);
-      setDocsHasMore(false);
-      setNotes(notesRes.data);
+
+    // Belgeler ve notlar IndexedDB'den anlık yükle
+    const [localDocs, localNotes] = await Promise.all([getAllDocs(), getAllNotes()]);
+    setDocuments(localDocs);
+    setDocsHasMore(false);
+    if (localNotes.length > 0) setNotes(localNotes);
+    setLoading(false);
+
+    // Arka planda sunucuyla senkronize et
+    if (navigator.onLine) {
       try {
-        const notesMeta = notesRes.data.map(({ note_id, content, updated_at, reminder_time, reminder_sent, notebook_id }) => ({ note_id, content: (content || '').slice(0, 200), updated_at, reminder_time, reminder_sent, notebook_id }));
-        localStorage.setItem('zet_notes_cache', JSON.stringify(notesMeta));
+        await processSyncQueue(noteApiHelper);
+        const notesRes = await axios.get(`${API}/notes`, { withCredentials: true });
+        await mergeServerNotes(notesRes.data);
+        const mergedNotes = await getAllNotes();
+        setNotes(mergedNotes);
       } catch {}
-    } catch (error) {
-      console.error('Error fetching data:', error);
-    } finally {
-      setLoading(false);
-    }
-    try {
-      const notebooksRes = await axios.get(`${API}/notebooks`, { withCredentials: true });
-      const nbs = notebooksRes.data.map(nb => ({ ...nb, has_password: !!nb.password_hash }));
-      setNotebooks(nbs);
-    } catch (error) {
-      console.error('Error fetching notebooks:', error);
-    }
-    try {
-      const filesRes = await axios.get(`${API}/doc-files`, { withCredentials: true });
-      setDocFiles(filesRes.data);
-    } catch (error) {
-      console.error('Error fetching doc files:', error);
+
+      try {
+        const notebooksRes = await axios.get(`${API}/notebooks`, { withCredentials: true });
+        const nbs = notebooksRes.data.map(nb => ({ ...nb, has_password: !!nb.password_hash }));
+        setNotebooks(nbs);
+        localStorage.setItem('zet_notebooks_cache', JSON.stringify(nbs));
+      } catch {}
+
+      try {
+        const filesRes = await axios.get(`${API}/doc-files`, { withCredentials: true });
+        setDocFiles(filesRes.data);
+      } catch {}
     }
   };
 
@@ -1187,17 +1222,30 @@ const Dashboard = () => {
 
   const loadZetaMemories = async () => {
     setMemoriesLoading(true);
+    // Önce cache'ten göster
     try {
-      const res = await axios.get(`${API}/zeta/memory`, { withCredentials: true });
-      setZetaMemories(res.data || []);
+      const cached = localStorage.getItem('zet_memories_cache');
+      if (cached) setZetaMemories(JSON.parse(cached));
     } catch {}
+    // Arka planda sunucudan tazele
+    if (navigator.onLine) {
+      try {
+        const res = await axios.get(`${API}/zeta/memory`, { withCredentials: true });
+        setZetaMemories(res.data || []);
+        localStorage.setItem('zet_memories_cache', JSON.stringify(res.data || []));
+      } catch {}
+    }
     setMemoriesLoading(false);
   };
 
   const deleteZetaMemory = async (memoryId) => {
     try {
       await axios.delete(`${API}/zeta/memory/${memoryId}`, { withCredentials: true });
-      setZetaMemories(prev => prev.filter(m => m.memory_id !== memoryId));
+      setZetaMemories(prev => {
+        const next = prev.filter(m => m.memory_id !== memoryId);
+        try { localStorage.setItem('zet_memories_cache', JSON.stringify(next)); } catch {}
+        return next;
+      });
     } catch {}
   };
 
@@ -1206,6 +1254,7 @@ const Dashboard = () => {
       try {
         await Promise.all(zetaMemories.map(m => axios.delete(`${API}/zeta/memory/${m.memory_id}`, { withCredentials: true })));
         setZetaMemories([]);
+        try { localStorage.setItem('zet_memories_cache', JSON.stringify([])); } catch {}
         showToast(t('memoriesCleared'), 'success');
       } catch { showToast('Hata oluştu', 'error'); }
     }, true);
@@ -1215,7 +1264,11 @@ const Dashboard = () => {
     if (!newMemoryInput.trim()) return;
     try {
       const res = await axios.post(`${API}/zeta/memory`, { content: newMemoryInput.trim() }, { withCredentials: true });
-      setZetaMemories(prev => [res.data, ...prev]);
+      setZetaMemories(prev => {
+        const next = [res.data, ...prev];
+        try { localStorage.setItem('zet_memories_cache', JSON.stringify(next)); } catch {}
+        return next;
+      });
       setNewMemoryInput('');
       questService.fireCounter('memories_added', 1);
       showToast('Bellek eklendi', 'success');
@@ -1323,11 +1376,15 @@ const Dashboard = () => {
 
   const pinNote = async (note) => {
     const newPinned = !note.pinned;
-    try {
-      await axios.put(`${API}/notes/${note.note_id}/pin`, { pinned: newPinned }, { withCredentials: true });
-      setNotes(prev => prev.map(n => n.note_id === note.note_id ? { ...n, pinned: newPinned } : n));
-    } catch (error) {
-      console.error('Error pinning note:', error);
+    const existing = await getNote(note.note_id) || note;
+    const updated = { ...existing, pinned: newPinned, updated_at: new Date().toISOString(), _dirty: true };
+    await saveNote(updated);
+    setNotes(prev => prev.map(n => n.note_id === note.note_id ? { ...n, pinned: newPinned } : n));
+    if (navigator.onLine) {
+      try {
+        await axios.put(`${API}/notes/${note.note_id}/pin`, { pinned: newPinned }, { withCredentials: true });
+        await saveNote({ ...updated, _dirty: false });
+      } catch {}
     }
   };
 
@@ -1360,28 +1417,40 @@ const Dashboard = () => {
 
   const updateNote = async (noteId, newContent) => {
     if (!newContent.trim()) return;
-    try {
-      await axios.put(`${API}/notes/${noteId}`, { content: newContent }, { withCredentials: true });
-      setNotes(prev => prev.map(n => n.note_id === noteId ? { ...n, content: newContent } : n));
-      setEditingNoteId(null);
-      setEditingNoteContent('');
-    } catch (error) {
-      console.error('Error updating note:', error);
+    const existing = await getNote(noteId) || notes.find(n => n.note_id === noteId) || {};
+    const updated = { ...existing, note_id: noteId, content: newContent, updated_at: new Date().toISOString(), _dirty: true };
+    await saveNote(updated);
+    setNotes(prev => prev.map(n => n.note_id === noteId ? { ...n, content: newContent } : n));
+    setEditingNoteId(null);
+    setEditingNoteContent('');
+    if (navigator.onLine) {
+      try {
+        await axios.put(`${API}/notes/${noteId}`, { content: newContent }, { withCredentials: true });
+        await saveNote({ ...updated, _dirty: false });
+      } catch {}
     }
   };
 
   const addNoteToNotebook = async () => {
     if (!notebookNote.trim() || !activeNotebook) return;
-    try {
-      const res = await axios.post(`${API}/notes`, {
-        content: notebookNote,
-        notebook_id: activeNotebook.notebook_id
-      }, { withCredentials: true });
-      setNotes(prev => [res.data, ...prev]);
-      setNotebookNote('');
-      questService.fireCounter('notes_created', 1);
-    } catch (error) {
-      console.error('Error adding note to notebook:', error);
+    const noteId = generateNoteId();
+    const now = new Date().toISOString();
+    const newNote = { note_id: noteId, content: notebookNote, notebook_id: activeNotebook.notebook_id, created_at: now, updated_at: now, pinned: false, _dirty: true, _local_only: true, _deleted: false };
+    await saveNote(newNote);
+    setNotes(prev => [newNote, ...prev]);
+    setNotebookNote('');
+    questService.fireCounter('notes_created', 1);
+    if (navigator.onLine) {
+      try {
+        const res = await axios.post(`${API}/notes`, { content: notebookNote, notebook_id: activeNotebook.notebook_id }, { withCredentials: true });
+        if (res.data.note_id !== noteId) {
+          await deleteNoteLocal(noteId);
+          await saveNote({ ...res.data, _dirty: false, _local_only: false, _deleted: false });
+          setNotes(prev => prev.map(n => n.note_id === noteId ? { ...res.data, _dirty: false, _local_only: false, _deleted: false } : n));
+        } else {
+          await saveNote({ ...newNote, _dirty: false, _local_only: false });
+        }
+      } catch {}
     }
   };
 
@@ -1829,25 +1898,40 @@ MATCHES:[1,3,5]`;
 
   const addQuickNote = async () => {
     if (!quickNote.trim()) return;
-    try {
-      const res = await axios.post(`${API}/notes`, {
-        content: quickNote,
-        reminder_time: noteReminder || null
-      }, { withCredentials: true });
-      setNotes([res.data, ...notes]);
-      setQuickNote('');
-      setNoteReminder('');
-    } catch (error) {
-      console.error('Error adding note:', error);
+    const noteId = generateNoteId();
+    const now = new Date().toISOString();
+    const newNote = { note_id: noteId, content: quickNote, reminder_time: noteReminder || null, created_at: now, updated_at: now, pinned: false, _dirty: true, _local_only: true, _deleted: false };
+    await saveNote(newNote);
+    setNotes(prev => [newNote, ...prev]);
+    setQuickNote('');
+    setNoteReminder('');
+    if (navigator.onLine) {
+      try {
+        const res = await axios.post(`${API}/notes`, { content: quickNote, reminder_time: noteReminder || null }, { withCredentials: true });
+        if (res.data.note_id !== noteId) {
+          await deleteNoteLocal(noteId);
+          await saveNote({ ...res.data, _dirty: false, _local_only: false, _deleted: false });
+          setNotes(prev => prev.map(n => n.note_id === noteId ? { ...res.data, _dirty: false, _local_only: false, _deleted: false } : n));
+        } else {
+          await saveNote({ ...newNote, _dirty: false, _local_only: false });
+        }
+      } catch {}
     }
   };
 
   const deleteNote = async (noteId) => {
-    try {
-      await axios.delete(`${API}/notes/${noteId}`, { withCredentials: true });
-      setNotes(notes => notes.filter(n => n.note_id !== noteId));
-    } catch (error) {
-      console.error('Error deleting note:', error);
+    const existing = await getNote(noteId);
+    setNotes(prev => prev.filter(n => n.note_id !== noteId));
+    if (existing?._local_only) {
+      await deleteNoteLocal(noteId);
+      return;
+    }
+    await markNoteDeleted(noteId);
+    if (navigator.onLine) {
+      try {
+        await axios.delete(`${API}/notes/${noteId}`, { withCredentials: true });
+        await deleteNoteLocal(noteId);
+      } catch {}
     }
   };
 
