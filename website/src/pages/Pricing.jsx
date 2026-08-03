@@ -49,9 +49,9 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    monthly: 19.99,
-    yearly: 16.58,
-    yearlyTotal: 199,
+    monthly: 25,
+    yearly: 20.75,
+    yearlyTotal: 249,
     desc: 'Yoğun kullanıcılar için gelişmiş özellikler.',
     cta: 'Pro\'ya Geç',
     href: APP_URL,

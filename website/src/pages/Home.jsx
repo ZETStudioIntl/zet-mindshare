@@ -393,8 +393,8 @@ export default function Home() {
             />
             <PlanCard
               name="Pro"
-              price={19.99}
-              yearlyPrice={16.58}
+              price={25}
+              yearlyPrice={20.75}
               desc="Yoğun kullanıcılar için gelişmiş özellikler."
               features={['500 kredi/gün', '50 GB Prime Drive', 'AI görsel üretimi', 'Filigransız Auto-Write', 'Öncelikli destek']}
               delay={0.2}
