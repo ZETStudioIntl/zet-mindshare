@@ -774,6 +774,11 @@ const Dashboard = () => {
     if (showSettings && settingsTab === 'primedrive') {
       loadDriveFiles();
     }
+    if (settingsTab === 'profile' && user) {
+      setEditName(user.name || '');
+      setEditUsername(user.username || '');
+      setEditBio(user.bio || '');
+    }
   }, [showSettings, settingsTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Hafizz uyarıları — kullanıcıya gösterilmemiş uyarılar
@@ -1740,6 +1745,9 @@ const Dashboard = () => {
 
   const deleteDocument = async (docId) => {
     try {
+      if (navigator.onLine) {
+        await axios.delete(`${API}/documents/${docId}`, { withCredentials: true });
+      }
       await deleteDoc(docId);
       setDocuments(docs => docs.filter(d => d.doc_id !== docId));
     } catch (error) {
@@ -4930,7 +4938,7 @@ MATCHES:[1,3,5]`;
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingCaseId));
             if (r.type === 'zp') setUserZP(prev => prev + r.amount);
-            if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);
+            if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => { const next = prev.includes(r.mode) ? prev : [...prev, r.mode]; localStorage.setItem('zet_unlocked_modes', JSON.stringify(next)); return next; });
           }}
         />
       )}
@@ -4944,7 +4952,7 @@ MATCHES:[1,3,5]`;
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingWheelId));
             if (r.type === 'zp') setUserZP(prev => prev + r.amount);
-            if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);
+            if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => { const next = prev.includes(r.mode) ? prev : [...prev, r.mode]; localStorage.setItem('zet_unlocked_modes', JSON.stringify(next)); return next; });
           }}
         />
       )}
@@ -4958,7 +4966,7 @@ MATCHES:[1,3,5]`;
           onNotFound={() => setInventory(prev => prev.filter(c => c.id !== openingPackId))}
           onReward={(r) => {
             setInventory(prev => prev.filter(c => c.id !== openingPackId));
-            if (r.mode) setDUnlockedModes(prev => prev.includes(r.mode) ? prev : [...prev, r.mode]);
+            if (r.mode) setDUnlockedModes(prev => { const next = prev.includes(r.mode) ? prev : [...prev, r.mode]; localStorage.setItem('zet_unlocked_modes', JSON.stringify(next)); return next; });
           }}
         />
       )}
