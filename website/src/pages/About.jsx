@@ -13,7 +13,7 @@ function Reveal({ children, delay = 0 }) {
 
 const VALUES = [
   { title: 'Kullanıcı önce gelir', desc: 'Her özelliği önce kullanıcı geri bildirimiyle tasarlıyoruz. Şişirilmiş özellik listeleri değil, gerçek ihtiyaçlara yanıt.' },
-  { title: 'Gizlilik hakkı', desc: 'Verilerini satmıyoruz. Belgelerini AI eğitiminde kullanmıyoruz. Sana ait olan sende kalır.' },
+  { title: 'Gizlilik hakkı', desc: 'Verilerini satmıyoruz. Sana ait olan sende kalır.' },
   { title: 'Hız = saygı', desc: 'Yavaş bir uygulama zamanına saygısızlıktır. Her sürümde performans birinci öncelik.' },
   { title: 'Dürüst fiyatlandırma', desc: 'Gizli ücret yok. ZP kazanarak plan satın alabilirsin. Şeffaf, adil fiyatlandırma.' },
 ];
