@@ -3300,6 +3300,22 @@ async def get_drive_file_url(file_id: str, user: User = Depends(get_current_user
     url = await asyncio.to_thread(r2.generate_presigned_url, "get_object", Params={"Bucket": R2_BUCKET, "Key": f["r2_key"]}, ExpiresIn=3600)
     return {"url": url, "name": f["name"], "content_type": f["content_type"]}
 
+@api_router.get("/drive/files/{file_id}/content")
+async def get_drive_file_content(file_id: str, user: User = Depends(get_current_user)):
+    """R2'deki dosya içeriğini proxy olarak döner (CORS bypass için)."""
+    import httpx
+    f = await db.drive_files.find_one({"file_id": file_id, "user_id": user.user_id}, {"_id": 0})
+    if not f:
+        raise HTTPException(status_code=404, detail="Dosya bulunamadı")
+    r2 = _get_r2()
+    url = await asyncio.to_thread(r2.generate_presigned_url, "get_object", Params={"Bucket": R2_BUCKET, "Key": f["r2_key"]}, ExpiresIn=300)
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(url)
+    if resp.status_code != 200:
+        raise HTTPException(status_code=502, detail="Dosya R2'den alınamadı")
+    from fastapi.responses import Response
+    return Response(content=resp.content, media_type=f.get("content_type", "application/octet-stream"))
+
 @api_router.post("/documents")
 async def create_document(doc: DocumentCreate, user: User = Depends(get_current_user)):
     doc_id = f"doc_{uuid.uuid4().hex[:12]}"

@@ -1338,18 +1338,17 @@ const Dashboard = () => {
 
   const openDriveFile = async (fileId, fileName) => {
     try {
-      const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
-      const url = res.data.url;
       if (fileName?.toLowerCase().endsWith('.zetdoc')) {
-        // .zetdoc → JSON içeriği al, IndexedDB'ye kaydet, editörde aç
-        const fileRes = await fetch(url);
-        const doc = await fileRes.json();
+        // .zetdoc → backend proxy üzerinden içerik al (R2 CORS bypass)
+        const res = await axios.get(`${API}/drive/files/${fileId}/content`, { withCredentials: true });
+        const doc = res.data;
         if (!doc?.doc_id) { showToast('Belge okunamadı', 'error'); return; }
         const existing = await getDoc(doc.doc_id);
         if (!existing) await saveDoc({ ...doc, updated_at: doc.updated_at || new Date().toISOString() });
         navigate(`/editor/${doc.doc_id}`);
       } else {
-        window.open(url, '_blank', 'noopener,noreferrer');
+        const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
+        window.open(res.data.url, '_blank', 'noopener,noreferrer');
       }
     } catch { showToast('Dosya açılamadı', 'error'); }
   };
