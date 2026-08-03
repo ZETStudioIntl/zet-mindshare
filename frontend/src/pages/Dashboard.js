@@ -7,7 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
-import { saveDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
+import { saveDoc, getDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
 import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue } from '../lib/localNoteDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
@@ -1331,10 +1331,21 @@ const Dashboard = () => {
     } catch { showToast('İndirme başarısız', 'error'); }
   };
 
-  const openDriveFile = async (fileId) => {
+  const openDriveFile = async (fileId, fileName) => {
     try {
       const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
-      window.open(res.data.url, '_blank', 'noopener,noreferrer');
+      const url = res.data.url;
+      if (fileName?.toLowerCase().endsWith('.zetdoc')) {
+        // .zetdoc → JSON içeriği al, IndexedDB'ye kaydet, editörde aç
+        const fileRes = await fetch(url);
+        const doc = await fileRes.json();
+        if (!doc?.doc_id) { showToast('Belge okunamadı', 'error'); return; }
+        const existing = await getDoc(doc.doc_id);
+        if (!existing) await saveDoc({ ...doc, updated_at: doc.updated_at || new Date().toISOString() });
+        navigate(`/editor/${doc.doc_id}`);
+      } else {
+        window.open(url, '_blank', 'noopener,noreferrer');
+      }
     } catch { showToast('Dosya açılamadı', 'error'); }
   };
 
@@ -3396,7 +3407,7 @@ MATCHES:[1,3,5]`;
                           const _ext = item.name?.includes('.') ? item.name.split('.').pop() : (item.content_type?.split('/')[1] || '');
                           const displayName = _isTechId ? `Belge.${_ext}` : item.name;
                           return (
-                          <div key={item.file_id} onClick={() => openDriveFile(item.file_id)} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', cursor: 'pointer', transition: 'border-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.borderColor='rgba(99,102,241,0.4)'} onMouseLeave={e => e.currentTarget.style.borderColor='var(--zet-border)'}>
+                          <div key={item.file_id} onClick={() => openDriveFile(item.file_id, item.name)} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', cursor: 'pointer', transition: 'border-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.borderColor='rgba(99,102,241,0.4)'} onMouseLeave={e => e.currentTarget.style.borderColor='var(--zet-border)'}>
                             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(99,102,241,0.1)' }}>
                               {fileIcon(item.content_type)}
                             </div>
