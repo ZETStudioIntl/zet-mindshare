@@ -47,11 +47,17 @@ function HeroBlob() {
   );
 }
 
-function AppCard({ name, logo, desc, badge, delay }) {
+function AppCard({ name, logo, desc, badge, delay, scrollTarget }) {
   const [hovered, setHovered] = useState(false);
+  const handleClick = () => {
+    if (!scrollTarget) return;
+    const el = document.getElementById(scrollTarget);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
   return (
     <Reveal delay={delay}>
       <div
+        onClick={handleClick}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
         style={{
@@ -61,6 +67,7 @@ function AppCard({ name, logo, desc, badge, delay }) {
           padding: '28px 28px 24px',
           transition: 'all 0.25s ease',
           transform: hovered ? 'translateY(-4px)' : 'none',
+          cursor: scrollTarget ? 'pointer' : 'default',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
@@ -73,6 +80,12 @@ function AppCard({ name, logo, desc, badge, delay }) {
         </div>
         <h3 style={{ fontSize: 18, fontWeight: 800, marginBottom: 8 }}>{name}</h3>
         <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>{desc}</p>
+        {scrollTarget && (
+          <p style={{ fontSize: 12, color: 'var(--teal)', marginTop: 14, display: 'flex', alignItems: 'center', gap: 4 }}>
+            Daha fazla gör
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M6 2l4 4-4 4M2 6h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          </p>
+        )}
       </div>
     </Reveal>
   );
@@ -83,12 +96,14 @@ const APPS = [
     logo: MindshareLogoSrc,
     name: 'ZET Mindshare',
     desc: 'Akıllı belge editörü ve not alma platformu. Zeta AI asistanı, canvas araçları ve Prime Drive ile düşüncelerini organize et.',
+    scrollTarget: 'mindshare-features',
   },
   {
     logo: JudgeLogoSrc,
     name: 'ZET Judge',
     desc: 'İş planı değerlendirmesi, risk analizi ve AI tabanlı stratejik danışmanlık. Fikirlerini sorgula, kararlarını güçlendir.',
     badge: 'Beta',
+    scrollTarget: 'judge-features',
   },
 ];
 
@@ -215,7 +230,7 @@ export default function Home() {
       </section>
 
       {/* MİNDSHARE ÖZELLİKLERİ */}
-      <section className="section" style={{ paddingTop: 0 }}>
+      <section className="section" style={{ paddingTop: 0 }} id="mindshare-features">
         <div className="container">
           <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 48px' }}>
             <Reveal>
@@ -229,11 +244,43 @@ export default function Home() {
               { title: 'Canvas Editörü', desc: 'Kalem, şekil, tablo, grafik, resim, imza ve serbest çizimi tek belgede birleştir.' },
               { title: 'Prime Drive', desc: 'Dosyalarını bulutta güvenle sakla. Plana göre 1 GB\'dan 1 TB\'a kadar depolama.' },
               { title: 'Rank & Sezon Sistemi', desc: 'Demir\'den Endless\'e uzanan 6 ranklı ilerleme sistemi. Her sezonu kazan.' },
-              { title: 'Judge AI', desc: 'İş planlarını, argümanları ve stratejileri eleştiren ve analiz eden ikinci AI.' },
+              { title: 'Not Defteri', desc: 'Hızlı notlar, hafıza sistemi ve defter organizasyonu ile düşüncelerini kaybet.' },
               { title: 'ZP & Kredi Sistemi', desc: 'ZP ile plan satın al, sandık aç, envanter topla. Her gün yenilenen kredi havuzu.' },
             ].map((f, i) => (
               <Reveal key={f.title} delay={i * 0.06}>
                 <div style={{ background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '22px 20px' }}>
+                  <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{f.title}</h3>
+                  <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>{f.desc}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* JUDGE ÖZELLİKLERİ */}
+      <section className="section" style={{ paddingTop: 0 }} id="judge-features">
+        <div className="container">
+          <div style={{ textAlign: 'center', maxWidth: 580, margin: '0 auto 48px' }}>
+            <Reveal>
+              <div className="section-label">ZET Judge</div>
+              <h2 className="section-title">Fikirlerini sorgula, kararlarını güçlendir</h2>
+              <p className="section-desc" style={{ margin: '0 auto' }}>
+                İş planından argümana, stratejiden risk analizine — Judge AI her fikri eleştirel gözle değerlendirir.
+              </p>
+            </Reveal>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 18 }}>
+            {[
+              { title: 'İş Planı Analizi', desc: 'Girişim fikirlerini, iş modellerini ve büyüme stratejilerini derinlemesine analiz et.' },
+              { title: 'Risk & Başarı Skoru', desc: 'Her analiz sonunda somut bir risk skoru ve başarı tahmini al.' },
+              { title: 'Derin Araştırma Modu', desc: 'Judge, internet kaynaklarını tarayarak veriye dayalı değerlendirme sunar.' },
+              { title: 'Argüman Değerlendirme', desc: 'Bir argümanın zayıf ve güçlü yanlarını nesnel olarak ortaya çıkar.' },
+              { title: 'Stratejik Danışmanlık', desc: 'Rakip analizi, pazar konumlandırması ve büyüme önerileri al.' },
+              { title: 'Analiz Arşivi', desc: 'Geçmiş tüm analizlerin kayıt altında. İstediğin zaman geri dön, karşılaştır.' },
+            ].map((f, i) => (
+              <Reveal key={f.title} delay={i * 0.06}>
+                <div style={{ background: 'var(--bg-card)', border: '1px solid rgba(200,0,90,0.2)', borderRadius: 'var(--radius)', padding: '22px 20px' }}>
                   <h3 style={{ fontSize: 15, fontWeight: 700, marginBottom: 8 }}>{f.title}</h3>
                   <p style={{ fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.7 }}>{f.desc}</p>
                 </div>
