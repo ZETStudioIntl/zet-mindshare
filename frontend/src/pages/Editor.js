@@ -1370,6 +1370,14 @@ const Editor = () => {
       });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
+      // CS: sunucuya da yaz (iki kez depolama)
+      if (userPlan === 'creative_station' && navigator.onLine) {
+        axios.put(`${API}/documents/${docId}`, {
+          title: document.title, subtitle: document.subtitle || null,
+          content: document.content, pages: updatedPages,
+          settings: docSettings, mindmap: document.mindmap || null,
+        }, { withCredentials: true }).catch(() => {});
+      }
     } catch { setSaveStatus('error'); } finally { if (!silent) setSaving(false); }
   }
   saveDocumentRef.current = saveDocument;

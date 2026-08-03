@@ -2705,7 +2705,13 @@ MATCHES:[1,3,5]`;
                           }
                           await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
                           await axios.patch(`${API}/users/me`, { username: editUsername, display_name: editName, bio: editBio }, { withCredentials: true });
-                          if (updateUser) updateUser({ ...user, name: editName, username: editUsername, bio: editBio, picture: pictureUrl });
+                          const updatedUserFields = { ...user, name: editName, username: editUsername, bio: editBio, picture: pictureUrl || user?.picture };
+                          if (updateUser) updateUser(updatedUserFields);
+                          // Offline cache güncelle — sonraki açılışta güncel isim görünsün
+                          try {
+                            const cached = JSON.parse(localStorage.getItem('zet_cached_user') || '{}');
+                            localStorage.setItem('zet_cached_user', JSON.stringify({ ...cached, ...updatedUserFields }));
+                          } catch {}
                           setProfilePhoto(null);
                           setProfilePhotoPreview(null);
                           showToast(t('profileUpdated'), 'success');
