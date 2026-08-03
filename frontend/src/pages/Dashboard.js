@@ -3247,7 +3247,7 @@ MATCHES:[1,3,5]`;
                         <h2 className="text-lg font-semibold" style={{ color: 'var(--zet-text)' }}>Prime Drive</h2>
                       </div>
                       <button
-                        onClick={() => !driveUploading && setShowDriveUploadSheet(true)}
+                        onClick={() => !driveUploading && setShowDriveDocPicker(true)}
                         className="flex items-center gap-2 px-3 py-1.5 rounded-xl text-sm font-medium transition-all"
                         style={{ background: driveUploading ? 'rgba(99,102,241,0.1)' : 'rgba(99,102,241,0.15)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.3)', opacity: driveUploading ? 0.6 : 1, cursor: driveUploading ? 'default' : 'pointer' }}
                       >
@@ -3293,9 +3293,10 @@ MATCHES:[1,3,5]`;
                     ) : (
                       <div className="space-y-2">
                         {driveFiles.map(item => {
-                          const _isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(item.name) || /^file_[a-z0-9]+$/i.test(item.name);
-                          const _ext = item.content_type?.split('/')[1] || '';
-                          const displayName = _isUuid ? `Dosya${_ext ? '.' + _ext : ''}` : item.name;
+                          const _baseName = item.name?.replace(/\.[^.]+$/, '') || '';
+                          const _isTechId = /^[0-9a-f-]{32,36}$/i.test(_baseName) || /^file_[a-z0-9]+$/i.test(_baseName) || /^doc_[a-z0-9]+$/i.test(_baseName);
+                          const _ext = item.name?.includes('.') ? item.name.split('.').pop() : (item.content_type?.split('/')[1] || '');
+                          const displayName = _isTechId ? `Belge.${_ext}` : item.name;
                           return (
                           <div key={item.file_id} onClick={() => openDriveFile(item.file_id)} className="flex items-center gap-3 p-3 rounded-xl" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', cursor: 'pointer', transition: 'border-color 0.15s' }} onMouseEnter={e => e.currentTarget.style.borderColor='rgba(99,102,241,0.4)'} onMouseLeave={e => e.currentTarget.style.borderColor='var(--zet-border)'}>
                             <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0" style={{ background: 'rgba(99,102,241,0.1)' }}>
@@ -5101,13 +5102,10 @@ MATCHES:[1,3,5]`;
                 <button
                   key={doc.doc_id}
                   onClick={async () => {
+                    setShowDriveDocPicker(false);
                     try {
                       const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
-                      const json = JSON.stringify(res.data);
-                      const blob = new Blob([json], { type: 'application/json' });
-                      const file = new File([blob], `${doc.title || 'belge'}.zetdoc`, { type: 'application/json' });
-                      uploadDriveFile(file);
-                      setShowDriveDocPicker(false);
+                      await uploadDocToDrive(res.data);
                     } catch { showToast('Belge aktarılamadı', 'error'); }
                   }}
                   style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', borderRadius: 12, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)', cursor: 'pointer', width: '100%', textAlign: 'left', transition: 'border-color 0.15s' }}
