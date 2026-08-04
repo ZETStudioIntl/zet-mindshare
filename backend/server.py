@@ -2773,7 +2773,7 @@ async def guest_login(response: Response):
     await db.users.insert_one({
         "user_id": guest_id,
         "email": f"{guest_id}@guest.zetstudiointl.com",
-        "name": "Misafir Kullanici",
+        "name": "Microsoft",
         "picture": "",
         "username": guest_id,
         "bio": "",

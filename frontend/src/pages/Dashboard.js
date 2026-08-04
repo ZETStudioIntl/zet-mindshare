@@ -8,6 +8,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
 import { saveDoc, getDoc, getAllDocs, deleteDoc, updateDocField, generateDocId, setCurrentUserId } from '../lib/localDocDB';
+import MicrosoftOnboardingSlides from '../components/dashboard/MicrosoftOnboardingSlides';
 import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue } from '../lib/localNoteDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
@@ -204,6 +205,8 @@ const Dashboard = () => {
   const [currentCreditIndex, setCurrentCreditIndex] = useState(0);
   const [userSubscription, setUserSubscription] = useState('free');
   const isFreeOffline = !isOnline && userSubscription === 'free';
+  const isMicrosoftGuest = user?.is_guest === true;
+  const [showMsSlides, setShowMsSlides] = useState(false);
   const [greetingPrefs, setGreetingPrefs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('zet_greeting_prefs')) || {}; } catch { return {}; }
   });
@@ -538,6 +541,10 @@ const Dashboard = () => {
 
   useEffect(() => {
     if (user?.user_id) setCurrentUserId(user.user_id);
+    if (user?.is_guest && !localStorage.getItem('zet_ms_slides_seen')) {
+      setShowMsSlides(true);
+      localStorage.setItem('zet_ms_slides_seen', '1');
+    }
     fetchData();
     checkDriveConnection();
     fetchSubscription();
@@ -2202,6 +2209,7 @@ MATCHES:[1,3,5]`;
 
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
+      {showMsSlides && <MicrosoftOnboardingSlides onClose={() => setShowMsSlides(false)} />}
       <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.07.25</span>
       {/* Offline banner */}
       {!isOnline && (
@@ -2299,6 +2307,26 @@ MATCHES:[1,3,5]`;
               </span>
             );
           })()}
+          {isMicrosoftGuest && (
+            <button
+              onClick={() => setShowMsSlides(true)}
+              title="ZET Overview"
+              style={{
+                flexShrink: 0,
+                background: 'linear-gradient(135deg, #0078D4, #50e6ff)',
+                border: 'none', borderRadius: 8, cursor: 'pointer',
+                padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 6,
+              }}
+            >
+              <svg width="14" height="14" viewBox="0 0 20 20" fill="none">
+                <rect width="9" height="9" fill="#fff" opacity="0.9" />
+                <rect x="11" width="9" height="9" fill="#fff" opacity="0.7" />
+                <rect y="11" width="9" height="9" fill="#fff" opacity="0.7" />
+                <rect x="11" y="11" width="9" height="9" fill="#fff" opacity="0.9" />
+              </svg>
+              <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', letterSpacing: '0.03em' }}>Overview</span>
+            </button>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button

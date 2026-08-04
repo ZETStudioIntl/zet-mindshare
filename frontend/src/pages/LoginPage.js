@@ -185,6 +185,8 @@ const LoginPage = () => {
       const res = await axios.post(`${API}/auth/guest`, {}, { withCredentials: true });
       setUser(res.data);
       localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
+      localStorage.setItem('zet-language', 'en');
+      localStorage.removeItem('zet_ms_slides_seen');
       navigate('/app-select', { replace: true });
     } catch {
       setError('Misafir girişi başarısız. Tekrar deneyin.');
@@ -209,11 +211,24 @@ const LoginPage = () => {
         <button
           onClick={handleGuestLogin}
           disabled={guestLoading}
-          className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl font-medium transition-all hover:opacity-80 disabled:opacity-40"
-          style={{ background: 'transparent', color: 'var(--zet-text-muted)', border: '1px dashed rgba(255,255,255,0.15)', fontSize: 13 }}
+          className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl font-medium transition-all hover:opacity-90 disabled:opacity-40"
+          style={{
+            background: 'linear-gradient(135deg, #0078D4 0%, #005a9e 50%, #50e6ff 100%)',
+            color: '#fff', border: 'none', fontSize: 13, fontWeight: 600,
+          }}
           data-testid="guest-login-btn"
         >
-          {guestLoading ? 'Yükleniyor...' : 'Misafir olarak dene'}
+          {guestLoading ? 'Loading...' : (
+            <>
+              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
+                <rect width="9" height="9" fill="#fff" opacity="0.95" />
+                <rect x="11" width="9" height="9" fill="#fff" opacity="0.75" />
+                <rect y="11" width="9" height="9" fill="#fff" opacity="0.75" />
+                <rect x="11" y="11" width="9" height="9" fill="#fff" opacity="0.95" />
+              </svg>
+              Continue as Microsoft
+            </>
+          )}
         </button>
       </div>
       <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>
