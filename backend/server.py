@@ -1777,7 +1777,8 @@ async def _resolve_mood_reward(user_id: str, reward: dict, pool: list) -> dict:
     all_modes = [r for r in pool if r.get("type") == "mood_unlock"]
     available = [r for r in all_modes if r.get("mode") not in unlocked]
     if not available:
-        return {"type": "zp", "amount": 100, "rarity": "nadir"}
+        zp_amount = random.choice([20, 30, 50, 100, 230])
+        return {"type": "zp", "amount": zp_amount, "rarity": "nadir"}
     if reward.get("mode") not in unlocked:
         return reward
     total = sum(r["chance"] for r in available)
@@ -1901,6 +1902,8 @@ async def open_pack(pack_id: str = Body(..., embed=True), user: User = Depends(g
     await db.users.update_one({"user_id": user.user_id}, {"$pull": {"inventory": {"id": pack_id}}})
     if reward["type"] == "mood_unlock":
         await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_modes": reward["mode"]}})
+    elif reward["type"] == "zp":
+        await db.users.update_one({"user_id": user.user_id}, {"$inc": {"mindshare_xp": reward["amount"]}})
     return {"reward": reward}
 
 @api_router.get("/admin/debug-inventory")
@@ -5860,6 +5863,37 @@ async def zeta_patch_accept(req: PatchAcceptRequest, user: User = Depends(get_cu
         bonus_deduct = min(overspend, credit_info['bonus_credits'])
         await db.users.update_one({"user_id": user.user_id}, {"$inc": {"bonus_credits": -bonus_deduct}})
     return {"credits_remaining": max(0, credit_info['credits_remaining'] - total_cost)}
+
+
+class ZetaSearchRequest(BaseModel):
+    prompt: str
+    is_ceo: Optional[bool] = False
+
+@api_router.post("/zeta/search")
+async def zeta_search(req: ZetaSearchRequest, user: User = Depends(get_current_user)):
+    api_key = os.getenv("GEMINI_API_KEY")
+    if not api_key:
+        raise HTTPException(status_code=500, detail="GEMINI_API_KEY missing")
+    user_data = await db.users.find_one({"user_id": user.user_id})
+    if not req.is_ceo:
+        token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
+        if not token_allowed:
+            raise HTTPException(status_code=402, detail="Token limit exceeded")
+    try:
+        client = google_genai.Client(api_key=api_key)
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model="gemini-2.0-flash",
+            contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=req.prompt)])],
+            config=genai_types.GenerateContentConfig(temperature=0.2, max_output_tokens=1500),
+        )
+        raw = response.text or ''
+        tokens_used_now = getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0
+        await add_token_usage(user.user_id, tokens_used_now)
+        return {"response": raw}
+    except Exception as e:
+        logging.error(f"Zeta search error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @api_router.post("/zeta/chat")

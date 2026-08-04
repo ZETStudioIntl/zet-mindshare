@@ -362,10 +362,10 @@ export default function PackOpenModal({ packId, onClose, onReward, onNotFound, s
                       </svg>
                     </div>
                     <div style={{ color: rc.color, fontSize: 16, fontWeight: 800, textAlign: 'center', lineHeight: 1.2, textShadow: `0 0 22px ${rc.glow}` }}>
-                      {reward.label || reward.mode}
+                      {reward.type === 'zp' ? `${reward.amount} ZP` : (reward.label || reward.mode)}
                     </div>
                     <div style={{ color: 'rgba(255,255,255,0.32)', fontSize: 9, textAlign: 'center' }}>
-                      Zeta modu açıldı
+                      {reward.type === 'zp' ? 'ZP Kazandın' : 'Zeta modu açıldı'}
                     </div>
                   </>
                 )}

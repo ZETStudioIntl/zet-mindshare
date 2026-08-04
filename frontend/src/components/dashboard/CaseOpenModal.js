@@ -127,12 +127,21 @@ function itemLabel(item) {
   return `${item.amount} Kredi`;
 }
 
-const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
+const CaseOpenModal = ({ caseId, unlockedModes = [], onClose, onReward, showToast: toast }) => {
   const [phase, setPhase] = useState('ready');
   const [items, setItems] = useState([]);
   const [reward, setReward] = useState(null);
   const stripRef  = useRef(null);
   const containerRef = useRef(null);
+
+  const _filteredRandom = () => {
+    const pool = _CASE_DEFS.filter(d => d.type !== 'mood_unlock' || !unlockedModes.includes(d.mode));
+    if (!pool.length) return _CASE_DEFS[0];
+    const total = pool.reduce((s, r) => s + r.chance, 0);
+    let r = Math.random() * total;
+    for (const d of pool) { r -= d.chance; if (r <= 0) return d; }
+    return pool[0];
+  };
 
   const handleOpen = async () => {
     if (phase !== 'ready') return;
@@ -143,7 +152,7 @@ const CaseOpenModal = ({ caseId, onClose, onReward, showToast: toast }) => {
       const rw = res.data.reward;
       setReward(rw);
       const strip = Array.from({ length: SLOT_COUNT }, (_, i) =>
-        i === SLOT_WIN ? { ...rw, isWinner: true } : _weightedRandom()
+        i === SLOT_WIN ? { ...rw, isWinner: true } : _filteredRandom()
       );
       setItems(strip);
       _playSpinAmbient();

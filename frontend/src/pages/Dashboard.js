@@ -265,7 +265,7 @@ const Dashboard = () => {
   const [editingNoteId, setEditingNoteId] = useState(null);
   const [editingNoteContent, setEditingNoteContent] = useState('');
   const [openMenuNoteId, setOpenMenuNoteId] = useState(null);
-  const [noteMenuPos, setNoteMenuPos] = useState({ top: 0, right: 0 });
+  const [noteMenuPos, setNoteMenuPos] = useState({ top: 0, bottom: undefined, right: 0 });
   const [confirmDeleteNoteId, setConfirmDeleteNoteId] = useState(null);
   const [openMenuDocId, setOpenMenuDocId] = useState(null);
   const [primeDriveDocs, setPrimeDriveDocs] = useState(() => JSON.parse(localStorage.getItem('prime_drive_docs') || '[]'));
@@ -1381,6 +1381,27 @@ const Dashboard = () => {
     }
   };
 
+  const uploadAllNotesToDrive = async () => {
+    if (!notes.length) { showToast('Yüklenecek not bulunamadı', 'info'); return; }
+    showToast(`${notes.length} not Drive'a yükleniyor...`, 'info');
+    let success = 0;
+    for (const note of notes) {
+      try {
+        const safeContent = (note.content || '').slice(0, 60).replace(/[\\/:*?"<>|\n]/g, ' ').trim() || 'not';
+        const fileName = `${safeContent}.txt`;
+        const blob = new Blob([note.content || ''], { type: 'text/plain' });
+        const file = new File([blob], fileName, { type: 'text/plain' });
+        const formData = new FormData();
+        formData.append('file', file);
+        const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true });
+        setDriveFiles(prev => [res.data, ...prev.filter(f => f.file_id !== res.data.file_id)]);
+        setDriveUsed(prev => prev + res.data.size);
+        success++;
+      } catch { }
+    }
+    showToast(`${success}/${notes.length} not Drive'a yüklendi`, success > 0 ? 'success' : 'error');
+  };
+
   const uploadDocToDrive = async (doc) => {
     try {
       showToast('Drive\'a yükleniyor...', 'info');
@@ -1926,7 +1947,7 @@ ${context}
 En çok eşleşen sonuçları bul. Her eşleşme için "[N]" numarasını kullan. Kısa açıkla ve neden eşleştiğini belirt. Cevabın sonuna şu formatta bir JSON satırı ekle (başka yere koyma):
 MATCHES:[1,3,5]`;
 
-      const res = await axios.post(`${API}/zeta/chat`, { message: prompt }, { withCredentials: true });
+      const res = await axios.post(`${API}/zeta/search`, { prompt, is_ceo: isCEO }, { withCredentials: true, timeout: 30000 });
       const raw = res.data.response || '';
 
       // Parse MATCHES:[...] satırını ayır
@@ -2170,7 +2191,7 @@ MATCHES:[1,3,5]`;
         </div>
         <div className="relative flex-shrink-0">
           <button
-            onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setNoteMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuNoteId(openMenuNoteId === note.note_id ? null : note.note_id); }}
+            onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const MENU_H = 260; const openUp = window.innerHeight - r.bottom < MENU_H; setNoteMenuPos(openUp ? { top: undefined, bottom: window.innerHeight - r.top + 4, right: window.innerWidth - r.right } : { top: r.bottom + 4, bottom: undefined, right: window.innerWidth - r.right }); setOpenMenuNoteId(openMenuNoteId === note.note_id ? null : note.note_id); }}
             className="p-1 rounded hover:bg-white/10 transition-all"
             style={{ color: 'var(--zet-text-muted)' }}
           >
@@ -2179,7 +2200,7 @@ MATCHES:[1,3,5]`;
           {openMenuNoteId === note.note_id && (
             <div
               className="fixed z-50 py-1 rounded-xl min-w-[168px] animate-fadeIn"
-              style={{ top: noteMenuPos.top, right: noteMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+              style={{ top: noteMenuPos.top, bottom: noteMenuPos.bottom, right: noteMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
               onClick={(e) => e.stopPropagation()}
             >
               {NOTE_MENU(note).map(item => (
@@ -2210,7 +2231,7 @@ MATCHES:[1,3,5]`;
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
       {showMsSlides && <MicrosoftOnboardingSlides onClose={() => setShowMsSlides(false)} />}
-      <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.07.25</span>
+      <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.08.05</span>
       {/* Offline banner */}
       {!isOnline && (
         <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
@@ -2371,7 +2392,6 @@ MATCHES:[1,3,5]`;
                 { id: 'ai',           icon: <Sparkles className="h-4 w-4" />,   label: t('aiSettings'),    color: '#4ca8ad' },
                 { id: 'primedrive',   icon: <HardDrive className="h-4 w-4" />,  label: 'Prime Drive',     color: '#6366f1' },
                 { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
-                { id: 'quests',       icon: <span className="relative inline-flex"><Map className="h-4 w-4" />{hasPendingQuests && <span style={{ position:'absolute', top:-3, right:-3, width:7, height:7, borderRadius:'50%', background:'#ef4444', border:'1.5px solid var(--zet-bg-card)' }} />}</span>, label: t('questMap'), color: '#4ca8ad' },
                 { id: 'magaza',       icon: <CreditCard className="h-4 w-4" />, label: t('store'),         color: '#a78bfa' },
                 { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: t('inventory'),     color: '#60a5fa' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
@@ -3751,7 +3771,7 @@ MATCHES:[1,3,5]`;
               )}
             </div>
             <button
-              onClick={() => { setZetaSearch(v => !v); setZetaSearchQuery(''); setSearchQuery(''); setZetaSearchResults(null); }}
+              onClick={() => { if (!zetaSearch) { setZetaSearchQuery(searchQuery); setSearchQuery(''); } else { setSearchQuery(zetaSearchQuery); setZetaSearchQuery(''); setZetaSearchResults(null); } setZetaSearch(v => !v); }}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-medium transition-all flex-shrink-0"
               style={{
                 background: zetaSearch ? 'rgba(76,168,173,0.2)' : 'var(--zet-bg-card)',
@@ -4336,6 +4356,14 @@ MATCHES:[1,3,5]`;
                     <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
                   </button>
                 )}
+                <button
+                  onClick={uploadAllNotesToDrive}
+                  className="flex items-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
+                  style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.35)', color: '#818cf8' }}
+                  title="Tüm notları Drive'a yükle"
+                >
+                  <HardDrive className="h-3.5 w-3.5" />
+                </button>
                 <button
                   onClick={() => setShowNewNotebook(v => !v)}
                   className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium flex-shrink-0 transition-all"
@@ -4983,6 +5011,7 @@ MATCHES:[1,3,5]`;
       {openingCaseId && (
         <CaseOpenModal
           caseId={openingCaseId}
+          unlockedModes={dUnlockedModes}
           showToast={showToast}
           onClose={() => setOpeningCaseId(null)}
           onReward={(r) => {
