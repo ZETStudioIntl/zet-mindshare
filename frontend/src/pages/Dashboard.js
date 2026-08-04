@@ -1355,6 +1355,24 @@ const Dashboard = () => {
     } catch { showToast('Dosya açılamadı', 'error'); }
   };
 
+  const uploadNoteToDrive = async (note) => {
+    try {
+      showToast("Drive'a yükleniyor...", 'info');
+      const safeContent = (note.content || '').slice(0, 60).replace(/[\\/:*?"<>|\n]/g, ' ').trim() || 'not';
+      const fileName = `${safeContent}.txt`;
+      const blob = new Blob([note.content || ''], { type: 'text/plain' });
+      const file = new File([blob], fileName, { type: 'text/plain' });
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await axios.post(`${API}/drive/upload`, formData, { withCredentials: true });
+      setDriveFiles(prev => [res.data, ...prev.filter(f => f.file_id !== res.data.file_id)]);
+      setDriveUsed(prev => prev + res.data.size);
+      showToast(t('primeDriveAdded'), 'success');
+    } catch (err) {
+      showToast(err?.response?.data?.detail || "Drive'a yüklenemedi", 'error');
+    }
+  };
+
   const uploadDocToDrive = async (doc) => {
     try {
       showToast('Drive\'a yükleniyor...', 'info');
@@ -2067,6 +2085,7 @@ MATCHES:[1,3,5]`;
       { icon: <ZetaIcon size={14} color="#4ca8ad" />, label: t('zetaSummary'), action: () => analyzeWithZeta(note) },
       { icon: <ArrowUp className="h-4 w-4" />, label: t('noteMenuSendUp'), disabled: isFirst, action: () => { if (!isFirst) { moveNote(note.note_id, 'top'); setOpenMenuNoteId(null); } } },
       { icon: <Pin className="h-4 w-4" style={{ color: note.pinned ? '#f59e0b' : 'inherit' }} />, label: note.pinned ? t('noteMenuUnpin') : t('noteMenuPin'), action: () => { pinNote(note); setOpenMenuNoteId(null); } },
+      { icon: <HardDrive className="h-4 w-4" />, label: t('noteMenuDrive'), action: () => { uploadNoteToDrive(note); setOpenMenuNoteId(null); } },
     ];
   };
 
@@ -3929,8 +3948,8 @@ MATCHES:[1,3,5]`;
                       if (!doc) return;
                       setOpenFolderDocMenuId(null);
                       try {
-                        const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
-                        const pages = res.data.pages || [];
+                        const localDoc = await getDoc(doc.doc_id);
+                        const pages = localDoc?.pages || doc.pages || [];
                         const text = pages.map(p => {
                           const quillText = (p.content?.ops || []).map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
                           if (quillText.trim()) return quillText;
@@ -4123,8 +4142,8 @@ MATCHES:[1,3,5]`;
                         if (!doc) return;
                         setOpenMenuDocId(null);
                         try {
-                          const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
-                          const pages = res.data.pages || [];
+                          const localDoc = await getDoc(doc.doc_id);
+                          const pages = localDoc?.pages || doc.pages || [];
                           const text = pages.map(p => {
                             const quillText = (p.content?.ops || []).map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
                             if (quillText.trim()) return quillText;

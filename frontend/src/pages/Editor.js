@@ -1378,8 +1378,8 @@ const Editor = () => {
       // Undo stack ve versiyon geçmişini IndexedDB'ye kaydet
       saveUndoStack(docId, currentPage, history.serialize()).catch(() => {});
       saveDocVersion(docId, document.title, updatedPages, docSettings).catch(() => {});
-      // CS: sunucuya da yaz (iki kez depolama)
-      if (userPlan === 'creative_station' && navigator.onLine) {
+      // CS + Pro: sunucuya da yaz (iki kez depolama)
+      if ((userPlan === 'creative_station' || userPlan === 'pro') && navigator.onLine) {
         axios.put(`${API}/documents/${docId}`, {
           title: document.title, subtitle: document.subtitle || null,
           content: document.content, pages: updatedPages,
