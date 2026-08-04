@@ -408,6 +408,14 @@ export const RightPanel = ({
       } catch (err) {
         addConsoleLine(`✗ ${err.response?.data?.detail || 'Dışa aktarma başarısız.'}`, 'error');
       }
+    } else if (normalized === 'test/microsoft/cs_plan/active') {
+      addConsoleLine('Microsoft test planı aktive ediliyor...', 'output');
+      try {
+        const res = await axios.post(`${API}/ceo/run-command`, { command: 'test/microsoft/cs_plan/active' }, { withCredentials: true });
+        addConsoleLine(`✓ ${res.data?.message || 'CS plan aktive edildi.'}`, 'success');
+      } catch (err) {
+        addConsoleLine(`✗ ${err.response?.data?.detail || 'Komut başarısız.'}`, 'error');
+      }
     } else if (normalized === 'exit' || normalized === 'close') {
       setShowConsole(false); setConsoleStage('main');
     } else {
