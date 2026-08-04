@@ -9,7 +9,7 @@ import axios from 'axios';
 import { savePreference } from '../lib/preferences';
 import { saveDoc, getDoc, getAllDocs, deleteDoc, updateDocField, generateDocId, setCurrentUserId } from '../lib/localDocDB';
 import MicrosoftOnboardingSlides from '../components/dashboard/MicrosoftOnboardingSlides';
-import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue } from '../lib/localNoteDB';
+import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue, setCurrentNoteUserId } from '../lib/localNoteDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
 import { openPaddleCheckout, openPaddleCreditCheckout } from '../lib/paddle';
@@ -540,7 +540,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    if (user?.user_id) setCurrentUserId(user.user_id);
+    if (user?.user_id) { setCurrentUserId(user.user_id); setCurrentNoteUserId(user.user_id); }
     if (user?.is_guest && !localStorage.getItem('zet_ms_slides_seen')) {
       setShowMsSlides(true);
       localStorage.setItem('zet_ms_slides_seen', '1');

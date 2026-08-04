@@ -3,6 +3,9 @@ const STORE = 'notes';
 const VERSION = 1;
 
 let _db = null;
+let _currentUserId = null;
+
+export function setCurrentNoteUserId(uid) { _currentUserId = uid; }
 
 function openDB() {
   if (_db) return Promise.resolve(_db);
@@ -54,7 +57,9 @@ export async function getAllNotes() {
     const tx = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).getAll();
     req.onsuccess = () => {
-      const notes = (req.result || [])
+      let notes = req.result || [];
+      if (_currentUserId) notes = notes.filter(n => n.user_id === _currentUserId);
+      notes = notes
         .filter(n => !n._deleted)
         .sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
       resolve(notes);
