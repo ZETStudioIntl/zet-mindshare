@@ -1084,6 +1084,8 @@ const Dashboard = () => {
   const deleteNotebook = async (notebookId) => {
     try {
       await axios.delete(`${API}/notebooks/${notebookId}`, { withCredentials: true });
+      const allNotes = await getAllNotes();
+      await Promise.all(allNotes.filter(n => n.notebook_id === notebookId).map(n => deleteNoteLocal(n.note_id)));
       setNotebooks(prev => prev.filter(n => n.notebook_id !== notebookId));
       setNotes(prev => prev.filter(n => n.notebook_id !== notebookId));
       if (activeNotebook?.notebook_id === notebookId) setActiveNotebook(null);
@@ -1441,7 +1443,7 @@ const Dashboard = () => {
     const existing = await getNote(noteId) || notes.find(n => n.note_id === noteId) || {};
     const updated = { ...existing, note_id: noteId, content: newContent, updated_at: new Date().toISOString(), _dirty: true };
     await saveNote(updated);
-    setNotes(prev => prev.map(n => n.note_id === noteId ? { ...n, content: newContent } : n));
+    setNotes(prev => prev.map(n => n.note_id === noteId ? { ...n, content: newContent, updated_at: updated.updated_at } : n));
     setEditingNoteId(null);
     setEditingNoteContent('');
     if (navigator.onLine) {
@@ -1815,8 +1817,8 @@ const Dashboard = () => {
     setZetaDocAnalysis({ docId: doc.doc_id, loading: true, result: null });
     setOpenMenuDocId(null);
     try {
-      const res = await axios.get(`${API}/documents/${doc.doc_id}`, { withCredentials: true });
-      const pages = res.data.pages || [];
+      const localDoc = await getDoc(doc.doc_id);
+      const pages = localDoc?.pages || doc.pages || [];
       const text = pages.map(p => {
         // Quill delta format (normal belgeler)
         const quillText = (p.content?.ops || []).map(op => (typeof op.insert === 'string' ? op.insert : '')).join('');
@@ -1930,6 +1932,7 @@ MATCHES:[1,3,5]`;
     setNotes(prev => [newNote, ...prev]);
     setQuickNote('');
     setNoteReminder('');
+    questService.fireCounter('notes_created', 1);
     if (navigator.onLine) {
       try {
         const res = await axios.post(`${API}/notes`, { content: quickNote, reminder_time: noteReminder || null }, { withCredentials: true });
