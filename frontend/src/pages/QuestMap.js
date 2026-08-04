@@ -750,8 +750,8 @@ const QuestMap = () => {
                     onClick={() => setRevealedSlots(prev => new Set([...prev, idx]))}
                     style={{
                       position: 'absolute', inset: 0, borderRadius: 16, zIndex: 2,
-                      background: 'rgb(5,8,16)',
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
+                      background: `radial-gradient(ellipse at 50% 40%, rgba(${shapeMeta.rgb},0.18) 0%, rgb(5,8,16) 70%)`,
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
                       cursor: 'pointer',
                       opacity: revealedSlots.has(idx) ? 0 : 1,
                       pointerEvents: revealedSlots.has(idx) ? 'none' : 'all',
@@ -759,13 +759,14 @@ const QuestMap = () => {
                       transition: 'opacity 0.38s ease, transform 0.38s cubic-bezier(.4,0,.2,1)',
                     }}
                   >
-                    <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'rgba(56,189,248,0.08)', border: '1px solid rgba(56,189,248,0.18)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
-                        <rect x="2" y="10" width="14" height="11" rx="3" stroke="rgba(56,189,248,0.5)" strokeWidth="1.5"/>
-                        <path d="M5 10V7a4 4 0 0 1 8 0v3" stroke="rgba(56,189,248,0.5)" strokeWidth="1.5" strokeLinecap="round"/>
+                    <ShapeIcon shape={slot.shape} size={48} color={shapeMeta.stroke} glow={shapeMeta.glow} done={false} />
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
+                      <svg width="11" height="14" viewBox="0 0 18 22" fill="none">
+                        <rect x="2" y="10" width="14" height="11" rx="3" stroke={shapeMeta.stroke} strokeWidth="1.5" opacity="0.5"/>
+                        <path d="M5 10V7a4 4 0 0 1 8 0v3" stroke={shapeMeta.stroke} strokeWidth="1.5" strokeLinecap="round" opacity="0.5"/>
                       </svg>
+                      <span style={{ fontSize: 11, color: shapeMeta.stroke, fontWeight: 600, opacity: 0.7 }}>Açmak için dokun</span>
                     </div>
-                    <span style={{ fontSize: 11, color: '#475569', fontWeight: 600 }}>Açmak için dokun</span>
                   </div>
                 )}
               </div>
