@@ -2765,6 +2765,37 @@ async def login_with_email(req: EmailAuthRequest, response: Response, request: R
 
     return {"user": {"user_id": user_id, "email": user["email"], "name": user.get("name", "")}, "session_token": session_token}
 
+@api_router.post("/auth/guest")
+async def guest_login(response: Response):
+    guest_id = f"guest_{secrets.token_hex(6)}"
+    now = datetime.now(timezone.utc)
+    trial_end = (now + timedelta(days=7)).isoformat()
+    await db.users.insert_one({
+        "user_id": guest_id,
+        "email": f"{guest_id}@guest.zetstudiointl.com",
+        "name": "Misafir Kullanici",
+        "picture": "",
+        "username": guest_id,
+        "bio": "",
+        "is_guest": True,
+        "created_at": now.isoformat(),
+        "needs_onboarding": False,
+        "subscription": {"plan": "creative_station", "status": "active", "trial": False, "trial_end": trial_end},
+        "mindshare_xp": 0, "quest_xp": 500, "bonus_credits": 100,
+        "followers": [], "following": [], "followers_count": 0, "following_count": 0,
+    })
+    session_token = f"st_{secrets.token_hex(16)}"
+    expires_at = now + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": guest_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": now.isoformat(),
+    })
+    response.set_cookie("session_token", session_token, httponly=True, samesite="none", secure=True, max_age=7*24*3600)
+    user_doc = await db.users.find_one({"user_id": guest_id}, {"_id": 0})
+    return user_doc
+
 # ============ APPLE AUTH ROUTES ============
 
 @api_router.get("/auth/apple/init")
@@ -9071,38 +9102,6 @@ async def quests_status(user: User = Depends(get_current_user)):
         result.append({**q, "status": "collected" if q["id"] in completed else ("pending" if q["id"] in pending else "locked")})
     return {"quests": result}
 
-
-@api_router.post("/auth/guest")
-async def guest_login(response: Response):
-    """Microsoft Store sertifikasyon testi için misafir oturumu oluşturur."""
-    guest_id = f"guest_{secrets.token_hex(6)}"
-    now = datetime.now(timezone.utc)
-    trial_end = (now + timedelta(days=7)).isoformat()
-    await db.users.insert_one({
-        "user_id": guest_id,
-        "email": f"{guest_id}@guest.zetstudiointl.com",
-        "name": "Misafir Kullanıcı",
-        "picture": "",
-        "username": guest_id,
-        "bio": "",
-        "is_guest": True,
-        "created_at": now.isoformat(),
-        "needs_onboarding": False,
-        "subscription": {"plan": "creative_station", "status": "active", "trial": False, "trial_end": trial_end},
-        "mindshare_xp": 0, "quest_xp": 500, "bonus_credits": 100,
-        "followers": [], "following": [], "followers_count": 0, "following_count": 0,
-    })
-    session_token = f"st_{secrets.token_hex(16)}"
-    expires_at = now + timedelta(days=7)
-    await db.user_sessions.insert_one({
-        "user_id": guest_id,
-        "session_token": session_token,
-        "expires_at": expires_at.isoformat(),
-        "created_at": now.isoformat(),
-    })
-    response.set_cookie("session_token", session_token, httponly=True, samesite="none", secure=True, max_age=7*24*3600)
-    user_doc = await db.users.find_one({"user_id": guest_id}, {"_id": 0})
-    return user_doc
 
 @api_router.post("/ceo/run-command")
 async def ceo_run_command(command: str = Body(..., embed=True), user: User = Depends(get_current_user)):
