@@ -177,23 +177,36 @@ const LoginPage = () => {
   };
 
   const [guestLoading, setGuestLoading] = useState(false);
+  const [guestRetry, setGuestRetry] = useState(0);
 
   const handleGuestLogin = async () => {
+    if (guestLoading) return;
     setGuestLoading(true);
     setError('');
-    try {
-      const res = await axios.post(`${API}/auth/guest`, {}, { withCredentials: true });
-      setUser(res.data);
-      localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
-      localStorage.setItem('zet-language', 'en');
-      localStorage.removeItem('zet_ms_slides_seen');
-      localStorage.removeItem('zet_ceo_mode');
-      navigate('/app-select', { replace: true });
-    } catch {
-      setError('Misafir girişi başarısız. Tekrar deneyin.');
-    } finally {
-      setGuestLoading(false);
+    const MAX_RETRIES = 5;
+    const RETRY_DELAY = 2500;
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      try {
+        setGuestRetry(attempt);
+        const res = await axios.post(`${API}/auth/guest`, {}, { withCredentials: true, timeout: 15000 });
+        setUser(res.data);
+        localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
+        localStorage.setItem('zet-language', 'en');
+        localStorage.removeItem('zet_ms_slides_seen');
+        localStorage.removeItem('zet_ceo_mode');
+        setGuestLoading(false);
+        setGuestRetry(0);
+        navigate('/app-select', { replace: true });
+        return;
+      } catch {
+        if (attempt < MAX_RETRIES - 1) {
+          await new Promise(r => setTimeout(r, RETRY_DELAY));
+        }
+      }
     }
+    setError('Sunucuya bağlanılamadı. Lütfen tekrar deneyin.');
+    setGuestLoading(false);
+    setGuestRetry(0);
   };
 
   const renderMain = () => (
@@ -219,7 +232,7 @@ const LoginPage = () => {
           }}
           data-testid="guest-login-btn"
         >
-          {guestLoading ? 'Loading...' : (
+          {guestLoading ? (guestRetry > 0 ? `Connecting... (${guestRetry + 1})` : 'Connecting...') : (
             <>
               <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
                 <rect width="9" height="9" fill="#fff" opacity="0.95" />
