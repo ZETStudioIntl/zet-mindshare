@@ -380,7 +380,7 @@ const QuestMap = () => {
           axios.get(`${API}/users/me`, { withCredentials: true }),
           axios.get(`${API}/quests/today`, { withCredentials: true }),
         ]);
-        setUserZP(meRes.data?.mindshare_xp ?? null);
+        setUserZP(meRes.data?.quest_xp ?? null);
         const d = todayRes.data;
         setCollectedSlots(new Set(d.collected_slots || []));
         setCounters({ words_typed: d.words_typed || 0, editor_minutes: d.editor_minutes || 0, notes_created: d.notes_created || 0, solo_docs: d.solo_docs || 0, memories_added: d.memories_added || 0 });
@@ -750,7 +750,7 @@ const QuestMap = () => {
                     onClick={() => setRevealedSlots(prev => new Set([...prev, idx]))}
                     style={{
                       position: 'absolute', inset: 0, borderRadius: 16, zIndex: 2,
-                      background: 'rgba(5,8,16,0.88)',
+                      background: 'rgb(5,8,16)',
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 10,
                       cursor: 'pointer',
                       opacity: revealedSlots.has(idx) ? 0 : 1,
