@@ -273,6 +273,7 @@ const Dashboard = () => {
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveUploading, setDriveUploading] = useState(false);
   const [driveUsed, setDriveUsed] = useState(0);
+  const [driveTextPreview, setDriveTextPreview] = useState(null); // { name, text }
   const [showDriveUploadSheet, setShowDriveUploadSheet] = useState(false);
   const [showDriveDocPicker, setShowDriveDocPicker] = useState(false);
   const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
@@ -1356,6 +1357,9 @@ const Dashboard = () => {
         const existing = await getDoc(doc.doc_id);
         if (!existing) await saveDoc({ ...doc, updated_at: doc.updated_at || new Date().toISOString() });
         navigate(`/editor/${doc.doc_id}`);
+      } else if (fileName?.toLowerCase().endsWith('.txt')) {
+        const res = await axios.get(`${API}/drive/files/${fileId}/content`, { withCredentials: true, responseType: 'text' });
+        setDriveTextPreview({ name: fileName, text: typeof res.data === 'string' ? res.data : String(res.data) });
       } else {
         const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
         window.open(res.data.url, '_blank', 'noopener,noreferrer');
@@ -2312,6 +2316,7 @@ MATCHES:[1,3,5]`;
             }
             return (
               <span
+                key={`g-${gStyle}-${gColor}-${gColors.join('-')}`}
                 onClick={() => { setShowSettings(true); setSettingsTab('profile'); setMobileSettingsSidebar(false); }}
                 className="truncate"
                 style={{
@@ -5020,6 +5025,19 @@ MATCHES:[1,3,5]`;
             if (r.type === 'mood_unlock' && r.mode) setDUnlockedModes(prev => { const next = prev.includes(r.mode) ? prev : [...prev, r.mode]; localStorage.setItem('zet_unlocked_modes', JSON.stringify(next)); return next; });
           }}
         />
+      )}
+
+      {/* Drive TXT Önizleme */}
+      {driveTextPreview && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.75)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }} onClick={() => setDriveTextPreview(null)}>
+          <div style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', borderRadius: 16, width: '100%', maxWidth: 640, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.5)' }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px 18px', borderBottom: '1px solid var(--zet-border)' }}>
+              <span style={{ color: 'var(--zet-text)', fontSize: 14, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{driveTextPreview.name}</span>
+              <button onClick={() => setDriveTextPreview(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--zet-text-muted)', fontSize: 20, lineHeight: 1, padding: '0 4px', flexShrink: 0 }}>×</button>
+            </div>
+            <pre style={{ margin: 0, padding: '16px 18px', overflowY: 'auto', whiteSpace: 'pre-wrap', wordBreak: 'break-word', color: 'var(--zet-text)', fontSize: 13, lineHeight: 1.6, fontFamily: 'inherit' }}>{driveTextPreview.text}</pre>
+          </div>
+        </div>
       )}
 
       {/* Çark Modalı */}
