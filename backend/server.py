@@ -6980,25 +6980,25 @@ Kelime akışı — üstüne yeni satır ("Merhaba'nın üstüne Hoş geldiniz y
 
     try:
         client_g = google_genai.Client(api_key=api_key)
-        parts = [{"text": full_prompt}]
+        parts = [genai_types.Part(text=full_prompt)]
         if req.attached_image_b64 and req.attached_image_mime:
-            parts.append({"inline_data": {"mime_type": req.attached_image_mime, "data": req.attached_image_b64}})
-        response = client_g.models.generate_content(
+            parts.append(genai_types.Part(inline_data=genai_types.Blob(mime_type=req.attached_image_mime, data=req.attached_image_b64)))
+        response = await asyncio.to_thread(
+            client_g.models.generate_content,
             model="gemini-2.5-flash",
-            contents=[{"role": "user", "parts": parts}],
+            contents=[genai_types.Content(role="user", parts=parts)],
             config=genai_types.GenerateContentConfig(
                 temperature=0.4,
-                max_output_tokens=16384,
+                max_output_tokens=8192,
                 response_mime_type="application/json",
+                thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
             )
         )
         raw = (response.text or "").strip()
-        # Strip markdown code fences if model added them
         if raw.startswith("```"):
             raw = re.sub(r'^```(?:json)?\s*', '', raw, flags=re.IGNORECASE)
             raw = re.sub(r'\s*```\s*$', '', raw)
             raw = raw.strip()
-        # Extract first JSON object if there's extra text around it
         if not raw.startswith('{'):
             m = re.search(r'\{[\s\S]*\}', raw)
             if m:
@@ -7012,10 +7012,10 @@ Kelime akışı — üstüne yeni satır ("Merhaba'nın üstüne Hoş geldiniz y
         }
     except json.JSONDecodeError:
         logging.error(f"zeta_document_edit JSON parse error, raw[:300]: {raw[:300] if 'raw' in dir() else 'N/A'}")
-        return {"explanation": "JSON ayrıştırma hatası. Lütfen isteği daha kısa tutarak tekrar deneyin.", "operations": [], "suggestions": []}
+        return {"explanation": "JSON parse error. Please try a shorter request.", "operations": [], "suggestions": []}
     except Exception as e:
         logging.error(f"zeta_document_edit error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {"explanation": "An error occurred. Please try again.", "operations": [], "suggestions": []}
 
 
 @api_router.post("/zeta/generate-image")
