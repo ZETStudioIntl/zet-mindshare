@@ -894,7 +894,6 @@ export const RightPanel = ({
                   { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
                   { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                   { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
-                  { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#4ca8ad',            desc: 'Canvas elementleri düzenle' },
                 ];
                 return (
                   <div className="absolute bottom-full left-0 right-0 mx-2 mb-1 rounded-lg shadow-xl overflow-hidden z-50 border"
@@ -1004,7 +1003,6 @@ export const RightPanel = ({
                 { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
                 { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                 { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
-                { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#4ca8ad',            desc: 'Canvas elementleri düzenle' },
               ];
               return (
                 <div className="absolute top-8 left-2 right-2 rounded-lg shadow-xl overflow-hidden z-50 border"
