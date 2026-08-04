@@ -176,6 +176,23 @@ const LoginPage = () => {
     setPickerLoadingId(null);
   };
 
+  const [guestLoading, setGuestLoading] = useState(false);
+
+  const handleGuestLogin = async () => {
+    setGuestLoading(true);
+    setError('');
+    try {
+      const res = await axios.post(`${API}/auth/guest`, {}, { withCredentials: true });
+      setUser(res.data);
+      localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
+      navigate('/app-select', { replace: true });
+    } catch {
+      setError('Misafir girişi başarısız. Tekrar deneyin.');
+    } finally {
+      setGuestLoading(false);
+    }
+  };
+
   const renderMain = () => (
     <>
       <div className="space-y-2.5 mb-2">
@@ -188,6 +205,15 @@ const LoginPage = () => {
         >
           <Plus className="h-4 w-4" />
           ZET ID Ekle
+        </button>
+        <button
+          onClick={handleGuestLogin}
+          disabled={guestLoading}
+          className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl font-medium transition-all hover:opacity-80 disabled:opacity-40"
+          style={{ background: 'transparent', color: 'var(--zet-text-muted)', border: '1px dashed rgba(255,255,255,0.15)', fontSize: 13 }}
+          data-testid="guest-login-btn"
+        >
+          {guestLoading ? 'Yükleniyor...' : 'Misafir olarak dene'}
         </button>
       </div>
       <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>

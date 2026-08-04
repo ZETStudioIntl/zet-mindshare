@@ -9072,6 +9072,56 @@ async def quests_status(user: User = Depends(get_current_user)):
     return {"quests": result}
 
 
+@api_router.post("/auth/guest")
+async def guest_login(response: Response):
+    """Microsoft Store sertifikasyon testi için misafir oturumu oluşturur."""
+    guest_id = f"guest_{secrets.token_hex(6)}"
+    now = datetime.now(timezone.utc)
+    trial_end = (now + timedelta(days=7)).isoformat()
+    await db.users.insert_one({
+        "user_id": guest_id,
+        "email": f"{guest_id}@guest.zetstudiointl.com",
+        "name": "Misafir Kullanıcı",
+        "picture": "",
+        "username": guest_id,
+        "bio": "",
+        "is_guest": True,
+        "created_at": now.isoformat(),
+        "needs_onboarding": False,
+        "subscription": {"plan": "creative_station", "status": "active", "trial": False, "trial_end": trial_end},
+        "mindshare_xp": 0, "quest_xp": 500, "bonus_credits": 100,
+        "followers": [], "following": [], "followers_count": 0, "following_count": 0,
+    })
+    session_token = f"st_{secrets.token_hex(16)}"
+    expires_at = now + timedelta(days=7)
+    await db.user_sessions.insert_one({
+        "user_id": guest_id,
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": now.isoformat(),
+    })
+    response.set_cookie("session_token", session_token, httponly=True, samesite="none", secure=True, max_age=7*24*3600)
+    user_doc = await db.users.find_one({"user_id": guest_id}, {"_id": 0})
+    return user_doc
+
+@api_router.post("/ceo/run-command")
+async def ceo_run_command(command: str = Body(..., embed=True), user: User = Depends(get_current_user)):
+    """CEO komut konsolu."""
+    await _verify_ceo(user)
+    cmd = command.strip().lower()
+    if cmd == "test/microsoft/cs_plan/active":
+        test_email = "help@zetstudiointl.com"
+        trial_end = (datetime.now(timezone.utc) + timedelta(days=365)).isoformat()
+        cs_sub = {"plan": "creative_station", "status": "active", "trial": False, "trial_end": trial_end}
+        result = await db.users.update_one(
+            {"email": test_email},
+            {"$set": {"subscription": cs_sub, "bonus_credits": 500, "quest_xp": 1000}},
+        )
+        if result.matched_count == 0:
+            return {"ok": False, "msg": f"{test_email} bulunamadı — önce Google ile giriş yapılmalı"}
+        return {"ok": True, "msg": f"{test_email} → Creative Station aktif edildi"}
+    return {"ok": False, "msg": f"Bilinmeyen komut: {command}"}
+
 @api_router.post("/admin/quests/reset-all")
 async def admin_reset_all_quests(user: User = Depends(get_current_user)):
     if user.email != CEO_EMAIL:

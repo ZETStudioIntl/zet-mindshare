@@ -76,6 +76,11 @@ export default function ControlCenter() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
+  // Command console state
+  const [cmdInput, setCmdInput] = useState('');
+  const [cmdLoading, setCmdLoading] = useState(false);
+  const [cmdResult, setCmdResult] = useState(null);
+
   // Mobile
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
   const [mobileView, setMobileView] = useState('list'); // 'list' | 'detail'
@@ -134,6 +139,24 @@ export default function ControlCenter() {
     finally { setActionLoading(false); }
   };
 
+  const runCommand = async () => {
+    if (!cmdInput.trim()) return;
+    setCmdLoading(true);
+    setCmdResult(null);
+    try {
+      const r = await axios.post(`${API}/ceo/run-command`, { command: cmdInput.trim() }, { withCredentials: true });
+      const msg = r.data?.message || 'Başarılı';
+      setCmdResult({ ok: true, msg });
+      showToast(msg, 'success');
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Komut başarısız';
+      setCmdResult({ ok: false, msg });
+      showToast(msg, 'error');
+    } finally {
+      setCmdLoading(false);
+    }
+  };
+
   const totalPages = Math.ceil(total / 50);
 
   return (
@@ -190,7 +213,42 @@ export default function ControlCenter() {
         )}
       </div>
 
-      <div style={{ display: 'flex', height: 'calc(100vh - 73px)' }}>
+      {!isMobile && (
+        <div style={{ padding: '10px 20px', borderBottom: '1px solid #1e2433', display: 'flex', alignItems: 'center', gap: 10, background: '#080c14' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#4b5563" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+            <polyline points="4 17 10 11 4 5" /><line x1="12" y1="19" x2="20" y2="19" />
+          </svg>
+          <input
+            value={cmdInput}
+            onChange={e => { setCmdInput(e.target.value); setCmdResult(null); }}
+            onKeyDown={e => { if (e.key === 'Enter') runCommand(); }}
+            placeholder="Komut gir (örn: test/microsoft/cs_plan/active)"
+            style={{
+              flex: 1, maxWidth: 420, padding: '6px 11px', borderRadius: 8, fontSize: 12,
+              background: '#0d1117', border: '1px solid #1e2433', color: '#e2e8f0',
+              outline: 'none', fontFamily: 'monospace',
+            }}
+          />
+          <button
+            onClick={runCommand}
+            disabled={cmdLoading || !cmdInput.trim()}
+            style={{
+              background: '#4ca8ad20', border: '1px solid #4ca8ad50', color: '#4ca8ad',
+              borderRadius: 8, padding: '6px 16px', fontSize: 12, fontWeight: 600,
+              cursor: cmdLoading || !cmdInput.trim() ? 'not-allowed' : 'pointer', opacity: cmdLoading || !cmdInput.trim() ? 0.5 : 1,
+            }}
+          >
+            {cmdLoading ? '...' : 'Çalıştır'}
+          </button>
+          {cmdResult && (
+            <span style={{ fontSize: 12, color: cmdResult.ok ? '#22c55e' : '#ef4444', fontWeight: 600 }}>
+              {cmdResult.msg}
+            </span>
+          )}
+        </div>
+      )}
+
+      <div style={{ display: 'flex', height: isMobile ? 'calc(100vh - 73px)' : 'calc(100vh - 117px)' }}>
         {/* LEFT — user list */}
         <div style={{
           width: isMobile ? '100%' : 380,
