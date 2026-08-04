@@ -3,6 +3,9 @@ const STORE = 'documents';
 const VERSION = 1;
 
 let _db = null;
+let _currentUserId = null;
+
+export function setCurrentUserId(uid) { _currentUserId = uid; }
 
 function openDB() {
   if (_db) return Promise.resolve(_db);
@@ -47,9 +50,9 @@ export async function getAllDocs() {
     const tx = db.transaction(STORE, 'readonly');
     const req = tx.objectStore(STORE).getAll();
     req.onsuccess = () => {
-      const docs = (req.result || []).sort((a, b) =>
-        new Date(b.updated_at || 0) - new Date(a.updated_at || 0)
-      );
+      let docs = req.result || [];
+      if (_currentUserId) docs = docs.filter(d => d.user_id === _currentUserId);
+      docs = docs.sort((a, b) => new Date(b.updated_at || 0) - new Date(a.updated_at || 0));
       resolve(docs);
     };
     req.onerror = () => reject(req.error);

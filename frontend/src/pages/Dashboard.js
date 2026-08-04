@@ -7,7 +7,7 @@ import { useLanguage } from '../contexts/LanguageContext';
 import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
-import { saveDoc, getDoc, getAllDocs, deleteDoc, updateDocField, generateDocId } from '../lib/localDocDB';
+import { saveDoc, getDoc, getAllDocs, deleteDoc, updateDocField, generateDocId, setCurrentUserId } from '../lib/localDocDB';
 import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue } from '../lib/localNoteDB';
 import { questService } from '../lib/questService';
 import { openCheckoutOverlay } from '../lib/lemonSqueezy';
@@ -537,6 +537,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
+    if (user?.user_id) setCurrentUserId(user.user_id);
     fetchData();
     checkDriveConnection();
     fetchSubscription();
