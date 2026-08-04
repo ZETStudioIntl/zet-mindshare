@@ -82,20 +82,6 @@ const SLIDES = [
     ],
   },
   {
-    icon: <TerminalIcon />,
-    tag: 'Zeta Console',
-    tagColor: MS_GREEN,
-    title: 'Power User Console',
-    body: 'Type special commands in Zeta chat to unlock advanced functionality.',
-    bullets: [
-      { color: MS_GREEN, label: '/open/console/',              desc: 'Opens the ZET terminal' },
-      { color: MS_GREEN, label: 'test/microsoft/cs_plan/active', desc: 'Activates CS plan on the test account' },
-      { color: MS_GREEN, label: '/clear/',                     desc: 'Clears the terminal' },
-      { color: MS_GREEN, label: 'exit',                        desc: 'Closes the terminal' },
-    ],
-    note: 'Commands are case-insensitive. The console is accessible to all users.',
-  },
-  {
     icon: <TextIcon />,
     tag: 'Formatting',
     tagColor: MS_BLUE,
@@ -156,18 +142,6 @@ const SLIDES = [
     note: 'Access Quest Map from the bottom navigation bar in the Dashboard.',
   },
   {
-    icon: <RankIcon />,
-    tag: 'Rank System',
-    tagColor: MS_PURPLE,
-    title: 'Ranks & Seasons',
-    body: 'Earn Mindshare XP by using the app. Each season runs for 1–3 months, after which rankings reset and rewards are distributed.',
-    bullets: [
-      { color: MS_PURPLE, label: 'Bronze → Diamond', desc: 'Six rank tiers based on seasonal XP' },
-      { color: MS_PURPLE, label: 'Leaderboard',       desc: 'Compete with other users globally' },
-      { color: MS_PURPLE, label: 'Mood unlocks',      desc: 'Daily mood check-in reveals bonus XP' },
-    ],
-  },
-  {
     icon: <JudgeIcon />,
     tag: 'Judge AI',
     tagColor: MS_RED,
@@ -220,19 +194,6 @@ const SLIDES = [
     note: 'All features of the CS plan are available without any account creation.',
   },
   {
-    icon: <MobileIcon />,
-    tag: 'Compatibility',
-    tagColor: MS_BLUE,
-    title: 'Platform Support',
-    body: 'ZET Mindshare is a Progressive Web App (PWA) optimized for Windows, macOS, and mobile.',
-    bullets: [
-      { color: MS_BLUE, label: 'Windows (PWA)', desc: 'Full feature set, installable from Microsoft Edge' },
-      { color: MS_BLUE, label: 'macOS / Linux',  desc: 'Chrome, Safari, Firefox supported' },
-      { color: MS_BLUE, label: 'iOS / Android',  desc: 'Mobile-responsive, installable as PWA' },
-    ],
-    note: 'Offline mode available for Free plan document editing.',
-  },
-  {
     icon: <SettingsIcon />,
     tag: 'Settings',
     tagColor: MS_BLUE,
@@ -246,18 +207,18 @@ const SLIDES = [
     ],
   },
   {
-    icon: <ShortcutIcon />,
-    tag: 'Shortcuts',
-    tagColor: MS_PURPLE,
-    title: 'Keyboard Shortcuts',
-    body: 'The editor supports standard and custom keyboard shortcuts for efficient workflow.',
+    icon: <BugIcon />,
+    tag: 'Known Issues',
+    tagColor: MS_RED,
+    title: 'Known Issues',
+    body: 'We are actively working to resolve the following. All items will be fixed before full release.',
     bullets: [
-      { color: MS_PURPLE, label: 'Ctrl+Z / Ctrl+Y',  desc: 'Undo / Redo (local history)' },
-      { color: MS_PURPLE, label: 'Ctrl+B / I / U',   desc: 'Bold / Italic / Underline' },
-      { color: MS_PURPLE, label: 'Ctrl+P',            desc: 'Export to PDF' },
-      { color: MS_PURPLE, label: 'Ctrl+K',            desc: 'Insert link' },
+      { color: MS_RED,    label: 'Zeta Patch',  desc: 'Patch mode is currently broken' },
+      { color: MS_YELLOW, label: 'Judge AI',     desc: 'Prototype — core works, UI still evolving' },
+      { color: MS_RED,    label: 'Zeta Edit',    desc: 'Edit mode is limited in some scenarios' },
+      { color: MS_YELLOW, label: 'Quests',       desc: 'Quest system is in active testing' },
     ],
-    note: 'Additional shortcuts are listed in the Toolbox panel (keyboard icon).',
+    note: 'Paddle payment sync is in progress. Expected resolution within 1–2 months.',
   },
   {
     icon: <BetaIcon />,
@@ -341,16 +302,6 @@ function ZetaIcon() {
     </svg>
   );
 }
-function TerminalIcon() {
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-      <rect width="56" height="56" rx="16" fill={MS_GREEN + '22'} />
-      <rect x="10" y="14" width="36" height="28" rx="4" fill={MS_GREEN + '20'} stroke={MS_GREEN} strokeWidth="1.5" />
-      <path d="M16 24 L22 28 L16 32" stroke={MS_GREEN} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <path d="M26 32 L36 32" stroke={MS_GREEN} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 function TextIcon() {
   return (
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
@@ -400,16 +351,6 @@ function QuestIcon() {
     </svg>
   );
 }
-function RankIcon() {
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-      <rect width="56" height="56" rx="16" fill={MS_PURPLE + '22'} />
-      <rect x="10" y="30" width="10" height="16" rx="2" fill={MS_PURPLE + '60'} />
-      <rect x="23" y="22" width="10" height="24" rx="2" fill={MS_PURPLE + '80'} />
-      <rect x="36" y="14" width="10" height="32" rx="2" fill={MS_PURPLE} />
-    </svg>
-  );
-}
 function JudgeIcon() {
   return (
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
@@ -453,16 +394,6 @@ function GuestIcon() {
     </svg>
   );
 }
-function MobileIcon() {
-  return (
-    <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-      <rect width="56" height="56" rx="16" fill={MS_BLUE + '22'} />
-      <rect x="20" y="10" width="16" height="28" rx="4" fill="none" stroke={MS_BLUE} strokeWidth="2" />
-      <circle cx="28" cy="34" r="2" fill={MS_BLUE} />
-      <path d="M10 22 L18 22 M38 22 L46 22" stroke={MS_BLUE + '60'} strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
 function SettingsIcon() {
   return (
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
@@ -472,14 +403,15 @@ function SettingsIcon() {
     </svg>
   );
 }
-function ShortcutIcon() {
+function BugIcon() {
   return (
     <svg width="56" height="56" viewBox="0 0 56 56" fill="none">
-      <rect width="56" height="56" rx="16" fill={MS_PURPLE + '22'} />
-      <rect x="10" y="16" width="12" height="10" rx="3" fill={MS_PURPLE + '40'} stroke={MS_PURPLE} strokeWidth="1.5" />
-      <rect x="26" y="16" width="20" height="10" rx="3" fill={MS_PURPLE + '40'} stroke={MS_PURPLE} strokeWidth="1.5" />
-      <rect x="10" y="30" width="20" height="10" rx="3" fill={MS_PURPLE + '40'} stroke={MS_PURPLE} strokeWidth="1.5" />
-      <rect x="34" y="30" width="12" height="10" rx="3" fill={MS_PURPLE + '40'} stroke={MS_PURPLE} strokeWidth="1.5" />
+      <rect width="56" height="56" rx="16" fill={MS_RED + '22'} />
+      <circle cx="28" cy="28" r="10" fill="none" stroke={MS_RED} strokeWidth="2" />
+      <path d="M21 19 L17 15 M35 19 L39 15" stroke={MS_RED} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M18 28 L12 28 M38 28 L44 28" stroke={MS_RED} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M21 37 L17 41 M35 37 L39 41" stroke={MS_RED} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M24 24 L32 24 M24 32 L32 32" stroke={MS_RED} strokeWidth="1.5" strokeLinecap="round" />
     </svg>
   );
 }

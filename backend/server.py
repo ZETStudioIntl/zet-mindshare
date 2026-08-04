@@ -2783,6 +2783,16 @@ async def guest_login(response: Response):
         "subscription": {"plan": "creative_station", "status": "active", "trial": False, "trial_end": trial_end},
         "mindshare_xp": 0, "quest_xp": 500, "bonus_credits": 100,
         "followers": [], "following": [], "followers_count": 0, "following_count": 0,
+        "inventory": [
+            {"id": f"ms_card_{i}_{secrets.token_hex(4)}", "item_type": "rank_case", "created_at": now.isoformat()}
+            for i in range(3)
+        ] + [
+            {"id": f"ms_case_{i}_{secrets.token_hex(4)}", "type": "daily_case", "acquired_at": now.isoformat()}
+            for i in range(5)
+        ] + [
+            {"id": f"ms_wheel_{i}_{secrets.token_hex(4)}", "item_type": "rank_wheel", "created_at": now.isoformat()}
+            for i in range(5)
+        ],
     })
     session_token = f"st_{secrets.token_hex(16)}"
     expires_at = now + timedelta(days=7)

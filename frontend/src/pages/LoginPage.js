@@ -187,6 +187,7 @@ const LoginPage = () => {
       localStorage.setItem('zet_cached_user', JSON.stringify(res.data));
       localStorage.setItem('zet-language', 'en');
       localStorage.removeItem('zet_ms_slides_seen');
+      localStorage.removeItem('zet_ceo_mode');
       navigate('/app-select', { replace: true });
     } catch {
       setError('Misafir girişi başarısız. Tekrar deneyin.');

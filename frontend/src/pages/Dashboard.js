@@ -156,7 +156,7 @@ const Dashboard = () => {
   const [sfxEnabled, setSfxEnabled] = useState(() => localStorage.getItem('zet_sfx_enabled') !== 'false');
   const [sfxVolume, setSfxVolume] = useState(() => parseFloat(localStorage.getItem('zet_sfx_volume') || '0.35'));
   const [gradientAnimEnabled, setGradientAnimEnabled] = useState(() => localStorage.getItem('zet_gradient_anim') === 'true');
-  const isCEO = localStorage.getItem('zet_ceo_mode') === 'true' || user?.email === 'muhammadbahaddinyilmaz@gmail.com';
+  const isCEO = !user?.is_guest && (localStorage.getItem('zet_ceo_mode') === 'true' || user?.email === 'muhammadbahaddinyilmaz@gmail.com');
   const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
   const isPrivileged = isCEO || isAdminMode;
   // Onboarding
