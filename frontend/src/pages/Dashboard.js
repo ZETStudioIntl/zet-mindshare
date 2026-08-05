@@ -210,12 +210,14 @@ const Dashboard = () => {
   const [greetingPrefs, setGreetingPrefs] = useState(() => {
     try { return JSON.parse(localStorage.getItem('zet_greeting_prefs')) || {}; } catch { return {}; }
   });
+  const [greetingKey, setGreetingKey] = useState(0);
   const saveGreetingPrefs = (patch) => {
     setGreetingPrefs(prev => {
       const next = { ...prev, ...patch };
       localStorage.setItem('zet_greeting_prefs', JSON.stringify(next));
       return next;
     });
+    setGreetingKey(k => k + 1);
   };
   const [subscribing, setSubscribing] = useState(false);
   const [userZP, setUserZP] = useState(0);
@@ -276,12 +278,12 @@ const Dashboard = () => {
   const [driveTextPreview, setDriveTextPreview] = useState(null); // { name, text }
   const [showDriveUploadSheet, setShowDriveUploadSheet] = useState(false);
   const [showDriveDocPicker, setShowDriveDocPicker] = useState(false);
-  const [docMenuPos, setDocMenuPos] = useState({ top: 0, right: 0 });
+  const [docMenuPos, setDocMenuPos] = useState({ top: undefined, bottom: undefined, right: 0 });
   const [confirmDeleteDocId, setConfirmDeleteDocId] = useState(null);
   const [confirmDeleteNotebookId, setConfirmDeleteNotebookId] = useState(null);
   // Notebook three-dot menu
   const [openMenuNotebookId, setOpenMenuNotebookId] = useState(null);
-  const [notebookMenuPos, setNotebookMenuPos] = useState({ top: 0, right: 0 });
+  const [notebookMenuPos, setNotebookMenuPos] = useState({ top: undefined, bottom: undefined, right: 0 });
   const [renamingNotebookId, setRenamingNotebookId] = useState(null);
   const [renamingNotebookName, setRenamingNotebookName] = useState('');
   // Notebook password system
@@ -2316,7 +2318,7 @@ MATCHES:[1,3,5]`;
             }
             return (
               <span
-                key={`g-${gStyle}-${gColor}-${gColors.join('-')}`}
+                key={greetingKey}
                 onClick={() => { setShowSettings(true); setSettingsTab('profile'); setMobileSettingsSidebar(false); }}
                 className="truncate"
                 style={{
@@ -2429,7 +2431,7 @@ MATCHES:[1,3,5]`;
 
               {/* Versiyon */}
               <div className="mt-auto pt-4 px-3">
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.07.27</span>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.08.05</span>
               </div>
             </div>
 
@@ -4122,7 +4124,7 @@ MATCHES:[1,3,5]`;
                     </div>
                   ) : (
                   <button
-                    onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setDocMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuDocId(openMenuDocId === doc.doc_id ? null : doc.doc_id); }}
+                    onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const openUp = window.innerHeight - r.bottom < 220; setDocMenuPos({ top: openUp ? undefined : r.bottom + 4, bottom: openUp ? window.innerHeight - r.top + 4 : undefined, right: window.innerWidth - r.right }); setOpenMenuDocId(openMenuDocId === doc.doc_id ? null : doc.doc_id); }}
                     className="p-1 rounded hover:bg-white/10 transition-all"
                     style={{ color: 'var(--zet-text-muted)' }}
                     data-testid={`doc-menu-btn-${doc.doc_id}`}
@@ -4179,7 +4181,7 @@ MATCHES:[1,3,5]`;
             {openMenuDocId && (
               <div
                 className="fixed z-50 py-1 rounded-xl min-w-[160px] animate-fadeIn"
-                style={{ top: docMenuPos.top, right: docMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+                style={{ top: docMenuPos.top, bottom: docMenuPos.bottom, right: docMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
                 onClick={e => e.stopPropagation()}
               >
                 {(() => {
@@ -4467,7 +4469,7 @@ MATCHES:[1,3,5]`;
                       <div className="flex items-center gap-1">
                         <ChevronRight className="h-4 w-4 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }} />
                         <button
-                          onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); setNotebookMenuPos({ top: r.bottom + 4, right: window.innerWidth - r.right }); setOpenMenuNotebookId(openMenuNotebookId === nb.notebook_id ? null : nb.notebook_id); }}
+                          onClick={(e) => { e.stopPropagation(); const r = e.currentTarget.getBoundingClientRect(); const openUp = window.innerHeight - r.bottom < 220; setNotebookMenuPos({ top: openUp ? undefined : r.bottom + 4, bottom: openUp ? window.innerHeight - r.top + 4 : undefined, right: window.innerWidth - r.right }); setOpenMenuNotebookId(openMenuNotebookId === nb.notebook_id ? null : nb.notebook_id); }}
                           className="p-1 rounded hover:bg-white/10 transition-all"
                           style={{ color: 'var(--zet-text-muted)' }}
                           data-testid={`notebook-menu-${nb.notebook_id}`}
@@ -4481,7 +4483,7 @@ MATCHES:[1,3,5]`;
                   {openMenuNotebookId === nb.notebook_id && (
                     <div
                       className="fixed z-50 py-1 rounded-xl min-w-[180px] animate-fadeIn"
-                      style={{ top: notebookMenuPos.top, right: notebookMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
+                      style={{ top: notebookMenuPos.top, bottom: notebookMenuPos.bottom, right: notebookMenuPos.right, background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', boxShadow: '0 8px 24px rgba(0,0,0,0.4)' }}
                       onClick={e => e.stopPropagation()}
                     >
                       {NOTEBOOK_MENU(nb).map(item => (
