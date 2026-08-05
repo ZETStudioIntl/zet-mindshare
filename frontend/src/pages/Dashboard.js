@@ -41,7 +41,7 @@ import {
   Clock, Trash2, Cloud, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
   MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, ExternalLink,
-  Folder, FolderOpen, FolderInput, LayoutGrid
+  Folder, FolderOpen, FolderInput, LayoutGrid, ThumbsUp, ThumbsDown
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -330,6 +330,7 @@ const Dashboard = () => {
   const [docContentsCache, setDocContentsCache] = useState({}); // docId -> text
   const [docSearchLoading, setDocSearchLoading] = useState(false);
   const [zetaAnalysis, setZetaAnalysis] = useState({ noteId: null, loading: false, result: null });
+  const [zetaNoteFeedback, setZetaNoteFeedback] = useState(null); // 'like' | 'dislike' | null
   const [editName, setEditName] = useState('');
   const [editUsername, setEditUsername] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -1478,10 +1479,11 @@ const Dashboard = () => {
 
   const analyzeWithZeta = async (note) => {
     setZetaAnalysis({ noteId: note.note_id, loading: true, result: null });
+    setZetaNoteFeedback(null);
     setOpenMenuNoteId(null);
     try {
       const res = await axios.post(`${API}/zeta/chat`, {
-        message: `Bu notu kısaca özetle ve önemli noktaları belirt: "${note.content}"`
+        message: `Yanıtını yalnızca Türkçe yaz. Bu notu kısaca özetle ve önemli noktaları belirt: "${note.content}"`
       }, { withCredentials: true });
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: res.data.response, sources: res.data.sources || [] });
       try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
@@ -1945,12 +1947,14 @@ const Dashboard = () => {
         context = items.map(it => `[${it.index}] ${it.snippet.slice(0, 200)}`).join('\n');
       }
 
-      const prompt = `Kullanıcı şunu arıyor: "${zetaSearchQuery}"
+      const prompt = `Yanıtını yalnızca Türkçe yaz.
+
+Kullanıcı şunu arıyor: "${zetaSearchQuery}"
 
 ${activeTab === 'documents' ? 'Belgeler' : 'Notlar'}:
 ${context}
 
-En çok eşleşen sonuçları bul. Her eşleşme için "[N]" numarasını kullan. Kısa açıkla ve neden eşleştiğini belirt. Cevabın sonuna şu formatta bir JSON satırı ekle (başka yere koyma):
+En çok eşleşen sonuçları bul. Her eşleşme için "[N]" numarasını kullan. Kısa Türkçe açıkla ve neden eşleştiğini belirt. Cevabın sonuna şu formatta bir JSON satırı ekle (başka yere koyma):
 MATCHES:[1,3,5]`;
 
       const res = await axios.post(`${API}/zeta/search`, { prompt, is_ceo: isCEO }, { withCredentials: true, timeout: 30000 });
@@ -2188,6 +2192,29 @@ MATCHES:[1,3,5]`;
                     </button>
                   </div>
                   <p className="whitespace-pre-wrap break-words" style={{ color: 'var(--zet-text)' }}>{zetaAnalysis.result}</p>
+                  <div className="flex items-center gap-1 mt-2" onClick={e => e.stopPropagation()}>
+                    <button
+                      onClick={() => { navigator.clipboard.writeText(zetaAnalysis.result || ''); showToast('Kopyalandı', 'success'); }}
+                      className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs transition-all hover:bg-white/10"
+                      style={{ color: 'var(--zet-text-muted)' }}
+                    >
+                      <Copy className="h-3 w-3" /> Kopyala
+                    </button>
+                    <button
+                      onClick={() => setZetaNoteFeedback(f => f === 'like' ? null : 'like')}
+                      className="p-1.5 rounded-lg transition-all hover:bg-white/10"
+                      style={{ color: zetaNoteFeedback === 'like' ? '#22c55e' : 'var(--zet-text-muted)' }}
+                    >
+                      <ThumbsUp className="h-3.5 w-3.5" style={{ fill: zetaNoteFeedback === 'like' ? 'currentColor' : 'none' }} />
+                    </button>
+                    <button
+                      onClick={() => setZetaNoteFeedback(f => f === 'dislike' ? null : 'dislike')}
+                      className="p-1.5 rounded-lg transition-all hover:bg-white/10"
+                      style={{ color: zetaNoteFeedback === 'dislike' ? '#ef4444' : 'var(--zet-text-muted)' }}
+                    >
+                      <ThumbsDown className="h-3.5 w-3.5" style={{ fill: zetaNoteFeedback === 'dislike' ? 'currentColor' : 'none' }} />
+                    </button>
+                  </div>
                   {zetaAnalysis.sources && zetaAnalysis.sources.length > 0 && (
                     <div className="mt-2 pt-2 border-t" style={{ borderColor: 'var(--zet-border)' }}>
                       <p className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>Kaynaklar</p>
