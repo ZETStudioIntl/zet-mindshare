@@ -5027,7 +5027,7 @@ async def save_zeta_memory(content: str = Body(..., embed=True), user: User = De
 @api_router.delete("/zeta/memory/{memory_id}")
 async def delete_zeta_memory(memory_id: str, user: User = Depends(get_current_user)):
     result = await db.zeta_memories.delete_one({"memory_id": memory_id, "user_id": user.user_id})
-    return {"deleted": result.deleted_count > 0}
+     return {"deleted": result.deleted_count > 0}
 
 # ============ ZETA AI ROUTES ============
 
@@ -9164,6 +9164,159 @@ async def ceo_run_command(command: str = Body(..., embed=True), user: User = Dep
             return {"ok": False, "msg": f"{test_email} bulunamadı — önce Google ile giriş yapılmalı"}
         return {"ok": True, "msg": f"{test_email} → Creative Station aktif edildi"}
     return {"ok": False, "msg": f"Bilinmeyen komut: {command}"}
+
+# ─── Etkinlikler (Events) ────────────────────────────────────────────────────
+
+class EventSlideReward(BaseModel):
+    type: str  # "zp" | "credit" | "case" | "wheel" | "mood_unlock"
+    amount: Optional[int] = None
+    mode: Optional[str] = None
+
+class EventSlide(BaseModel):
+    slide_id: str
+    svg_key: str
+    title: str
+    body: str = ""
+    reward: Optional[EventSlideReward] = None
+
+class EventCreate(BaseModel):
+    title: str
+    subtitle: str = ""
+    start_at: str   # ISO datetime string
+    end_at: str
+    accent_color: str = "#4ca8ad"
+    slides: List[EventSlide]
+
+async def _verify_ceo(user: User):
+    if user.email != CEO_EMAIL:
+        raise HTTPException(status_code=403, detail="CEO only")
+
+@api_router.get("/events/active")
+async def get_active_event(user: User = Depends(get_current_user)):
+    now = datetime.now(timezone.utc).isoformat()
+    event = await db.events.find_one(
+        {"start_at": {"$lte": now}, "end_at": {"$gte": now}},
+        {"_id": 0},
+        sort=[("start_at", -1)],
+    )
+    if not event:
+        return {"event": None}
+    claim_doc = await db.event_claims.find_one(
+        {"user_id": user.user_id, "event_id": event["event_id"]}, {"_id": 0}
+    )
+    event["claimed_slide_ids"] = claim_doc.get("claimed_slide_ids", []) if claim_doc else []
+    event["completed"] = bool(claim_doc and claim_doc.get("completed_at"))
+    return {"event": event}
+
+@api_router.post("/events/{event_id}/claim-slide/{slide_id}")
+async def claim_event_slide(event_id: str, slide_id: str, user: User = Depends(get_current_user)):
+    event = await db.events.find_one({"event_id": event_id}, {"_id": 0})
+    if not event:
+        raise HTTPException(status_code=404, detail="Etkinlik bulunamadı")
+    slide = next((s for s in event.get("slides", []) if s["slide_id"] == slide_id), None)
+    if not slide:
+        raise HTTPException(status_code=404, detail="Slayt bulunamadı")
+    claim_doc = await db.event_claims.find_one({"user_id": user.user_id, "event_id": event_id})
+    already_claimed = claim_doc and slide_id in claim_doc.get("claimed_slide_ids", [])
+    if already_claimed:
+        return {"ok": True, "already_claimed": True}
+    reward = slide.get("reward")
+    reward_result = {}
+    if reward:
+        rtype = reward.get("type")
+        amount = reward.get("amount", 0)
+        if rtype == "zp" and amount:
+            await db.users.update_one({"user_id": user.user_id}, {"$inc": {"zp": amount}})
+            reward_result = {"type": "zp", "amount": amount}
+        elif rtype == "credit" and amount:
+            await db.users.update_one({"user_id": user.user_id}, {"$inc": {"credits": amount}})
+            reward_result = {"type": "credit", "amount": amount}
+        elif rtype == "case":
+            case_item = {"id": str(uuid.uuid4()), "item_type": "daily_case", "obtained_at": datetime.now(timezone.utc).isoformat()}
+            await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": case_item}})
+            reward_result = {"type": "case"}
+        elif rtype == "wheel":
+            wheel_item = {"id": str(uuid.uuid4()), "item_type": "daily_wheel", "obtained_at": datetime.now(timezone.utc).isoformat()}
+            await db.users.update_one({"user_id": user.user_id}, {"$push": {"inventory": wheel_item}})
+            reward_result = {"type": "wheel"}
+        elif rtype == "mood_unlock":
+            mode = reward.get("mode", "")
+            if mode:
+                await db.users.update_one({"user_id": user.user_id}, {"$addToSet": {"unlocked_moods": mode}})
+            reward_result = {"type": "mood_unlock", "mode": mode}
+    all_slide_ids = [s["slide_id"] for s in event.get("slides", [])]
+    new_claimed = list(set((claim_doc.get("claimed_slide_ids", []) if claim_doc else []) + [slide_id]))
+    all_done = set(new_claimed) >= set(all_slide_ids)
+    await db.event_claims.update_one(
+        {"user_id": user.user_id, "event_id": event_id},
+        {"$set": {
+            "user_id": user.user_id,
+            "event_id": event_id,
+            "claimed_slide_ids": new_claimed,
+            "completed_at": datetime.now(timezone.utc).isoformat() if all_done else None,
+            "seen_at": datetime.now(timezone.utc).isoformat(),
+        }},
+        upsert=True,
+    )
+    return {"ok": True, "reward": reward_result, "completed": all_done}
+
+@api_router.post("/events/{event_id}/seen")
+async def mark_event_seen(event_id: str, user: User = Depends(get_current_user)):
+    await db.event_claims.update_one(
+        {"user_id": user.user_id, "event_id": event_id},
+        {"$set": {"user_id": user.user_id, "event_id": event_id, "seen_at": datetime.now(timezone.utc).isoformat()},
+         "$setOnInsert": {"claimed_slide_ids": [], "completed_at": None}},
+        upsert=True,
+    )
+    return {"ok": True}
+
+@api_router.get("/admin/events")
+async def admin_list_events(user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    events = await db.events.find({}, {"_id": 0}).sort("start_at", -1).to_list(100)
+    return {"events": events}
+
+@api_router.post("/admin/events")
+async def admin_create_event(body: EventCreate, user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    event_id = str(uuid.uuid4())
+    doc = {
+        "event_id": event_id,
+        "title": body.title,
+        "subtitle": body.subtitle,
+        "start_at": body.start_at,
+        "end_at": body.end_at,
+        "accent_color": body.accent_color,
+        "slides": [s.dict() for s in body.slides],
+        "created_by": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.events.insert_one(doc)
+    doc.pop("_id", None)
+    return {"event": doc}
+
+@api_router.put("/admin/events/{event_id}")
+async def admin_update_event(event_id: str, body: EventCreate, user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    update = {
+        "title": body.title,
+        "subtitle": body.subtitle,
+        "start_at": body.start_at,
+        "end_at": body.end_at,
+        "accent_color": body.accent_color,
+        "slides": [s.dict() for s in body.slides],
+    }
+    result = await db.events.update_one({"event_id": event_id}, {"$set": update})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Etkinlik bulunamadı")
+    return {"ok": True}
+
+@api_router.delete("/admin/events/{event_id}")
+async def admin_delete_event(event_id: str, user: User = Depends(get_current_user)):
+    await _verify_ceo(user)
+    await db.events.delete_one({"event_id": event_id})
+    return {"ok": True}
+
 
 @api_router.post("/admin/quests/reset-all")
 async def admin_reset_all_quests(user: User = Depends(get_current_user)):

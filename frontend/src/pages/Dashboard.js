@@ -30,6 +30,8 @@ import PlanFeaturesModal from '../components/dashboard/PlanFeaturesModal';
 import SeasonEndModal from '../components/dashboard/SeasonEndModal';
 import ConfirmModal from '../components/dashboard/ConfirmModal';
 import WarningPopup from '../components/dashboard/WarningPopup';
+import EventModal from '../components/dashboard/EventModal';
+import EventCreatorPanel from '../components/dashboard/EventCreatorPanel';
 import ironRankImg from '../assets/rank-iron.svg';
 import silverRankImg from '../assets/rank-silver.svg';
 import goldRankImg from '../assets/rank-gold.svg';
@@ -159,6 +161,8 @@ const Dashboard = () => {
   const isCEO = !user?.is_guest && (localStorage.getItem('zet_ceo_mode') === 'true' || user?.email === 'muhammadbahaddinyilmaz@gmail.com');
   const isAdminMode = localStorage.getItem('zet_admin_mode') === 'true';
   const isPrivileged = isCEO || isAdminMode;
+  const [activeEvent, setActiveEvent] = useState(null);
+  const [showEventModal, setShowEventModal] = useState(false);
   // Onboarding
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [obUsername, setObUsername] = useState('');
@@ -554,6 +558,14 @@ const Dashboard = () => {
     checkDriveConnection();
     fetchSubscription();
     requestNotificationPermission();
+    // Aktif etkinlik kontrolü
+    axios.get(`${API}/events/active`, { withCredentials: true })
+      .then(res => {
+        if (res.data.event && !res.data.event.completed) {
+          setActiveEvent(res.data.event);
+          setShowEventModal(true);
+        }
+      }).catch(() => {});
     // Sezon bilgisi çek + gösterilmemiş sezon sonucu var mı kontrol et
     axios.get(`${API}/season`, { withCredentials: true })
       .then(res => setSeasonData(res.data)).catch(() => {});
@@ -2459,6 +2471,7 @@ MATCHES:[1,3,5]`;
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: t('fastSelect') },
                 { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: t('appSwitcher') },
+                ...(isCEO ? [{ id: 'kontrol', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".7"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".7"/></svg>, label: 'Kontrol Merkezi', color: '#f59e0b' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
@@ -3829,6 +3842,13 @@ MATCHES:[1,3,5]`;
                       })}
                     </div>
                   )}
+                </div>
+              )}
+
+              {settingsTab === 'kontrol' && isCEO && (
+                <div className="max-w-lg">
+                  <h2 className="text-lg font-semibold mb-6" style={{ color: 'var(--zet-text)' }}>Kontrol Merkezi</h2>
+                  <EventCreatorPanel />
                 </div>
               )}
 
@@ -5421,6 +5441,13 @@ MATCHES:[1,3,5]`;
         </div>
       )}
 
+      {/* ── Etkinlik Modalı ── */}
+      {showEventModal && activeEvent && (
+        <EventModal
+          event={activeEvent}
+          onClose={() => setShowEventModal(false)}
+        />
+      )}
     </div>
   );
 };
