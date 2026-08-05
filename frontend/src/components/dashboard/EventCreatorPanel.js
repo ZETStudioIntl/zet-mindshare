@@ -3,7 +3,7 @@ import { Plus, Trash2, ChevronDown, ChevronUp, Check } from 'lucide-react';
 import { EventSVGIcon, EVENT_SVGS, SVG_CATEGORIES } from '../../lib/eventSVGs';
 import axios from 'axios';
 
-const API = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const REWARD_TYPES = [
   { id: 'zp',          label: 'ZP',           hasAmount: true,  hasMood: false },

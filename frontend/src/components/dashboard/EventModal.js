@@ -3,7 +3,7 @@ import { X, ChevronLeft, ChevronRight, Gift, Check } from 'lucide-react';
 import { EventSVGIcon } from '../../lib/eventSVGs';
 import axios from 'axios';
 
-const API = process.env.REACT_APP_API_URL || 'http://localhost:8000/api';
+const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
 const REWARD_LABELS = {
   zp:          (r) => `${r.amount?.toLocaleString()} ZP`,
