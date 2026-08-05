@@ -9200,6 +9200,8 @@ async def get_active_event(user: User = Depends(get_current_user)):
     claim_doc = await db.event_claims.find_one(
         {"user_id": user.user_id, "event_id": event["event_id"]}, {"_id": 0}
     )
+    if claim_doc and claim_doc.get("seen_at"):
+        return {"event": None}
     event["claimed_slide_ids"] = claim_doc.get("claimed_slide_ids", []) if claim_doc else []
     event["completed"] = bool(claim_doc and claim_doc.get("completed_at"))
     return {"event": event}
