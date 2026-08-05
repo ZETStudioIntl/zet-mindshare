@@ -2418,6 +2418,7 @@ MATCHES:[1,3,5]`;
                 { id: 'ranks',        icon: <RankIcon rank={currentRank} size={16} />, label: t('ranks'),         color: '#f59e0b' },
                 { id: 'magaza',       icon: <CreditCard className="h-4 w-4" />, label: t('store'),         color: '#a78bfa' },
                 { id: 'inventory',    icon: <Package className="h-4 w-4" />,    label: t('inventory'),     color: '#60a5fa' },
+                { id: 'quests',       icon: <Map className="h-4 w-4" />,        label: t('dailyQuests') || 'Görevler', color: '#f59e0b' },
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: t('fastSelect') },
                 { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: t('appSwitcher') },

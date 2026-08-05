@@ -750,7 +750,7 @@ const QuestMap = () => {
                     onClick={() => setRevealedSlots(prev => new Set([...prev, idx]))}
                     style={{
                       position: 'absolute', inset: 0, borderRadius: 16, zIndex: 2,
-                      background: `radial-gradient(ellipse at 50% 40%, rgba(${shapeMeta.rgb},0.18) 0%, rgb(5,8,16) 70%)`,
+                      background: `linear-gradient(160deg, rgba(${shapeMeta.rgb},0.22) 0%, rgb(5,8,16) 55%, rgb(5,8,16) 100%)`,
                       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8,
                       cursor: 'pointer',
                       opacity: revealedSlots.has(idx) ? 0 : 1,
