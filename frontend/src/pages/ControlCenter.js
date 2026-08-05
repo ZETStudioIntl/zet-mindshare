@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import EventCreatorPanel from '../components/dashboard/EventCreatorPanel';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
@@ -76,6 +77,9 @@ export default function ControlCenter() {
   const [actionLoading, setActionLoading] = useState(false);
   const [toast, setToast] = useState(null);
 
+
+  // View
+  const [view, setView] = useState('users'); // 'users' | 'events'
 
   // Mobile
   const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
@@ -191,7 +195,35 @@ export default function ControlCenter() {
         )}
       </div>
 
-      <div style={{ display: 'flex', height: 'calc(100vh - 73px)' }}>
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: 4, padding: '10px 32px 0', borderBottom: '1px solid #1e2433', background: '#060811' }}>
+        {[
+          { id: 'users', label: 'Kullanıcılar' },
+          { id: 'events', label: 'Etkinlikler' },
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setView(tab.id)}
+            style={{
+              padding: '8px 18px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
+              background: 'none', border: 'none',
+              color: view === tab.id ? '#f59e0b' : '#6b7280',
+              borderBottom: view === tab.id ? '2px solid #f59e0b' : '2px solid transparent',
+              transition: 'all 0.15s', marginBottom: -1,
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {view === 'events' && (
+        <div style={{ padding: '24px 32px', maxWidth: 640 }}>
+          <EventCreatorPanel />
+        </div>
+      )}
+
+      {view === 'users' && <div style={{ display: 'flex', height: 'calc(100vh - 113px)' }}>
         {/* LEFT — user list */}
         <div style={{
           width: isMobile ? '100%' : 380,
@@ -450,7 +482,7 @@ export default function ControlCenter() {
             );
           })()}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }
