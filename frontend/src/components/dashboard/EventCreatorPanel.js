@@ -256,6 +256,8 @@ export default function EventCreatorPanel() {
     try {
       const payload = {
         ...form,
+        start_at: new Date(form.start_at).toISOString(),
+        end_at: new Date(form.end_at).toISOString(),
         slides: form.slides.map(s => ({ ...s, reward: s.reward?.type ? s.reward : null })),
       };
       if (editingId) {
