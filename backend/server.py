@@ -5027,7 +5027,7 @@ async def save_zeta_memory(content: str = Body(..., embed=True), user: User = De
 @api_router.delete("/zeta/memory/{memory_id}")
 async def delete_zeta_memory(memory_id: str, user: User = Depends(get_current_user)):
     result = await db.zeta_memories.delete_one({"memory_id": memory_id, "user_id": user.user_id})
-     return {"deleted": result.deleted_count > 0}
+    return {"deleted": result.deleted_count > 0}
 
 # ============ ZETA AI ROUTES ============
 
