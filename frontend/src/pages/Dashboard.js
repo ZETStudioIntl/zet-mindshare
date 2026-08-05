@@ -2265,8 +2265,8 @@ MATCHES:[1,3,5]`;
           50%       { background-position: 100% 50%; }
         }
         @keyframes zetGreetingShimmer {
-          0%, 100% { filter: brightness(1) saturate(1); }
-          50%       { filter: brightness(1.5) saturate(1.4); }
+          0%   { background-position: -200% center; }
+          100% { background-position: 200% center; }
         }
       `}</style>
       <header className="p-4 flex items-center justify-between border-b" style={{ borderColor: 'var(--zet-border)' }}>
@@ -2296,7 +2296,7 @@ MATCHES:[1,3,5]`;
           {user && (() => {
             const displayFirst = (user.name || user.display_name || user.email?.split('@')[0] || '').split(' ')[0];
             if (!displayFirst) return null;
-            const isPro = userSubscription === 'pro' || userSubscription === 'creative_station';
+            const isPro = userSubscription === 'pro' || userSubscription === 'creative_station' || isCEO;
             const gStyle = isPro ? (greetingPrefs.style || 'gradient') : 'solid';
             const gColor = greetingPrefs.color || '#4ca8ad';
             const gColors = greetingPrefs.colors?.length >= 2 ? greetingPrefs.colors : ['#4ca8ad', '#a78bfa', '#f59e0b'];
@@ -2312,7 +2312,14 @@ MATCHES:[1,3,5]`;
                 animation: 'zetGreeting 5s ease infinite',
               };
             } else if (gStyle === 'shimmer' && isPro) {
-              dynStyle = { color: gColor, animation: 'zetGreetingShimmer 3s ease infinite' };
+              dynStyle = {
+                background: `linear-gradient(90deg, ${gColor}66 0%, ${gColor} 30%, #ffffff 50%, ${gColor} 70%, ${gColor}66 100%)`,
+                backgroundSize: '200% auto',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+                animation: 'zetGreetingShimmer 2.5s linear infinite',
+              };
             } else {
               dynStyle = { color: isPro ? gColor : '#4ca8ad' };
             }
@@ -2635,7 +2642,7 @@ MATCHES:[1,3,5]`;
                     </div>
                     {/* Selamlama Stili */}
                     {(() => {
-                      const isPro = userSubscription === 'pro' || userSubscription === 'creative_station';
+                      const isPro = userSubscription === 'pro' || userSubscription === 'creative_station' || isCEO;
                       const gStyle = greetingPrefs.style || 'gradient';
                       const gColor = greetingPrefs.color || '#4ca8ad';
                       const gColors = greetingPrefs.colors?.length >= 2 ? greetingPrefs.colors : ['#4ca8ad', '#a78bfa', '#f59e0b'];
@@ -2800,10 +2807,21 @@ MATCHES:[1,3,5]`;
                             pictureUrl = photoRes.data.picture_url;
                           }
                           await axios.put(`${API}/auth/profile`, { name: editName }, { withCredentials: true });
-                          await axios.patch(`${API}/users/me`, { username: editUsername, display_name: editName, bio: editBio }, { withCredentials: true });
-                          const updatedUserFields = { ...user, name: editName, username: editUsername, bio: editBio, picture: pictureUrl || user?.picture };
+                          await axios.patch(`${API}/users/me`, { display_name: editName, bio: editBio }, { withCredentials: true });
+                          const currentUsername = user?.username || '';
+                          let finalUsername = currentUsername;
+                          if (editUsername !== currentUsername) {
+                            try {
+                              await axios.patch(`${API}/users/me`, { username: editUsername }, { withCredentials: true });
+                              finalUsername = editUsername;
+                            } catch (uErr) {
+                              const uMsg = uErr?.response?.data?.detail || 'Kullanıcı adı değiştirilemedi';
+                              setEditUsername(currentUsername);
+                              setTimeout(() => showToast(uMsg, 'error'), 400);
+                            }
+                          }
+                          const updatedUserFields = { ...user, name: editName, username: finalUsername, bio: editBio, picture: pictureUrl || user?.picture };
                           if (updateUser) updateUser(updatedUserFields);
-                          // Offline cache güncelle — sonraki açılışta güncel isim görünsün
                           try {
                             const cached = JSON.parse(localStorage.getItem('zet_cached_user') || '{}');
                             localStorage.setItem('zet_cached_user', JSON.stringify({ ...cached, ...updatedUserFields }));
