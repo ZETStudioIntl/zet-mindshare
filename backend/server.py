@@ -9187,18 +9187,14 @@ class EventCreate(BaseModel):
     accent_color: str = "#4ca8ad"
     slides: List[EventSlide]
 
-async def _verify_ceo(user: User):
-    if user.email != CEO_EMAIL:
-        raise HTTPException(status_code=403, detail="CEO only")
-
 @api_router.get("/events/active")
 async def get_active_event(user: User = Depends(get_current_user)):
     now = datetime.now(timezone.utc).isoformat()
-    event = await db.events.find_one(
+    events_list = await db.events.find(
         {"start_at": {"$lte": now}, "end_at": {"$gte": now}},
-        {"_id": 0},
-        sort=[("start_at", -1)],
-    )
+        {"_id": 0}
+    ).sort("start_at", -1).limit(1).to_list(1)
+    event = events_list[0] if events_list else None
     if not event:
         return {"event": None}
     claim_doc = await db.event_claims.find_one(
