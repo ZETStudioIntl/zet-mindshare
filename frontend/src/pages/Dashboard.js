@@ -2138,20 +2138,30 @@ MATCHES:[1,3,5]`;
         </div>
         <div className="min-w-0 flex-1">
           {editingNoteId === note.note_id ? (
-            <div className="flex gap-2">
-              <input
-                className="zet-input flex-1 text-sm"
+            <div className="flex flex-col gap-2">
+              <textarea
+                className="zet-input w-full text-sm"
+                style={{ minHeight: 80, maxHeight: 400, resize: 'vertical', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}
                 value={editingNoteContent}
                 onChange={(e) => setEditingNoteContent(e.target.value)}
-                onKeyDown={(e) => { if (e.key === 'Enter') updateNote(note.note_id, editingNoteContent); if (e.key === 'Escape') { setEditingNoteId(null); setEditingNoteContent(''); } }}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' && (e.ctrlKey || e.metaKey))) { e.preventDefault(); updateNote(note.note_id, editingNoteContent); }
+                  if (e.key === 'Escape') { setEditingNoteId(null); setEditingNoteContent(''); }
+                }}
+                ref={el => { if (el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 400) + 'px'; } }}
                 autoFocus
               />
-              <button onClick={() => updateNote(note.note_id, editingNoteContent)} className="p-1 rounded hover:bg-white/10">
-                <Check className="h-4 w-4" style={{ color: '#22c55e' }} />
-              </button>
-              <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="p-1 rounded hover:bg-white/10">
-                <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
-              </button>
+              <div className="flex items-center justify-between">
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.6 }}>Ctrl+Enter kaydet · Esc iptal</span>
+                <div className="flex gap-1">
+                  <button onClick={() => updateNote(note.note_id, editingNoteContent)} className="px-3 py-1 rounded-lg text-xs font-medium" style={{ background: 'rgba(76,168,173,0.15)', color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}>
+                    <Check className="h-3.5 w-3.5 inline mr-1" />Kaydet
+                  </button>
+                  <button onClick={() => { setEditingNoteId(null); setEditingNoteContent(''); }} className="p-1 rounded hover:bg-white/10">
+                    <X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} />
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <p className="break-words whitespace-pre-wrap" style={{ color: 'var(--zet-text)', wordBreak: 'break-word' }}>{note.content}</p>
