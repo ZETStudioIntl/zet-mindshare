@@ -5883,7 +5883,7 @@ async def zeta_search(req: ZetaSearchRequest, user: User = Depends(get_current_u
         client = google_genai.Client(api_key=api_key)
         response = await asyncio.to_thread(
             client.models.generate_content,
-            model="gemini-2.0-flash",
+            model="gemini-2.5-flash",
             contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=req.prompt)])],
             config=genai_types.GenerateContentConfig(temperature=0.2, max_output_tokens=1500),
         )
