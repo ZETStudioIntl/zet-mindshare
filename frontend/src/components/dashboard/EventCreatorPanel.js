@@ -5,6 +5,13 @@ import axios from 'axios';
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 
+const toLocalDT = (isoStr) => {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+};
+
 const REWARD_TYPES = [
   { id: 'zp',          label: 'ZP',           hasAmount: true,  hasMood: false },
   { id: 'credit',      label: 'Kredi',        hasAmount: true,  hasMood: false },
@@ -289,7 +296,7 @@ export default function EventCreatorPanel() {
 
   const handleEdit = (ev) => {
     setEditingId(ev.event_id);
-    setForm({ title: ev.title, subtitle: ev.subtitle || '', start_at: ev.start_at?.slice(0,16) || '', end_at: ev.end_at?.slice(0,16) || '', accent_color: ev.accent_color || '#4ca8ad', slides: ev.slides || [newSlide()] });
+    setForm({ title: ev.title, subtitle: ev.subtitle || '', start_at: toLocalDT(ev.start_at), end_at: toLocalDT(ev.end_at), accent_color: ev.accent_color || '#4ca8ad', slides: ev.slides || [newSlide()] });
   };
 
   const now = new Date().toISOString();
