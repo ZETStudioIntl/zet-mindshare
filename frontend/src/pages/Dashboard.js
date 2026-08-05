@@ -41,7 +41,7 @@ import {
   Clock, Trash2, Cloud, X, Keyboard, HardDrive, Check, Zap, CreditCard, ChevronLeft, ChevronRight,
   Bell, BellRing, Upload, FileEdit, Sparkles, Scale, Award, Map, Star, Copy, User,
   MoreVertical, ArrowUp, ArrowDown, Pin, UserCheck, BookOpen, Lock, Brain, ExternalLink,
-  Folder, FolderOpen, FolderInput, LayoutGrid, ThumbsUp, ThumbsDown
+  Folder, FolderOpen, FolderInput, LayoutGrid, ThumbsUp, ThumbsDown, Download
 } from 'lucide-react';
 import { TOOLS, DEFAULT_SHORTCUTS } from '../lib/editorConstants';
 
@@ -219,6 +219,7 @@ const Dashboard = () => {
     });
     setGreetingKey(k => k + 1);
   };
+  const [installPromptEvent, setInstallPromptEvent] = useState(null);
   const [subscribing, setSubscribing] = useState(false);
   const [userZP, setUserZP] = useState(0);
   const [activeTimeSeconds, setActiveTimeSeconds] = useState(0);
@@ -604,7 +605,16 @@ const Dashboard = () => {
       } catch {}
     };
     window.addEventListener('online', handleOnline);
-    return () => { clearInterval(interval); window.removeEventListener('online', handleOnline); };
+    const handleInstallPrompt = (e) => { e.preventDefault(); setInstallPromptEvent(e); };
+    const handleAppInstalled = () => setInstallPromptEvent(null);
+    window.addEventListener('beforeinstallprompt', handleInstallPrompt);
+    window.addEventListener('appinstalled', handleAppInstalled);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('beforeinstallprompt', handleInstallPrompt);
+      window.removeEventListener('appinstalled', handleAppInstalled);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Defterler değiştiğinde cache güncelle
@@ -2474,8 +2484,26 @@ MATCHES:[1,3,5]`;
                 </button>
               </div>
 
+              {/* PWA Install */}
+              {installPromptEvent && (
+                <div className="mt-auto px-3 pb-2">
+                  <button
+                    onClick={async () => {
+                      installPromptEvent.prompt();
+                      const { outcome } = await installPromptEvent.userChoice;
+                      if (outcome === 'accepted') setInstallPromptEvent(null);
+                    }}
+                    className="flex items-center gap-2 w-full px-3 py-2.5 rounded-lg text-sm transition-all"
+                    style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)', color: '#4ca8ad' }}
+                  >
+                    <Download className="h-4 w-4 flex-shrink-0" />
+                    <span>Uygulamayı Yükle</span>
+                  </button>
+                </div>
+              )}
+
               {/* Versiyon */}
-              <div className="mt-auto pt-4 px-3">
+              <div className={`${installPromptEvent ? '' : 'mt-auto'} pt-2 px-3`}>
                 <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.08.05</span>
               </div>
             </div>
