@@ -20,7 +20,13 @@ const REWARD_TYPES = [
   { id: 'mood_unlock', label: 'Mod Unlock',   hasAmount: false, hasMood: true  },
 ];
 
-const MOOD_MODES = ['focus', 'creative', 'relax', 'study', 'energize', 'sleep'];
+const MOOD_MODES = [
+  { value: 'agresif',    label: 'Agresif'    },
+  { value: 'robot',      label: 'Robot'      },
+  { value: 'yorgun',     label: 'Yorgun'     },
+  { value: 'dedektif',   label: 'Dedektif'   },
+  { value: 'felsefi',    label: 'Felsefi'    },
+];
 
 function newSlide() {
   return {
@@ -215,11 +221,11 @@ function SlideEditor({ slide, index, color, onChange, onDelete, total }) {
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                 {MOOD_MODES.map(m => (
                   <button
-                    key={m}
-                    onClick={() => onChange({ ...slide, reward: { ...reward, mode: m } })}
-                    style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: 'none', background: reward?.mode === m ? '#a78bfa' : 'rgba(255,255,255,0.06)', color: reward?.mode === m ? '#fff' : '#94a3b8', fontWeight: 600 }}
+                    key={m.value}
+                    onClick={() => onChange({ ...slide, reward: { ...reward, mode: m.value } })}
+                    style={{ padding: '4px 10px', borderRadius: 20, fontSize: 12, cursor: 'pointer', border: 'none', background: reward?.mode === m.value ? '#a78bfa' : 'rgba(255,255,255,0.06)', color: reward?.mode === m.value ? '#fff' : '#94a3b8', fontWeight: 600 }}
                   >
-                    {m}
+                    {m.label}
                   </button>
                 ))}
               </div>
