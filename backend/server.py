@@ -5810,13 +5810,8 @@ Sonucu SADECE aşağıdaki JSON formatında döndür, başka hiçbir şey yazma:
 ]
 type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — original=null), "extra" (gereksiz kelime — suggestion=null)
 Hiç hata yoksa sadece [] döndür."""
-    # [METİN]: etiketlerini soy, sadece düz metni gönder
-    text_lines = [
-        line[len('[METİN]: '):]
-        for line in req.doc_content.split('\n')
-        if line.startswith('[METİN]: ')
-    ]
-    clean_text = '\n'.join(text_lines).strip()
+    # Frontend direkt sade metin gönderir (prefix yok)
+    clean_text = req.doc_content.strip()
     if not clean_text:
         return JSONResponse({"corrections": [], "can_word": can_word}, headers=cors_h)
 

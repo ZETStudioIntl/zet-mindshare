@@ -2327,10 +2327,25 @@ const Editor = () => {
     setZetaEditExplanation('');
   };
 
-  const handlePatchScan = async (docContent) => {
-    console.log('[Patch] scan başlatıldı, içerik uzunluğu:', docContent?.length);
-    if (!docContent?.trim()) {
-      console.warn('[Patch] içerik boş, tarama iptal edildi');
+  const handlePatchScan = async (_unused) => {
+    // Direkt canvas elementlerinden sade metin çıkar — [METİN]: prefix encoding sorununu bypass eder
+    const buildPatchText = () => {
+      const pages = document?.pages || [];
+      const parts = [];
+      pages.forEach((page, idx) => {
+        const elements = idx === currentPage ? canvasElements : (page.elements || []);
+        elements.forEach(el => {
+          if (el.type === 'text' && !el.isRedacted) {
+            const c = (el.content || '').replace(/<[^>]*>/g, '').trim();
+            if (c) parts.push(c);
+          }
+        });
+      });
+      return parts.join('\n');
+    };
+    const patchText = buildPatchText();
+    console.log('[Patch] scan başlatıldı, içerik uzunluğu:', patchText?.length, patchText?.slice(0, 100));
+    if (!patchText?.trim()) {
       setPatchError('Belgede taranacak metin bulunamadı. Lütfen önce metin aracıyla içerik ekleyin.');
       return;
     }
@@ -2341,7 +2356,7 @@ const Editor = () => {
     try {
       console.log('[Patch] API çağrısı yapılıyor...');
       const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-scan`, {
-        doc_content: docContent,
+        doc_content: patchText,
         ignore_list: patchIgnoreList,
       }, { withCredentials: true });
       console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme', res.data);
