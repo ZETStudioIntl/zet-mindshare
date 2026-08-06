@@ -2320,7 +2320,7 @@ const Editor = () => {
     const corr = patchCorrections.find(c => c.id === corrId);
     if (!corr || !corr.original) return;
     // Metni canvas elementlerinde bul ve değiştir
-    setCanvasElements(prev => prev.map(el => {
+    const updatedEls = canvasElementsRef.current.map(el => {
       if (el.type !== 'text') return el;
       const hasWord = (el.content || '').includes(corr.original) || (el.htmlContent || '').includes(corr.original);
       if (!hasWord) return el;
@@ -2336,7 +2336,9 @@ const Editor = () => {
         return { ...el, content: newContent, htmlContent: newHtml };
       }
       return el;
-    }));
+    });
+    setCanvasElements(updatedEls);
+    handleSaveHistory(updatedEls);
     // 2 kredi düş
     try {
       const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-accept`, { count: 1 }, { withCredentials: true });
