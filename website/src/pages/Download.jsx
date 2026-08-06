@@ -3,7 +3,7 @@ import { useScrollReveal } from '../hooks/useScrollReveal';
 
 const APP_URL = 'https://app.zetstudiointl.com';
 const WIN_URL = '/downloads/ZET-Portal-Setup-1.0.0.exe';
-const MS_STORE_URL = 'ms-windows-store://pdp/?productid=XXXXXXXXXXX'; // TODO: gerçek Store product ID ile değiştir
+const MS_STORE_URL = 'ms-windows-store://pdp/?productid=9PLLKJGC7MHG';
 
 function Reveal({ children, delay = 0 }) {
   const [ref, visible] = useScrollReveal();
