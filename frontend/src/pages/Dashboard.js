@@ -280,6 +280,7 @@ const Dashboard = () => {
   const [driveLoading, setDriveLoading] = useState(false);
   const [driveUploading, setDriveUploading] = useState(false);
   const [driveUsed, setDriveUsed] = useState(0);
+  const [driveDownloadCountdown, setDriveDownloadCountdown] = useState(null); // { fileId, name, totalDelay, remaining }
   const [driveTextPreview, setDriveTextPreview] = useState(null); // { name, text }
   const [showDriveUploadSheet, setShowDriveUploadSheet] = useState(false);
   const [showDriveDocPicker, setShowDriveDocPicker] = useState(false);
@@ -713,6 +714,22 @@ const Dashboard = () => {
     const i = setInterval(() => setAlarmTick(t => t + 1), 10000);
     return () => clearInterval(i);
   }, []);
+
+  // Prime Drive indirme geri sayımı
+  useEffect(() => {
+    if (!driveDownloadCountdown) return;
+    if (driveDownloadCountdown.remaining <= 0) {
+      const { fileId, name } = driveDownloadCountdown;
+      setDriveDownloadCountdown(null);
+      _fireDriveDownload(fileId, name);
+      return;
+    }
+    const t = setTimeout(() => {
+      setDriveDownloadCountdown(prev => prev ? { ...prev, remaining: prev.remaining - 1 } : null);
+    }, 1000);
+    return () => clearTimeout(t);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [driveDownloadCountdown]);
 
   // Her 60sn'de sunucudan doğru active_time_seconds çek
   useEffect(() => {
@@ -1359,17 +1376,31 @@ const Dashboard = () => {
     } catch { showToast('Silinemedi', 'error'); }
   };
 
-  const downloadDriveFile = async (fileId, name) => {
+  const _fireDriveDownload = async (fileId, name) => {
     try {
-      const res = await axios.get(`${API}/drive/files/${fileId}/url`, { withCredentials: true });
+      const res = await axios.get(`${API}/drive/files/${fileId}/content`, {
+        withCredentials: true,
+        responseType: 'blob',
+      });
+      const url = URL.createObjectURL(res.data);
       const a = document.createElement('a');
-      a.href = res.data.url;
+      a.href = url;
       a.download = name;
-      a.target = '_blank';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch { showToast('İndirme başarısız', 'error'); }
+  };
+
+  const downloadDriveFile = (fileId, name) => {
+    const isPro = userSubscription === 'pro' || userSubscription === 'creative_station';
+    const delay = isPro ? 0 : userSubscription === 'plus' ? 40 : 60;
+    if (delay === 0) {
+      _fireDriveDownload(fileId, name);
+    } else {
+      setDriveDownloadCountdown({ fileId, name, totalDelay: delay, remaining: delay });
+    }
   };
 
   const openDriveFile = async (fileId, fileName) => {
@@ -2296,6 +2327,29 @@ MATCHES:[1,3,5]`;
   return (
     <div className="h-screen flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)' }}>
       {showMsSlides && <MicrosoftOnboardingSlides onClose={() => setShowMsSlides(false)} />}
+      {driveDownloadCountdown && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'rgba(0,0,0,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', borderRadius: 16, padding: '32px 36px', width: 300, textAlign: 'center', boxShadow: '0 24px 64px rgba(0,0,0,0.4)' }}>
+            <div style={{ width: 48, height: 48, borderRadius: '50%', background: 'rgba(76,168,173,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <svg width="22" height="22" viewBox="0 0 22 22" fill="none">
+                <path d="M11 3v10m0 0l-3.5-3.5M11 13l3.5-3.5M4 16v1.5A1.5 1.5 0 005.5 19h11a1.5 1.5 0 001.5-1.5V16" stroke="var(--zet-primary)" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--zet-text)', marginBottom: 10 }}>Dosya indiriliyor</div>
+            <div style={{ fontSize: 36, fontWeight: 700, color: 'var(--zet-primary)', lineHeight: 1, marginBottom: 2 }}>{driveDownloadCountdown.remaining}</div>
+            <div style={{ fontSize: 11, color: 'var(--zet-text-muted)', marginBottom: 20 }}>saniye kaldı</div>
+            <div style={{ height: 6, borderRadius: 99, background: 'var(--zet-border)', overflow: 'hidden', marginBottom: 18 }}>
+              <div style={{ height: '100%', borderRadius: 99, background: 'var(--zet-primary)', width: `${((driveDownloadCountdown.totalDelay - driveDownloadCountdown.remaining) / driveDownloadCountdown.totalDelay) * 100}%`, transition: 'width 0.95s linear' }} />
+            </div>
+            <div style={{ fontSize: 11, color: 'var(--zet-text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+              {userSubscription === 'free' ? "Free plan · Pro'ya geçerek anında indirebilirsiniz" : "Plus plan · Pro'ya geçerek anında indirebilirsiniz"}
+            </div>
+            <button onClick={() => setDriveDownloadCountdown(null)} style={{ fontSize: 12, color: 'var(--zet-text-muted)', background: 'none', border: '1px solid var(--zet-border)', borderRadius: 8, padding: '6px 20px', cursor: 'pointer' }}>
+              İptal
+            </button>
+          </div>
+        </div>
+      )}
       <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.08.05</span>
       {/* Offline banner */}
       {!isOnline && (

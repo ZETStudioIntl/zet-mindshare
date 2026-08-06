@@ -3,6 +3,7 @@ import { useScrollReveal } from '../hooks/useScrollReveal';
 
 const APP_URL = 'https://app.zetstudiointl.com';
 const WIN_URL = '/downloads/ZET-Portal-Setup-1.0.0.exe';
+const MS_STORE_URL = 'ms-windows-store://pdp/?productid=XXXXXXXXXXX'; // TODO: gerçek Store product ID ile değiştir
 
 function Reveal({ children, delay = 0 }) {
   const [ref, visible] = useScrollReveal();
@@ -43,6 +44,23 @@ const PLATFORMS = [
         <path d="M21 5.2L34 3V19H21V5.2Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
         <path d="M6 21H19.5V34.5L6 32.5V21Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
         <path d="M21 21H34V37L21 34.8V21Z" stroke="#a0aaff" strokeWidth="1.5" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    id: 'windows_store',
+    name: 'Microsoft Store',
+    desc: 'Microsoft Store üzerinden yükle. Otomatik güncellemeler, yönetilen kurulum ve Store entegrasyonu.',
+    cta: "Microsoft Store'dan Yükle",
+    href: MS_STORE_URL,
+    badge: 'v1.0.0',
+    badgeClass: 'badge-live',
+    icon: (
+      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+        <rect x="6" y="6" width="12" height="12" rx="1.5" stroke="#a0aaff" strokeWidth="1.5"/>
+        <rect x="22" y="6" width="12" height="12" rx="1.5" stroke="#a0aaff" strokeWidth="1.5"/>
+        <rect x="6" y="22" width="12" height="12" rx="1.5" stroke="#a0aaff" strokeWidth="1.5"/>
+        <rect x="22" y="22" width="12" height="12" rx="1.5" stroke="#a0aaff" strokeWidth="1.5"/>
       </svg>
     ),
   },
@@ -126,11 +144,12 @@ export default function Download() {
                     <h3 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>{p.name}</h3>
                     <p style={{ fontSize: 14, color: 'var(--text-muted)', lineHeight: 1.7 }}>{p.desc}</p>
                   </div>
-                  {(p.id === 'web' || p.id === 'windows') ? (
+                  {(p.id === 'web' || p.id === 'windows' || p.id === 'windows_store') ? (
                     <a href={p.href}
                       className={`btn ${p.id === 'web' ? 'btn-primary' : 'btn-secondary'}`}
                       style={{ marginTop: 'auto' }}
                       {...(p.id === 'windows' ? { download: true } : {})}
+                      {...(p.id === 'windows_store' ? { target: '_blank', rel: 'noreferrer' } : {})}
                     >
                       {p.cta}
                     </a>
@@ -154,7 +173,8 @@ export default function Download() {
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 20, textAlign: 'left' }}>
                 {[
                   { label: 'Web', value: 'Chrome 90+, Safari 14+, Firefox 88+, Edge 90+' },
-                  { label: 'Windows', value: 'Windows 10 / 11 (64-bit)' },
+                  { label: 'Windows (.exe)', value: 'Windows 10 / 11 (64-bit)' },
+                  { label: 'Microsoft Store', value: 'Windows 10 / 11 — Microsoft Store gerektirir' },
                   { label: 'iOS', value: 'iOS 16 ve üzeri (Yakında)' },
                   { label: 'Android', value: 'Android 11 ve üzeri (Yakında)' },
                   { label: 'macOS', value: 'macOS 12 Monterey+ (Yakında)' },
