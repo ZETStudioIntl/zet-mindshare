@@ -793,8 +793,14 @@ const Dashboard = () => {
       axios.get(`${API}/subscription`, { withCredentials: true }),
       axios.get(`${API}/quests/progress`, { withCredentials: true }),
     ]);
-    if (subRes.status === 'fulfilled') setUserSubscription(subRes.value.data.plan || 'free');
-    else setUserSubscription('free');
+    if (subRes.status === 'fulfilled') {
+      const plan = subRes.value.data.plan || 'free';
+      setUserSubscription(plan);
+      try { localStorage.setItem('zet_s', plan); } catch {}
+    } else {
+      const cached = localStorage.getItem('zet_s');
+      setUserSubscription(cached || 'free');
+    }
     subscriptionLoadedRef.current = true;
     if (spRes.status === 'fulfilled') {
       setUserZP(spRes.value.data.quest_xp || 0);

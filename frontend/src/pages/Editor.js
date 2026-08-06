@@ -989,13 +989,16 @@ const Editor = () => {
     try {
       const res = await axios.get(`${API}/usage`, { withCredentials: true });
       setUserUsage(res.data);
-      setUserPlan(res.data.plan || 'free');
+      const plan = res.data.plan || 'free';
+      setUserPlan(plan);
+      try { localStorage.setItem('zet_s', plan); } catch {}
       setCreditsRemaining(res.data.credits_remaining || 0);
       setDailyCredits(res.data.daily_credits || 20);
       setPlanLimits(res.data.limits || {});
       setCreditCosts(res.data.credit_costs || {});
     } catch (err) {
-      console.log('Failed to fetch usage');
+      const cached = localStorage.getItem('zet_s');
+      if (cached) setUserPlan(cached);
     }
   };
   useEffect(() => { refreshCredits(); }, []);
