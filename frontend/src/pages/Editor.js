@@ -791,6 +791,7 @@ const Editor = () => {
   const hiddenPasteRef = useRef(null);
   const canvasElementsRef = useRef(canvasElements);
   const pasteFormatRef = useRef({});
+  const pasteTextRef = useRef(null);
   useEffect(() => { activeToolRef.current = activeTool; }, [activeTool]);
   useEffect(() => { canvasElementsRef.current = canvasElements; }, [canvasElements]);
   useEffect(() => {
@@ -860,19 +861,117 @@ const Editor = () => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shortcuts, selectedElement, selectedElements]);
 
+  // Her render'da taze state'i yakalar — metin yapıştırma + sayfa taşması mantığı
+  pasteTextRef.current = (rawText) => {
+    const fmt = pasteFormatRef.current;
+    const fs = fmt.fontSize || 14;
+    const lh = fmt.lineHeight || 1.5;
+    const mL = marginLeft || 40;
+    const mR = marginRight || 40;
+    const mT = marginTop || 40;
+    const mB = marginBottom || 40;
+    const availW = pageSize.width - mL - mR;
+    const availH = pageSize.height - mT - mB;
+    const lineH = fs * lh;
+    const linesPerPage = Math.max(1, Math.floor(availH / lineH));
+
+    // Canvas API ile gerçek karakter genişliği ölçümü
+    const cvs = window.document.createElement('canvas');
+    const ctx2d = cvs.getContext('2d');
+    ctx2d.font = `${fmt.bold ? 'bold ' : ''}${fmt.italic ? 'italic ' : ''}${fs}px ${fmt.fontFamily || 'Arial, sans-serif'}`;
+
+    // Kelime bazlı satır sarma
+    const allLines = [];
+    for (const para of rawText.split('\n')) {
+      if (!para.trim()) { allLines.push(''); continue; }
+      const words = para.split(' ');
+      let line = '';
+      for (const word of words) {
+        const test = line ? `${line} ${word}` : word;
+        if (ctx2d.measureText(test).width > availW && line) {
+          allLines.push(line);
+          line = word;
+        } else {
+          line = test;
+        }
+      }
+      if (line !== '') allLines.push(line);
+    }
+    if (!allLines.length) return;
+
+    // Satırları sayfa boyutlu parçalara böl
+    const chunks = [];
+    for (let i = 0; i < allLines.length; i += linesPerPage) {
+      const chunk = allLines.slice(i, i + linesPerPage).join('\n').trim();
+      if (chunk) chunks.push(chunk);
+    }
+    if (!chunks.length) return;
+
+    const makeEl = (content, idx) => ({
+      id: `el_paste_${Date.now()}_${idx}_${Math.random().toString(36).slice(2, 6)}`,
+      type: 'text', x: mL, y: mT,
+      content,
+      fontSize: fs,
+      fontFamily: fmt.fontFamily || 'Arial',
+      color: fmt.color || '#000000',
+      width: availW,
+      lineHeight: lh,
+      textAlign: fmt.textAlign || 'left',
+      bold: fmt.bold || false,
+      italic: fmt.italic || false,
+      underline: fmt.underline || false,
+      strikethrough: fmt.strikethrough || false,
+      gradientStart: null, gradientEnd: null,
+    });
+
+    // İlk parça mevcut sayfaya
+    const firstEl = makeEl(chunks[0], 0);
+    const updatedEls = [...canvasElementsRef.current, firstEl];
+    setCanvasElements(updatedEls);
+    handleSaveHistory(updatedEls);
+
+    // Kalan parçalar sonraki sayfalara (yoksa yeni sayfa aç)
+    if (chunks.length > 1) {
+      setDocument(prev => {
+        if (!prev) return prev;
+        const pages = [...(prev.pages || [])];
+        if (pages[currentPage]) {
+          pages[currentPage] = { ...pages[currentPage], elements: updatedEls, drawPaths };
+        }
+        for (let i = 1; i < chunks.length; i++) {
+          const pageIdx = currentPage + i;
+          const el = makeEl(chunks[i], i);
+          if (pages[pageIdx]) {
+            pages[pageIdx] = { ...pages[pageIdx], elements: [el, ...(pages[pageIdx].elements || [])] };
+          } else {
+            pages.push({ page_id: `page_paste_${Date.now()}_${i}`, elements: [el], drawPaths: [], pageSize });
+          }
+        }
+        return { ...prev, pages };
+      });
+    }
+  };
+
   // === Mobile/Desktop Paste (system clipboard → canvas element) ===
   useEffect(() => {
     const handlePaste = (e) => {
       const tag = (e.target.tagName || '').toLowerCase();
-      // Skip native text inputs/contentEditables unless it's our hidden paste target
       if (e.target !== hiddenPasteRef.current) {
         if (tag === 'input' || tag === 'textarea') return;
-        if (e.target.contentEditable === 'true') return;
+        if (e.target.contentEditable === 'true') {
+          // Düzenleme modunda: HTML'i temizle, sadece düz metin yapıştır
+          const plain = e.clipboardData?.getData('text/plain');
+          if (plain) {
+            e.preventDefault();
+            e.target.ownerDocument.execCommand('insertText', false, plain);
+          }
+          return;
+        }
       }
       const items = e.clipboardData?.items;
       if (!items) return;
 
-      // Image takes priority
+      // Resim öncelikli
       for (const item of Array.from(items)) {
         if (item.type.startsWith('image/')) {
           e.preventDefault();
@@ -897,40 +996,19 @@ const Editor = () => {
         }
       }
 
-      // Plain text fallback
+      // Düz metin — akıllı yapıştırma (sayfa taşması dahil)
       const text = e.clipboardData?.getData('text/plain') || '';
-      const fmt = pasteFormatRef.current;
-      const makeTextEl = (txt) => ({
-        id: `el_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: 'text', x: 50, y: 50,
-        content: txt,
-        fontSize: fmt.fontSize || 14,
-        fontFamily: fmt.fontFamily || 'Arial',
-        color: fmt.color || '#000000',
-        width: Math.min(400, pageSize.width - 60),
-        lineHeight: fmt.lineHeight || 1.5,
-        textAlign: fmt.textAlign || 'left',
-        bold: fmt.bold || false,
-        italic: fmt.italic || false,
-        underline: fmt.underline || false,
-        strikethrough: fmt.strikethrough || false,
-        gradientStart: null, gradientEnd: null,
-      });
       if (text.trim()) {
         e.preventDefault();
-        const updated = [...canvasElementsRef.current, makeTextEl(text.trim())];
-        setCanvasElements(updated);
-        handleSaveHistory(updated);
+        pasteTextRef.current?.(text.trim());
       } else if (e.target === hiddenPasteRef.current) {
-        // iOS fallback: text goes into textarea value after event fires
+        // iOS fallback: metin event sonrası textarea.value'ya düşer
         e.preventDefault();
         setTimeout(() => {
           const val = (hiddenPasteRef.current?.value || '').trim();
           if (hiddenPasteRef.current) hiddenPasteRef.current.value = '';
           if (!val) return;
-          const updated = [...canvasElementsRef.current, makeTextEl(val)];
-          setCanvasElements(updated);
-          handleSaveHistory(updated);
+          pasteTextRef.current?.(val);
         }, 0);
       }
     };
