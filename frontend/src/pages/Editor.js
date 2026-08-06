@@ -183,6 +183,7 @@ const Editor = () => {
   const [selectedElement, setSelectedElement] = useState(null);
   const [selectedElements, setSelectedElements] = useState([]);
   const lastSelectedRef = useRef(null);
+  const pendingHeadingRef = useRef(null); // { fontSize, bold } — paragraf paneli açıkken seçilen başlık stili
   const [drawPaths, setDrawPaths] = useState([]);
 
   // Keep ref in sync with selectedElement
@@ -217,9 +218,34 @@ const Editor = () => {
         if (el.paddingRight !== undefined) setIndentRight(el.paddingRight);
         if (el.paddingTop !== undefined) setIndentTop(el.paddingTop);
         if (el.paddingBottom !== undefined) setIndentBottom(el.paddingBottom);
-        if (el.textIndent !== undefined) setFirstLineIndent(el.textIndent);
-        if (el.paragraphSpaceBefore !== undefined) setParagraphSpaceBefore(el.paragraphSpaceBefore);
-        if (el.paragraphSpaceAfter !== undefined) setParagraphSpaceAfter(el.paragraphSpaceAfter);
+        if (showParagraph) {
+          // Paragraf paneli açıkken eleman seçince panel değerlerini sıfırlama;
+          // bekleyen başlık stili varsa yeni elemana uygula
+          if (pendingHeadingRef.current) {
+            const { fontSize: phFs, bold: phBold } = pendingHeadingRef.current;
+            pendingHeadingRef.current = null;
+            setCurrentFontSize(phFs);
+            setIsBold(phBold);
+            activeFormattingRef.current.currentFontSize = phFs;
+            activeFormattingRef.current.isBold = phBold;
+            setCanvasElements(prev => {
+              const updated = prev.map(e => {
+                if (e.id !== selectedElement) return e;
+                let html = e.htmlContent || '';
+                html = html.replace(/font-size\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
+                html = html.replace(/font-weight\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
+                html = html.replace(/style="\s*;?\s*"/gi, '');
+                return { ...e, fontSize: phFs, bold: phBold, htmlContent: html };
+              });
+              handleSaveHistory(updated);
+              return updated;
+            });
+          }
+        } else {
+          if (el.textIndent !== undefined) setFirstLineIndent(el.textIndent);
+          if (el.paragraphSpaceBefore !== undefined) setParagraphSpaceBefore(el.paragraphSpaceBefore);
+          if (el.paragraphSpaceAfter !== undefined) setParagraphSpaceAfter(el.paragraphSpaceAfter);
+        }
       }
     }
   }, [selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -5207,10 +5233,9 @@ body{background:#fff}
   };
 
   const applyHeadingStyle = (fontSize, bold) => {
-    console.log('[applyHeadingStyle] fontSize:', fontSize, 'bold:', bold);
     const target = selectedElement || lastSelectedRef.current;
-    console.log('[applyHeadingStyle] target:', target);
     if (target) {
+      pendingHeadingRef.current = null;
       setCanvasElements(prev => {
         const updated = prev.map(el => {
           if (el.id !== target) return el;
@@ -5229,7 +5254,10 @@ body{background:#fff}
       activeFormattingRef.current.currentFontSize = fontSize;
       activeFormattingRef.current.isBold = bold;
     } else {
-      console.warn('[applyHeadingStyle] no target element selected');
+      // Eleman seçili değil — bir sonraki seçilen elemana uygulanmak üzere beklet
+      pendingHeadingRef.current = { fontSize, bold };
+      setCurrentFontSize(fontSize);
+      setIsBold(bold);
     }
   };
   // === INLINE STYLE — applies to selection, cursor (next chars), or whole element ===
