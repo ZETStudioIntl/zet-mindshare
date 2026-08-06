@@ -2813,7 +2813,7 @@ const Editor = () => {
       if (screenplayMode && idx > 0) {
         inner += `<div style="position:absolute;top:${marginTop || 95}px;right:${marginRight || 95}px;font-family:'Courier Prime',monospace;font-size:12pt;color:#000">${idx + 1}.</div>`;
       }
-      pagesHtml += `<div style="width:${pSize.width}px;height:${pSize.height}px;position:relative;background:${bg};overflow:hidden;page-break-after:always">${inner}</div>`;
+      pagesHtml += `<div style="width:${pSize.width}px;height:${pSize.height}px;position:relative;background:${bg};overflow:hidden${idx < allPages.length - 1 ? ';page-break-after:always' : ''}">${inner}</div>`;
     });
 
     const iframe = window.document.createElement('iframe');
