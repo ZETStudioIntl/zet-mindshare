@@ -40,7 +40,7 @@ export const AuthProvider = ({ children }) => {
       return;
     }
     try {
-      const response = await axios.get(`${API}/auth/me`);
+      const response = await axios.get(`${API}/auth/me`, { timeout: 5000 });
       setUser(response.data);
       localStorage.setItem('zet_cached_user', JSON.stringify(response.data));
       loadPreferences();

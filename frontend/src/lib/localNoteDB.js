@@ -147,7 +147,7 @@ export async function processSyncQueue(apiFn) {
         const res = await apiFn('post', payload);
         if (res.note_id && res.note_id !== note.note_id) {
           await deleteNote(note.note_id);
-          await saveNote({ ...note, note_id: res.note_id, _dirty: false, _local_only: false, _deleted: false });
+          await saveNote({ ...note, ...res, _dirty: false, _local_only: false, _deleted: false });
           idSwaps.set(note.note_id, res.note_id);
         } else {
           await saveNote({ ...note, _dirty: false, _local_only: false, _deleted: false });

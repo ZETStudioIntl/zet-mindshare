@@ -2333,7 +2333,7 @@ const Editor = () => {
         doc_content: docContent,
         ignore_list: patchIgnoreList,
       }, { withCredentials: true });
-      console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme');
+      console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme', res.data);
       setPatchCorrections(res.data.corrections || []);
       setPatchScanned(true);
     } catch (e) {

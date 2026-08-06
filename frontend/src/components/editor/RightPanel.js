@@ -530,6 +530,20 @@ export const RightPanel = ({
     const imageToSend = zetaImage;
     const msg = attachedDoc ? `Ekteki belge içeriği:\n"""\n${attachedDoc.content}\n"""\n\n${rawMsg}` : rawMsg;
     const displayMsg = attachedDoc ? `[📎 ${attachedDoc.name}]\n${rawMsg}` : rawMsg;
+    // Chat modunda canvas düzenleme isteği — Edit moda yönlendir
+    if (zetaMode === 'chat' && !regenOverride) {
+      const lower = rawMsg.toLowerCase();
+      const hasActionVerb = /\b(ekle|sil|kaldır|değiştir|çiz|oluştur|yerleştir|ekleyin|silin|kaldırın|değiştirin|oluşturun|çizin)\b/.test(lower);
+      const hasCanvasObj = /\b(metin|yazı|başlık|şekil|kutu|dikdörtgen|daire|ok|çizgi|tablo|element|eleman|resim|görsel|ikon|logo)\b/.test(lower);
+      if (hasActionVerb && hasCanvasObj) {
+        setZetaMessages(prev => [...prev, { role: 'user', content: displayMsg, image: imageToSend || null }]);
+        setZetaInput('');
+        setZetaImage(null);
+        setAttachedDoc(null);
+        setZetaMessages(prev => [...prev, { role: 'assistant', content: 'Canvas üzerinde düzenleme yapmak için Edit moduna geçmeni öneririm.', suggestEditMode: true }]);
+        return;
+      }
+    }
     if (!regenOverride) setZetaMessages(prev => [...prev, { role: 'user', content: displayMsg, image: imageToSend || null }]);
     if (!regenOverride) setZetaInput('');
     setZetaImage(null);
@@ -830,6 +844,16 @@ export const RightPanel = ({
                             Belgeye Uygula
                           </button>
                         )}
+                        {msg.suggestEditMode && (
+                          <button
+                            onClick={() => setZetaMode('edit')}
+                            className="mt-1.5 w-full text-xs px-2 py-1.5 rounded-lg flex items-center justify-center gap-1.5 transition-all hover:opacity-90"
+                            style={{ background: 'rgba(245,158,11,0.15)', color: '#f59e0b', border: '1px solid rgba(245,158,11,0.35)' }}
+                          >
+                            <Pencil className="h-3 w-3" />
+                            Edit Moduna Geç
+                          </button>
+                        )}
                       </div>
                       {msg.role === 'assistant' && (
                         <div className="flex flex-col gap-0.5 flex-shrink-0">
@@ -892,6 +916,7 @@ export const RightPanel = ({
               {showModePanel && (() => {
                 const ZETA_MODES = [
                   { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
+                  { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#f59e0b',            desc: 'Canvas düzenle' },
                   { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                   { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
                 ];

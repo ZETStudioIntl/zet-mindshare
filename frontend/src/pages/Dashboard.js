@@ -307,7 +307,7 @@ const Dashboard = () => {
   const [memoriesLoading, setMemoriesLoading] = useState(false);
   const [newMemoryInput, setNewMemoryInput] = useState('');
   // Doc Files (Dosya) state
-  const [docFiles, setDocFiles] = useState([]);
+  const [docFiles, setDocFiles] = useState(() => { try { return JSON.parse(localStorage.getItem('zet_docfiles_cache') || '[]'); } catch { return []; } });
   const [activeDocFile, setActiveDocFile] = useState(null); // file object or null
   const [newFileName, setNewFileName] = useState('');
   const [showNewFile, setShowNewFile] = useState(false);
@@ -1040,6 +1040,7 @@ const Dashboard = () => {
       try {
         const filesRes = await axios.get(`${API}/doc-files`, { withCredentials: true });
         setDocFiles(filesRes.data);
+        try { localStorage.setItem('zet_docfiles_cache', JSON.stringify(filesRes.data)); } catch {}
       } catch {}
     }
   };
@@ -1572,7 +1573,7 @@ const Dashboard = () => {
     if (!notebookNote.trim() || !activeNotebook) return;
     const noteId = generateNoteId();
     const now = new Date().toISOString();
-    const newNote = { note_id: noteId, content: notebookNote, notebook_id: activeNotebook.notebook_id, created_at: now, updated_at: now, pinned: false, _dirty: true, _local_only: true, _deleted: false };
+    const newNote = { note_id: noteId, content: notebookNote, notebook_id: activeNotebook.notebook_id, created_at: now, updated_at: now, pinned: false, _dirty: true, _local_only: true, _deleted: false, user_id: user?.user_id || null };
     await saveNote(newNote);
     setNotes(prev => [newNote, ...prev]);
     setNotebookNote('');
@@ -2043,7 +2044,7 @@ MATCHES:[1,3,5]`;
     if (!quickNote.trim()) return;
     const noteId = generateNoteId();
     const now = new Date().toISOString();
-    const newNote = { note_id: noteId, content: quickNote, reminder_time: noteReminder || null, created_at: now, updated_at: now, pinned: false, _dirty: true, _local_only: true, _deleted: false };
+    const newNote = { note_id: noteId, content: quickNote, reminder_time: noteReminder || null, created_at: now, updated_at: now, pinned: false, _dirty: true, _local_only: true, _deleted: false, user_id: user?.user_id || null };
     await saveNote(newNote);
     setNotes(prev => [newNote, ...prev]);
     setQuickNote('');

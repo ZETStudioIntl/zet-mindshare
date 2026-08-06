@@ -5828,15 +5828,26 @@ Hiç hata yoksa sadece [] döndür."""
             max_retries=1
         )
         raw = resp.text.strip()
+        logging.info(f"patch-scan raw response (first 500): {raw[:500]!r}")
         import re as _re
-        # JSON dizisini bul — greedy eşleşmeden kaçın
-        m = _re.search(r'\[[\s\S]*?\]', raw) or _re.search(r'\[[\s\S]*\]', raw)
+        corrections = []
+        # 1) Önce düz parse dene — model SADECE JSON döndürmesi istendi
         try:
-            corrections = json.loads(m.group()) if m else []
-            if not isinstance(corrections, list):
-                corrections = []
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                corrections = parsed
         except Exception:
-            corrections = []
+            pass
+        # 2) Başarısız olduysa son [ ... ] bloğunu çıkar (greedy — iç ] karakterlerine karşı güvenli)
+        if not corrections:
+            m = _re.search(r'\[[\s\S]*\]', raw)
+            if m:
+                try:
+                    parsed = json.loads(m.group())
+                    if isinstance(parsed, list):
+                        corrections = parsed
+                except Exception:
+                    corrections = []
         for i, c in enumerate(corrections):
             if not c.get('id'):
                 c['id'] = f"c{i+1}"
