@@ -1475,8 +1475,8 @@ const Dashboard = () => {
       try { jsonStr = JSON.stringify(doc); } catch { showToast('Belge serileştirilemedi', 'error'); return; }
       const blob = new Blob([jsonStr], { type: 'application/json' });
       if (blob.size > 200 * 1024 * 1024) { showToast('Belge 200 MB sınırını aşıyor, yüklenemiyor', 'error'); return; }
-      const safeTitle = (doc.title || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 100) || 'belge';
-      const fileName = `${safeTitle}.zetdoc`;
+      // doc_id tabanlı dosya adı — diğer cihazlardan da bulunabilsin
+      const fileName = `${doc.doc_id}.zetdoc`;
       const file = new File([blob], fileName, { type: 'application/json' });
       const formData = new FormData();
       formData.append('file', file);

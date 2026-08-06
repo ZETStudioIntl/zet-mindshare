@@ -1382,26 +1382,54 @@ const Editor = () => {
     try {
       const local = await getDoc(docId);
       if (!isMountedRef.current) return;
-      // Local belgede pages varsa kullan; yoksa server'dan tam veriyi çek
       const forceServer = new URLSearchParams(window.location.search).has('fresh');
+      let currentDoc = null;
+
       if (!forceServer && local && local.pages && local.pages.length > 0) {
         applyDocSettings(local.settings || null);
         if (local.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
-        setDocument(local);
-        return;
+        currentDoc = local;
+      } else {
+        // IndexedDB'de yok — sunucudan çek
+        const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
+        if (!isMountedRef.current) return;
+        applyDocSettings(res.data.settings || null);
+        const serverDoc = { ...res.data, updated_at: res.data.updated_at || new Date().toISOString() };
+        if (!serverDoc.pages || serverDoc.pages.length === 0) {
+          serverDoc.pages = [{ page_id: 'page_1', elements: [], drawPaths: [] }];
+        }
+        if (serverDoc.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
+        await saveDoc(serverDoc);
+        currentDoc = serverDoc;
       }
-      // IndexedDB'de yok veya pages eksik (migration bug) — sunucudan tam belgeyi çek
-      const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
-      if (!isMountedRef.current) return;
-      applyDocSettings(res.data.settings || null);
-      const serverDoc = { ...res.data, updated_at: res.data.updated_at || new Date().toISOString() };
-      // pages hala yoksa (sunucuda da yeni belge) → başlangıç sayfası ekle
-      if (!serverDoc.pages || serverDoc.pages.length === 0) {
-        serverDoc.pages = [{ page_id: 'page_1', elements: [], drawPaths: [] }];
-      }
-      if (serverDoc.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
-      await saveDoc(serverDoc);
-      setDocument(serverDoc);
+
+      // Drive'da bu belgenin yedeği var mı? Varsa ve daha yeniyse onu kullan
+      try {
+        const driveRes = await axios.get(`${API}/drive/files`, { withCredentials: true });
+        const files = driveRes.data.files || [];
+        // Önce doc_id tabanlı yeni format, sonra eski başlık tabanlı format
+        const driveFile = files.find(f => f.name === `${docId}.zetdoc`)
+          || files.find(f => f.name === `${(currentDoc.title || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().slice(0, 100) || 'belge'}.zetdoc`);
+        if (driveFile) {
+          const contentRes = await axios.get(`${API}/drive/files/${driveFile.file_id}/content`, {
+            withCredentials: true, responseType: 'blob',
+          });
+          const text = await contentRes.data.text();
+          const driveDoc = JSON.parse(text);
+          const driveTs = driveDoc.updated_at ? new Date(driveDoc.updated_at).getTime() : 0;
+          const currentTs = currentDoc.updated_at ? new Date(currentDoc.updated_at).getTime() : 0;
+          if (driveTs > currentTs && driveDoc.pages?.length > 0) {
+            applyDocSettings(driveDoc.settings || null);
+            const merged = { ...currentDoc, pages: driveDoc.pages, updated_at: driveDoc.updated_at };
+            if (merged.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
+            await saveDoc(merged);
+            setDocument(merged);
+            return;
+          }
+        }
+      } catch { /* Drive erişilemiyorsa yerel/sunucu versiyonuyla devam et */ }
+
+      setDocument(currentDoc);
     } catch {
       if (!isMountedRef.current) return;
       navigate('/dashboard');
