@@ -58,8 +58,8 @@ export function seededRng(seed) {
 }
 
 export function dateSeed() {
-  const d = new Date();
-  return (d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate()) >>> 0;
+  const ist = new Date(Date.now() + 3 * 60 * 60 * 1000); // UTC+3 (Istanbul)
+  return (ist.getUTCFullYear() * 10000 + (ist.getUTCMonth() + 1) * 100 + ist.getUTCDate()) >>> 0;
 }
 
 export function rollShape(rng) {
@@ -74,7 +74,7 @@ export function rollShape(rng) {
 
 export function buildDailyQuests(rerollOffset = 0, forceFriday = false) {
   const rng       = seededRng(dateSeed() + rerollOffset * 7919);
-  const isFriday  = forceFriday || new Date().getDay() === 5;
+  const isFriday  = forceFriday || new Date(Date.now() + 3 * 60 * 60 * 1000).getUTCDay() === 5;
   const slotCount = isFriday ? 5 : 3;
   const used      = new Set();
   const slots     = [];

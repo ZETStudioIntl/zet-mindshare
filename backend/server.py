@@ -1938,8 +1938,8 @@ async def quest_reroll(user: User = Depends(get_current_user)):
         raise HTTPException(status_code=402, detail="Yetersiz ZP")
     new_xp = current_xp - cost
     # Reroll: clear collected slots & bump offset in quest_daily
-    from datetime import date as _date
-    today_str = str(_date.today())
+    from datetime import datetime, timezone, timedelta
+    today_str = (datetime.now(timezone.utc) + timedelta(hours=3)).strftime("%Y-%m-%d")
     await db.quest_daily.update_one(
         {"user_id": user.user_id, "date": today_str},
         {"$set": {"collected_slots": []}, "$inc": {"reroll_offset": 1}},
@@ -1974,8 +1974,8 @@ _QUEST_ZP = {"circle": 20, "square": 60, "triangle": 130, "star": 200}
 
 @api_router.get("/quests/today")
 async def quests_today(user: User = Depends(get_current_user)):
-    from datetime import date as _date
-    today_str = str(_date.today())
+    from datetime import datetime, timezone, timedelta
+    today_str = (datetime.now(timezone.utc) + timedelta(hours=3)).strftime("%Y-%m-%d")
     await db.quest_daily.delete_many({"user_id": user.user_id, "date": {"$ne": today_str}})
     doc = await db.quest_daily.find_one({"user_id": user.user_id, "date": today_str}, {"_id": 0})
     if doc is None:
@@ -1997,8 +1997,8 @@ async def quests_today(user: User = Depends(get_current_user)):
 
 @api_router.post("/quests/event")
 async def quest_event(body: dict = Body(...), user: User = Depends(get_current_user)):
-    from datetime import date as _date
-    today_str  = str(_date.today())
+    from datetime import datetime, timezone, timedelta
+    today_str  = (datetime.now(timezone.utc) + timedelta(hours=3)).strftime("%Y-%m-%d")
     event_type = (body.get("event_type") or "").strip()
     if not event_type:
         raise HTTPException(status_code=400, detail="event_type required")
@@ -2041,8 +2041,8 @@ async def quest_event(body: dict = Body(...), user: User = Depends(get_current_u
 
 @api_router.post("/quests/collect")
 async def quest_collect(body: dict = Body(...), user: User = Depends(get_current_user)):
-    from datetime import date as _date
-    today_str    = str(_date.today())
+    from datetime import datetime, timezone, timedelta
+    today_str    = (datetime.now(timezone.utc) + timedelta(hours=3)).strftime("%Y-%m-%d")
     slot_idx     = body.get("slot_idx")
     quest_id     = (body.get("quest_id") or "").strip()
     shape        = body.get("shape", "circle")
