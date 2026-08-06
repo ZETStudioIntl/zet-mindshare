@@ -1071,8 +1071,17 @@ const Editor = () => {
     const lastPasteRef = { current: 0 };
     const timestamps   = { current: [] };
     const charBuf      = { current: [] };
-    const BATCH        = 25;
+    const wordBuf      = { current: 0 }; // biriktirilmiş kelime sayısı
+    const FLUSH_WORDS  = 3;   // her 3 kelimede bir API çağrısı
+    const BATCH        = 30;  // kelime sınırı yoksa max karakter tamponu
     const MAX_CPS      = 20;
+
+    const flushWords = () => {
+      if (wordBuf.current > 0) {
+        questService.fireCounter('words_typed', wordBuf.current);
+        wordBuf.current = 0;
+      }
+    };
 
     const onPaste = () => { lastPasteRef.current = Date.now(); };
 
@@ -1094,10 +1103,17 @@ const Editor = () => {
 
       charBuf.current.push(e.key);
 
-      if (charBuf.current.length >= BATCH) {
-        const words = Math.floor(charBuf.current.length / 6);
-        if (words > 0) questService.fireCounter('words_typed', words);
+      // Boşluk veya Enter = kelime tamamlandı
+      if ((e.key === ' ' || e.key === 'Enter') && charBuf.current.length >= 3) {
+        wordBuf.current += 1;
         charBuf.current = [];
+        if (wordBuf.current >= FLUSH_WORDS) flushWords();
+      } else if (charBuf.current.length >= BATCH) {
+        // Çok uzun kelime veya boşluksuz metin — yedek tahmin (1 kelime / 8 karakter)
+        const words = Math.max(1, Math.floor(charBuf.current.length / 8));
+        wordBuf.current += words;
+        charBuf.current = [];
+        if (wordBuf.current >= FLUSH_WORDS) flushWords();
       }
     };
 
@@ -1106,10 +1122,9 @@ const Editor = () => {
     return () => {
       dom.removeEventListener('paste', onPaste);
       dom.removeEventListener('keydown', onKeyDown);
-      if (charBuf.current.length >= 6) {
-        const words = Math.floor(charBuf.current.length / 6);
-        if (words > 0) questService.fireCounter('words_typed', words);
-      }
+      // Editörden çıkışta kalan kelimeler + son bitmemiş kelimeyi de say
+      if (charBuf.current.length >= 3) wordBuf.current += 1;
+      flushWords();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
