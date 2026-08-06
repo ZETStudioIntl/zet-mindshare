@@ -222,28 +222,6 @@ const LoginPage = () => {
           <Plus className="h-4 w-4" />
           ZET ID Ekle
         </button>
-        <button
-          onClick={handleGuestLogin}
-          disabled={guestLoading}
-          className="w-full flex items-center justify-center gap-2.5 py-2.5 rounded-xl font-medium transition-all hover:opacity-90 disabled:opacity-40"
-          style={{
-            background: 'linear-gradient(135deg, #0078D4 0%, #005a9e 50%, #50e6ff 100%)',
-            color: '#fff', border: 'none', fontSize: 13, fontWeight: 600,
-          }}
-          data-testid="guest-login-btn"
-        >
-          {guestLoading ? (guestRetry > 0 ? `Connecting... (${guestRetry + 1})` : 'Connecting...') : (
-            <>
-              <svg width="16" height="16" viewBox="0 0 20 20" fill="none" style={{ flexShrink: 0 }}>
-                <rect width="9" height="9" fill="#fff" opacity="0.95" />
-                <rect x="11" width="9" height="9" fill="#fff" opacity="0.75" />
-                <rect y="11" width="9" height="9" fill="#fff" opacity="0.75" />
-                <rect x="11" y="11" width="9" height="9" fill="#fff" opacity="0.95" />
-              </svg>
-              Continue as Microsoft
-            </>
-          )}
-        </button>
       </div>
       <p className="text-xs mb-4" style={{ color: 'var(--zet-text-muted)' }}>
         ZET ID, tüm ZET uygulamalarında kullanabileceğiniz tek kimliğinizdir.
