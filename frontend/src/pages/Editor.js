@@ -2832,11 +2832,12 @@ const Editor = () => {
     const courierFontLink = screenplayMode
       ? `<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Courier+Prime&display=swap" rel="stylesheet">`
       : '';
-    iframe.contentDocument.write(`<!DOCTYPE html><html><head><meta charset="utf-8">${courierFontLink}
+    iframe.contentDocument.write(`<!DOCTYPE html><html><head><meta charset="utf-8"><title></title>${courierFontLink}
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{background:#fff}
-@media print{@page{size:${pgW}mm ${pgH}mm;margin:0}body{margin:0}}
+@page{size:${pgW}mm ${pgH}mm;margin:0}
+@media print{body{margin:0}}
 </style></head><body>${pagesHtml}</body></html>`);
     iframe.contentDocument.close();
 
