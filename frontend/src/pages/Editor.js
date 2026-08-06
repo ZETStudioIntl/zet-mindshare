@@ -875,10 +875,20 @@ const Editor = () => {
     const lineH = fs * lh;
     const linesPerPage = Math.max(1, Math.floor(availH / lineH));
 
-    // Canvas API ile gerçek karakter genişliği ölçümü
-    const cvs = window.document.createElement('canvas');
-    const ctx2d = cvs.getContext('2d');
-    ctx2d.font = `${fmt.bold ? 'bold ' : ''}${fmt.italic ? 'italic ' : ''}${fs}px ${fmt.fontFamily || 'Arial, sans-serif'}`;
+    // Karakter genişliği tahmini — Canvas API varsa kullan, yoksa fs*0.55 fallback
+    let measureFn;
+    try {
+      const cvs = window.document.createElement('canvas');
+      const ctx2d = cvs.getContext('2d');
+      if (ctx2d) {
+        ctx2d.font = `${fmt.bold ? 'bold ' : ''}${fmt.italic ? 'italic ' : ''}${fs}px ${fmt.fontFamily || 'Arial, sans-serif'}`;
+        const probe = ctx2d.measureText('M').width;
+        if (probe > 0) {
+          measureFn = (t) => ctx2d.measureText(t).width;
+        }
+      }
+    } catch {}
+    if (!measureFn) measureFn = (t) => t.length * fs * 0.55;
 
     // Kelime bazlı satır sarma
     const allLines = [];
@@ -888,7 +898,7 @@ const Editor = () => {
       let line = '';
       for (const word of words) {
         const test = line ? `${line} ${word}` : word;
-        if (ctx2d.measureText(test).width > availW && line) {
+        if (measureFn(test) > availW && line) {
           allLines.push(line);
           line = word;
         } else {
@@ -899,9 +909,10 @@ const Editor = () => {
     }
     if (!allLines.length) return;
 
-    // Satırları sayfa boyutlu parçalara böl
+    // Satırları sayfa boyutlu parçalara böl (max 20 sayfa)
+    const MAX_PASTE_PAGES = 20;
     const chunks = [];
-    for (let i = 0; i < allLines.length; i += linesPerPage) {
+    for (let i = 0; i < allLines.length && chunks.length < MAX_PASTE_PAGES; i += linesPerPage) {
       const chunk = allLines.slice(i, i + linesPerPage).join('\n').trim();
       if (chunk) chunks.push(chunk);
     }

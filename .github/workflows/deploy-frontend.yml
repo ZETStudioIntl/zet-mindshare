@@ -43,6 +43,7 @@ jobs:
           docker build \
             --build-arg REACT_APP_BACKEND_URL=${{ secrets.REACT_APP_BACKEND_URL }} \
             --build-arg REACT_APP_PADDLE_CLIENT_TOKEN=${{ secrets.REACT_APP_PADDLE_CLIENT_TOKEN }} \
+            --build-arg GENERATE_SOURCEMAP=false \
             -t $IMAGE:${{ github.sha }} \
             -t $IMAGE:latest \
             ./frontend
