@@ -256,6 +256,7 @@ const Dashboard = () => {
   const [creditArcFill, setCreditArcFill] = useState(0);
   const [showMissions, setShowMissions] = useState(false);
   const [inventory, setInventory] = useState([]);
+  const [invFilter, setInvFilter] = useState({ kasa: true, cark: true, paket: true, mod: true });
   const [openingCaseId, setOpeningCaseId] = useState(null);
   const [openingWheelId, setOpeningWheelId] = useState(null);
   const [openingPackId, setOpeningPackId] = useState(null);
@@ -3902,53 +3903,102 @@ MATCHES:[1,3,5]`;
                       </button>
                     )}
                   </div>
-                  <p className="text-sm mb-5" style={{ color: 'var(--zet-text-muted)' }}>{t('inventoryDesc')}</p>
-                  {inventory.length === 0 ? (
-                    <div className="text-center py-12" style={{ color: 'var(--zet-text-muted)' }}>
-                      <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ margin: '0 auto 10px' }}><rect x="6" y="16" width="32" height="22" rx="4" stroke="#334155" strokeWidth="1.5"/><path d="M6 22h32" stroke="#334155" strokeWidth="1.5"/><path d="M22 8v8M16 10l6 6 6-6" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                      <p className="text-sm">{t('inventoryEmpty')}</p>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
-                      {inventory.map((c) => {
-                        const isPack  = c.item_type === 'rank_case';
-                        const isWheel = !isPack && (c.item_type === 'daily_wheel' || c.item_type === 'rank_wheel' || c.type === 'daily_wheel');
-                        const accentColor = isPack ? '#c084fc' : isWheel ? '#a78bfa' : '#60a5fa';
-                        const borderColor = isPack ? '#3a1a5a' : isWheel ? '#3b2a5a' : '#2a2a5a';
-                        const bgGradient  = isPack
-                          ? 'linear-gradient(160deg, #1a0a2e, #2d1054, #1a0a2e)'
-                          : isWheel ? 'linear-gradient(135deg, #12082a, #1a1040)' : 'linear-gradient(135deg, #0f0f2a, #1a1a3a)';
-                        const handleClick = () => isPack ? setOpeningPackId(c.id) : isWheel ? setOpeningWheelId(c.id) : setOpeningCaseId(c.id);
-                        return (
-                          <button
-                            key={c.id}
-                            onClick={handleClick}
-                            style={{ background: bgGradient, border: `1px solid ${borderColor}`, borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, position: 'relative', overflow: 'hidden' }}
-                            onMouseEnter={e => { e.currentTarget.style.border = `1px solid ${accentColor}`; e.currentTarget.style.transform = 'translateY(-2px)'; }}
-                            onMouseLeave={e => { e.currentTarget.style.border = `1px solid ${borderColor}`; e.currentTarget.style.transform = 'translateY(0)'; }}
-                          >
-                            {isPack ? (
-                              <>
-                                <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28, background: 'linear-gradient(90deg, #2d1054, #3b1470, #2d1054)', borderRadius: '14px 14px 0 0', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 8px' }}>
-                                  {[5, 11, 17].map(t => <div key={t} style={{ height: 1.5, background: 'linear-gradient(90deg, transparent, rgba(251,191,36,0.6), transparent)', borderRadius: 1 }} />)}
-                                </div>
-                                <div style={{ marginTop: 22 }}>
-                                  <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#c084fc" strokeWidth="1" strokeDasharray="3 2" fill="rgba(192,132,252,0.06)"/><text x="19" y="25" textAnchor="middle" fill="#c084fc" fontSize="18" fontWeight="700" fontFamily="sans-serif">Z</text></svg>
-                                </div>
-                                <span style={{ fontSize: 11, color: '#c084fc', fontWeight: 700, letterSpacing: 1 }}>PAKET</span>
-                              </>
-                            ) : isWheel ? (
-                              <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.08)"/><circle cx="19" cy="19" r="3.5" fill="#a78bfa"/><path d="M19 3v5M19 30v5M3 19h5M30 19h5M7.1 7.1l3.5 3.5M27.4 27.4l3.5 3.5M7.1 30.9l3.5-3.5M27.4 10.6l3.5-3.5" stroke="#a78bfa" strokeWidth="1.4" strokeLinecap="round"/></svg>
-                            ) : (
-                              <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><rect x="5" y="15" width="28" height="18" rx="3" stroke="#60a5fa" strokeWidth="1.5" fill="rgba(96,165,250,0.08)"/><path d="M5 21h28" stroke="#60a5fa" strokeWidth="1.5"/><path d="M19 7v8M13 9l6 6 6-6" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
-                            )}
-                            {!isPack && <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? t('luckyWheel') : t('dailyCase')}</span>}
-                            <span style={{ fontSize: 10, color: '#555', background: `rgba(${isPack ? '192,132,252' : isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>{t('openToClick')}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
+                  <p className="text-sm mb-4" style={{ color: 'var(--zet-text-muted)' }}>{t('inventoryDesc')}</p>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                    {[
+                      { key: 'kasa',  label: t('dailyCase') },
+                      { key: 'cark',  label: t('luckyWheel') },
+                      { key: 'paket', label: t('invFilterPaket') },
+                      { key: 'mod',   label: t('invFilterMod') },
+                    ].map(({ key, label }) => (
+                      <button
+                        key={key}
+                        onClick={() => setInvFilter(prev => ({ ...prev, [key]: !prev[key] }))}
+                        style={{ padding: '4px 14px', borderRadius: 20, fontSize: 12, fontWeight: 600, cursor: 'pointer', transition: 'all 0.15s', background: invFilter[key] ? 'rgba(76,168,173,0.15)' : 'transparent', color: invFilter[key] ? '#4ca8ad' : 'var(--zet-text-muted)', border: `1px solid ${invFilter[key] ? '#4ca8ad' : 'rgba(255,255,255,0.1)'}` }}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  {(() => {
+                    const filteredInv = inventory.filter(c => {
+                      const isPack  = c.item_type === 'rank_case';
+                      const isWheel = !isPack && (c.item_type === 'daily_wheel' || c.item_type === 'rank_wheel' || c.type === 'daily_wheel');
+                      if (isPack  && !invFilter.paket) return false;
+                      if (isWheel && !invFilter.cark)  return false;
+                      if (!isPack && !isWheel && !invFilter.kasa) return false;
+                      return true;
+                    });
+                    const modeItems = invFilter.mod
+                      ? DASH_MODES_DEF.filter(m => m.troll && dUnlockedModes.includes(m.value))
+                      : [];
+                    if (filteredInv.length === 0 && modeItems.length === 0) {
+                      return (
+                        <div className="text-center py-12" style={{ color: 'var(--zet-text-muted)' }}>
+                          <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ margin: '0 auto 10px' }}><rect x="6" y="16" width="32" height="22" rx="4" stroke="#334155" strokeWidth="1.5"/><path d="M6 22h32" stroke="#334155" strokeWidth="1.5"/><path d="M22 8v8M16 10l6 6 6-6" stroke="#334155" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                          <p className="text-sm">{t('inventoryEmpty')}</p>
+                        </div>
+                      );
+                    }
+                    return (
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
+                        {filteredInv.map((c) => {
+                          const isPack  = c.item_type === 'rank_case';
+                          const isWheel = !isPack && (c.item_type === 'daily_wheel' || c.item_type === 'rank_wheel' || c.type === 'daily_wheel');
+                          const accentColor = isPack ? '#c084fc' : isWheel ? '#a78bfa' : '#60a5fa';
+                          const borderColor = isPack ? '#3a1a5a' : isWheel ? '#3b2a5a' : '#2a2a5a';
+                          const bgGradient  = isPack
+                            ? 'linear-gradient(160deg, #1a0a2e, #2d1054, #1a0a2e)'
+                            : isWheel ? 'linear-gradient(135deg, #12082a, #1a1040)' : 'linear-gradient(135deg, #0f0f2a, #1a1a3a)';
+                          const handleClick = () => isPack ? setOpeningPackId(c.id) : isWheel ? setOpeningWheelId(c.id) : setOpeningCaseId(c.id);
+                          return (
+                            <button
+                              key={c.id}
+                              onClick={handleClick}
+                              style={{ background: bgGradient, border: `1px solid ${borderColor}`, borderRadius: 14, padding: '18px 12px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, position: 'relative', overflow: 'hidden' }}
+                              onMouseEnter={e => { e.currentTarget.style.border = `1px solid ${accentColor}`; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                              onMouseLeave={e => { e.currentTarget.style.border = `1px solid ${borderColor}`; e.currentTarget.style.transform = 'translateY(0)'; }}
+                            >
+                              {isPack ? (
+                                <>
+                                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 28, background: 'linear-gradient(90deg, #2d1054, #3b1470, #2d1054)', borderRadius: '14px 14px 0 0', display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 3, padding: '0 8px' }}>
+                                    {[5, 11, 17].map(tl => <div key={tl} style={{ height: 1.5, background: 'linear-gradient(90deg, transparent, rgba(251,191,36,0.6), transparent)', borderRadius: 1 }} />)}
+                                  </div>
+                                  <div style={{ marginTop: 22 }}>
+                                    <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#c084fc" strokeWidth="1" strokeDasharray="3 2" fill="rgba(192,132,252,0.06)"/><text x="19" y="25" textAnchor="middle" fill="#c084fc" fontSize="18" fontWeight="700" fontFamily="sans-serif">Z</text></svg>
+                                  </div>
+                                  <span style={{ fontSize: 11, color: '#c084fc', fontWeight: 700, letterSpacing: 1 }}>PAKET</span>
+                                </>
+                              ) : isWheel ? (
+                                <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><circle cx="19" cy="19" r="16" stroke="#a78bfa" strokeWidth="1.5" fill="rgba(167,139,250,0.08)"/><circle cx="19" cy="19" r="3.5" fill="#a78bfa"/><path d="M19 3v5M19 30v5M3 19h5M30 19h5M7.1 7.1l3.5 3.5M27.4 27.4l3.5 3.5M7.1 30.9l3.5-3.5M27.4 10.6l3.5-3.5" stroke="#a78bfa" strokeWidth="1.4" strokeLinecap="round"/></svg>
+                              ) : (
+                                <svg width="38" height="38" viewBox="0 0 38 38" fill="none"><rect x="5" y="15" width="28" height="18" rx="3" stroke="#60a5fa" strokeWidth="1.5" fill="rgba(96,165,250,0.08)"/><path d="M5 21h28" stroke="#60a5fa" strokeWidth="1.5"/><path d="M19 7v8M13 9l6 6 6-6" stroke="#60a5fa" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                              )}
+                              {!isPack && <span style={{ fontSize: 12, color: accentColor, fontWeight: 600 }}>{isWheel ? t('luckyWheel') : t('dailyCase')}</span>}
+                              <span style={{ fontSize: 10, color: '#555', background: `rgba(${isPack ? '192,132,252' : isWheel ? '167,139,250' : '96,165,250'},0.1)`, borderRadius: 20, padding: '2px 10px' }}>{t('openToClick')}</span>
+                            </button>
+                          );
+                        })}
+                        {modeItems.map((m) => {
+                          const col = RARITY_COL[m.rarity] || '#4ca8ad';
+                          return (
+                            <div
+                              key={m.value}
+                              style={{ background: 'linear-gradient(135deg, #0d0d1a, #12121f)', border: `1px solid ${col}40`, borderRadius: 14, padding: '18px 12px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}
+                            >
+                              <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+                                <circle cx="19" cy="19" r="16" stroke={col} strokeWidth="1.5" fill={`${col}10`}/>
+                                <circle cx="19" cy="19" r="5" fill={col} opacity="0.8"/>
+                                <path d="M19 3v5M19 30v5M3 19h5M30 19h5" stroke={col} strokeWidth="1.2" strokeLinecap="round" opacity="0.5"/>
+                              </svg>
+                              <span style={{ fontSize: 12, color: col, fontWeight: 700 }}>{t(m.labelKey) || m.label}</span>
+                              <span style={{ fontSize: 10, color: col, background: `${col}18`, borderRadius: 20, padding: '2px 10px', fontWeight: 600 }}>{t('invModeOwned')}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
