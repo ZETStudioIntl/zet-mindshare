@@ -917,7 +917,7 @@ export const RightPanel = ({
                 const ZETA_MODES = [
                   { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
                   { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#f59e0b',            desc: 'Canvas düzenle' },
-                  { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                  { id: 'patch',  label: 'Yama',        Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                   { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
                 ];
                 return (
@@ -1026,7 +1026,7 @@ export const RightPanel = ({
             {showModePanel && (() => {
               const ZETA_MODES = [
                 { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
-                { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                { id: 'patch',  label: 'Yama',        Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                 { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
               ];
               return (
@@ -1052,7 +1052,7 @@ export const RightPanel = ({
             {/* Header */}
             <div className="flex-shrink-0 px-3 py-2 border-b flex items-center gap-2" style={{ borderColor: 'var(--zet-border)' }}>
               <Wrench className="h-3 w-3 flex-shrink-0" style={{ color: '#10b981' }} />
-              <span className="text-[11px] font-semibold flex-1" style={{ color: '#10b981' }}>Zeta Patch</span>
+              <span className="text-[11px] font-semibold flex-1" style={{ color: '#10b981' }}>Zeta Yama</span>
               {patchCorrections.length > 0 && (
                 <span className="text-[9px] px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', border: '1px solid rgba(16,185,129,0.3)' }}>{patchCorrections.length}</span>
               )}
@@ -1153,7 +1153,7 @@ export const RightPanel = ({
             {showModePanel && (() => {
               const ZETA_MODES = [
                 { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
-                { id: 'patch',  label: 'Patch',       Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                { id: 'patch',  label: 'Yama',        Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
                 { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
               ];
               return (

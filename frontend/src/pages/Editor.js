@@ -808,7 +808,7 @@ const Editor = () => {
         if (isEditing) return; // browser native undo in text fields
         e.preventDefault(); handleUndo(); return;
       }
-      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || e.key === 'Y' || ((e.key === 'z' || e.key === 'Z') && e.shiftKey))) {
         if (isEditing) return; // browser native redo in text fields
         e.preventDefault(); handleRedo(); return;
       }

@@ -78,7 +78,7 @@ const SLIDES = [
     bullets: [
       { color: MS_GREEN, label: 'Chat Mode',  desc: 'Ask anything about your document or topic' },
       { color: MS_GREEN, label: 'Edit Mode',  desc: 'Ask Zeta to rewrite or extend selected text' },
-      { color: MS_GREEN, label: 'Patch Mode', desc: 'Apply structured edits across the document' },
+      { color: MS_GREEN, label: 'Yama',       desc: 'Apply structured edits across the document' },
     ],
   },
   {
@@ -213,7 +213,7 @@ const SLIDES = [
     title: 'Known Issues',
     body: 'We are actively working to resolve the following. All items will be fixed before full release.',
     bullets: [
-      { color: MS_RED,    label: 'Zeta Patch',  desc: 'Patch mode is currently broken' },
+      { color: MS_RED,    label: 'Zeta Yama',   desc: 'Yama modu şu an çalışmıyor' },
       { color: MS_YELLOW, label: 'Judge AI',     desc: 'Prototype — core works, UI still evolving' },
       { color: MS_RED,    label: 'Zeta Edit',    desc: 'Edit mode is limited in some scenarios' },
       { color: MS_YELLOW, label: 'Quests',       desc: 'Quest system is in active testing' },
