@@ -202,52 +202,51 @@ const Editor = () => {
   // Sync per-element text style when a different element is selected (Word behavior:
   // panel always reflects the selected element's actual values).
   useEffect(() => {
-    if (selectedElement) {
-      const el = canvasElements.find(e => e.id === selectedElement);
-      if (el && el.type === 'text') {
-        if (el.bold !== undefined) setIsBold(el.bold);
-        if (el.italic !== undefined) setIsItalic(el.italic);
-        if (el.underline !== undefined) setIsUnderline(el.underline);
-        if (el.strikethrough !== undefined) setIsStrikethrough(el.strikethrough);
-        if (el.fontSize) setCurrentFontSize(el.fontSize);
-        if (el.fontFamily) setCurrentFont(el.fontFamily);
-        if (el.color) setCurrentColor(el.color);
-        if (el.textAlign) setCurrentTextAlign(el.textAlign);
-        if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
-        if (el.paddingLeft !== undefined) setIndentLeft(el.paddingLeft);
-        if (el.paddingRight !== undefined) setIndentRight(el.paddingRight);
-        if (el.paddingTop !== undefined) setIndentTop(el.paddingTop);
-        if (el.paddingBottom !== undefined) setIndentBottom(el.paddingBottom);
-        if (showParagraph) {
-          // Paragraf paneli açıkken eleman seçince panel değerlerini sıfırlama;
-          // bekleyen başlık stili varsa yeni elemana uygula
-          if (pendingHeadingRef.current) {
-            const { fontSize: phFs, bold: phBold } = pendingHeadingRef.current;
-            pendingHeadingRef.current = null;
-            setCurrentFontSize(phFs);
-            setIsBold(phBold);
-            activeFormattingRef.current.currentFontSize = phFs;
-            activeFormattingRef.current.isBold = phBold;
-            setCanvasElements(prev => {
-              const updated = prev.map(e => {
-                if (e.id !== selectedElement) return e;
-                let html = e.htmlContent || '';
-                html = html.replace(/font-size\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
-                html = html.replace(/font-weight\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
-                html = html.replace(/style="\s*;?\s*"/gi, '');
-                return { ...e, fontSize: phFs, bold: phBold, htmlContent: html };
-              });
-              handleSaveHistory(updated);
-              return updated;
-            });
-          }
-        } else {
-          if (el.textIndent !== undefined) setFirstLineIndent(el.textIndent);
-          if (el.paragraphSpaceBefore !== undefined) setParagraphSpaceBefore(el.paragraphSpaceBefore);
-          if (el.paragraphSpaceAfter !== undefined) setParagraphSpaceAfter(el.paragraphSpaceAfter);
-        }
+    if (!selectedElement) return;
+    const el = canvasElements.find(e => e.id === selectedElement);
+    if (!el || el.type !== 'text') return;
+
+    if (showParagraph) {
+      // Paragraf paneli açıkken state'i sıfırlama — sadece pending başlık stili varsa uygula
+      if (pendingHeadingRef.current) {
+        const { fontSize: phFs, bold: phBold } = pendingHeadingRef.current;
+        pendingHeadingRef.current = null;
+        setCurrentFontSize(phFs);
+        setIsBold(phBold);
+        activeFormattingRef.current.currentFontSize = phFs;
+        activeFormattingRef.current.isBold = phBold;
+        setCanvasElements(prev => {
+          const updated = prev.map(e => {
+            if (e.id !== selectedElement) return e;
+            let html = e.htmlContent || '';
+            html = html.replace(/font-size\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
+            html = html.replace(/font-weight\s*:\s*[^;'"<>\s][^;'"<>]*/gi, '');
+            html = html.replace(/style="\s*;?\s*"/gi, '');
+            return { ...e, fontSize: phFs, bold: phBold, htmlContent: html };
+          });
+          handleSaveHistory(updated);
+          return updated;
+        });
       }
+      return; // Panel açıkken erken çık — aşağıdaki sync değerleri sıfırlamasın
     }
+
+    if (el.bold !== undefined) setIsBold(el.bold);
+    if (el.italic !== undefined) setIsItalic(el.italic);
+    if (el.underline !== undefined) setIsUnderline(el.underline);
+    if (el.strikethrough !== undefined) setIsStrikethrough(el.strikethrough);
+    if (el.fontSize) setCurrentFontSize(el.fontSize);
+    if (el.fontFamily) setCurrentFont(el.fontFamily);
+    if (el.color) setCurrentColor(el.color);
+    if (el.textAlign) setCurrentTextAlign(el.textAlign);
+    if (el.lineHeight) setCurrentLineHeight(el.lineHeight);
+    if (el.paddingLeft !== undefined) setIndentLeft(el.paddingLeft);
+    if (el.paddingRight !== undefined) setIndentRight(el.paddingRight);
+    if (el.paddingTop !== undefined) setIndentTop(el.paddingTop);
+    if (el.paddingBottom !== undefined) setIndentBottom(el.paddingBottom);
+    if (el.textIndent !== undefined) setFirstLineIndent(el.textIndent);
+    if (el.paragraphSpaceBefore !== undefined) setParagraphSpaceBefore(el.paragraphSpaceBefore);
+    if (el.paragraphSpaceAfter !== undefined) setParagraphSpaceAfter(el.paragraphSpaceAfter);
   }, [selectedElement]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Save text selection range before it's lost on blur
@@ -2336,7 +2335,7 @@ const Editor = () => {
         const elements = idx === currentPage ? canvasElements : (page.elements || []);
         elements.forEach(el => {
           if (el.type === 'text' && !el.isRedacted) {
-            const c = (el.content || '').replace(/<[^>]*>/g, '').trim();
+            const c = (el.htmlContent || el.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
             if (c) parts.push(c);
           }
         });
