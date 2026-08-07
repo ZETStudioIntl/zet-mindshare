@@ -5214,23 +5214,22 @@ body{background:#fff}
   };
 
   // === WORD COUNT (all pages) ===
+  const _stripHtmlForCount = (s) => (s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   const getWordCount = () => {
     let total = 0;
-    // Count from current page's live elements
     canvasElements.forEach(el => {
-      if (el.type === 'text' && el.content) {
-        const words = el.content.trim().split(/\s+/).filter(w => w.length > 0);
-        total += words.length;
+      if (el.type === 'text') {
+        const text = _stripHtmlForCount(el.htmlContent || el.content);
+        if (text) total += text.split(/\s+/).filter(w => w.length > 0).length;
       }
     });
-    // Count from other pages stored in document
     if (document?.pages) {
       document.pages.forEach((page, idx) => {
-        if (idx === currentPage) return; // already counted above
+        if (idx === currentPage) return;
         (page.elements || []).forEach(el => {
-          if (el.type === 'text' && el.content) {
-            const words = el.content.trim().split(/\s+/).filter(w => w.length > 0);
-            total += words.length;
+          if (el.type === 'text') {
+            const text = _stripHtmlForCount(el.htmlContent || el.content);
+            if (text) total += text.split(/\s+/).filter(w => w.length > 0).length;
           }
         });
       });
@@ -5599,7 +5598,7 @@ body{background:#fff}
 
   // === COMPUTED ===
   const zetaPendingCount = canvasElements.filter(el => el.isPending || el.isPendingDelete).length;
-  const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (el.content?.length || 0), 0);
+  const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (_stripHtmlForCount(el.htmlContent || el.content)?.length || 0), 0);
   // Merge system fonts (FONTS) + Google Fonts, deduplicated; selected font always first
   const allFonts = (() => {
     const gf = googleFonts.length > 0 ? googleFonts.map(f => f.family) : [];
