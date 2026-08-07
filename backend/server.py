@@ -5822,33 +5822,32 @@ Hata yoksa: []"""
         client = google_genai.Client(api_key=api_key)
         resp = await gemini_generate(
             client, "gemini-2.5-flash", clean_text[:10000],
-            genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1),
+            genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=8192, temperature=0.1),
             max_retries=1
         )
         import re as _re
         raw = resp.text.strip()
-        # Markdown kod bloğunu soy: ```json ... ``` veya ``` ... ```
+        # Markdown kod bloğunu soy
         if raw.startswith('`'):
             raw = _re.sub(r'^```[a-zA-Z]*\s*', '', raw).rstrip('`').strip()
-        logging.info(f"patch-scan raw response (first 500): {raw[:500]!r}")
+        logging.info(f"patch-scan raw ({len(raw)} chars): {raw[:1000]!r}")
         corrections = []
-        # 1) Önce düz parse dene
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, list):
                 corrections = parsed
-        except Exception:
-            pass
-        # 2) Başarısız olduysa [ ... ] bloğunu çıkar
-        if not corrections:
-            m = _re.search(r'\[[\s\S]*\]', raw)
+        except Exception as e1:
+            logging.warning(f"patch-scan json.loads hata: {e1}")
+            m = _re.search(r'\[[\s\S]*?\](?=\s*$|\s*[^,\s\[])', raw)
+            if not m:
+                m = _re.search(r'\[[\s\S]*\]', raw)
             if m:
                 try:
                     parsed = json.loads(m.group())
                     if isinstance(parsed, list):
                         corrections = parsed
-                except Exception:
-                    corrections = []
+                except Exception as e2:
+                    logging.warning(f"patch-scan regex parse hata: {e2}, match={m.group()[:200]!r}")
         logging.info(f"patch-scan: {len(corrections)} düzeltme bulundu")
         for i, c in enumerate(corrections):
             if not c.get('id'):
