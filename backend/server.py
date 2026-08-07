@@ -141,8 +141,17 @@ def check_rate_limit(user_id: str, action: str, limit: int, window: int):
 
 # ============ GEMINI RETRY HELPER ============
 
-async def gemini_generate(client, model: str, contents, config, max_retries: int = 3):
+_SAFETY_OFF = [
+    genai_types.SafetySetting(category="HARM_CATEGORY_HARASSMENT",        threshold="BLOCK_NONE"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH",       threshold="BLOCK_NONE"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
+    genai_types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
+]
+
+async def gemini_generate(client, model: str, contents, config, max_retries: int = 3, ceo: bool = False):
     """generate_content wrapper with retry on 503 (overloaded)."""
+    if ceo and 'image' not in model.lower():
+        config.safety_settings = _SAFETY_OFF
     last_exc = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -5263,7 +5272,8 @@ Bu içeriği analiz et ve yukarıdaki kurallara göre yanıt ver."""
                 system_instruction=system_message,
                 max_output_tokens=max_tokens,
                 tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())]
-            )
+            ),
+            ceo=is_ceo,
         )
         response = resp.text
         sources = extract_sources(resp)
@@ -6554,7 +6564,8 @@ The user may ask questions about this document. Use this content to provide rele
                         system_instruction=system_message,
                         max_output_tokens=max_tokens,
                         tools=tools,
-                    )
+                    ),
+                    ceo=True,
                 )
                 tokens_used_now += getattr(getattr(resp, 'usage_metadata', None), 'total_token_count', 0) or 0
                 candidate = resp.candidates[0] if resp.candidates else None
@@ -6585,7 +6596,8 @@ The user may ask questions about this document. Use this content to provide rele
                     system_instruction=system_message,
                     max_output_tokens=max_tokens,
                     tools=[genai_types.Tool(google_search=genai_types.GoogleSearch())],
-                )
+                ),
+                ceo=req.is_ceo,
             )
             response = resp.text
             sources = extract_sources(resp)

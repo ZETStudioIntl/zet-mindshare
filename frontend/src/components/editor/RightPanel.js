@@ -902,31 +902,32 @@ export const RightPanel = ({
               <div ref={chatEndRef} />
               <audio ref={audioRef} hidden />
             </div>
-            {/* Mode selector — inline, overflow'dan etkilenmez */}
+            {/* Mode selector — 2×2 grid, kompakt */}
             {showModePanel && (() => {
               const ZETA_MODES = [
-                { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
-                { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#f59e0b',            desc: 'Canvas düzenle' },
-                { id: 'patch',  label: 'Yama',        Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
-                { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
+                { id: 'chat',   label: 'Chat',   Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
+                { id: 'edit',   label: 'Edit',   Icon: Pencil,        color: '#f59e0b',            desc: 'Canvas düzenle' },
+                { id: 'patch',  label: 'Yama',   Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                { id: 'colors', label: 'Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
               ];
               return (
-                <div className="mx-2 mb-1 rounded-lg overflow-hidden border flex-shrink-0"
+                <div className="mx-2 mb-1 rounded-lg border flex-shrink-0"
                   style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
-                  <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
-                  {ZETA_MODES.map(m => {
-                    const active = zetaMode === m.id;
-                    return (
-                      <button key={m.id}
-                        onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
-                        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
-                        style={{ borderLeft: `2px solid ${active ? m.color : 'transparent'}`, background: active ? m.color + '12' : 'transparent' }}>
-                        <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
-                        <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
-                        <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
-                      </button>
-                    );
-                  })}
+                  <div className="grid grid-cols-2 gap-px p-1" style={{ background: 'var(--zet-border)' }}>
+                    {ZETA_MODES.map(m => {
+                      const active = zetaMode === m.id;
+                      return (
+                        <button key={m.id}
+                          onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
+                          className="flex flex-col items-center gap-0.5 py-2 px-1 transition-colors hover:bg-white/5 rounded-sm"
+                          style={{ background: active ? m.color + '18' : 'var(--zet-bg-card)', border: `1px solid ${active ? m.color + '60' : 'transparent'}` }}>
+                          <m.Icon className="h-3.5 w-3.5" style={{ color: m.color }} />
+                          <span className="text-[10px] font-semibold" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
+                          <span className="text-[8px] text-center leading-tight" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               );
             })()}
