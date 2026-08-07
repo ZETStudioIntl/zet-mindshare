@@ -910,36 +910,36 @@ export const RightPanel = ({
               <div ref={chatEndRef} />
               <audio ref={audioRef} hidden />
             </div>
+            {/* Mode selector — inline, overflow'dan etkilenmez */}
+            {showModePanel && (() => {
+              const ZETA_MODES = [
+                { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
+                { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#f59e0b',            desc: 'Canvas düzenle' },
+                { id: 'patch',  label: 'Yama',        Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
+                { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
+              ];
+              return (
+                <div className="mx-2 mb-1 rounded-lg overflow-hidden border flex-shrink-0"
+                  style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
+                  <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
+                  {ZETA_MODES.map(m => {
+                    const active = zetaMode === m.id;
+                    return (
+                      <button key={m.id}
+                        onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
+                        style={{ borderLeft: `2px solid ${active ? m.color : 'transparent'}`, background: active ? m.color + '12' : 'transparent' }}>
+                        <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
+                        <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
+                        <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              );
+            })()}
             {/* Input bar */}
             <div className="p-2 border-t relative" style={{ borderColor: 'var(--zet-border)' }}>
-              {/* Mode selector popup — floats above input */}
-              {showModePanel && (() => {
-                const ZETA_MODES = [
-                  { id: 'chat',   label: 'Chat',        Icon: MessageSquare, color: 'var(--zet-primary)', desc: 'Zeta ile konuş' },
-                  { id: 'edit',   label: 'Edit',        Icon: Pencil,        color: '#f59e0b',            desc: 'Canvas düzenle' },
-                  { id: 'patch',  label: 'Yama',        Icon: Wrench,        color: '#10b981',            desc: 'Belge tara & düzelt' },
-                  { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
-                ];
-                return (
-                  <div className="absolute bottom-full left-0 right-0 mx-2 mb-1 rounded-lg shadow-xl overflow-hidden z-50 border"
-                    style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
-                    <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
-                    {ZETA_MODES.map(m => {
-                      const active = zetaMode === m.id;
-                      return (
-                        <button key={m.id}
-                          onClick={() => { handleModeChange(m.id); setShowModePanel(false); }}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:bg-white/5"
-                          style={{ borderLeft: `2px solid ${active ? m.color : 'transparent'}`, background: active ? m.color + '12' : 'transparent' }}>
-                          <m.Icon className="h-3 w-3 flex-shrink-0" style={{ color: m.color }} />
-                          <span className="text-[11px] font-semibold flex-1" style={{ color: active ? m.color : 'var(--zet-text)' }}>{m.label}</span>
-                          <span className="text-[9px]" style={{ color: 'var(--zet-text-muted)' }}>{m.desc}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                );
-              })()}
               {/* Edit mode: approve/reject bar */}
               {zetaMode === 'edit' && zetaPendingCount > 0 && (
                 <div className="mb-2 flex items-center gap-2 px-1">
@@ -1030,7 +1030,7 @@ export const RightPanel = ({
                 { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
               ];
               return (
-                <div className="absolute top-8 left-2 right-2 rounded-lg shadow-xl overflow-hidden z-50 border"
+                <div className="mx-2 mb-2 rounded-lg overflow-hidden border flex-shrink-0"
                   style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
                   <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
                   {ZETA_MODES.map(m => {
@@ -1157,7 +1157,7 @@ export const RightPanel = ({
                 { id: 'colors', label: 'Zeta Colors', Icon: Palette,       color: '#ec4899',            desc: 'AI görsel oluştur' },
               ];
               return (
-                <div className="absolute bottom-10 left-2 right-2 rounded-lg shadow-xl overflow-hidden z-50 border"
+                <div className="mx-2 mb-2 rounded-lg overflow-hidden border flex-shrink-0"
                   style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)' }}>
                   <div className="px-3 py-1.5 border-b text-[9px] font-bold uppercase tracking-widest" style={{ borderColor: 'var(--zet-border)', color: 'var(--zet-text-muted)' }}>Mod Seç</div>
                   {ZETA_MODES.map(m => {
