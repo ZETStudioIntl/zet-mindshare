@@ -368,7 +368,10 @@ const QuestMap = () => {
   const [forceFriday,    setForceFriday]    = useState(false);
   const [showInfo,       setShowInfo]        = useState(false);
   const [collectedSlots, setCollectedSlots]  = useState(new Set());
-  const [revealedSlots,  setRevealedSlots]   = useState(new Set());
+  const [revealedSlots,  setRevealedSlots]   = useState(() => {
+    const key = `zet_revealed_${new Date().toISOString().slice(0,10)}_r${localStorage.getItem(`zet_reroll_offset_${new Date().toISOString().slice(0,10)}`) || '0'}`;
+    try { return new Set(JSON.parse(localStorage.getItem(key) || '[]')); } catch { return new Set(); }
+  });
   const [counters,       setCounters]        = useState({ words_typed: 0, editor_minutes: 0, notes_created: 0, solo_docs: 0, memories_added: 0 });
   const [zpFly,          setZpFly]           = useState(null);
   const [rerolling,      setRerolling]       = useState(false);
@@ -393,7 +396,11 @@ const QuestMap = () => {
     })();
   }, []);
 
-  useEffect(() => { setRevealedSlots(new Set()); }, [rerollOffset]);
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0,10);
+    const key = `zet_revealed_${today}_r${rerollOffset}`;
+    try { setRevealedSlots(new Set(JSON.parse(localStorage.getItem(key) || '[]'))); } catch { setRevealedSlots(new Set()); }
+  }, [rerollOffset]);
 
   useEffect(() => {
     const handler = (e) => {
@@ -714,7 +721,7 @@ const QuestMap = () => {
                   {/* TOPLA butonu */}
                   <button
                     onClick={(e) => handleCollect(slot, idx, e)}
-                    disabled={done || !isReady || isCollecting}
+                    disabled={done || !isReady || isCollecting || !revealedSlots.has(idx)}
                     style={{
                       padding: '10px 22px',
                       borderRadius: 10,
@@ -752,7 +759,12 @@ const QuestMap = () => {
                 {/* Kilitli kapak — dokunarak açılır */}
                 {!done && (
                   <div
-                    onClick={() => setRevealedSlots(prev => new Set([...prev, idx]))}
+                    onClick={() => setRevealedSlots(prev => {
+                      const next = new Set([...prev, idx]);
+                      const today = new Date().toISOString().slice(0,10);
+                      localStorage.setItem(`zet_revealed_${today}_r${rerollOffset}`, JSON.stringify([...next]));
+                      return next;
+                    })}
                     style={{
                       position: 'absolute', inset: 0, borderRadius: 16, zIndex: 2,
                       background: `linear-gradient(160deg, rgba(${shapeMeta.rgb},0.22) 0%, rgb(5,8,16) 55%, rgb(5,8,16) 100%)`,

@@ -3326,7 +3326,6 @@ MATCHES:[1,3,5]`;
                               <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
                               {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                             </div>
-                            <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()}</span>
                           </div>
                           {req ? (
                             <div className="mt-2">
@@ -4200,6 +4199,21 @@ MATCHES:[1,3,5]`;
                     <div className="flex items-center gap-1 mt-2 text-xs" style={{ color: 'var(--zet-text-muted)' }}>
                       <Clock className="h-3 w-3" />{formatTime(doc.updated_at || doc.created_at)}
                     </div>
+                    {zetaDocAnalysis.docId === doc.doc_id && (
+                      <div className="mt-2 p-2 rounded-lg text-xs" style={{ background: 'rgba(76,168,173,0.1)', border: '1px solid rgba(76,168,173,0.3)' }} onClick={e => e.stopPropagation()}>
+                        {zetaDocAnalysis.loading ? (
+                          <ZetaTypingIndicator hasDocument size={14} />
+                        ) : (
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="flex items-center gap-1 font-medium" style={{ color: '#4ca8ad' }}><ZetaIcon size={10} color="#4ca8ad" /> {t('zetaSummary')}</span>
+                              <button onClick={() => setZetaDocAnalysis({ docId: null, loading: false, result: null })} className="p-0.5 rounded hover:bg-white/10"><X className="h-3 w-3" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                            </div>
+                            <p className="whitespace-pre-wrap break-words" style={{ color: 'var(--zet-text)' }}>{zetaDocAnalysis.result}</p>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 ))}
                 {documents.filter(d => d.file_id === activeDocFile.file_id).length === 0 && (
