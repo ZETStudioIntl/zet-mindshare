@@ -432,9 +432,62 @@ const EditableText = memo(({ el, zoom, pageWidth, pageMargins, isEditing, onStar
       if (overflowText) {
         ref.current.innerHTML = keepHtml;
         onCommit(el.id, keepHtml, true);
-        // Pass obstacleBottom so flow handler can place text below the obstacle
         onFlowText(overflowHtml, obstacleBottom < pageHeight - (margins.bottom || 40) ? obstacleBottom : null, el.id, keepHtml);
         return;
+      }
+    }
+
+    // Word-wrap fallback: no <br> tags but text still overflows — use Range to find split point
+    if (onFlowText) {
+      const containerRect = ref.current.getBoundingClientRect();
+      const limitY = containerRect.top + availableH;
+      const walker = document.createTreeWalker(ref.current, NodeFilter.SHOW_TEXT);
+      let splitNode = null, splitOffset = 0;
+      let node;
+      outer: while ((node = walker.nextNode())) {
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.setEnd(node, node.length);
+        for (const rect of range.getClientRects()) {
+          if (rect.bottom > limitY + 4) {
+            // binary search within this text node for exact character
+            let lo = 0, hi = node.length;
+            while (lo < hi) {
+              const mid = (lo + hi) >> 1;
+              const r = document.createRange();
+              r.setStart(node, 0);
+              r.setEnd(node, mid);
+              if (r.getBoundingClientRect().bottom > limitY + 4) hi = mid;
+              else lo = mid + 1;
+            }
+            // snap back to last word boundary
+            const before = node.textContent.slice(0, lo);
+            const wordBound = before.lastIndexOf(' ');
+            splitOffset = wordBound > 0 ? wordBound + 1 : lo;
+            splitNode = node;
+            break outer;
+          }
+        }
+      }
+      if (splitNode && splitOffset < splitNode.length) {
+        const keepRange = document.createRange();
+        keepRange.setStart(ref.current, 0);
+        keepRange.setEnd(splitNode, splitOffset);
+        const overflowRange = document.createRange();
+        overflowRange.setStart(splitNode, splitOffset);
+        overflowRange.setEnd(ref.current, ref.current.childNodes.length);
+        const tmp = document.createElement('div');
+        tmp.appendChild(keepRange.cloneContents());
+        const keepHtml = tmp.innerHTML;
+        tmp.innerHTML = '';
+        tmp.appendChild(overflowRange.cloneContents());
+        const overflowHtml = tmp.innerHTML;
+        if (overflowHtml.replace(/<[^>]*>/g, '').trim()) {
+          ref.current.innerHTML = keepHtml;
+          onCommit(el.id, keepHtml, true);
+          onFlowText(overflowHtml, obstacleBottom < pageHeight - (margins.bottom || 40) ? obstacleBottom : null, el.id, keepHtml);
+          return;
+        }
       }
     }
     if (onAutoAddPage) onAutoAddPage();
