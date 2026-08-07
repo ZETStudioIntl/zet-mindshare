@@ -141,17 +141,8 @@ def check_rate_limit(user_id: str, action: str, limit: int, window: int):
 
 # ============ GEMINI RETRY HELPER ============
 
-_SAFETY_OFF = [
-    genai_types.SafetySetting(category="HARM_CATEGORY_HARASSMENT",        threshold="BLOCK_NONE"),
-    genai_types.SafetySetting(category="HARM_CATEGORY_HATE_SPEECH",       threshold="BLOCK_NONE"),
-    genai_types.SafetySetting(category="HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold="BLOCK_NONE"),
-    genai_types.SafetySetting(category="HARM_CATEGORY_DANGEROUS_CONTENT", threshold="BLOCK_NONE"),
-]
-
 async def gemini_generate(client, model: str, contents, config, max_retries: int = 3):
     """generate_content wrapper with retry on 503 (overloaded)."""
-    if 'image' not in model.lower():
-        config.safety_settings = _SAFETY_OFF
     last_exc = None
     for attempt in range(1, max_retries + 1):
         try:
@@ -5361,7 +5352,6 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
                         genai_types.Part(inline_data=genai_types.Blob(mime_type="application/pdf", data=raw_bytes)),
                         genai_types.Part(text="Extract verbatim plain text from the first 3 pages. Do not summarize.")
                     ])],
-                    config=genai_types.GenerateContentConfig(safety_settings=_SAFETY_OFF),
                 )
                 return {"content": resp.text, "type": "pdf", "page_limit": 3}
             except Exception as e:
@@ -5404,7 +5394,6 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
                         genai_types.Part(inline_data=genai_types.Blob(mime_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", data=raw_bytes)),
                         genai_types.Part(text="Extract all text content from this Word document verbatim.")
                     ])],
-                    config=genai_types.GenerateContentConfig(safety_settings=_SAFETY_OFF),
                 )
                 return {"content": resp.text[:15000], "type": "docx", "page_limit": None}
         except HTTPException:
@@ -5438,8 +5427,7 @@ async def judge_parse_source(req: ParseSourceRequest, user: User = Depends(get_c
                         "3) If it contains data/charts, extract the key numbers and trends. "
                         "4) Summarize the overall purpose and content."
                     ))
-                ])],
-                config=genai_types.GenerateContentConfig(safety_settings=_SAFETY_OFF),
+                ])]
             )
             return {"content": resp.text, "type": "image", "page_limit": None}
         except Exception as e:
@@ -5909,7 +5897,7 @@ async def zeta_search(req: ZetaSearchRequest, user: User = Depends(get_current_u
             client.models.generate_content,
             model="gemini-2.5-flash",
             contents=[genai_types.Content(role="user", parts=[genai_types.Part(text=req.prompt)])],
-            config=genai_types.GenerateContentConfig(temperature=0.2, max_output_tokens=1500, safety_settings=_SAFETY_OFF),
+            config=genai_types.GenerateContentConfig(temperature=0.2, max_output_tokens=1500),
         )
         raw = response.text or ''
         tokens_used_now = getattr(getattr(response, 'usage_metadata', None), 'total_token_count', 0) or 0
@@ -6671,7 +6659,6 @@ async def spell_check_text(req: SpellCheckRequest, user: User = Depends(get_curr
                     config=genai_types.GenerateContentConfig(
                         temperature=0.1, max_output_tokens=512,
                         response_mime_type="application/json",
-                        safety_settings=_SAFETY_OFF,
                     )
                 )
                 raw_g = (g_resp.text or "").strip()
