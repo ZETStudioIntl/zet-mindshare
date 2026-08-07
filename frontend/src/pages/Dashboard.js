@@ -8,6 +8,7 @@ import { useAppTheme } from '../contexts/AppThemeContext';
 import axios from 'axios';
 import { savePreference } from '../lib/preferences';
 import { saveDoc, getDoc, getAllDocs, deleteDoc, updateDocField, generateDocId, setCurrentUserId } from '../lib/localDocDB';
+import { importFromMSFile, convertFromMSFormat } from '../lib/msFormat';
 import MicrosoftOnboardingSlides from '../components/dashboard/MicrosoftOnboardingSlides';
 import { saveNote, getNote, getAllNotes, deleteNote as deleteNoteLocal, markNoteDeleted, mergeServerNotes, generateNoteId, processSyncQueue, setCurrentNoteUserId } from '../lib/localNoteDB';
 import { questService } from '../lib/questService';
@@ -629,6 +630,47 @@ const Dashboard = () => {
       window.removeEventListener('appinstalled', handleAppInstalled);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // PWA dosya ilişkilendirmesi — launchQueue
+  useEffect(() => {
+    if (!('launchQueue' in window)) return;
+    window.launchQueue.setConsumer(async (launchParams) => {
+      if (!launchParams.files || launchParams.files.length === 0) return;
+      const handle = launchParams.files[0];
+      const file = await handle.getFile();
+      const ext = file.name.split('.').pop().toLowerCase();
+
+      if (ext === 'ms') {
+        try {
+          const msDoc = await importFromMSFile(file);
+          const converted = convertFromMSFormat(msDoc);
+          const docId = generateDocId();
+          const now = new Date().toISOString();
+          const newDoc = {
+            doc_id: docId,
+            user_id: user?.user_id || 'local',
+            title: converted.title || file.name.replace(/\.ms$/, ''),
+            pages: converted.pages || [{ page_id: 'page_1', elements: [], drawPaths: [] }],
+            settings: null, mindmap: null, doc_type: 'document',
+            created_at: now, updated_at: now, pinned: false, tags: [], file_id: null,
+          };
+          await saveDoc(newDoc);
+          setDocuments(prev => [newDoc, ...prev]);
+          navigate(`/editor/${docId}`);
+        } catch {
+          showToast('Dosya açılamadı', 'error');
+        }
+      } else if (ext === 'pdf') {
+        window.__zetPdfFile = file;
+        setNewDocType('pdf');
+        setNewDocTitle(file.name.replace(/\.pdf$/, ''));
+        setShowNewDoc(true);
+      } else {
+        showToast(`${file.name} editörde içe aktarılabilir`, 'info');
+        navigate('/dashboard');
+      }
+    });
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Defterler değiştiğinde cache güncelle
   useEffect(() => {
