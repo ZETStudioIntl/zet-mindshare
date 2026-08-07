@@ -163,6 +163,7 @@ const Editor = () => {
 
   // Mobile panels
   const [mobilePanel, setMobilePanel] = useState(null); // 'pages' | 'zeta' | null
+  const [showParagraph, setShowParagraph] = useState(false);
 
   // Document state
   const [document, setDocument] = useState(null);
@@ -374,7 +375,6 @@ const Editor = () => {
   const [showTranslate, setShowTranslate] = useState(false);
   const [showLineSpacing, setShowLineSpacing] = useState(false);
   const [showWordType, setShowWordType] = useState(false);
-  const [showParagraph, setShowParagraph] = useState(false);
   const [showGraphic, setShowGraphic] = useState(false);
   const [showPageColor, setShowPageColor] = useState(false);
   const [showZoom, setShowZoom] = useState(false);
