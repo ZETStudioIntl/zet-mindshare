@@ -51,15 +51,19 @@ let webpackConfig = {
         ],
       };
 
-      // Terser passes:1 — prevents const TDZ reordering in minified bundles
+      // Terser TDZ fix — inline/reduce_vars/passes kısıtı
       if (webpackConfig.optimization && webpackConfig.optimization.minimizer) {
         webpackConfig.optimization.minimizer.forEach(minimizer => {
           if (minimizer.constructor && minimizer.constructor.name === 'TerserPlugin') {
+            const existing = minimizer.options.terserOptions || {};
             minimizer.options.terserOptions = {
-              ...minimizer.options.terserOptions,
+              ...existing,
               compress: {
-                ...(minimizer.options.terserOptions?.compress || {}),
+                ...(existing.compress || {}),
                 passes: 1,
+                inline: 1,
+                reduce_vars: false,
+                collapse_vars: false,
               },
             };
           }
