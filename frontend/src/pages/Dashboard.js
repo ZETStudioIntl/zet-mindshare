@@ -1585,7 +1585,10 @@ const Dashboard = () => {
     setOpenMenuNoteId(null);
     try {
       const res = await axios.post(`${API}/zeta/chat`, {
-        message: `Yanıtını yalnızca Türkçe yaz. Bu notu kısaca özetle ve önemli noktaları belirt: "${note.content}"`
+        message: `Yanıtını yalnızca Türkçe yaz. Bu notu kısaca özetle ve önemli noktaları belirt: "${note.content}"`,
+        mood: zetaMood || 'professional',
+        emoji_level: zetaEmoji || 'medium',
+        custom_prompt: zetaCustomPrompt || '',
       }, { withCredentials: true });
       setZetaAnalysis({ noteId: note.note_id, loading: false, result: res.data.response, sources: res.data.sources || [] });
       try { const a = new Audio('/sounds/confirm.wav'); a.volume = 0.5; a.play().catch(() => {}); } catch (_) {}
@@ -1990,7 +1993,10 @@ const Dashboard = () => {
         return;
       }
       const chatRes = await axios.post(`${API}/zeta/chat`, {
-        message: `Bu belgeyi kısaca özetle ve önemli noktaları belirt:\n\n${text.slice(0, 3000)}`
+        message: `Bu belgeyi kısaca özetle ve önemli noktaları belirt:\n\n${text.slice(0, 3000)}`,
+        mood: zetaMood || 'professional',
+        emoji_level: zetaEmoji || 'medium',
+        custom_prompt: zetaCustomPrompt || '',
       }, { withCredentials: true });
       setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: chatRes.data.response });
     } catch (err) {
