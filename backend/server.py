@@ -5825,18 +5825,21 @@ Hata yoksa: []"""
             genai_types.GenerateContentConfig(system_instruction=system_prompt, max_output_tokens=2048, temperature=0.1),
             max_retries=1
         )
-        raw = resp.text.strip()
-        logging.info(f"patch-scan raw response (first 500): {raw[:500]!r}")
         import re as _re
+        raw = resp.text.strip()
+        # Markdown kod bloğunu soy: ```json ... ``` veya ``` ... ```
+        if raw.startswith('`'):
+            raw = _re.sub(r'^```[a-zA-Z]*\s*', '', raw).rstrip('`').strip()
+        logging.info(f"patch-scan raw response (first 500): {raw[:500]!r}")
         corrections = []
-        # 1) Önce düz parse dene — model SADECE JSON döndürmesi istendi
+        # 1) Önce düz parse dene
         try:
             parsed = json.loads(raw)
             if isinstance(parsed, list):
                 corrections = parsed
         except Exception:
             pass
-        # 2) Başarısız olduysa son [ ... ] bloğunu çıkar (greedy — iç ] karakterlerine karşı güvenli)
+        # 2) Başarısız olduysa [ ... ] bloğunu çıkar
         if not corrections:
             m = _re.search(r'\[[\s\S]*\]', raw)
             if m:
@@ -5846,6 +5849,7 @@ Hata yoksa: []"""
                         corrections = parsed
                 except Exception:
                     corrections = []
+        logging.info(f"patch-scan: {len(corrections)} düzeltme bulundu")
         for i, c in enumerate(corrections):
             if not c.get('id'):
                 c['id'] = f"c{i+1}"
