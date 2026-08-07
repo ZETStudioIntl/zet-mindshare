@@ -426,17 +426,17 @@ const Editor = () => {
     };
   }, [currentFontSize, currentFont, currentColor, customColor, currentLineHeight, currentTextAlign, firstLineIndent, paragraphSpaceBefore, paragraphSpaceAfter]);
 
-  const persistTextDefaults = (overrides) => {
+  function persistTextDefaults(overrides) {
     savePreference('zet_editor_text_defaults', JSON.stringify({ ...textDefaultsRef.current, ...overrides }));
-  };
-  const setCurrentFontPersisted = (val) => { setCurrentFont(val); persistTextDefaults({ font: val }); activeFormattingRef.current.currentFont = val; };
-  const setCurrentFontSizePersisted = (val) => { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); activeFormattingRef.current.currentFontSize = val; };
-  const setCurrentColorPersisted = (val) => { setCurrentColor(val); persistTextDefaults({ color: val }); activeFormattingRef.current.currentColor = val; };
-  const setCustomColorPersisted = (val) => { setCustomColor(val); persistTextDefaults({ customColor: val }); };
-  const setCurrentLineHeightPersisted = (val) => { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); activeFormattingRef.current.currentLineHeight = val; };
-  const setFirstLineIndentPersisted = (val) => { setFirstLineIndent(val); persistTextDefaults({ firstLineIndent: val }); };
-  const setParagraphSpaceBeforePersisted = (val) => { setParagraphSpaceBefore(val); persistTextDefaults({ paragraphSpaceBefore: val }); };
-  const setParagraphSpaceAfterPersisted = (val) => { setParagraphSpaceAfter(val); persistTextDefaults({ paragraphSpaceAfter: val }); };
+  }
+  function setCurrentFontPersisted(val) { setCurrentFont(val); persistTextDefaults({ font: val }); activeFormattingRef.current.currentFont = val; }
+  function setCurrentFontSizePersisted(val) { setCurrentFontSize(val); persistTextDefaults({ fontSize: val }); activeFormattingRef.current.currentFontSize = val; }
+  function setCurrentColorPersisted(val) { setCurrentColor(val); persistTextDefaults({ color: val }); activeFormattingRef.current.currentColor = val; }
+  function setCustomColorPersisted(val) { setCustomColor(val); persistTextDefaults({ customColor: val }); }
+  function setCurrentLineHeightPersisted(val) { setCurrentLineHeight(val); persistTextDefaults({ lineHeight: val }); activeFormattingRef.current.currentLineHeight = val; }
+  function setFirstLineIndentPersisted(val) { setFirstLineIndent(val); persistTextDefaults({ firstLineIndent: val }); }
+  function setParagraphSpaceBeforePersisted(val) { setParagraphSpaceBefore(val); persistTextDefaults({ paragraphSpaceBefore: val }); }
+  function setParagraphSpaceAfterPersisted(val) { setParagraphSpaceAfter(val); persistTextDefaults({ paragraphSpaceAfter: val }); }
 
   // Sunucudan geç gelen tercihler state'e işlenir
   useEffect(() => {
@@ -1137,14 +1137,14 @@ const Editor = () => {
       .catch(() => {});
   }, []);
 
-  const loadGoogleFont = (family) => {
+  function loadGoogleFont(family) {
     if (loadedFonts[family]) return;
     const link = window.document.createElement('link');
     link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}&display=swap`;
     link.rel = 'stylesheet';
     window.document.head.appendChild(link);
     setLoadedFonts(prev => ({ ...prev, [family]: true }));
-  };
+  }
 
   // === CANVAS TIME TRACKING — sadece editörde geçen aktif süreyi say ===
   useEffect(() => {
@@ -5218,7 +5218,7 @@ body{background:#fff}
   };
 
   // === WORD COUNT (all pages) ===
-  const getWordCount = () => {
+  function getWordCount() {
     let total = 0;
     canvasElements.forEach(el => {
       if (el.type === 'text') {
@@ -5238,9 +5238,9 @@ body{background:#fff}
       });
     }
     return total;
-  };
+  }
 
-  const getImageCount = () => {
+  function getImageCount() {
     let total = canvasElements.filter(el => el.type === 'image').length;
     if (document?.pages) {
       document.pages.forEach((page, idx) => {
@@ -5249,9 +5249,9 @@ body{background:#fff}
       });
     }
     return total;
-  };
+  }
 
-  const getEstimatedSize = () => {
+  function getEstimatedSize() {
     try {
       let bytes = 0;
       const allPages = document?.pages || [];
@@ -5268,7 +5268,7 @@ body{background:#fff}
       if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
       return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
     } catch { return '—'; }
-  };
+  }
 
 
 
@@ -5555,7 +5555,7 @@ body{background:#fff}
 
   
   // Get full document content for AI — sansürlü metin Zeta'ya gönderilmez
-  const getFullDocContent = () => {
+  function getFullDocContent() {
     // redactSegments içindeki tüm orijinal metinleri content'ten çıkar (çift güvence)
     const cleanContent = (el) => {
       let txt = el.content || '';
