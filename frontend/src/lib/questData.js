@@ -76,17 +76,22 @@ export function buildDailyQuests(rerollOffset = 0, forceFriday = false) {
   const rng       = seededRng(dateSeed() + rerollOffset * 7919);
   const isFriday  = forceFriday || new Date(Date.now() + 3 * 60 * 60 * 1000).getUTCDay() === 5;
   const slotCount = isFriday ? 5 : 3;
-  const used      = new Set();
-  const slots     = [];
+  const used       = new Set();
+  const usedFields = new Set();
+  const slots      = [];
   for (let i = 0; i < slotCount; i++) {
     const shape         = (isFriday && i === 0) ? 'star' : rollShape(rng);
     const specialChance = isFriday ? 0.025 : 0.009;
     const isSpecial     = rng() < specialChance;
     const specialType   = rng() < 0.5 ? 'case' : 'wheel';
     const tier          = SHAPES.indexOf(shape);
-    const pool          = QUEST_POOL.filter(q => q.tier === tier && !used.has(q.id));
-    const picked        = pool[Math.floor(rng() * (pool.length || 1))] || QUEST_POOL.find(q => !used.has(q.id)) || QUEST_POOL[0];
+    const pool          = QUEST_POOL.filter(q => q.tier === tier && !used.has(q.id) && !usedFields.has(QUEST_REQ[q.id]?.field));
+    const picked        = pool[Math.floor(rng() * (pool.length || 1))]
+      || QUEST_POOL.find(q => !used.has(q.id) && !usedFields.has(QUEST_REQ[q.id]?.field))
+      || QUEST_POOL.find(q => !used.has(q.id))
+      || QUEST_POOL[0];
     used.add(picked.id);
+    if (QUEST_REQ[picked.id]?.field) usedFields.add(QUEST_REQ[picked.id].field);
     slots.push({ id: `slot_${i}_${rerollOffset}`, quest: picked, shape, isSpecial, specialType });
   }
   return { slots, isFriday };

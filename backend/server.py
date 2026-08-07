@@ -90,7 +90,7 @@ def _get_r2():
 app = FastAPI()
 CEO_EMAIL = "muhammadbahaddinyilmaz@gmail.com"
 CEO_ZET_ID = os.getenv("CEO_ZET_ID", "")  # ZET ID doğrulama — env'den alınır, frontend'e asla gönderilmez
-ADMIN_EMAILS = {"info@zetstudiointl.com", "support@zetstudiointl.com", "ideas@zetstudiointl.com"}
+ADMIN_EMAILS = {"support@zetstudiointl.com", "help@zetstudiointl.com", "ideas@zetstudiointl.com"}
 api_router = APIRouter(prefix="/api")
 
 # ============ RATE LIMITING ============
@@ -5217,7 +5217,7 @@ ZET Studio International, basit ama güçlü üretkenlik araçları geliştiren 
 
 İLETİŞİM VE SOSYAL MEDYA:
 - Destek: support@zetstudiointl.com
-- Genel: info@zetstudiointl.com
+- Genel: help@zetstudiointl.com
 - Fikir/Öneri: ideas@zetstudiointl.com
 - ZET Mindshare X: @ZETMindshare | Instagram: zetmindshare
 - ZET Studio X: @zet_studiointl | Instagram: zetstudiointl
@@ -6371,7 +6371,7 @@ Muhammed Bahaddin Yılmaz
 
 📬 İLETİŞİM VE SOSYAL MEDYA:
 - Destek: support@zetstudiointl.com
-- Genel: info@zetstudiointl.com
+- Genel: help@zetstudiointl.com
 - Fikir/Öneri: ideas@zetstudiointl.com
 - ZET Mindshare X: @ZETMindshare | Instagram: zetmindshare
 - ZET Studio X: @zet_studiointl | Instagram: zetstudiointl
@@ -8509,42 +8509,47 @@ def _weekly_report_html(a: dict, last7_users: int, last7_posts: int, last7_docs:
         '</div></body></html>'
     )
 
+async def _do_send_weekly_report():
+    """Haftalık rapor gönderme mantığı — APScheduler veya HTTP trigger ile çağrılır."""
+    try:
+        analytics = await build_export_payload("analytics")
+        last7 = await build_export_payload("last7")
+        rank_dist = await get_rank_distribution()
+        report_date = datetime.now(timezone.utc).strftime("%d.%m.%Y")
+        html = _weekly_report_html(
+            a=analytics.get("analytics", {}),
+            last7_users=len(last7.get("users", [])),
+            last7_posts=len(last7.get("posts", [])),
+            last7_docs=len(last7.get("documents", [])),
+            rank_dist=rank_dist,
+            report_date=report_date,
+        )
+        resend.api_key = os.environ.get("RESEND_API_KEY", "")
+        sender = os.environ.get("SENDER_EMAIL", "ZET Mindshare <help@zetstudiointl.com>")
+        resend.Emails.send({
+            "from": sender,
+            "to": [CEO_EMAIL],
+            "subject": f"Zet Mindshare — Haftalık Rapor ({report_date})",
+            "html": html,
+        })
+        await db.export_logs.insert_one({
+            "requested_by": "system",
+            "type": "weekly_report",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        })
+        logging.getLogger(__name__).info(f"Weekly report sent for {report_date}")
+    except Exception as e:
+        logging.getLogger(__name__).error(f"Weekly report error: {e}")
+
 async def send_weekly_report():
-    """Her Pazartesi 09:00 UTC'de haftalık rapor gönder."""
+    """Her Pazartesi 09:00 UTC'de haftalık rapor gönder (fallback loop)."""
     while True:
         now = datetime.now(timezone.utc)
         days_until_monday = (7 - now.weekday()) % 7 or 7
         next_monday = now.replace(hour=9, minute=0, second=0, microsecond=0) + timedelta(days=days_until_monday)
         wait_seconds = (next_monday - now).total_seconds()
         await asyncio.sleep(wait_seconds)
-        try:
-            analytics = await build_export_payload("analytics")
-            last7 = await build_export_payload("last7")
-            rank_dist = await get_rank_distribution()
-            report_date = datetime.now(timezone.utc).strftime("%d.%m.%Y")
-            html = _weekly_report_html(
-                a=analytics.get("analytics", {}),
-                last7_users=len(last7.get("users", [])),
-                last7_posts=len(last7.get("posts", [])),
-                last7_docs=len(last7.get("documents", [])),
-                rank_dist=rank_dist,
-                report_date=report_date,
-            )
-            resend.api_key = os.environ.get("RESEND_API_KEY", "")
-            sender = os.environ.get("SENDER_EMAIL", "onboarding@resend.dev")
-            resend.Emails.send({
-                "from": sender,
-                "to": [CEO_EMAIL],
-                "subject": f"Zet Mindshare — Haftalık Rapor ({report_date})",
-                "html": html,
-            })
-            await db.export_logs.insert_one({
-                "requested_by": "system",
-                "type": "weekly_report",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
-        except Exception as e:
-            logging.getLogger(__name__).error(f"Weekly report error: {e}")
+        await _do_send_weekly_report()
 
 async def expire_boosts_loop():
     """Süresi dolan boost'ları saatlik kapat."""
@@ -8646,6 +8651,7 @@ async def start_background_tasks():
             scheduler = AsyncIOScheduler(timezone="UTC")
             scheduler.add_job(_run_renewal_check, "cron", hour=8, minute=0)
             scheduler.add_job(_check_season_end, "cron", hour=0, minute=5)
+            scheduler.add_job(_do_send_weekly_report, "cron", day_of_week="mon", hour=9, minute=0)
             scheduler.start()
             logging.info("APScheduler started — renewal check 08:00 UTC, season check 00:05 UTC")
         except Exception as e:

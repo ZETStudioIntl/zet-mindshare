@@ -1983,7 +1983,7 @@ const Dashboard = () => {
         // PDF import: pageText alanı
         if (p.pageText) return p.pageText;
         // Canvas elements (tip=text)
-        return (p.elements || []).filter(el => el.type === 'text').map(el => el.content || '').join('\n');
+        return (p.elements || []).filter(el => el.type === 'text').map(el => el.content || (el.htmlContent ? el.htmlContent.replace(/<[^>]*>/g, '') : '')).join('\n');
       }).join('\n').trim();
       if (!text) {
         setZetaDocAnalysis({ docId: doc.doc_id, loading: false, result: 'Belge boş.' });
@@ -2574,7 +2574,6 @@ MATCHES:[1,3,5]`;
                 { id: 'shortcuts',    icon: <Keyboard className="h-4 w-4" />,   label: t('shortcuts') },
                 { id: 'fastselect',   icon: <Star className="h-4 w-4" />,       label: t('fastSelect') },
                 { id: 'appswitcher',  icon: <LayoutGrid className="h-4 w-4" />, label: t('appSwitcher') },
-                ...(isCEO ? [{ id: 'kontrol', icon: <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="1" width="6" height="6" rx="1.5" fill="currentColor" opacity=".7"/><rect x="9" y="1" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="1" y="9" width="6" height="6" rx="1.5" fill="currentColor"/><rect x="9" y="9" width="6" height="6" rx="1.5" fill="currentColor" opacity=".7"/></svg>, label: 'Kontrol Merkezi', color: '#f59e0b' }] : []),
               ].map(item => (
                 <button
                   key={item.id}
@@ -3321,7 +3320,7 @@ MATCHES:[1,3,5]`;
                               <span className="font-medium" style={{ color: r.color }}>{r.name}</span>
                               {isCurrent && <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: `${r.color}20`, color: r.color }}>{t('currentBadge')}</span>}
                             </div>
-                            <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()} XP</span>
+                            <span className="text-sm" style={{ color: 'var(--zet-text-muted)' }}>{r.xp.toLocaleString()}</span>
                           </div>
                           {req ? (
                             <div className="mt-2">
@@ -4347,16 +4346,21 @@ MATCHES:[1,3,5]`;
                   )}
                 </div>
                 {renamingDocId === doc.doc_id ? (
-                  <div className="flex gap-1 mb-1" onClick={e => e.stopPropagation()}>
+                  <div className="flex flex-col gap-1.5 mb-1" onClick={e => e.stopPropagation()}>
                     <input
-                      className="zet-input flex-1 text-sm font-medium"
+                      className="zet-input w-full text-sm font-medium"
                       value={renamingDocTitle}
                       onChange={e => setRenamingDocTitle(e.target.value)}
                       onKeyDown={e => { if (e.key === 'Enter') renameDocument(doc.doc_id, renamingDocTitle); if (e.key === 'Escape') { setRenamingDocId(null); setRenamingDocTitle(''); } }}
                       autoFocus
                     />
-                    <button onClick={() => renameDocument(doc.doc_id, renamingDocTitle)} className="p-1 rounded hover:bg-white/10"><Check className="h-4 w-4" style={{ color: '#22c55e' }} /></button>
-                    <button onClick={() => { setRenamingDocId(null); setRenamingDocTitle(''); }} className="p-1 rounded hover:bg-white/10"><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.6 }}>Enter kaydet · Esc iptal</span>
+                      <div className="flex gap-1">
+                        <button onClick={() => renameDocument(doc.doc_id, renamingDocTitle)} className="px-2 py-0.5 rounded text-xs font-medium" style={{ background: 'rgba(76,168,173,0.15)', color: '#4ca8ad', border: '1px solid rgba(76,168,173,0.3)' }}><Check className="h-3 w-3 inline mr-0.5" />Kaydet</button>
+                        <button onClick={() => { setRenamingDocId(null); setRenamingDocTitle(''); }} className="p-1 rounded hover:bg-white/10"><X className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} /></button>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <h3 className="font-medium mb-1 truncate" style={{ color: 'var(--zet-text)' }}>{doc.title}</h3>

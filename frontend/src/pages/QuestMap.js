@@ -361,7 +361,10 @@ const QuestMap = () => {
   const isCEO    = localStorage.getItem('zet_ceo_mode') === 'true';
   const countdown = useCountdown();
 
-  const [rerollOffset,   setRerollOffset]   = useState(0);
+  const [rerollOffset,   setRerollOffset]   = useState(() => {
+    const todayKey = `zet_reroll_offset_${new Date().toISOString().slice(0,10)}`;
+    return parseInt(localStorage.getItem(todayKey) || '0', 10);
+  });
   const [forceFriday,    setForceFriday]    = useState(false);
   const [showInfo,       setShowInfo]        = useState(false);
   const [collectedSlots, setCollectedSlots]  = useState(new Set());
@@ -440,6 +443,8 @@ const QuestMap = () => {
     try {
       if (isCEO) {
         await new Promise(r => setTimeout(r, 300));
+        const todayKey = `zet_reroll_offset_${new Date().toISOString().slice(0,10)}`;
+        localStorage.setItem(todayKey, String(rerollOffset + 1));
       } else {
         const res = await axios.post(`${API}/quests/reroll`, {}, { withCredentials: true });
         setUserZP(res.data.new_zp);
