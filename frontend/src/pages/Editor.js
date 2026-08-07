@@ -90,6 +90,10 @@ const ResizableDivider = ({ onResize }) => {
   );
 };
 
+function stripHtmlForCount(s) {
+  return (s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
 function generateChartSVG(meta) {
   const { type, labels: labelsStr, data: dataStr, title = '', colors = ['#3b82f6','#10b981','#f59e0b','#ef4444','#8b5cf6'], gradientStart = null, gradientEnd = null } = meta || {};
   const labels = (labelsStr || '').split(',').map(l => l.trim()).filter(Boolean);
@@ -5214,12 +5218,11 @@ body{background:#fff}
   };
 
   // === WORD COUNT (all pages) ===
-  const _stripHtmlForCount = (s) => (s || '').replace(/<[^>]*>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim();
   const getWordCount = () => {
     let total = 0;
     canvasElements.forEach(el => {
       if (el.type === 'text') {
-        const text = _stripHtmlForCount(el.htmlContent || el.content);
+        const text = stripHtmlForCount(el.htmlContent || el.content);
         if (text) total += text.split(/\s+/).filter(w => w.length > 0).length;
       }
     });
@@ -5228,7 +5231,7 @@ body{background:#fff}
         if (idx === currentPage) return;
         (page.elements || []).forEach(el => {
           if (el.type === 'text') {
-            const text = _stripHtmlForCount(el.htmlContent || el.content);
+            const text = stripHtmlForCount(el.htmlContent || el.content);
             if (text) total += text.split(/\s+/).filter(w => w.length > 0).length;
           }
         });
@@ -5598,7 +5601,7 @@ body{background:#fff}
 
   // === COMPUTED ===
   const zetaPendingCount = canvasElements.filter(el => el.isPending || el.isPendingDelete).length;
-  const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (_stripHtmlForCount(el.htmlContent || el.content)?.length || 0), 0);
+  const charCount = canvasElements.filter(el => el.type === 'text').reduce((acc, el) => acc + (stripHtmlForCount(el.htmlContent || el.content)?.length || 0), 0);
   // Merge system fonts (FONTS) + Google Fonts, deduplicated; selected font always first
   const allFonts = (() => {
     const gf = googleFonts.length > 0 ? googleFonts.map(f => f.family) : [];
