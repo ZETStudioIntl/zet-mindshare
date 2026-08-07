@@ -175,17 +175,17 @@ CanvasArea.js içindeki render/davranış mantığı ayrıdır — ikisine aynı
 
 ## Dil Kararları
 
-**Varsayılan dil: C++**
+**KATİ KURAL — Varsayılan dil: C++**
 
-Zorunlu olmadıkça her yeni proje, modül veya bağımsız araç C++ ile yazılır. Web versiyonu için hangi teknoloji gerekiyorsa (React, JS, Python vb.) kullanılır — web katmanı bu kuralın dışındadır.
+ZET Mindshare artık native platformda da (iOS/Android/Desktop) yayında. Bu nedenle web dışındaki HER YENİ proje, modül, araç veya bileşen ZORUNLU olarak C++ ile yazılır. İstisna yoktur — kullanıcı açıkça farklı bir dil belirtmedikçe C++ kullanılır.
 
 | Proje | Dil |
 |-------|-----|
 | Web frontend (Dashboard, Editor, vb.) | React / JavaScript |
 | Backend API | Python / FastAPI |
-| **Diğer her şey (yeni/bağımsız proje, araç, modül)** | **C++** |
+| **Native uygulama, SDK, araç, modül, script — HER ŞEY** | **C++ (KATİ)** |
 
-> Web dışındaki her yeni proje varsayılan olarak C++ ile başlar. "Zorunlu" istisna: platforma özgü bir SDK sadece başka bir dilde mevcutsa veya kullanıcı açıkça farklı bir dil belirtirse.
+> Bu kural değiştirilemez. "Daha kolay olur", "Python daha hızlı yazılır" gibi gerekçeler geçersizdir. Kullanıcı farklı bir dil istemediği sürece C++ kullanılır.
 
 ---
 
