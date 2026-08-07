@@ -3992,13 +3992,19 @@ MATCHES:[1,3,5]`;
                             if (m.type === 'document') {
                               navigate(`/editor/${m.id}`);
                             } else {
-                              // Nota kaydır: not sekmesine geç ve ilgili notu highlight et
+                              const targetNote = notes.find(n => n.note_id === m.id);
                               setActiveTab('notes');
                               setZetaSearch(false);
+                              if (targetNote?.notebook_id) {
+                                const nb = notebooks.find(n => n.notebook_id === targetNote.notebook_id);
+                                if (nb) setActiveNotebook(nb);
+                              } else {
+                                setActiveNotebook(null);
+                              }
                               setTimeout(() => {
                                 const el = document.querySelector(`[data-testid="note-card-${m.id}"]`);
                                 if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                              }, 100);
+                              }, 150);
                             }
                           }}
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all hover:scale-105"
