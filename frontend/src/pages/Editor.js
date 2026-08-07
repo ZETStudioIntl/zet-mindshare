@@ -2376,6 +2376,12 @@ const Editor = () => {
       console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme', res.data);
       setPatchCorrections(res.data.corrections || []);
       setPatchScanned(true);
+      // Sayfa başına 2 kredi (kabuller ücretsiz)
+      const pageCount = document?.pages?.length || 1;
+      try {
+        await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-accept`, { count: pageCount }, { withCredentials: true });
+        refreshCredits?.();
+      } catch {}
     } catch (e) {
       const detail = e.response?.data?.detail;
       console.error('[Patch] scan hatası:', e.message, '| detail:', detail);
@@ -2407,13 +2413,6 @@ const Editor = () => {
     });
     setCanvasElements(updatedEls);
     handleSaveHistory(updatedEls);
-    // 2 kredi düş
-    try {
-      const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-accept`, { count: 1 }, { withCredentials: true });
-      if (res.data?.credits_remaining !== undefined) {
-        refreshCredits?.();
-      }
-    } catch {}
     setPatchCorrections(prev => prev.filter(c => c.id !== corrId));
   };
 
