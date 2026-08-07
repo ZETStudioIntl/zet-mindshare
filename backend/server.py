@@ -2144,7 +2144,7 @@ async def get_fonts():
             async with session.get(url) as resp:
                 data = await resp.json()
                 fonts = data.get("items", [])
-                return [{"family": f["family"], "category": f.get("category", "sans-serif"), "variants": f.get("variants", ["regular"])} for f in fonts]
+                return [{"family": f["family"], "category": f.get("category", "sans-serif"), "variants": f.get("variants", ["regular"])} for f in fonts[:500]]
     except Exception as e:
         logging.error(f"Google Fonts API error: {e}")
         return []
@@ -6429,6 +6429,18 @@ Kullanıcı "yaz", "ekle", "şunu yaz", "belgeye ekle", "sayfaya yaz" veya herha
 Kullanıcının dilinde yanıt ver!
 """
     
+    # Chat mode: restrict canvas structural edits — only INSERT_TEXT is allowed
+    if req.mode not in ('edit', 'patch', 'colors'):
+        system_message += """
+
+🚫 CANVAS DÜZENLEME KISITLAMASI (CHAT MODU):
+Bu modda yalnızca belgeye metin ekleyebilirsin ([ACTION:INSERT_TEXT]).
+Element taşıma, silme, renk değiştirme, boyut ayarlama, şekil ekleme gibi CANVAS yapısal değişiklikleri yapamaz, yapıyormuş gibi cevap VEREMEZSIN.
+Kullanıcı bu tür bir istek yaparsa şunu söyle:
+"Bu işlemi yapabilmem için Edit moduna geçmen gerekiyor. Sağ panelde mod butonuna tıklayıp 'Edit' modunu seç."
+Asla "yaptım", "ekledim", "değiştirdim", "taşıdım" gibi yapmadığın bir canvas değişikliğini ima etme.
+"""
+
     # Patch mode: override Zeta's behaviour to document scanner/fixer
     if req.mode == 'patch':
         system_message += """
@@ -7929,13 +7941,19 @@ async def get_shared_comments(share_id: str):
     return comments
 
 @api_router.post("/judge/feedback")
-async def submit_judge_feedback(feedback: JudgeFeedbackCreate):
+async def submit_judge_feedback(feedback: JudgeFeedbackCreate, request: Request):
+    try:
+        user = await get_current_user(request)
+        user_id = user.user_id
+    except Exception:
+        user_id = None
     feedback_data = {
         "feedback_id": f"fb_{uuid.uuid4().hex[:12]}",
         "session_id": feedback.session_id,
         "message_index": feedback.message_index,
         "feedback_type": feedback.feedback_type,
         "message_content": feedback.message_content[:500],
+        "user_id": user_id,
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.judge_feedback.insert_one(feedback_data)
@@ -7945,12 +7963,30 @@ async def submit_judge_feedback(feedback: JudgeFeedbackCreate):
         negative = await db.judge_feedback.count_documents({"feedback_type": "negative"})
         await send_email(
             "support@zetstudiointl.com",
-            f"Judge Geri Bildirim Raporu — {count} Toplam",
-            f"<h2>Judge Geri Bildirim Özeti</h2><p>Toplam geri bildirim: <b>{count}</b></p>"
-            f"<p>👍 Pozitif: <b>{positive}</b></p><p>👎 Negatif: <b>{negative}</b></p>"
+            f"Judge & Zeta Geri Bildirim Raporu — {count} Toplam",
+            f"<h2>AI Geri Bildirim Özeti</h2><p>Toplam: <b>{count}</b></p>"
+            f"<p>Pozitif: <b>{positive}</b></p><p>Negatif: <b>{negative}</b></p>"
+            f"<p>Oran: <b>{round(positive/count*100) if count else 0}%</b> pozitif</p>"
             f"<p>Bu rapor her 100 geri bildirimde otomatik gönderilir.</p>",
         )
     return {"status": "ok"}
+
+@api_router.get("/admin/feedback-stats")
+async def get_feedback_stats(user: User = Depends(get_current_user)):
+    user_doc = await db.users.find_one({"user_id": user.user_id})
+    if not user_doc or user_doc.get("role") not in ("admin", "superadmin"):
+        raise HTTPException(status_code=403, detail="Admin erişimi gerekli")
+    total = await db.judge_feedback.count_documents({})
+    positive = await db.judge_feedback.count_documents({"feedback_type": "positive"})
+    negative = await db.judge_feedback.count_documents({"feedback_type": "negative"})
+    recent = await db.judge_feedback.find({}, {"_id": 0}).sort("created_at", -1).to_list(20)
+    return {
+        "total": total,
+        "positive": positive,
+        "negative": negative,
+        "positive_rate": round(positive / total * 100, 1) if total else 0,
+        "recent": recent,
+    }
 
 # ============ WEBSOCKET COLLABORATION ============
 
