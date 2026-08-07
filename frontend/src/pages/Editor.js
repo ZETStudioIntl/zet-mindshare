@@ -1595,7 +1595,9 @@ const Editor = () => {
   };
 
   // === TEXT FLOW — carries overflow content to next page (or below an obstacle on same page) ===
-  const handleTextFlow = useCallback(({ elementId, overflowHtml, el: srcEl, obstacleBottom, keepHtml }) => {
+  // Called from CanvasArea as: onFlowText(overflowHtml, obstacleBottom, elementId, keepHtml)
+  const handleTextFlow = useCallback((overflowHtml, obstacleBottom, elementId, keepHtml) => {
+    const srcEl = canvasElements.find(e => e.id === elementId) || {};
     const makeOverflowEl = (y) => ({
       id: `el_${Date.now()}`,
       type: 'text',
