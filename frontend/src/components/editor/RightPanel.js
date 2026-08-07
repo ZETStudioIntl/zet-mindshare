@@ -607,14 +607,6 @@ export const RightPanel = ({
   return (
     <div data-testid="right-panel" className="w-full h-full border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
       {/* Export Button */}
-      {showPages && (
-        <div className="p-2 border-b" style={{ borderColor: 'var(--zet-border)' }}>
-          <button data-testid="export-pdf-btn" onClick={onExport} disabled={exporting} className="zet-btn w-full flex items-center justify-center gap-2 py-2 text-sm">
-            {exporting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-            PDF Aktar
-          </button>
-        </div>
-      )}
 
       {/* Pages Seçtion */}
       {showPages && (
@@ -652,9 +644,9 @@ export const RightPanel = ({
                     className={`rounded border-2 cursor-pointer overflow-hidden transition-colors ${currentPage === idx ? 'border-blue-500' : 'border-transparent hover:border-white/20'}`}
                     style={{ background: page.pageBackground || 'white', aspectRatio: '794/1123', position: 'relative' }}
                   >
-                    <div style={{ position: 'absolute', top: 0, left: 0, width: 794, height: 1123, transform: 'scale(0.09)', transformOrigin: 'top left', pointerEvents: 'none' }}>
+                    <div style={{ position: 'absolute', top: 0, left: 0, width: 794, height: 1123, transform: 'scale(0.08)', transformOrigin: 'top left', pointerEvents: 'none' }}>
                       {(idx === currentPage ? canvasElements : (page.elements || [])).slice(0, 8).map(el => (
-                        <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.width, fontSize: el.fontSize || 12, color: el.color || '#000', lineHeight: el.lineHeight || 1.4, overflow: 'hidden', textAlign: el.textAlign || 'left', fontFamily: el.fontFamily || 'inherit', fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal' }}>
+                        <div key={el.id} style={{ position: 'absolute', left: el.x, top: el.y, width: el.width, fontSize: el.fontSize || 16, color: el.color || '#000', lineHeight: el.lineHeight || 1.5, overflow: 'hidden', textAlign: el.textAlign || 'left', fontFamily: el.fontFamily || el.font || 'Arial', fontWeight: el.bold ? 'bold' : 'normal', fontStyle: el.italic ? 'italic' : 'normal' }}>
                           {el.type === 'text' && (
                             <div style={{ maxHeight: el.height || 200 }} dangerouslySetInnerHTML={{ __html: el.htmlContent || el.content || '' }} />
                           )}
