@@ -5798,20 +5798,23 @@ async def zeta_patch_scan(request: Request, req: PatchScanRequest, user: User = 
     plan_ps = get_plan_name(user_doc_ps or {})
     can_word = plan_ps != 'free'
     ignore_str = ', '.join(f'"{w}"' for w in req.ignore_list) if req.ignore_list else 'Yok'
-    system_prompt = f"""Sen profesyonel bir yazım denetçisisin.
-{"Sadece yazım hatalarını (yanlış yazılmış kelimeler) tespit et." if not can_word else "Hem yazım hatalarını hem eksik/fazla kelimeleri tespit et."}
+    system_prompt = f"""Türkçe yazım denetçisisin. Verilen metni kelime kelime incele ve hataları bul.
 
-ASLA düzeltme: {ignore_str}
+{"Yalnızca yanlış yazılmış kelimeleri bul." if not can_word else "Yanlış yazılmış kelimeleri ve gereksiz/eksik kelimeleri bul."}
 
-Sonucu SADECE aşağıdaki JSON formatında döndür, başka hiçbir şey yazma:
+Düzeltme yapma (ignore): {ignore_str}
+
+Türkçede sık rastlanan hatalar: harf eksikliği (merhba→merhaba), harf fazlalığı (güzeel→güzel, dünyaa→dünya), yanlış harf (yanlız→yalnız).
+
+YANITI SADECE JSON ARRAY OLARAK VER, başka hiçbir şey yazma:
 [
-  {{"id": "c1", "type": "spelling", "original": "yanlız", "suggestion": "yanlış", "context": "Bu yanlız bir örnek"}},
-  {{"id": "c2", "type": "extra", "original": "çok", "suggestion": null, "context": "Bu çok çok güzel"}}
+  {{"id": "c1", "type": "spelling", "original": "yanlız", "suggestion": "yalnız", "context": "Bu yanlız bir örnek"}},
+  {{"id": "c2", "type": "extra", "original": "çok", "suggestion": null, "context": "çok çok güzel"}}
 ]
-type değerleri: "spelling" (yazım hatası), "missing" (eksik kelime — original=null), "extra" (gereksiz kelime — suggestion=null)
-Hiç hata yoksa sadece [] döndür."""
-    # Frontend direkt sade metin gönderir (prefix yok)
+type: "spelling"=yazım hatası, "extra"=gereksiz kelime (suggestion=null), "missing"=eksik kelime (original=null)
+Hata yoksa: []"""
     clean_text = req.doc_content.strip()
+    logging.info(f"patch-scan: text len={len(clean_text)}, preview={clean_text[:150]!r}")
     if not clean_text:
         return JSONResponse({"corrections": [], "can_word": can_word}, headers=cors_h)
 

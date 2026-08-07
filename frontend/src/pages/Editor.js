@@ -2329,13 +2329,28 @@ const Editor = () => {
   const handlePatchScan = async (_unused) => {
     // Direkt canvas elementlerinden sade metin çıkar — [METİN]: prefix encoding sorununu bypass eder
     const buildPatchText = () => {
-      const pages = document?.pages || [];
+      const stripHtml = (s) => (s || '')
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]*>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
       const parts = [];
-      pages.forEach((page, idx) => {
-        const elements = idx === currentPage ? canvasElements : (page.elements || []);
-        elements.forEach(el => {
+      // Mevcut sayfa: her zaman canlı canvasElements kullan
+      canvasElements.forEach(el => {
+        if (el.type === 'text' && !el.isRedacted) {
+          const c = stripHtml(el.htmlContent || el.content);
+          if (c) parts.push(c);
+        }
+      });
+      // Diğer sayfalar: document.pages'ten al
+      (document?.pages || []).forEach((page, idx) => {
+        if (idx === currentPage) return;
+        (page.elements || []).forEach(el => {
           if (el.type === 'text' && !el.isRedacted) {
-            const c = (el.htmlContent || el.content || '').replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '').trim();
+            const c = stripHtml(el.htmlContent || el.content);
             if (c) parts.push(c);
           }
         });
