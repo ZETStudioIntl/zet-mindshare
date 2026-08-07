@@ -79,7 +79,16 @@
     {
       "action": "/",
       "accept": {
-        "application/x-zet-mindshare": [".ms"]
+        "application/x-zet-mindshare": [".ms"],
+        "application/pdf": [".pdf"],
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+        "application/vnd.oasis.opendocument.text": [".odt"],
+        "text/plain": [".txt"],
+        "text/html": [".html", ".htm"],
+        "image/png": [".png"],
+        "image/jpeg": [".jpg", ".jpeg"],
+        "image/svg+xml": [".svg"],
+        "application/json": [".json"]
       },
       "icons": [{ "src": "/icon-512.png", "sizes": "512x512" }],
       "launch_type": "single-client"
