@@ -199,6 +199,14 @@ const Editor = () => {
     };
   }, []);
 
+  // Mobil: paragraf paneli açılınca klavyeyi kapat (panel klavyenin altında kalmasın)
+  useEffect(() => {
+    if (showParagraph) {
+      const active = window.document.activeElement;
+      if (active && active !== window.document.body) active.blur();
+    }
+  }, [showParagraph]);
+
   // Sync per-element text style when a different element is selected (Word behavior:
   // panel always reflects the selected element's actual values).
   useEffect(() => {
