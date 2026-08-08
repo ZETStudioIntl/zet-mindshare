@@ -506,6 +506,7 @@ class ZetaChatRequest(BaseModel):
     model: Optional[str] = "prime"  # spark | prime | aziz
     canvas_context: Optional[str] = None  # live editor state snapshot from frontend
     shared_memory: Optional[bool] = False  # ortak hafıza: diğer oturumlardan bağlam
+    attachment_count: Optional[int] = 0
 
 class ParseSourceRequest(BaseModel):
     filename: str
@@ -6050,6 +6051,12 @@ async def zeta_chat(req: ZetaChatRequest, user: User = Depends(get_current_user)
         token_allowed, tokens_used, token_limit = await check_token_limit(user.user_id, user_data)
         if not token_allowed:
             return {"response": f"Günlük token limitinize ulaştınız ({tokens_used:,}/{token_limit:,}). Limit her gün UTC gece yarısı sıfırlanır.", "session_id": None, "token_limit_exceeded": True}
+
+    # Check per-message attachment limit
+    ZETA_ATTACHMENT_LIMITS = {'free': 3, 'plus': 5, 'pro': 8, 'creative_station': 10, 'entertainment_pocket': 10}
+    attach_limit = ZETA_ATTACHMENT_LIMITS.get(user_plan, 3)
+    if not req.is_ceo and (req.attachment_count or 0) > attach_limit:
+        return {"response": f"Bu mesaja çok fazla dosya eklenmiş. Planınızda mesaj başına en fazla {attach_limit} dosya ekleyebilirsiniz.", "session_id": None}
 
     # Load user's Zeta memories
     memories = await db.zeta_memories.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(30)

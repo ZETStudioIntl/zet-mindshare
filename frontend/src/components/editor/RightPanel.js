@@ -96,6 +96,15 @@ export const RightPanel = ({
   // Attached document state
   const [attachedDoc, setAttachedDoc] = useState(null);
   const docFileRef = useRef(null);
+  const imageFileRef = useRef(null);
+  const cameraFileRef = useRef(null);
+  const attachPickerRef = useRef(null);
+  const [showAttachPicker, setShowAttachPicker] = useState(false);
+  const isTouch = navigator.maxTouchPoints > 0;
+  const ATTACHMENT_LIMITS = { free: 3, plus: 5, pro: 8, creative_station: 10, entertainment_pocket: 10 };
+  const attachLimit = ATTACHMENT_LIMITS[userPlan] || 3;
+  const attachCount = (zetaImage ? 1 : 0) + (attachedDoc ? 1 : 0);
+  const attachLimitReached = attachCount >= attachLimit;
 
   const handleDocFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -118,6 +127,15 @@ export const RightPanel = ({
       setAttachedDoc({ name: file.name, content });
     };
     reader.readAsText(file, 'UTF-8');
+    e.target.value = '';
+  };
+
+  const handleImageFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => setZetaImage(ev.target.result);
+    reader.readAsDataURL(file);
     e.target.value = '';
   };
 
@@ -191,6 +209,17 @@ export const RightPanel = ({
       setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
     }
   }, [zetaMessages]);
+
+  useEffect(() => {
+    if (!showAttachPicker || isTouch) return;
+    const handler = (e) => {
+      if (attachPickerRef.current && !attachPickerRef.current.contains(e.target)) {
+        setShowAttachPicker(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [showAttachPicker, isTouch]);
 
   // Auto-detect CEO from email
   useEffect(() => {
@@ -594,6 +623,7 @@ export const RightPanel = ({
         mode: zetaMode,
         canvas_context: buildCanvasContext(),
         shared_memory: sharedMemory,
+        attachment_count: (zetaImage ? 1 : 0) + (attachedDoc ? 1 : 0),
       }, { withCredentials: true });
       setZetaSessionId(res.data.session_id);
       const fullResp = res.data.response;
@@ -990,6 +1020,8 @@ export const RightPanel = ({
                 </div>
               )}
               <input ref={docFileRef} type="file" accept=".txt,.md,.json,.csv,.xml,.html,.js,.ts,.py,.ms" onChange={handleDocFileChange} className="hidden" />
+              <input ref={imageFileRef} type="file" accept="image/*" onChange={handleImageFileChange} className="hidden" />
+              <input ref={cameraFileRef} type="file" accept="image/*" capture="environment" onChange={handleImageFileChange} className="hidden" />
               {zetaMode === 'edit' && zetaEditSuggestions && zetaEditSuggestions.length > 0 && (
                 <div className="mb-2 flex flex-wrap gap-1">
                   {zetaEditSuggestions.map((s, i) => (
@@ -1012,10 +1044,35 @@ export const RightPanel = ({
                     </button>
                   );
                 })()}
-                <button onClick={() => docFileRef.current?.click()} className="zet-btn px-2 flex-shrink-0" title="Belge ekle"
-                  style={{ color: attachedDoc ? '#4ca8ad' : undefined, background: attachedDoc ? 'rgba(76,168,173,0.15)' : undefined }}>
-                  <Paperclip className="h-3 w-3" />
-                </button>
+                <div className="relative flex-shrink-0" ref={attachPickerRef}>
+                  <button
+                    onClick={() => { if (!attachLimitReached) setShowAttachPicker(v => !v); }}
+                    className="zet-btn px-2"
+                    title={attachLimitReached ? t('attachLimitReached').replace('{n}', attachLimit) : 'Dosya ekle'}
+                    style={{ color: (attachedDoc || zetaImage) ? '#4ca8ad' : attachLimitReached ? 'var(--zet-text-muted)' : undefined, opacity: attachLimitReached ? 0.5 : 1 }}
+                  >
+                    <Paperclip className="h-3 w-3" />
+                  </button>
+                  {!isTouch && showAttachPicker && (
+                    <div className="absolute bottom-full mb-1 left-0 rounded-lg border overflow-hidden z-50"
+                      style={{ background: 'var(--zet-bg-card)', borderColor: 'var(--zet-border)', boxShadow: '0 4px 12px rgba(0,0,0,0.3)', minWidth: 130 }}>
+                      <button
+                        onClick={() => { setShowAttachPicker(false); setTimeout(() => imageFileRef.current?.click(), 50); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left"
+                        style={{ color: 'var(--zet-text)' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        {t('selectPhoto')}
+                      </button>
+                      <button
+                        onClick={() => { setShowAttachPicker(false); setTimeout(() => docFileRef.current?.click(), 50); }}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-xs hover:bg-white/5 transition-colors text-left border-t"
+                        style={{ color: 'var(--zet-text)', borderColor: 'var(--zet-border)' }}>
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                        {t('selectFile')}
+                      </button>
+                    </div>
+                  )}
+                </div>
                 <textarea
                   data-testid="zeta-input"
                   placeholder={
@@ -1061,6 +1118,50 @@ export const RightPanel = ({
                     : <Send className="h-3 w-3" />}
                 </button>
               </div>
+              {isTouch && showAttachPicker && (
+                <div className="fixed inset-0 z-[200]" onClick={() => setShowAttachPicker(false)}>
+                  <style>{`@keyframes zetaAttachSlideUp { from { transform: translateY(60px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
+                  <div
+                    className="absolute bottom-0 left-0 right-0 rounded-t-2xl"
+                    style={{ background: 'var(--zet-bg-card)', borderTop: '1px solid var(--zet-border)', animation: 'zetaAttachSlideUp 0.2s ease-out' }}
+                    onClick={e => e.stopPropagation()}>
+                    <div className="flex justify-center pt-2 pb-1">
+                      <div className="w-10 h-1 rounded-full" style={{ background: 'var(--zet-border)' }} />
+                    </div>
+                    <div className="px-4 py-2 text-sm font-semibold" style={{ color: 'var(--zet-text)' }}>
+                      {t('attachPickerTitle')}
+                    </div>
+                    {attachLimitReached && (
+                      <div className="mx-4 mb-2 px-3 py-2 rounded-lg text-[10px]" style={{ background: 'rgba(239,68,68,0.1)', color: '#fca5a5' }}>
+                        {t('attachLimitReached').replace('{n}', attachLimit)}
+                      </div>
+                    )}
+                    <div className="px-4 pb-6 flex flex-col gap-2">
+                      <button
+                        onClick={() => { setShowAttachPicker(false); setTimeout(() => imageFileRef.current?.click(), 50); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors"
+                        style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                        <span className="text-sm">{t('photosBtn')}</span>
+                      </button>
+                      <button
+                        onClick={() => { setShowAttachPicker(false); setTimeout(() => docFileRef.current?.click(), 50); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors"
+                        style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>
+                        <span className="text-sm">{t('filesBtn')}</span>
+                      </button>
+                      <button
+                        onClick={() => { setShowAttachPicker(false); setTimeout(() => cameraFileRef.current?.click(), 50); }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors"
+                        style={{ background: 'var(--zet-bg)', color: 'var(--zet-text)' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                        <span className="text-sm">{t('cameraBtn')}</span>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}
