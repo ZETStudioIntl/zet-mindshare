@@ -455,6 +455,15 @@ class NotebookSetPassword(BaseModel):
 class NotebookVerifyPassword(BaseModel):
     password: str
 
+class DocSetPassword(BaseModel):
+    password: str
+
+class DocVerifyPassword(BaseModel):
+    password: str
+
+class ConfirmPasswordResetReq(BaseModel):
+    token: str
+
 class ChatMessage(BaseModel):
     role: str
     content: str
@@ -3236,6 +3245,8 @@ async def get_documents(skip: int = 0, limit: int = 20, user: User = Depends(get
             {"user_id": user.user_id, "deleted": {"$ne": True}},
             {"_id": 0, "pages": 0}
         ).sort([("pinned", -1), ("updated_at", -1)]).skip(skip).limit(limit).to_list(limit)
+        for doc in docs:
+            doc["has_password"] = bool(doc.pop("password_hash", None))
         return docs
     except Exception as e:
         logging.error(f"get_documents error: {e}")
@@ -3818,6 +3829,112 @@ async def remove_notebook_password(notebook_id: str, body: NotebookVerifyPasswor
         {"$unset": {"password_hash": ""}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
     )
     return {"success": True, "message": "Şifre kaldırıldı"}
+
+# ── Notebook forgot-password ─────────────────────────────────────────────────
+@api_router.post("/notebooks/{notebook_id}/forgot-password")
+async def notebook_forgot_password(notebook_id: str, user: User = Depends(get_current_user)):
+    nb = await db.notebooks.find_one({"notebook_id": notebook_id, "user_id": user.user_id})
+    if not nb:
+        raise HTTPException(status_code=404, detail="Notebook not found")
+    token = f"pwreset_{secrets.token_hex(24)}"
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    await db.pw_reset_tokens.insert_one({
+        "token": token, "type": "notebook", "item_id": notebook_id,
+        "user_id": user.user_id, "expires_at": expires
+    })
+    frontend_url = os.getenv("FRONTEND_URL", "https://app.zetstudiointl.com")
+    reset_url = f"{frontend_url}/confirm-password-reset?token={token}"
+    item_name = nb.get("name", "Defter")
+    body = (
+        f'<h2 style="color:#fff;font-size:22px;font-weight:700;text-align:center;margin:0 0 10px">Şifre Sıfırlama</h2>'
+        f'<p style="color:rgba(255,255,255,0.6);font-size:14px;text-align:center;margin:0 0 24px">"{item_name}" adlı defterinizin şifresini sıfırlamak için aşağıdaki butona tıklayın.</p>'
+        f'<p style="text-align:center;margin:0 0 32px"><a href="{reset_url}" style="display:inline-block;background:rgba(76,168,173,0.2);border:1px solid rgba(76,168,173,0.5);color:#4ca8ad;text-decoration:none;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:600">Şifreyi Sıfırla</a></p>'
+        f'<p style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:0">Bu bağlantı 1 saat geçerlidir.</p>'
+    )
+    await send_email(user.email, "ZET Mindshare — Defter şifre sıfırlama", _email_shell(body, "#4ca8ad"))
+    return {"success": True}
+
+# ── Document password endpoints ───────────────────────────────────────────────
+@api_router.put("/documents/{doc_id}/password")
+async def set_document_password(doc_id: str, body: DocSetPassword, user: User = Depends(get_current_user)):
+    if len(body.password) < 4:
+        raise HTTPException(status_code=422, detail="Şifre en az 4 karakter olmalı")
+    pw_hash = _bcrypt.hashpw(body.password.encode(), _bcrypt.gensalt()).decode()
+    result = await db.documents.update_one(
+        {"doc_id": doc_id, "user_id": user.user_id},
+        {"$set": {"password_hash": pw_hash, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"success": True}
+
+@api_router.post("/documents/{doc_id}/verify-password")
+async def verify_document_password(doc_id: str, body: DocVerifyPassword, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"doc_id": doc_id, "user_id": user.user_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not doc.get("password_hash"):
+        return {"success": True}
+    if not _verify_notebook_password(body.password, doc["password_hash"]):
+        raise HTTPException(status_code=403, detail="Wrong password")
+    return {"success": True}
+
+@api_router.delete("/documents/{doc_id}/password")
+async def remove_document_password(doc_id: str, body: DocVerifyPassword, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"doc_id": doc_id, "user_id": user.user_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    if not _verify_notebook_password(body.password, doc.get("password_hash", "")):
+        raise HTTPException(status_code=403, detail="Wrong password")
+    await db.documents.update_one(
+        {"doc_id": doc_id, "user_id": user.user_id},
+        {"$unset": {"password_hash": ""}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    return {"success": True}
+
+@api_router.post("/documents/{doc_id}/forgot-password")
+async def document_forgot_password(doc_id: str, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one({"doc_id": doc_id, "user_id": user.user_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    token = f"pwreset_{secrets.token_hex(24)}"
+    expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    await db.pw_reset_tokens.insert_one({
+        "token": token, "type": "document", "item_id": doc_id,
+        "user_id": user.user_id, "expires_at": expires
+    })
+    frontend_url = os.getenv("FRONTEND_URL", "https://app.zetstudiointl.com")
+    reset_url = f"{frontend_url}/confirm-password-reset?token={token}"
+    item_name = doc.get("title", "Belge")
+    body_html = (
+        f'<h2 style="color:#fff;font-size:22px;font-weight:700;text-align:center;margin:0 0 10px">Şifre Sıfırlama</h2>'
+        f'<p style="color:rgba(255,255,255,0.6);font-size:14px;text-align:center;margin:0 0 24px">"{item_name}" adlı belgenizin şifresini sıfırlamak için aşağıdaki butona tıklayın.</p>'
+        f'<p style="text-align:center;margin:0 0 32px"><a href="{reset_url}" style="display:inline-block;background:rgba(76,168,173,0.2);border:1px solid rgba(76,168,173,0.5);color:#4ca8ad;text-decoration:none;padding:12px 32px;border-radius:10px;font-size:14px;font-weight:600">Şifreyi Sıfırla</a></p>'
+        f'<p style="color:rgba(255,255,255,0.3);font-size:12px;text-align:center;margin:0">Bu bağlantı 1 saat geçerlidir.</p>'
+    )
+    await send_email(user.email, "ZET Mindshare — Belge şifre sıfırlama", _email_shell(body_html, "#4ca8ad"))
+    return {"success": True}
+
+# ── Confirm password reset ────────────────────────────────────────────────────
+@api_router.post("/confirm-password-reset")
+async def confirm_password_reset(req: ConfirmPasswordResetReq, user: User = Depends(get_current_user)):
+    entry = await db.pw_reset_tokens.find_one({"token": req.token, "user_id": user.user_id})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Geçersiz bağlantı")
+    if entry["expires_at"] < datetime.now(timezone.utc):
+        raise HTTPException(status_code=410, detail="Bağlantının süresi dolmuş")
+    if entry["type"] == "notebook":
+        await db.notebooks.update_one(
+            {"notebook_id": entry["item_id"], "user_id": user.user_id},
+            {"$unset": {"password_hash": ""}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    elif entry["type"] == "document":
+        await db.documents.update_one(
+            {"doc_id": entry["item_id"], "user_id": user.user_id},
+            {"$unset": {"password_hash": ""}, "$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+    await db.pw_reset_tokens.delete_one({"token": req.token})
+    return {"success": True}
 
 # ============ QUICK NOTES ROUTES ============
 

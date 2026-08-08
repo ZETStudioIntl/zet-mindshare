@@ -23,6 +23,7 @@ import AISettingsModal from '../components/dashboard/AISettingsModal';
 import CreditsModal from '../components/dashboard/CreditsModal';
 import RanksModal from '../components/dashboard/RanksModal';
 import NotebookPasswordModal from '../components/dashboard/NotebookPasswordModal';
+import DocPasswordModal from '../components/dashboard/DocPasswordModal';
 import MissionsModal from '../components/dashboard/MissionsModal';
 import SubscriptionModal from '../components/dashboard/SubscriptionModal';
 import UpgradePromptModal from '../components/dashboard/UpgradePromptModal';
@@ -304,6 +305,15 @@ const Dashboard = () => {
   const [nbFailedAttempts, setNbFailedAttempts] = useState({}); // notebookId -> count
   const [nbLockoutUntil, setNbLockoutUntil] = useState({}); // notebookId -> timestamp ms
   const [nbLockoutTick, setNbLockoutTick] = useState(0);
+  // Document password system
+  const [docPasswordModal, setDocPasswordModal] = useState(null); // { mode: 'set'|'remove'|'unlock', docId, docTitle, onUnlock }
+  const [docPwInput, setDocPwInput] = useState('');
+  const [docPwConfirm, setDocPwConfirm] = useState('');
+  const [docPwError, setDocPwError] = useState('');
+  const [docPwLoading, setDocPwLoading] = useState(false);
+  const [unlockedDocs, setUnlockedDocs] = useState({}); // docId -> true
+  const [docPwFailed, setDocPwFailed] = useState({}); // docId -> count
+  const [docPwLockout, setDocPwLockout] = useState({}); // docId -> timestamp ms
   // AI Memories in settings
   const [zetaMemories, setZetaMemories] = useState([]);
   const [memoriesLoading, setMemoriesLoading] = useState(false);
@@ -1326,6 +1336,74 @@ const Dashboard = () => {
       }
       setNbPwLoading(false);
     }
+  };
+
+  const handleDocPasswordSubmit = async () => {
+    if (!docPasswordModal) return;
+    const { mode, docId, onUnlock } = docPasswordModal;
+    setDocPwError('');
+    const lockUntil = docPwLockout[docId] || 0;
+    if (Date.now() < lockUntil) { setDocPwError('Lütfen bekleyin...'); return; }
+    const getErrMsg = (err) => {
+      if (!err.response) return 'Sunucuya ulaşılamıyor';
+      if (err.response.status === 403) return err.response.data?.detail === 'Wrong password' ? 'Yanlış şifre' : 'Erişim reddedildi';
+      return err.response.data?.detail || `Hata (${err.response.status})`;
+    };
+    if (mode === 'set') {
+      if (docPwInput.length < 4) { setDocPwError('Şifre en az 4 karakter olmalı'); return; }
+      if (docPwInput !== docPwConfirm) { setDocPwError('Şifreler eşleşmiyor'); return; }
+      setDocPwLoading(true);
+      try {
+        await axios.put(`${API}/documents/${docId}/password`, { password: docPwInput }, { withCredentials: true });
+        setDocuments(prev => prev.map(d => d.doc_id === docId ? { ...d, has_password: true } : d));
+        showToast('Şifre başarıyla eklendi', 'success');
+        setDocPasswordModal(null); setDocPwInput(''); setDocPwConfirm('');
+      } catch (err) { setDocPwError(getErrMsg(err)); }
+      setDocPwLoading(false);
+    } else if (mode === 'remove') {
+      setDocPwLoading(true);
+      try {
+        await axios.delete(`${API}/documents/${docId}/password`, { data: { password: docPwInput }, withCredentials: true });
+        setDocuments(prev => prev.map(d => d.doc_id === docId ? { ...d, has_password: false } : d));
+        setUnlockedDocs(prev => ({ ...prev, [docId]: false }));
+        showToast('Şifre kaldırıldı', 'success');
+        setDocPasswordModal(null); setDocPwInput('');
+        setDocPwFailed(prev => ({ ...prev, [docId]: 0 }));
+      } catch (err) {
+        const failed = (docPwFailed[docId] || 0) + 1;
+        setDocPwFailed(prev => ({ ...prev, [docId]: failed }));
+        const wait = getLockoutTime(failed);
+        if (wait > 0) setDocPwLockout(prev => ({ ...prev, [docId]: Date.now() + wait * 1000 }));
+        setDocPwError(getErrMsg(err));
+      }
+      setDocPwLoading(false);
+    } else if (mode === 'unlock') {
+      setDocPwLoading(true);
+      try {
+        await axios.post(`${API}/documents/${docId}/verify-password`, { password: docPwInput }, { withCredentials: true });
+        setUnlockedDocs(prev => ({ ...prev, [docId]: true }));
+        setDocPwFailed(prev => ({ ...prev, [docId]: 0 }));
+        setDocPasswordModal(null); setDocPwInput('');
+        if (onUnlock) onUnlock();
+      } catch (err) {
+        const failed = (docPwFailed[docId] || 0) + 1;
+        setDocPwFailed(prev => ({ ...prev, [docId]: failed }));
+        const wait = getLockoutTime(failed);
+        if (wait > 0) setDocPwLockout(prev => ({ ...prev, [docId]: Date.now() + wait * 1000 }));
+        setDocPwError(getErrMsg(err));
+      }
+      setDocPwLoading(false);
+    }
+  };
+
+  const handleForgotPassword = async (type, id) => {
+    try {
+      const endpoint = type === 'notebook' ? `/notebooks/${id}/forgot-password` : `/documents/${id}/forgot-password`;
+      await axios.post(`${API}${endpoint}`, {}, { withCredentials: true });
+      showToast(t('pwResetEmailSent'), 'success');
+      if (type === 'notebook') setNotebookPasswordModal(null);
+      else setDocPasswordModal(null);
+    } catch { showToast('E-posta gönderilemedi', 'error'); }
   };
 
   // Lockout countdown tick
@@ -2406,7 +2484,7 @@ MATCHES:[1,3,5]`;
           </div>
         </div>
       )}
-      <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.08.05</span>
+      <span className="fixed bottom-2 left-2 text-xs pointer-events-none select-none z-10" style={{ color: 'var(--zet-text-muted)', opacity: 0.4 }}>v26.08.08</span>
       {/* Offline banner */}
       {!isOnline && (
         <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
@@ -2626,7 +2704,7 @@ MATCHES:[1,3,5]`;
 
               {/* Versiyon */}
               <div className={`${installPromptEvent ? '' : 'mt-auto'} pt-2 px-3`}>
-                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.08.05</span>
+                <span className="text-xs" style={{ color: 'var(--zet-text-muted)', opacity: 0.5 }}>v26.08.08</span>
               </div>
             </div>
 
@@ -4304,6 +4382,7 @@ MATCHES:[1,3,5]`;
                     else if (doc) uploadDocToDrive(doc);
                     setOpenFolderDocMenuId(null);
                   }},
+                  { icon: <Lock className="h-4 w-4" />, label: doc?.has_password ? t('removePassword') : t('addPassword'), action: () => { if (doc) { setDocPasswordModal({ mode: doc.has_password ? 'remove' : 'set', docId: doc.doc_id, docTitle: doc.title }); setDocPwInput(''); setDocPwConfirm(''); setDocPwError(''); } setOpenFolderDocMenuId(null); } },
                   { icon: <X className="h-4 w-4" />, label: t('removeFromFolder'), color: '#ef4444', action: () => { const id = openFolderDocMenuId; setOpenFolderDocMenuId(null); showConfirm(t('removeFromFolderTitle'), t('removeFromFolderMsg'), () => removeDocFromFile(id, activeDocFile.file_id)); } },
                 ];
                 return (
@@ -4391,7 +4470,14 @@ MATCHES:[1,3,5]`;
                     });
                     return;
                   }
-                  if (renamingDocId !== doc.doc_id) navigate(`/editor/${doc.doc_id}`);
+                  if (renamingDocId !== doc.doc_id) {
+                    if (doc.has_password && !unlockedDocs[doc.doc_id]) {
+                      setDocPasswordModal({ mode: 'unlock', docId: doc.doc_id, docTitle: doc.title, onUnlock: () => navigate(`/editor/${doc.doc_id}`) });
+                      setDocPwInput(''); setDocPwError('');
+                    } else {
+                      navigate(`/editor/${doc.doc_id}`);
+                    }
+                  }
                 }}
                 data-testid={`doc-card-${doc.doc_id}`}
               >
@@ -4503,6 +4589,7 @@ MATCHES:[1,3,5]`;
                       else if (doc) uploadDocToDrive(doc);
                       setOpenMenuDocId(null);
                     }},
+                    { icon: <Lock className="h-4 w-4" />, label: doc?.has_password ? t('removePassword') : t('addPassword'), action: () => { if (doc) { setDocPasswordModal({ mode: doc.has_password ? 'remove' : 'set', docId: doc.doc_id, docTitle: doc.title }); setDocPwInput(''); setDocPwConfirm(''); setDocPwError(''); } setOpenMenuDocId(null); } },
                     { icon: <FileEdit className="h-4 w-4" />, label: t('noteMenuEdit'), action: () => { if (doc) { setRenamingDocId(doc.doc_id); setRenamingDocTitle(doc.title); } setOpenMenuDocId(null); } },
                     { icon: <Trash2 className="h-4 w-4" />, label: t('noteMenuDelete'), color: '#ef4444', action: () => { setConfirmDeleteDocId(openMenuDocId); setOpenMenuDocId(null); } },
                   ];
@@ -4908,6 +4995,22 @@ MATCHES:[1,3,5]`;
           nbPwError={nbPwError} setNbPwError={setNbPwError}
           nbPwLoading={nbPwLoading} nbLockoutUntil={nbLockoutUntil} nbFailedAttempts={nbFailedAttempts}
           handleNotebookPasswordSubmit={handleNotebookPasswordSubmit}
+          onForgotPassword={handleForgotPassword}
+          t={t}
+        />
+      )}
+
+      {/* Document Password Modal */}
+      {docPasswordModal && (
+        <DocPasswordModal
+          docPasswordModal={docPasswordModal} setDocPasswordModal={setDocPasswordModal}
+          docPwInput={docPwInput} setDocPwInput={setDocPwInput}
+          docPwConfirm={docPwConfirm} setDocPwConfirm={setDocPwConfirm}
+          docPwError={docPwError} setDocPwError={setDocPwError}
+          docPwLoading={docPwLoading} docPwLockout={docPwLockout} docPwFailed={docPwFailed}
+          handleDocPasswordSubmit={handleDocPasswordSubmit}
+          onForgotPassword={handleForgotPassword}
+          t={t}
         />
       )}
 

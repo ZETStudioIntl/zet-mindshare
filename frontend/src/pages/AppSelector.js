@@ -27,7 +27,7 @@ const APPS = [
     hoverBg: '#0d0f2a',
     route: '/dashboard',
     Icon: MindshareIcon,
-    version: 'v26.07.31',
+    version: 'v26.08.08',
     features: ['Belge editörü & sayfa sistemi', 'Zeta AI yazma asistanı', 'Prime Drive bulut depolama', 'Quest haritası & XP sistemi'],
   },
   {

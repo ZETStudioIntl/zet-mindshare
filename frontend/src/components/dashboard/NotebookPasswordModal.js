@@ -8,6 +8,8 @@ const NotebookPasswordModal = ({
   nbPwError, setNbPwError,
   nbPwLoading, nbLockoutUntil, nbFailedAttempts,
   handleNotebookPasswordSubmit,
+  onForgotPassword,
+  t,
 }) => {
   const closeModal = () => { setNotebookPasswordModal(null); setNbPwInput(''); setNbPwConfirm(''); setNbPwError(''); };
 
@@ -90,6 +92,16 @@ const NotebookPasswordModal = ({
             {nbPwLoading ? '...' : notebookPasswordModal.mode === 'unlock' ? 'Aç' : notebookPasswordModal.mode === 'set' ? 'Kaydet' : 'Kaldır'}
           </button>
         </div>
+
+        {notebookPasswordModal.mode === 'unlock' && onForgotPassword && (
+          <button
+            onClick={() => onForgotPassword('notebook', notebookPasswordModal.notebookId)}
+            className="w-full mt-3 text-xs text-center transition-all hover:opacity-80"
+            style={{ color: 'var(--zet-text-muted)', background: 'none', border: 'none', cursor: 'pointer' }}
+          >
+            {t ? t('forgotPassword') : 'Şifremi Unuttum'}
+          </button>
+        )}
       </div>
     </div>
   );

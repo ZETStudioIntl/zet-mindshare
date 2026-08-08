@@ -339,16 +339,16 @@ const LoginPage = () => {
             </button>
             <p className="text-xs leading-relaxed" style={{ color: 'var(--zet-text-muted)' }}>
               ZET Studio International{' '}
-              <a href="https://zetstudiointl.com/kullanim-kosillari" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="terms-link">
-                Kullanim Kosullari
+              <a href="https://zetstudiointl.com/kullanim-kosullari" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="terms-link">
+                Kullanım Koşulları
               </a>
               ,{' '}
               <a href="https://zetstudiointl.com/cerez-politikasi" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="payment-terms-link">
-                Cerez Politikasi
+                Çerez Politikası
               </a>
               {' '}ve{' '}
               <a href="https://zetstudiointl.com/gizlilik-politikasi" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-80" style={{ color: 'var(--zet-primary-light)' }} data-testid="privacy-policy-link">
-                Gizlilik Politikasi
+                Gizlilik Politikası
               </a>
               'ni okudum ve kabul ediyorum.
             </p>
