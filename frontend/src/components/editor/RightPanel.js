@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditorStateContext } from '../../contexts/EditorStateContext';
-import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Volume2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 import SelfTestPanel from './SelfTestPanel';
@@ -42,6 +42,8 @@ export const RightPanel = ({
   onAddImageToCanvas,
   canvasElements,
   activeTool,
+  initialZetaInput,
+  onZetaInputChange,
 }) => {
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -68,7 +70,8 @@ export const RightPanel = ({
 
   // ZETA Chat state
   const [zetaMessages, setZetaMessages] = useState([]);
-  const [zetaInput, setZetaInput] = useState('');
+  const [zetaInput, setZetaInputRaw] = useState(initialZetaInput || '');
+  const setZetaInput = (val) => { setZetaInputRaw(val); onZetaInputChange?.(val); };
   const [zetaLoading, setZetaLoading] = useState(false);
   const [zetaSessionId, setZetaSessionId] = useState(null);
   const [zetaFeedbacks, setZetaFeedbacks] = useState({});
@@ -712,11 +715,6 @@ export const RightPanel = ({
                     <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14c0 1.66 4.03 3 9 3s9-1.34 9-3V5"/><path d="M3 12c0 1.66 4.03 3 9 3s9-1.34 9-3"/>
                   </svg>
                 </button>
-                {onShowChatSettings && (
-                  <button onClick={onShowChatSettings} data-testid="chat-settings-btn" className="p-1 hover:bg-white/10 rounded" title="Chat Ayarları">
-                    <Settings className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
-                  </button>
-                )}
               </div>
 
               {/* Model Dropdown */}
@@ -849,9 +847,6 @@ export const RightPanel = ({
                       </div>
                       {msg.role === 'assistant' && (
                         <div className="flex flex-col gap-0.5 flex-shrink-0">
-                          <button onClick={() => speakMessage(msg.content, i)} className={`p-1 rounded hover:bg-white/10 ${speakingMsg === i ? 'bg-white/10' : ''}`} title="Dinle">
-                            <Volume2 className={`h-3 w-3 ${speakingMsg === i ? 'text-blue-400' : ''}`} style={{ color: speakingMsg === i ? undefined : 'var(--zet-text-muted)' }} />
-                          </button>
                           {onApplyEdit && !patchContent && (
                             <button onClick={() => onApplyEdit(msg.content)} className="p-1 rounded hover:bg-white/10" title="Belgeye uygula">
                               <Check className="h-3 w-3" style={{ color: '#22c55e' }} />
@@ -967,13 +962,13 @@ export const RightPanel = ({
                 </div>
               )}
               <div className="flex gap-1 items-end">
-                {/* Gear/settings button — shows active mode colour */}
+                {/* Mode button — shows active mode colour */}
                 {(() => {
                   const modeColor = zetaMode === 'patch' ? '#10b981' : zetaMode === 'colors' ? '#ec4899' : zetaMode === 'edit' ? '#4ca8ad' : 'var(--zet-primary)';
                   return (
                     <button onClick={() => setShowModePanel(v => !v)} className="zet-btn px-2 flex-shrink-0" title="Mod seç"
                       style={{ color: modeColor, background: showModePanel ? modeColor + '18' : undefined }}>
-                      <Settings className="h-3 w-3" />
+                      <Layers className="h-3.5 w-3.5" />
                     </button>
                   );
                 })()}

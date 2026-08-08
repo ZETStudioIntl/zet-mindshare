@@ -18,7 +18,7 @@ import { TOOLS } from '../../lib/editorConstants';
 import { MiniDocLoader } from '../LoadingScreens';
 import {
   Home, Save, Undo, Redo, ArrowLeft, ArrowRight,
-  Upload, Loader2, X, Play, Pause, SkipBack, SkipForward, Volume2,
+  Loader2, X, Play, Pause, SkipBack, SkipForward, Volume2,
   Menu, Layers, Sparkles, Zap, Keyboard, Download,
   Share2, MessageSquare, Users,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
@@ -498,7 +498,18 @@ const EditorDesktopLayout = () => {
               <h3 className="font-medium text-sm" style={{ color: 'var(--zet-text)' }}>{changeImageTarget ? 'Gorsel Degistir' : uploadForShape ? 'Sekle Ekle' : t('image')}</h3>
               <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
             </div>
-            <label data-testid="image-upload-btn" className="zet-btn w-full flex items-center justify-center gap-2 cursor-pointer py-3"><Upload className="h-4 w-4" /><span>Choose File</span><input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" /></label>
+            <div className="flex gap-2">
+              <label className="zet-btn flex-1 flex items-center justify-center gap-2 cursor-pointer py-2.5">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                <span>{t('selectPhoto')}</span>
+                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              </label>
+              <label className="zet-btn flex-1 flex items-center justify-center gap-2 cursor-pointer py-2.5">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span>{t('selectFile')}</span>
+                <input type="file" accept="image/*,application/pdf" onChange={handleImageUpload} className="hidden" />
+              </label>
+            </div>
           </div>
         </div>
       )}
