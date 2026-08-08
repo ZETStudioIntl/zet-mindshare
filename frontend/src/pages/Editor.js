@@ -796,6 +796,9 @@ const Editor = () => {
   const saveDocumentRef = useRef(null);
   const latestSaveDataRef = useRef(null);
   const isMountedRef = useRef(true);
+  const serverUpdatedAtRef = useRef(null); // cross-device sync: son bilinen sunucu updated_at
+  const currentPageRef = useRef(0);        // interval closure'larında güncel sayfa no
+  const saveStatusRef = useRef('saved');   // interval closure'larında güncel kayıt durumu
   const canvasContainerRef = useRef(null);
   const gradientBarRef = useRef(null);
   const activeToolRef = useRef('select');
@@ -1411,6 +1414,26 @@ const Editor = () => {
         applyDocSettings(local.settings || null);
         if (local.pages.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
         currentDoc = local;
+        serverUpdatedAtRef.current = local.updated_at || null;
+        // Sunucuda daha yeni bir versiyon var mı? (arka planda, sessizce)
+        if (navigator.onLine) {
+          try {
+            const metaRes = await axios.get(`${API}/documents/${docId}/meta`, { withCredentials: true });
+            const serverTs = metaRes.data.updated_at ? new Date(metaRes.data.updated_at).getTime() : 0;
+            const localTs = local.updated_at ? new Date(local.updated_at).getTime() : 0;
+            if (serverTs > localTs + 5000) {
+              const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
+              if (!isMountedRef.current) return;
+              applyDocSettings(res.data.settings || null);
+              if (res.data.pages?.some(p => p.elements?.length > 0 || p.drawPaths?.length > 0)) docHadContentRef.current = true;
+              await saveDoc(res.data);
+              currentDoc = res.data;
+              serverUpdatedAtRef.current = res.data.updated_at || null;
+            } else {
+              serverUpdatedAtRef.current = metaRes.data.updated_at || local.updated_at || null;
+            }
+          } catch {}
+        }
       } else {
         // IndexedDB'de yok — sunucudan çek
         const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
@@ -1547,6 +1570,7 @@ const Editor = () => {
       });
       setDocument(prev => ({ ...prev, pages: updatedPages }));
       setSaveStatus('saved');
+      serverUpdatedAtRef.current = now;
       // Undo stack ve versiyon geçmişini IndexedDB'ye kaydet
       saveUndoStack(docId, currentPage, history.serialize()).catch(() => {});
       saveDocVersion(docId, document.title, updatedPages, docSettings).catch(() => {});
@@ -1556,7 +1580,9 @@ const Editor = () => {
           title: document.title, subtitle: document.subtitle || null,
           content: document.content, pages: updatedPages,
           settings: docSettings, mindmap: document.mindmap || null,
-        }, { withCredentials: true }).catch(() => {});
+        }, { withCredentials: true })
+          .then(r => { if (r.data?.updated_at) serverUpdatedAtRef.current = r.data.updated_at; })
+          .catch(() => {});
       }
     } catch { setSaveStatus('error'); } finally { if (!silent) setSaving(false); }
   }
@@ -1570,6 +1596,37 @@ const Editor = () => {
       saveDocumentRef.current?.(true);
     }, 30000);
     return () => { if (autoSave30Ref.current) clearInterval(autoSave30Ref.current); };
+  }, [docId, isReadOnly]);
+
+  // Interval closure'ları için ref'leri güncel tut
+  useEffect(() => { currentPageRef.current = currentPage; }, [currentPage]);
+  useEffect(() => { saveStatusRef.current = saveStatus; }, [saveStatus]);
+
+  // === ÇAPRAZ CİHAZ SENKRONIZASYON POLLING (60 saniye) ===
+  useEffect(() => {
+    if (!docId || isReadOnly) return;
+    const syncId = setInterval(async () => {
+      if (!navigator.onLine || !isMountedRef.current) return;
+      if (!serverUpdatedAtRef.current) return;
+      try {
+        const metaRes = await axios.get(`${API}/documents/${docId}/meta`, { withCredentials: true });
+        const serverTs = metaRes.data.updated_at ? new Date(metaRes.data.updated_at).getTime() : 0;
+        const knownTs = serverUpdatedAtRef.current ? new Date(serverUpdatedAtRef.current).getTime() : 0;
+        if (serverTs > knownTs + 5000 && saveStatusRef.current === 'saved') {
+          const res = await axios.get(`${API}/documents/${docId}`, { withCredentials: true });
+          if (!isMountedRef.current) return;
+          applyDocSettings(res.data.settings || null);
+          await saveDoc(res.data);
+          setDocument(res.data);
+          const page = currentPageRef.current;
+          setCanvasElements(res.data.pages?.[page]?.elements || []);
+          setDrawPaths(res.data.pages?.[page]?.drawPaths || []);
+          serverUpdatedAtRef.current = res.data.updated_at || null;
+        }
+      } catch {}
+    }, 60000);
+    return () => clearInterval(syncId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [docId, isReadOnly]);
 
   // === PAGE CHANGE (saves current page first) ===

@@ -3407,6 +3407,16 @@ async def get_document(doc_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Document not found")
     return doc
 
+@api_router.get("/documents/{doc_id}/meta")
+async def get_document_meta(doc_id: str, user: User = Depends(get_current_user)):
+    doc = await db.documents.find_one(
+        {"doc_id": doc_id, "user_id": user.user_id},
+        {"_id": 0, "updated_at": 1}
+    )
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    return {"updated_at": doc.get("updated_at")}
+
 _version_throttle: dict = {}  # doc_id → last saved unix timestamp
 _VERSION_INTERVAL = 120  # 2 dakika
 
