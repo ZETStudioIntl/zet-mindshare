@@ -1,4 +1,4 @@
-import React, { useContext } from 'react';
+import React, { useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { EditorStateContext } from '../../contexts/EditorStateContext';
@@ -17,12 +17,12 @@ import { startCheckout } from '../../lib/lemonSqueezy';
 import { TOOLS } from '../../lib/editorConstants';
 import { MiniDocLoader } from '../LoadingScreens';
 import {
-  Home, Save, Undo, Redo, ArrowLeft, ArrowRight,
+  Home, Save,
   Loader2, X, Play, Pause, SkipBack, SkipForward, Volume2,
-  Menu, Layers, Sparkles, Zap, Keyboard, Download,
-  Share2, MessageSquare, Users,
+  Zap, Keyboard, Download,
+  Share2, MessageSquare,
   PanelLeftClose, PanelLeftOpen, PanelRightClose, PanelRightOpen,
-  Group, Ungroup, CircleCheck, Cloud, Crown, Lock, AlertTriangle, RotateCcw, History,
+  Group, Ungroup, CircleCheck, Cloud, Lock, AlertTriangle, RotateCcw, History,
 } from 'lucide-react';
 
 const EditorDesktopLayout = () => {
@@ -74,8 +74,15 @@ const EditorDesktopLayout = () => {
     approveZetaOps, rejectZetaOps,
     activeFormattingRef,
   } = useContext(EditorStateContext);
+
+  const desktopPhotoRef = useRef(null);
+  const desktopFileRef = useRef(null);
+
   return (
     <div data-testid="editor-page" className="h-screen flex flex-col" style={{ background: 'var(--zet-bg)' }}>
+      {/* Hidden file inputs — outside overlay for browser security */}
+      <input ref={desktopPhotoRef} type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
+      <input ref={desktopFileRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={handleImageUpload} />
       {/* Offline banner */}
       {!isOnline && (
         <div className="fixed bottom-4 left-1/2 z-[500] -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full text-xs font-semibold shadow-lg"
@@ -487,16 +494,14 @@ const EditorDesktopLayout = () => {
               <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }}><X className="h-4 w-4" style={{ color: 'var(--zet-text-muted)' }} /></button>
             </div>
             <div className="flex gap-2">
-              <label className="zet-btn flex-1 flex items-center justify-center gap-2 cursor-pointer py-2.5">
+              <button onClick={() => { setShowImageUpload(false); setTimeout(() => desktopPhotoRef.current?.click(), 50); }} className="zet-btn flex-1 flex items-center justify-center gap-2 py-2.5">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                 <span>{t('selectPhoto')}</span>
-                <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-              </label>
-              <label className="zet-btn flex-1 flex items-center justify-center gap-2 cursor-pointer py-2.5">
+              </button>
+              <button onClick={() => { setShowImageUpload(false); setTimeout(() => desktopFileRef.current?.click(), 50); }} className="zet-btn flex-1 flex items-center justify-center gap-2 py-2.5">
                 <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                 <span>{t('selectFile')}</span>
-                <input type="file" accept="image/*,application/pdf" onChange={handleImageUpload} className="hidden" />
-              </label>
+              </button>
             </div>
           </div>
         </div>

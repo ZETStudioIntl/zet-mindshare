@@ -67,6 +67,7 @@ export const RightPanel = ({
   const consoleEndRef = useRef(null);
   const consoleInputRef = useRef(null);
   const zetaRegenRef = useRef(null);
+  const recognitionRef = useRef(null);
   const showPages = forceSection ? forceSection === 'pages' : true;
   const showZeta = forceSection ? forceSection === 'zeta' : true;
 
@@ -74,6 +75,7 @@ export const RightPanel = ({
   const [zetaMessages, setZetaMessages] = useState([]);
   const [zetaInput, setZetaInputRaw] = useState(initialZetaInput || '');
   const setZetaInput = (val) => { setZetaInputRaw(val); onZetaInputChange?.(val); };
+  const [isRecording, setIsRecording] = useState(false);
   const [zetaLoading, setZetaLoading] = useState(false);
   const [zetaSessionId, setZetaSessionId] = useState(null);
   const [zetaFeedbacks, setZetaFeedbacks] = useState({});
@@ -607,6 +609,30 @@ export const RightPanel = ({
     setZetaLoading(false);
   };
 
+  const startVoiceInput = () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    const r = new SR();
+    r.lang = navigator.language || 'tr-TR';
+    r.continuous = false;
+    r.interimResults = false;
+    r.onresult = (e) => {
+      const txt = e.results[0][0].transcript;
+      setZetaInput(zetaInput ? zetaInput + ' ' + txt : txt);
+      setIsRecording(false);
+    };
+    r.onerror = () => setIsRecording(false);
+    r.onend = () => setIsRecording(false);
+    recognitionRef.current = r;
+    r.start();
+    setIsRecording(true);
+  };
+
+  const stopVoiceInput = () => {
+    recognitionRef.current?.stop();
+    setIsRecording(false);
+  };
+
   const stats = { pageCount: doc?.pages?.length || 0, wordCount };
 
   if (isOpen === false && !forceSection) {
@@ -1009,6 +1035,24 @@ export const RightPanel = ({
                   className="zet-input flex-1 text-xs py-1.5"
                   style={{ resize: 'none', overflow: 'hidden', lineHeight: '1.4' }}
                 />
+                {(window.SpeechRecognition || window.webkitSpeechRecognition) && (
+                  <button
+                    onClick={isRecording ? stopVoiceInput : startVoiceInput}
+                    className="zet-btn px-2 flex-shrink-0"
+                    title={isRecording ? 'Kaydı Durdur' : 'Sesle Yaz'}
+                    style={{ background: isRecording ? 'rgba(239,68,68,0.2)' : undefined, color: isRecording ? '#ef4444' : undefined }}
+                  >
+                    {isRecording ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="#ef4444"><rect x="4" y="4" width="16" height="16" rx="2"/></svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                        <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+                      </svg>
+                    )}
+                  </button>
+                )}
                 <button data-testid="zeta-send-btn" onClick={zetaMode === 'edit' ? sendEditMessage : sendZetaMessage}
                   disabled={zetaMode === 'edit' ? zetaEditLoading : zetaLoading}
                   className="zet-btn px-2">

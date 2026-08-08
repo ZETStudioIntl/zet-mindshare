@@ -62,8 +62,11 @@ const EditorMobileLayout = () => {
 
   return (
       <div data-testid="editor-page" className="flex flex-col overflow-hidden" style={{ background: 'var(--zet-bg)', height: '100dvh', maxHeight: '100dvh' }}>
-        {/* Hidden PDF file input — same as desktop, needed for importpdf tool */}
+        {/* Hidden file inputs — must be outside any overlay for browser security */}
         <input ref={pdfInputRef} type="file" accept=".pdf,.ms,.txt,.md,.docx,.html,.htm" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) importFile(f); e.target.value = ''; }} />
+        <input ref={photoUploadRef} type="file" accept="image/*" className="hidden" onChange={(e) => { handleImageUpload(e); e.target.value = ''; }} />
+        <input ref={fileUploadRef} type="file" accept="image/*,application/pdf" className="hidden" onChange={(e) => { handleImageUpload(e); e.target.value = ''; }} />
+        <input ref={cameraUploadRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { handleImageUpload(e); e.target.value = ''; }} />
         {/* Mobile Header */}
         <header className="h-11 px-2 flex items-center justify-between border-b flex-shrink-0" style={{ borderColor: 'var(--zet-border)' }}>
           <div className="flex items-center gap-1 min-w-0 flex-1">
@@ -85,7 +88,32 @@ const EditorMobileLayout = () => {
           </div>
         </header>
 
-        {/* Mobile Canvas */}
+        {/* Mobile Zeta Panel — in-flow, full height between header and nav */}
+        {mobilePanel === 'zeta' && (
+          <div className="flex-1 flex flex-col min-h-0" style={{ background: 'var(--zet-bg-card)' }}>
+            <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
+              pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
+              docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
+              forceSection="zeta" onExport={() => handleExport('pdf')} exporting={exporting}
+              documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan}
+              onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
+              zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
+              onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
+              onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
+              onInsertText={handleInsertText}
+              initialZetaInput={zetaDraftRef.current}
+              onZetaInputChange={(val) => { zetaDraftRef.current = val; }}
+              onAddImageToCanvas={(src) => {
+                const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'image', x: 20, y: 40, width: 200, height: 200, src }];
+                setCanvasElements(updated);
+                handleSaveHistory(updated);
+              }}
+              canvasElements={canvasElements} activeTool={activeTool} />
+          </div>
+        )}
+
+        {/* Mobile Canvas — hidden when Zeta is active */}
+        {mobilePanel !== 'zeta' && (
         <div className="flex-1 relative" style={{ touchAction: 'pan-y', overflowY: 'scroll', WebkitOverflowScrolling: 'touch', minHeight: 0 }}>
           {isReadOnly && (
             <>
@@ -127,9 +155,10 @@ const EditorMobileLayout = () => {
             snapToGrid={snapToGrid} userPlan={userPlan} onEditChart={handleEditChart}
             screenplayMode={screenplayMode} onScriptElementChange={handleScriptElementChange} />
         </div>
+        )}
 
         {/* Multi-select Alignment Toolbar */}
-        {selectedElements.length > 1 && (
+        {mobilePanel !== 'zeta' && selectedElements.length > 1 && (
           <div className="flex-shrink-0 border-t px-2 py-1 flex items-center gap-1 overflow-x-auto flex-wrap" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
             <span className="text-xs mr-1 flex-shrink-0" style={{ color: 'var(--zet-text-muted)' }}>{selectedElements.length} seçili</span>
             {[
@@ -149,7 +178,7 @@ const EditorMobileLayout = () => {
         )}
 
         {/* Fast Select Bar */}
-        {fastSelectTools.length > 0 && (
+        {mobilePanel !== 'zeta' && fastSelectTools.length > 0 && (
           <div className="flex-shrink-0 border-t px-2 py-1 flex items-center gap-1 overflow-x-auto" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
             <Zap className="h-3.5 w-3.5 flex-shrink-0" style={{ color: 'var(--zet-primary-light)' }} />
             {fastSelectTools.map(toolId => {
@@ -166,7 +195,6 @@ const EditorMobileLayout = () => {
                 </button>
               );
             })}
-            {/* Page indicator */}
             <div className="ml-auto flex-shrink-0 flex items-center gap-1 text-xs" style={{ color: 'var(--zet-text-muted)' }}>
               <span>{currentPage + 1}/{document.pages?.length || 1}</span>
             </div>
@@ -280,34 +308,6 @@ const EditorMobileLayout = () => {
           </div>
         )}
 
-        {/* Mobile Zeta Panel — fullscreen */}
-        {mobilePanel === 'zeta' && (
-          <div className="fixed inset-0 z-50 flex flex-col" style={{ background: 'var(--zet-bg-card)' }}>
-            <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
-              pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
-              docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
-              forceSection="zeta" onExport={() => handleExport('pdf')} exporting={exporting}
-              documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan}
-              onShowUpgrade={(reason) => { setUpgradeReason(reason); setShowUpgradeModal(true); }}
-              zetaMood={zetaMood} zetaEmoji={zetaEmoji} zetaCustomPrompt={zetaCustomPrompt} judgeMood={judgeMood}
-              onAutoWriteContent={handleAutoWriteContent} onRefreshCredits={refreshCredits}
-              onUpdateSettings={handleUpdateSettings} onTakeNote={handleZetaTakeNote}
-              onInsertText={handleInsertText}
-              initialZetaInput={zetaDraftRef.current}
-              onZetaInputChange={(val) => { zetaDraftRef.current = val; }}
-              onAddImageToCanvas={(src) => {
-                const updated = [...canvasElements, { id: `el_${Date.now()}`, type: 'image', x: 20, y: 40, width: 200, height: 200, src }];
-                setCanvasElements(updated);
-                handleSaveHistory(updated);
-              }}
-              canvasElements={canvasElements} activeTool={activeTool} />
-            <div className="flex-shrink-0 border-t px-4 py-2" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg)' }}>
-              <button onClick={() => setMobilePanel(null)} className="w-full py-2 rounded-lg text-sm font-medium" style={{ background: 'var(--zet-bg-card)', border: '1px solid var(--zet-border)', color: 'var(--zet-text-muted)' }}>
-                <X className="h-4 w-4 inline mr-2" />Kapat
-              </button>
-            </div>
-          </div>
-        )}
 
         {/* Voice bar + floating panels */}
         {false && showVoice && (
@@ -361,27 +361,24 @@ const EditorMobileLayout = () => {
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-3 px-4 pb-6 pt-2">
-                <label className="flex flex-col items-center gap-2 py-4 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.2)' }}>
+                <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); setTimeout(() => photoUploadRef.current?.click(), 50); }} className="flex flex-col items-center gap-2 py-4 rounded-xl hover:bg-white/5 transition-colors" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.2)' }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ca8ad" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
                   </svg>
                   <span className="text-xs font-medium" style={{ color: '#4ca8ad' }}>{t('photosBtn')}</span>
-                  <input ref={photoUploadRef} type="file" accept="image/*" onChange={(e) => { handleImageUpload(e); setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }} className="hidden" />
-                </label>
-                <label className="flex flex-col items-center gap-2 py-4 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.2)' }}>
+                </button>
+                <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); setTimeout(() => fileUploadRef.current?.click(), 50); }} className="flex flex-col items-center gap-2 py-4 rounded-xl hover:bg-white/5 transition-colors" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.2)' }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ca8ad" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
                   </svg>
                   <span className="text-xs font-medium" style={{ color: '#4ca8ad' }}>{t('filesBtn')}</span>
-                  <input ref={fileUploadRef} type="file" accept="image/*,application/pdf" onChange={(e) => { handleImageUpload(e); setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }} className="hidden" />
-                </label>
-                <label className="flex flex-col items-center gap-2 py-4 rounded-xl cursor-pointer hover:bg-white/5 transition-colors" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.2)' }}>
+                </button>
+                <button onClick={() => { setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); setTimeout(() => cameraUploadRef.current?.click(), 50); }} className="flex flex-col items-center gap-2 py-4 rounded-xl hover:bg-white/5 transition-colors" style={{ background: 'rgba(76,168,173,0.08)', border: '1px solid rgba(76,168,173,0.2)' }}>
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ca8ad" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>
                   </svg>
                   <span className="text-xs font-medium" style={{ color: '#4ca8ad' }}>{t('cameraBtn')}</span>
-                  <input ref={cameraUploadRef} type="file" accept="image/*" capture="environment" onChange={(e) => { handleImageUpload(e); setShowImageUpload(false); setUploadForShape(null); setChangeImageTarget(null); }} className="hidden" />
-                </label>
+                </button>
               </div>
             </div>
           </div>
