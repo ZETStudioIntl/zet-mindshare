@@ -258,3 +258,36 @@ export function RainbowSpinner({ size = 32, thickness = 4 }) {
     </>
   );
 }
+
+/* ─── ZET Dual Spinner (Mindshare + Judge renkleri) ──────────────── */
+
+const ZET_SPIN_CSS = `
+@keyframes zet-dual-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+`;
+
+export function ZetSpinner({ size = 40, thickness = 5 }) {
+  const hole = Math.round(((size - thickness * 2) / size) * 100);
+  return (
+    <>
+      <style>{ZET_SPIN_CSS}</style>
+      <div style={{
+        width: size, height: size, borderRadius: '50%', flexShrink: 0,
+        background: 'conic-gradient(from 0deg, #4ca8ad 0%, #4ca8ad 40%, #c8005a 60%, #c8005a 100%)',
+        animation: 'zet-dual-spin 0.9s linear infinite',
+        WebkitMask: `radial-gradient(farthest-side, transparent ${hole}%, black ${hole + 1}%)`,
+        mask: `radial-gradient(farthest-side, transparent ${hole}%, black ${hole + 1}%)`,
+      }} />
+    </>
+  );
+}
+
+export function ZetSpinnerScreen() {
+  return (
+    <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--zet-bg, #0d1117)' }}>
+      <ZetSpinner size={44} thickness={5} />
+    </div>
+  );
+}

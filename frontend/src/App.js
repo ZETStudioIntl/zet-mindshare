@@ -7,6 +7,7 @@ import { LanguageProvider } from "./contexts/LanguageContext";
 import { AppThemeProvider } from "./contexts/AppThemeContext";
 import AuthCallback from "./components/AuthCallback";
 import ProtectedRoute from "./components/ProtectedRoute";
+import { A4LoadingScreen, ScalesLoadingScreen } from "./components/LoadingScreens";
 import LoginPage from "./pages/LoginPage";
 import Dashboard from "./pages/Dashboard";
 import Editor from "./pages/Editor";
@@ -21,6 +22,7 @@ import JudgeDashboard from "./pages/JudgeDashboard";
 import PaymentSuccess from "./pages/PaymentSuccess";
 import MediaApp from "./apps/media/App";
 import ControlCenter from "./pages/ControlCenter";
+import ConfirmPasswordReset from "./pages/ConfirmPasswordReset";
 import axios from "axios";
 
 const BanScreen = ({ reason, bannedUntil }) => {
@@ -288,22 +290,22 @@ const AppRouter = () => {
         <Routes location={location}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/dashboard" element={
-            <ProtectedRoute>
+            <ProtectedRoute loader={<A4LoadingScreen playSound={false} />}>
               <Dashboard />
             </ProtectedRoute>
           } />
           <Route path="/editor/:docId" element={
-            <ProtectedRoute>
+            <ProtectedRoute loader={<A4LoadingScreen playSound={false} />}>
               <Editor />
             </ProtectedRoute>
           } />
           <Route path="/quest-map" element={
-            <ProtectedRoute>
+            <ProtectedRoute loader={<A4LoadingScreen playSound={false} />}>
               <QuestMap />
             </ProtectedRoute>
           } />
           <Route path="/profile/:username" element={
-            <ProtectedRoute>
+            <ProtectedRoute loader={<A4LoadingScreen playSound={false} />}>
               <Profile />
             </ProtectedRoute>
           } />
@@ -313,17 +315,18 @@ const AppRouter = () => {
             </ProtectedRoute>
           } />
           <Route path="/judge" element={
-            <ProtectedRoute>
+            <ProtectedRoute loader={<ScalesLoadingScreen playSound={false} />}>
               <JudgeDashboard />
             </ProtectedRoute>
           } />
           <Route path="/trash" element={
-            <ProtectedRoute>
+            <ProtectedRoute loader={<A4LoadingScreen playSound={false} />}>
               <RecycleBin />
             </ProtectedRoute>
           } />
           <Route path="/payment/success" element={<PaymentSuccess />} />
           <Route path="/auth-callback" element={<AuthCallback />} />
+          <Route path="/confirm-password-reset" element={<ConfirmPasswordReset />} />
           <Route path="/shared/:shareId" element={<SharedView />} />
           <Route path="/confirm-delete" element={<ConfirmDelete />} />
           <Route path="/confirm-email-change" element={<ConfirmEmailChange />} />
@@ -374,6 +377,8 @@ function App() {
       `html { cursor: url('${pub}/cursors/arrow.svg') 1 1, default !important; }`,
       `a, button, [role="button"], label[for], select, .cursor-pointer, [style*="cursor: pointer"], [style*="cursor:pointer"], input[type="button"], input[type="submit"], input[type="reset"], input[type="checkbox"], input[type="radio"], summary { cursor: url('${pub}/cursors/touch.svg') 11 2, pointer !important; }`,
       `input[type="text"], input[type="email"], input[type="password"], input[type="search"], input[type="number"], input[type="url"], textarea, [contenteditable="true"] { cursor: text !important; }`,
+      `@keyframes zet-caret { 0%,49%{caret-color:#4ca8ad} 50%,100%{caret-color:#c8005a} }`,
+      `input[type="text"],input[type="email"],input[type="password"],input[type="search"],input[type="number"],input[type="url"],textarea,[contenteditable="true"]{animation:zet-caret 2.8s ease-in-out infinite;}`,
     ].join('\n');
     document.head.appendChild(s);
     return () => document.getElementById('__zet-cursors')?.remove();

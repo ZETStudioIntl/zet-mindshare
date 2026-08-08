@@ -27,6 +27,11 @@ function createWindow() {
 
   win.loadURL(APP_URL);
 
+  // Yüklenemezse yeniden dene (ağ hatası vb.)
+  win.webContents.on('did-fail-load', (event, errorCode) => {
+    if (errorCode !== -3) win.loadURL(APP_URL);
+  });
+
   // External links → default browser
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (!url.startsWith(APP_URL)) {
@@ -34,6 +39,16 @@ function createWindow() {
       return { action: 'deny' };
     }
     return { action: 'allow' };
+  });
+
+  // Dosya indirme — Downloads klasörüne kaydet ve aç
+  win.webContents.session.on('will-download', (event, item) => {
+    const fileName = item.getFilename();
+    const savePath = path.join(app.getPath('downloads'), fileName);
+    item.setSavePath(savePath);
+    item.once('done', (e, state) => {
+      if (state === 'completed') shell.showItemInFolder(savePath);
+    });
   });
 
   return win;
