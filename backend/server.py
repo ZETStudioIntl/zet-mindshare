@@ -487,6 +487,7 @@ class DocFileImportRequest(BaseModel):
 class PatchScanRequest(BaseModel):
     doc_content: str
     ignore_list: List[str] = []
+    page_count: int = 1
 
 class PatchAcceptRequest(BaseModel):
     count: int = 1
@@ -5990,7 +5991,14 @@ Hata yoksa: []"""
         for i, c in enumerate(corrections):
             if not c.get('id'):
                 c['id'] = f"c{i+1}"
-        return JSONResponse({"corrections": corrections, "can_word": can_word}, headers=cors_h)
+        # Sayfa başına 2 kredi
+        page_cost = 2 * max(1, req.page_count)
+        credit_info = await get_user_credits(user.user_id)
+        if credit_info['credits_remaining'] < page_cost:
+            return JSONResponse({"detail": f"Yetersiz kredi. Bu tarama {page_cost} kredi gerektirir."}, status_code=402, headers=cors_h)
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        await db.usage.update_one({"user_id": user.user_id, "date": today}, {"$inc": {"credits_used": page_cost}}, upsert=True)
+        return JSONResponse({"corrections": corrections, "can_word": can_word, "credits_spent": page_cost}, headers=cors_h)
     except (asyncio.CancelledError, Exception) as e:
         err_type = type(e).__name__
         err_msg = str(e)[:300]

@@ -2443,16 +2443,12 @@ const Editor = () => {
       const res = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-scan`, {
         doc_content: patchText,
         ignore_list: patchIgnoreList,
+        page_count: document?.pages?.length || 1,
       }, { withCredentials: true });
       console.log('[Patch] yanıt alındı:', res.data.corrections?.length, 'düzeltme', res.data);
       setPatchCorrections(res.data.corrections || []);
       setPatchScanned(true);
-      // Sayfa başına 2 kredi (kabuller ücretsiz)
-      const pageCount = document?.pages?.length || 1;
-      try {
-        await axios.post(`${process.env.REACT_APP_BACKEND_URL}/api/zeta/patch-accept`, { count: pageCount }, { withCredentials: true });
-        refreshCredits?.();
-      } catch {}
+      refreshCredits?.();
     } catch (e) {
       const detail = e.response?.data?.detail;
       console.error('[Patch] scan hatası:', e.message, '| detail:', detail);
