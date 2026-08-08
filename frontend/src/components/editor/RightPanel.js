@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useContext } from 'react';
 import { useLanguage } from '../../contexts/LanguageContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { EditorStateContext } from '../../contexts/EditorStateContext';
-import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronUp, Plus, Send, Download, Loader2, Settings, Check, Zap, Brain, Star, MessageSquare, Wrench, Layers, Palette, Paperclip, Pencil, Copy, ThumbsUp, ThumbsDown, RotateCcw, PanelRightOpen, PanelRightClose } from 'lucide-react';
 import axios from 'axios';
 import ZetaTypingIndicator from '../ZetaTypingIndicator';
 import SelfTestPanel from './SelfTestPanel';
@@ -44,6 +44,8 @@ export const RightPanel = ({
   activeTool,
   initialZetaInput,
   onZetaInputChange,
+  isOpen,
+  onToggle,
 }) => {
   const { t } = useLanguage();
   const { user } = useAuth();
@@ -607,6 +609,16 @@ export const RightPanel = ({
 
   const stats = { pageCount: doc?.pages?.length || 0, wordCount };
 
+  if (isOpen === false && !forceSection) {
+    return (
+      <div className="w-full h-full border-l flex flex-col items-center pt-1.5" style={{ borderColor: 'var(--zet-border)', background: 'var(--zet-bg-card)' }}>
+        <button onClick={onToggle} className="tool-btn w-7 h-7" title="Sağ Paneli Aç">
+          <PanelRightOpen className="h-4 w-4" />
+        </button>
+      </div>
+    );
+  }
+
   return (
     <div data-testid="right-panel" className="w-full h-full border-l flex flex-col" style={{ borderColor: 'var(--zet-border)' }}>
       {/* Export Button */}
@@ -629,9 +641,6 @@ export const RightPanel = ({
         </div>
         {pagesOpen && (
           <div className="px-2 pb-2">
-            <div className="text-xs mb-1" style={{ color: 'var(--zet-text-muted)' }}>
-              {stats.pageCount} {t('pages')} · {stats.wordCount} {t('words') || 'kelime'}
-            </div>
             <div className="grid grid-cols-3 gap-1 max-h-28 overflow-y-auto">
               {doc.pages?.map((page, idx) => (
                 <div key={page.page_id} className="relative group">
@@ -693,6 +702,11 @@ export const RightPanel = ({
           return (
             <div className="border-b flex-shrink-0 relative" style={{ borderColor: 'var(--zet-border)' }}>
               <div className="flex items-center px-2 py-1.5 gap-1">
+                {onToggle && (
+                  <button onClick={onToggle} className="p-1 hover:bg-white/10 rounded flex-shrink-0" title="Paneli Kapat">
+                    <PanelRightClose className="h-3.5 w-3.5" style={{ color: 'var(--zet-text-muted)' }} />
+                  </button>
+                )}
                 <img src="/zeta-icon.svg" alt="ZETA" style={{ width: 14, height: 14, filter: 'invert(45%) sepia(80%) saturate(600%) hue-rotate(200deg) brightness(120%)' }} />
                 <span className="font-semibold text-xs ml-0.5 flex-1" style={{ color: 'var(--zet-text)' }}>ZETA</span>
                 {/* Model Picker Button */}

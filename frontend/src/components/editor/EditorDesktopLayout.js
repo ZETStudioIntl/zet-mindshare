@@ -98,8 +98,6 @@ const EditorDesktopLayout = () => {
           </div>
         </div>
         <div className="flex items-center gap-1.5">
-          <button data-testid="undo-btn" onClick={handleUndo} disabled={!history.canUndo} className={`tool-btn w-8 h-8 ${!history.canUndo ? 'opacity-30' : ''}`}><Undo className="h-4 w-4" /></button>
-          <button data-testid="redo-btn" onClick={handleRedo} disabled={!history.canRedo} className={`tool-btn w-8 h-8 ${!history.canRedo ? 'opacity-30' : ''}`}><Redo className="h-4 w-4" /></button>
           {selectedElements.length >= 2 && (
             <button data-testid="group-btn" onClick={groupElements} className="tool-btn w-8 h-8 ml-1" title="Grupla"><Group className="h-4 w-4" /></button>
           )}
@@ -108,9 +106,6 @@ const EditorDesktopLayout = () => {
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <button data-testid="prev-page-btn" onClick={() => changePage(Math.max(0, currentPage - 1))} disabled={currentPage === 0} className={`tool-btn w-8 h-8 ${currentPage === 0 ? 'opacity-30' : ''}`}><ArrowLeft className="h-4 w-4" /></button>
-          <span className="text-xs font-medium px-1" style={{ color: 'var(--zet-text-muted)', minWidth: 28, textAlign: 'center' }}>{currentPage + 1}/{document.pages?.length || 1}</span>
-          <button data-testid="next-page-btn" onClick={() => changePage(Math.min((document.pages?.length || 1) - 1, currentPage + 1))} disabled={currentPage >= (document.pages?.length || 1) - 1} className={`tool-btn w-8 h-8 ${currentPage >= (document.pages?.length || 1) - 1 ? 'opacity-30' : ''}`}><ArrowRight className="h-4 w-4" /></button>
           
           {/* Fast Select in Header */}
           {fastSelectTools.length > 0 && (
@@ -170,14 +165,6 @@ const EditorDesktopLayout = () => {
             <Zap className="h-3 w-3" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }} />
             <span className="font-semibold" style={{ color: creditsRemaining > 0 ? '#4ca8ad' : '#ef4444' }}>{creditsRemaining}</span>
           </div>
-          <button onClick={() => setToolboxOpen(o => !o)} className="tool-btn w-8 h-8" title="Sol Panel">
-            {toolboxOpen ? <PanelLeftClose className="h-4 w-4" /> : <PanelLeftOpen className="h-4 w-4" />}
-          </button>
-          {!isFreeOffline && (
-            <button onClick={() => setRightOpen(o => !o)} className="tool-btn w-8 h-8" title="Sağ Panel">
-              {rightOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-            </button>
-          )}
           <button data-testid="save-btn" onClick={() => saveDocument()} className="zet-btn flex items-center gap-1 text-xs px-3 py-1.5"><Save className={`h-3.5 w-3.5 ${saving ? 'animate-pulse' : ''}`} /></button>
           <div data-testid="save-status" className="flex items-center gap-1 text-xs ml-1">
             {saveStatus === 'saved' && <><CircleCheck className="h-3 w-3" style={{ color: '#22c55e' }} /><span className="hidden sm:inline" style={{ color: '#22c55e' }}>Kaydedildi</span></>}
@@ -281,8 +268,9 @@ const EditorDesktopLayout = () => {
         <ResizableDivider onResize={delta => setRightWidth(w => Math.max(48, Math.min(500, w - delta)))} />
 
         {/* Sağ panel */}
-        <div style={{ width: rightOpen ? rightWidth : 0, height: '100%', overflow: 'hidden', flexShrink: 0, transition: 'width 0.3s' }}>
+        <div style={{ width: rightOpen ? rightWidth : 28, height: '100%', overflow: 'hidden', flexShrink: 0, transition: 'width 0.3s', minWidth: 28 }}>
           <RightPanel document={document} currentPage={currentPage} setCurrentPage={changePage}
+            isOpen={rightOpen} onToggle={() => setRightOpen(o => !o)}
             pageSize={pageSize} zoom={zoom} onAddPage={addPage} onDeletePage={deletePage}
             docId={docId} wordCount={getWordCount()} canvasContainerRef={canvasContainerRef}
             onExport={() => handleExport('pdf')} exporting={exporting} documentContent={getFullDocContent()} userUsage={userUsage} userPlan={userPlan}
